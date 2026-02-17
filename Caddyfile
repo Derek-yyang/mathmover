@@ -1,0 +1,3 @@
+mathmover.top, www.mathmover.top {
+    reverse_proxy web:5000
+}
