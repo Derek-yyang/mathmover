@@ -1,45 +1,138 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link'; 
+import { Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  Plus,
-  Settings,
   CloudUpload,
   FileDown,
   RefreshCw,
   MoreHorizontal,
-  Folder,
   LayoutGrid,
   ChevronDown,
-  Clock,
   PenTool,
   Loader2,
   Maximize2,
-  X
+  X,
+  Clock,
+  ArrowRight,
+  Check,
+  Copy
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import GeoGebraBoard from '../../components/GeoGebraBoard';
+import { supabase } from '../../lib/supabase';
+
+// 类型定义
+interface GeoGebraApi {
+  newConstruction: () => void;
+  setPerspective: (p: string) => void;
+  setAxesVisible: (x: boolean, y: boolean, z?: boolean) => void;
+  setGridVisible: (v: boolean) => void;
+  evalCommand: (cmd: string) => void;
+  getValue: (name: string) => number;
+  setValue: (name: string, val: number) => void;
+  registerUpdateListener: (fn: (name: string) => void) => void;
+  unregisterUpdateListener: (fn: (name: string) => void) => void;
+  getBase64: (cb: (b64: string) => void) => void;
+  refreshViews: () => void;
+  recalcDisplay?: () => void;
+  getAllObjectNames: () => string[];
+  getObjectType: (name: string) => string;
+  isIndependent: (name: string) => boolean;
+}
+
+interface GenerationRecord {
+  id: string;
+  user_id: string;
+  title: string | null;
+  problem_type: string | null;
+  image_url: string | null;
+  ggb_commands: string;
+  created_at: string;
+}
+
+interface UserProfile {
+  id: string;
+  monthly_credits: number;
+  permanent_credits: number;
+  use_custom_model: boolean;
+  custom_model_name?: string;
+}
 
 export default function Dashboard() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen bg-[#FDFCF8] text-stone-500">正在加载工作台...</div>}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+function DashboardContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("准备中...");
   const [isGenerated, setIsGenerated] = useState(false);
-  const [ggbApplet, setGgbApplet] = useState<any>(null);
+  const [ggbApplet, setGgbApplet] = useState<GeoGebraApi | null>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isDragOver, setIsDragOver] = useState(false);
-  const [progress, setProgress] = useState(0); // 新增进度条状态
-  const [problemType, setProblemType] = useState<string | null>(null); // 新增题目类型状态
-  const [isFullscreen, setIsFullscreen] = useState(false); // 新增全屏状态
-  const [isPreviewImageOpen, setIsPreviewImageOpen] = useState(false); // 图片预览状态
-  const [sliders, setSliders] = useState<{name: string, value: number | string, min: number, max: number}[]>([]); // 动态滑块列表 (value 支持 string 以允许空值输入)
-  const [activeSliderName, setActiveSliderName] = useState<string | null>(null); // 当前正在编辑的滑块名 (防抖用)
-  const [problemText, setProblemText] = useState(''); // 新增：题目补充文本
+  const [progress, setProgress] = useState(0); 
+  const [problemType, setProblemType] = useState<string | null>(null); 
+  const [isFullscreen, setIsFullscreen] = useState(false); 
+  const [isPreviewImageOpen, setIsPreviewImageOpen] = useState(false); 
+  const [sliders, setSliders] = useState<{name: string, value: number | string, min: number, max: number}[]>([]); 
+  const [activeSliderName, setActiveSliderName] = useState<string | null>(null); 
+  const [problemText, setProblemText] = useState(''); 
+  const [user, setUser] = useState<{ id: string } | null>(null); 
+  const [credits, setCredits] = useState<number>(0); 
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false); 
+  const [redeemCode, setRedeemCode] = useState(''); 
+  const [isRedeeming, setIsRedeeming] = useState(false); 
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | null }>({ message: '', type: null });
 
   const [pendingCommands, setPendingCommands] = useState<string[]>([]);
+  const [executedCommands, setExecutedCommands] = useState<string[]>([]);
+  const [isCopied, setIsCopied] = useState(false);
+  const [lastUploadedFile, setLastUploadedFile] = useState<File | null>(null);
+  const [lastUploadedUrl, setLastUploadedUrl] = useState<string | null>(null);
+
+  // 显示 Toast 提示
+  const showToast = (message: string, type: 'success' | 'error') => {
+      setToast({ message, type });
+      setTimeout(() => setToast({ message: '', type: null }), 3000);
+  };
+  
+  // 历史项目切换相关
+  const [recentHistory, setRecentHistory] = useState<GenerationRecord[]>([]);
+  const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  const projectMenuRef = useRef<HTMLDivElement>(null);
+  const currentHistoryId = searchParams.get('history_id');
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [savedImageUrl, setSavedImageUrl] = useState<string | null>(null);
+  const [currentProjectTitle, setCurrentProjectTitle] = useState<string>("未命名课件");
+
+  // 点击外部关闭项目菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (projectMenuRef.current && !projectMenuRef.current.contains(event.target as Node)) {
+        setIsProjectMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   
   // 题目类型映射
   const TYPE_MAP: Record<string, string> = { 
@@ -49,6 +142,200 @@ export default function Dashboard() {
       'D': '立体几何' 
   };
   
+  // 监听用户登录状态
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // 【诊断 3】Dashboard 读到的 Session
+      console.log("【诊断 3】Dashboard 读到的 Session:", session);
+
+      if (!session) {
+        // window.location.replace('/login');
+      } else {
+        setUser(session.user);
+        fetchCredits(session.user.id);
+        fetchRecentHistory(session.user.id);
+      }
+    };
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        // window.location.replace('/login');
+      } else if (session) {
+         setUser(session.user);
+         fetchRecentHistory(session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // 监听 URL 参数变化 (响应 Sidebar 操作)
+  useEffect(() => {
+      const action = searchParams.get('action');
+      const historyId = searchParams.get('history_id');
+
+      // 1. 处理兑换 (已改为跳转到个人中心，此处仅保留逻辑兼容或移除)
+      // 如果 action === 'redeem'，重定向到 profile
+      if (action === 'redeem') {
+          router.push('/dashboard/profile?tab=credits');
+          return;
+      } 
+      
+      // 2. 处理新建 (由 Sidebar 触发)
+      if (action === 'new') {
+          setFile(null);
+          setPreviewUrl(null);
+          setIsGenerated(false);
+          setProblemText('');
+          setProblemType(null);
+          setProgress(0);
+          setCurrentProjectTitle("未命名课件");
+          setLastUploadedFile(null); // 重置缓存
+          setLastUploadedUrl(null);
+          setActiveProjectId(null); // 重置当前项目 ID
+          setSavedImageUrl(null);
+          if (ggbApplet) ggbApplet.newConstruction();
+          // 清理 URL，防止刷新后仍然重置
+          router.replace('/dashboard');
+      }
+
+      if (historyId) {
+          setActiveProjectId(historyId);
+          fetchHistoryItem(historyId);
+      }
+  }, [searchParams]);
+
+  const fetchRecentHistory = async (userId: string) => {
+    const { data } = await supabase
+      .from('generations')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    setRecentHistory(data || []);
+  };
+
+  const fetchHistoryItem = async (id: string) => {
+      const { data, error } = await supabase
+          .from('generations')
+          .select('*')
+          .eq('id', id)
+          .single();
+      
+      if (data) {
+          loadHistoryItem(data);
+      }
+  };
+
+  // 获取积分 (用于生成前检查)
+  const fetchCredits = async (userId: string) => {
+      // 先执行积分同步（处理每日赠送逻辑）
+      await supabase.rpc('sync_user_credits', { user_uuid: userId });
+
+      const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+      
+      if (error) console.error('Error fetching credits:', error);
+      else {
+          // 计算总积分：月度赠送 + 永久积分
+          const total = (data?.monthly_credits || 0) + (data?.permanent_credits || 0);
+          setCredits(total);
+          setUserProfile(data);
+      }
+  };
+
+  // 加载历史记录项
+  const loadHistoryItem = (item: GenerationRecord) => {
+      // 1. 恢复图片预览
+      if (item.image_url) {
+          setPreviewUrl(item.image_url);
+          setSavedImageUrl(item.image_url);
+      } else {
+          setPreviewUrl(null);
+          setSavedImageUrl(null);
+      }
+      
+      // 2. 恢复题型
+      setProblemType(item.problem_type || null);
+
+      // 3. 更新标题
+      setCurrentProjectTitle(item.title || (item.problem_type ? TYPE_MAP[item.problem_type] : null) || '未命名课件');
+      
+      // 4. 恢复指令
+      try {
+          const commands = JSON.parse(item.ggb_commands);
+          if (Array.isArray(commands)) {
+              console.log('Restoring commands from history:', commands.length);
+              setPendingCommands(commands); 
+              setExecutedCommands(commands);
+              setIsGenerated(true); 
+          }
+      } catch (e) {
+          console.error('Failed to parse history commands:', e);
+      }
+  };
+
+  const handleSwitchProject = (item: GenerationRecord) => {
+      setIsProjectMenuOpen(false);
+      // 使用 router.push 触发 URL 变化，从而触发 useEffect -> fetchHistoryItem -> loadHistoryItem
+      // 这样保持了逻辑的一致性，且 URL 与内容同步
+      router.push(`/dashboard?history_id=${item.id}`);
+  };
+
+  // 兑换积分
+  const handleRedeem = async () => {
+      if (!redeemCode || redeemCode.length < 5) {
+          showToast('请输入有效的兑换码', 'error');
+          return;
+      }
+
+      if (!user) {
+          showToast('请先登录', 'error');
+          return;
+      }
+
+      setIsRedeeming(true);
+
+      try {
+          const { data, error } = await supabase.rpc('redeem_code', {
+              code_input: redeemCode,
+              user_uuid: user.id
+          });
+          
+          console.log("RPC 返回结果:", { data, error });
+          
+          if (error) {
+              showToast(`❌ ${error.message}`, 'error');
+              return;
+          }
+
+          // 兼容处理：RPC 返回 table 时 data 可能是数组
+          const result = Array.isArray(data) ? data[0] : data;
+          
+          if (result && result.success) {
+              showToast(`🎉 兑换成功！获得 ${result.points} 积分`, 'success');
+              setCredits(prev => prev + result.points);
+              setIsRedeemModalOpen(false);
+              setRedeemCode('');
+          } else {
+              const msg = result?.message || '兑换失败，未知错误';
+              showToast(`❌ ${msg}`, 'error');
+          }
+      } catch (err: unknown) {
+          console.error('Redeem failed:', err);
+          showToast('兑换失败：' + ((err as Error).message || '未知错误'), 'error');
+      } finally {
+          setIsRedeeming(false);
+      }
+  };
+
   // 监听粘贴事件
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
@@ -73,7 +360,6 @@ export default function Dashboard() {
     let progressInterval: NodeJS.Timeout;
     let textInterval: NodeJS.Timeout;
 
-    // 文案数组
     const statusMessages = [
         "正在识别题目图像信息...",
         "AI 正处于推导几何约束关系...",
@@ -83,40 +369,28 @@ export default function Dashboard() {
     ];
 
     if (isLoading) {
-      // 只有当进度为 0 时才重置（避免每次 isLoading 变化都重置）
-      // 实际上 handleRegenerate 已经设为 0 了，这里可以不做强校验，但为了稳健可以只在开始时执行
-      
-      // 1. 进度模拟 (非线性增长 - 均衡速度版)
       progressInterval = setInterval(() => {
         setProgress((prev) => {
-             // 绝对防御：一旦进度超过 90，这个定时器就彻底失效，不许动任何东西
              if (prev >= 90) {
                  return prev;
              }
-             
-             // 增长公式：剩余进度的 1/100 (折中方案：原 1/80 -> 1/150 -> 1/100)
              const increment = (90 - prev) / 100; 
-             // 最小增量 0.08
              return prev + (increment < 0.08 ? 0.08 : increment);
         });
       }, 100);
 
-      // 2. 文案轮播 (每7秒切换)
       let i = 0;
       textInterval = setInterval(() => {
         i++;
         if (i < statusMessages.length) {
             setLoadingText(statusMessages[i]);
         } else {
-            // 已到达最后一条文案，停止轮播，保持显示最后一条
             clearInterval(textInterval);
         }
       }, 7000);
 
     } 
     
-    // 关键修复：当 isLoading 变为 false 时，立即清除定时器
-    // 这能防止“完成动画”正在跑的时候，旧的“慢速增长定时器”还在后台捣乱修改数值
     return () => {
         if (progressInterval) clearInterval(progressInterval);
         if (textInterval) clearInterval(textInterval);
@@ -124,7 +398,7 @@ export default function Dashboard() {
   }, [isLoading]);
 
   // 核心逻辑 - 嗅探滑块
-  const detectSliders = (api: any) => {
+  const detectSliders = (api: GeoGebraApi) => {
       if (!api) return;
       
       const allObjects = api.getAllObjectNames();
@@ -132,42 +406,19 @@ export default function Dashboard() {
       
       allObjects.forEach((name: string) => {
           if (api.getObjectType(name) === 'numeric') {
-              // 检查是否是滑块 (通过检查是否可见、是否定义了 min/max)
-              // GeoGebra API 没有直接的 isSlider 方法，但通常滑块是独立的数值变量
-              // 我们可以假设所有独立数值变量都是潜在的滑块，或者通过名称约定 (t, m, k, angle)
-              
-              // 简单的启发式：如果是自由对象且是数值，就认为是滑块
-              // 或者更严格一点：只有当它有定义的 Slider 范围时
-              
-              // 注意：api.getValue(name) 返回数值
-              // api.getSliderMin(name) / api.getSliderMax(name) 如果没定义滑块可能会返回默认值或报错
-              // 我们尝试获取
               const val = api.getValue(name);
-              // 过滤掉常量 (如 pi, e) 和辅助计算值 (长度、面积等)
-              // 通常辅助计算值的标签模式不同，或者它们是因变量
               if (api.isIndependent(name)) {
-                  // 获取滑块范围，如果未设置，默认可能是 -5 到 5 或其他
-                  // 如果不是滑块，getSliderMin 好像会返回空或报错，需 try-catch
                   try {
-                      // 只有显式定义了滑块范围的才算
-                      // 或者是常用的变量名
                       newSliders.push({
                           name: name,
                           value: val,
-                          min: -10, // 默认范围，后续优化
+                          min: -10, 
                           max: 10
                       });
                   } catch (e) {}
               }
           }
       });
-      
-      // 进一步精细化：使用 API 获取真实范围
-      // 由于 GGB JS API 对 Slider 范围支持有限，我们这里做一个简单的后处理
-      // 实际上，我们更推荐只抓取我们在 Prompt 里生成的那些变量 (t, m, k, a, b, alpha, beta)
-      // 但为了通用性，我们保留所有独立数值
-      
-      // 优化：只显示前 5 个滑块，防止过多
       setSliders(newSliders.slice(0, 5));
   };
 
@@ -176,18 +427,14 @@ export default function Dashboard() {
       if (!ggbApplet || !isGenerated) return;
 
       const onUpdate = (objName: string) => {
-          // 如果当前正在编辑这个滑块，则暂停同步，防止光标跳动或输入被覆盖
           if (objName === activeSliderName) return;
 
-          // 检查更新的对象是否在我们的 sliders 列表中
           setSliders(prevSliders => {
               const index = prevSliders.findIndex(s => s.name === objName);
               if (index !== -1) {
                   const newVal = ggbApplet.getValue(objName);
                   const currentVal = prevSliders[index].value;
                   
-                  // 类型安全检查：如果是数字则比较，如果是字符串则强制更新（因为字符串意味着正在编辑，但这里理论上会被 activeSliderName 拦截）
-                  // 但为了保险，还是做一下比较
                   if (typeof currentVal === 'number' && Math.abs(currentVal - newVal) < 0.0001) {
                       return prevSliders;
                   }
@@ -200,26 +447,19 @@ export default function Dashboard() {
           });
       };
 
-      // 注册监听器
       ggbApplet.registerUpdateListener(onUpdate);
-      
-      // 初始嗅探
       detectSliders(ggbApplet);
 
       return () => {
-          // 清理监听器
           if (ggbApplet && ggbApplet.unregisterUpdateListener) {
               ggbApplet.unregisterUpdateListener(onUpdate);
           }
       };
-  }, [ggbApplet, isGenerated, activeSliderName]); // 增加 activeSliderName 依赖，确保监听器能获取最新状态
+  }, [ggbApplet, isGenerated, activeSliderName]);
 
   // React 控制 GGB
   const handleSliderChange = (name: string, inputVal: string) => {
-      // 1. 优先更新 React UI 状态，允许输入空字符串或负号
       setSliders(prev => prev.map(s => s.name === name ? { ...s, value: inputVal } : s));
-
-      // 2. 尝试解析为数字，如果是有效数字，则同步给 GeoGebra
       const numVal = parseFloat(inputVal);
       if (!isNaN(numVal) && inputVal !== '' && inputVal !== '-') {
            if (ggbApplet) {
@@ -229,8 +469,8 @@ export default function Dashboard() {
   };
 
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>, name: string) => {
-      setActiveSliderName(name); // 锁定当前滑块，暂停来自 GGB 的更新
-      e.target.select(); // 自动全选
+      setActiveSliderName(name); 
+      e.target.select(); 
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -240,8 +480,7 @@ export default function Dashboard() {
   };
 
   const handleInputBlur = (name: string) => {
-      setActiveSliderName(null); // 解锁
-      // 失去焦点时，强制用 GGB 的真实值刷新一下 UI，确保格式正确 (比如把 "1." 变成 "1.00")
+      setActiveSliderName(null); 
       if (ggbApplet) {
           const realVal = ggbApplet.getValue(name);
           setSliders(prev => prev.map(s => s.name === name ? { ...s, value: realVal } : s));
@@ -253,20 +492,16 @@ export default function Dashboard() {
     if (ggbApplet && pendingCommands.length > 0) {
         console.log('GeoGebra 就绪，开始执行待处理指令:', pendingCommands.length);
         
-        ggbApplet.newConstruction(); // 清空旧图
+        ggbApplet.newConstruction(); 
         
-        // 延迟 50ms 确保引擎重置完毕，再开始执行新指令
         setTimeout(() => {
-            // 检查模式并精准控制视图 (关键逻辑)
             const commandsToRun = [...pendingCommands];
-            let currentMode = '2D'; // 默认为 2D
+            let currentMode = '2D'; 
     
-            // 全局搜索 MODE 指令 (不局限于第一行)
             const modeIndex = commandsToRun.findIndex(cmd => cmd.startsWith('MODE:'));
             
             if (modeIndex !== -1) {
                 const modeCmd = commandsToRun[modeIndex];
-                // 移除这一行，避免作为普通指令执行
                 commandsToRun.splice(modeIndex, 1);
                 
                 if (modeCmd.includes('3D')) {
@@ -275,85 +510,68 @@ export default function Dashboard() {
                     currentMode = '2D';
                 }
             } else {
-                // 如果没有显式 MODE 指令，可以尝试根据 problemType 推断 (作为兜底)
                 if (problemType === 'D') {
                     currentMode = '3D';
                 }
             }
     
             if (currentMode === '2D') {
-                // 使用 evalCommand 执行脚本指令，更加稳健
                 ggbApplet.evalCommand('setPerspective("G")');
                 ggbApplet.evalCommand('ShowAxes(true)');
                 ggbApplet.evalCommand('ShowGrid(true)');
             } else {
-                // 3D 视图切换比较重，可能会重置画板，增加额外的延迟
-                ggbApplet.setPerspective("T"); // 3D 视图
+                ggbApplet.setPerspective("T"); 
                 ggbApplet.setAxesVisible(true, true, true);
                 ggbApplet.setGridVisible(true);
             }
     
-            // 延迟执行指令，等待视图切换完成 (特别是 3D 模式)
             setTimeout(() => {
-                // 逐行执行
                 commandsToRun.forEach((cmd) => {
                      try {
-                         // 处理可能的转义引号 (后端返回的 JSON 可能会有 \" )
-                         // 如果 cmd 包含转义的双引号 \"，GeoGebra 可能会报错，尝试还原
                          const cleanCmd = cmd.replace(/\\"/g, '"'); 
                          ggbApplet.evalCommand(cleanCmd);
-                         console.log('✅ 执行成功:', cleanCmd);
                      } catch (err) {
                          console.error('❌ 执行失败:', cmd, err);
                      }
                 });
                 
-                // 全局优化：调整字体大小
                 ggbApplet.evalCommand('SetFontSize(10)');
     
-                // 2D 模式下重置缩放，防止图形跑偏
                 if (currentMode === '2D') {
                     ggbApplet.evalCommand('CenterView((0,0))');
-                    ggbApplet.evalCommand('ZoomIn(-10)'); // 大幅拉远视角，增加呼吸感
+                    ggbApplet.evalCommand('ZoomIn(-10)'); 
                 }
         
-                // 强制视图刷新 (确保所有元素都被渲染)
                 ggbApplet.refreshViews();
                 
-                // 强制布局校准 (修复重新生成后的布局偏移)
                 if (ggbApplet.recalcDisplay) {
                     ggbApplet.recalcDisplay();
                 }
         
-                // 清空待处理指令，防止重复执行
                 setPendingCommands([]);
                 
-                // 绘图完成后，立即嗅探滑块
                 setTimeout(() => detectSliders(ggbApplet), 500);
-            }, 300); // 增加到 300ms 缓冲
+            }, 300); 
         }, 50);
     }
   }, [ggbApplet, pendingCommands]);
 
-  // 处理文件选择
   const handleFileSelect = (selectedFile: File) => {
     if (!selectedFile || !selectedFile.type.startsWith('image/')) {
-      alert('请上传有效的图片文件 (JPG, PNG).');
+      showToast('请上传有效的图片文件 (JPG, PNG).', 'error');
       return;
     }
     setFile(selectedFile);
     
-    // 生成预览
     const reader = new FileReader();
     reader.onload = (e) => {
       setPreviewUrl(e.target?.result as string);
     };
     reader.readAsDataURL(selectedFile);
     
-    // 重置状态
     setIsGenerated(false);
     setProblemType(null);
-    setProblemText(''); // 重置文本输入
+    setProblemText(''); 
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -363,10 +581,7 @@ export default function Dashboard() {
   };
 
   const handleRegenerate = () => {
-    setIsGenerated(false);
-    setIsLoading(true);
-    setProgress(0);
-    setProblemType(null);
+    // 立即触发生成
     handleGenerate();
   };
 
@@ -374,63 +589,135 @@ export default function Dashboard() {
     setIsFullscreen(value);
   };
   
-  // 监听全屏状态并调整 GGB 尺寸 (CSS 缩放版)
   useEffect(() => {
     if (isFullscreen) {
         const handleResize = () => {
             const container = document.querySelector('.ggb-fullscreen-wrapper') as HTMLElement;
             if (container) {
-                // 计算缩放比例：保留 5% 边距，确保 900x600 的内容能完整放入屏幕
                 const scale = Math.min(window.innerWidth / 900, window.innerHeight / 600) * 0.95;
                 container.style.setProperty('--ggb-scale', scale.toString());
             }
         };
-
-        // 立即执行一次
         handleResize();
-        // 监听窗口变化
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }
   }, [isFullscreen]);
 
   const handleGenerate = async () => {
-    if (!file) return;
+    // 提取路径的工具函数 (Path Extractor)
+    const extractFilePath = (url: string) => {
+        try {
+            const parts = url.split('/problem-images/');
+            if (parts.length > 1) {
+                // 移除可能存在的 URL 参数 (如 ?t=123)
+                const pathWithPossibleParams = parts[1];
+                return pathWithPossibleParams.split('?')[0];
+            }
+            return null;
+        } catch (e) {
+            console.error("Error extracting file path:", e);
+            return null;
+        }
+    };
+
+    let oldImageUrlToDelete: string | null = null;
+    
+    // 记录旧图片链接 (Capture Old Image)
+    // 如果 activeProjectId 存在，且 savedImageUrl 有值，且当前正在上传新文件 (file 存在)
+    if (activeProjectId && savedImageUrl && file) {
+         oldImageUrlToDelete = savedImageUrl;
+    }
+
+    // 允许无文件生成：只要有 file、previewUrl 或者 problemText 即可继续
+    if (!file && !previewUrl && !problemText.trim()) return;
+    
+    // 前端积分预检查 (Credit Pre-check)
+    // 只有在非 BYOK 模式下才检查积分余额
+    if (user && !userProfile?.use_custom_model && credits <= 0) {
+        showToast('积分不足，请充值', 'error');
+        return; // 直接返回，不触发任何加载状态
+    }
 
     setIsLoading(true);
-    setProgress(0); // 显式重置进度条为 0
-    setLoadingText("正在识别题目图像信息..."); // 确保普通生成时也重置
+    setIsGenerated(false);
+    setProgress(0); 
+    setLoadingText("正在识别题目图像信息..."); 
     setProblemType(null);
     
-    // 清空画板
     if (ggbApplet) {
       ggbApplet.newConstruction();
     }
 
+    let imageUrl = '';
+    // 如果有新文件，先处理上传逻辑
+    if (file && user) {
+        try {
+            // 检查是否可以使用缓存
+            if (lastUploadedUrl && lastUploadedFile && file === lastUploadedFile) {
+                console.log('Skipping upload, using cached URL:', lastUploadedUrl);
+                imageUrl = lastUploadedUrl;
+            } else {
+                const fileExt = file.name.split('.').pop();
+                const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+                const filePath = `${user.id}/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('problem-images')
+                    .upload(filePath, file);
+
+                if (uploadError) {
+                    console.error('Supabase upload error:', uploadError);
+                } else {
+                    const { data } = supabase.storage
+                        .from('problem-images')
+                        .getPublicUrl(filePath);
+                    imageUrl = data.publicUrl;
+                    
+                    // 更新缓存
+                    setLastUploadedFile(file);
+                    setLastUploadedUrl(imageUrl);
+                }
+            }
+        } catch (err) {
+            console.error('Image upload failed:', err);
+        }
+    } else if (!file && previewUrl) {
+        // 如果没有新文件，但有预览图（历史记录），直接使用 previewUrl
+        imageUrl = previewUrl;
+    }
+
     const formData = new FormData();
-    formData.append('image', file);
+    if (file) {
+        formData.append('file', file);
+    } else if (imageUrl) {
+        formData.append('imageUrl', imageUrl);
+    }
+
     if (problemText) {
         formData.append('text', problemText);
     }
+    if (user) {
+        formData.append('user_id', user.id);
+    }
 
     try {
-      // 使用 CORS 直连 Flask 后端
-      const backendUrl = 'http://localhost:5000/upload'; 
+      // 修复漏洞 1：获取当前 session token 用于后端鉴权
+      const { data: { session } } = await supabase.auth.getSession();
       
-      const response = await fetch(backendUrl, {
+      const response = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        },
         body: formData
       });
 
-      console.log('Response status:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Server error response:', errorText);
         throw new Error(`Server Error (${response.status}): ${errorText}`);
       }
 
-      // 流式读取响应
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -443,7 +730,6 @@ export default function Dashboard() {
           
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
-          // 保留最后一个可能不完整的片段
           buffer = lines.pop() || ''; 
           
           for (const line of lines) {
@@ -457,13 +743,9 @@ export default function Dashboard() {
                   }
 
                   if (data.status === 'classified') {
-                      // 阶段 1: 识别完成
-                      console.log('题目分类完成:', data.category);
                       setProblemType(data.category);
                       setLoadingText("正在调用专家模型生成指令...");
                   } else if (data.status === 'completed') {
-                      // 阶段 2: 生成完成
-                      console.log('Received commands:', data.commands);
                       
                       const rawData = data.commands;
                       const validCommands: string[] = [];
@@ -473,9 +755,6 @@ export default function Dashboard() {
                               const subLines = item.split(/\r?\n|\\n/);
                               subLines.forEach(line => {
                                   const cmd = line.trim();
-                                  // 过滤无效指令：
-                                  // 1. 空行、注释、Markdown 标记
-                                  // 2. 包含中文字符的行 (通常是模型输出的思考过程)
                                   if (
                                       cmd && 
                                       !cmd.startsWith('//') && 
@@ -503,10 +782,80 @@ export default function Dashboard() {
                           }
                       }
                       
-                      console.log('解析后的有效指令数:', validCommands.length);
                       setPendingCommands(validCommands);
+                      setExecutedCommands(validCommands);
+
+                      const saveToSupabase = async () => {
+                          try {
+                              const { data: { user } } = await supabase.auth.getUser();
+                              if (user) {
+                                  let error = null;
+
+                                  if (activeProjectId) {
+                                      // Update existing
+                                      console.log('Updating existing project:', activeProjectId);
+                                      const result = await supabase
+                                          .from('generations')
+                                          .update({
+                                              ggb_commands: JSON.stringify(validCommands), 
+                                              problem_type: data.category,
+                                              image_url: imageUrl || null 
+                                          })
+                                          .eq('id', activeProjectId);
+                                      error = result.error;
+                                  } else {
+                                      // Insert new
+                                      console.log('Inserting new project...');
+                                      const result = await supabase
+                                          .from('generations')
+                                          .insert({
+                                              user_id: user.id,
+                                              ggb_commands: JSON.stringify(validCommands), 
+                                              problem_type: data.category,
+                                              image_url: imageUrl || null 
+                                          })
+                                          .select()
+                                          .single();
+                                      
+                                      error = result.error;
+                                      if (result.data) {
+                                          setActiveProjectId(result.data.id);
+                                      }
+                                  }
+                                  
+                                  if (error) {
+                                      console.error('Error saving to Supabase:', error);
+                                  } else {
+                                      // 成功保存后，更新本地缓存的 savedImageUrl
+                                      if (imageUrl) {
+                                          setSavedImageUrl(imageUrl);
+                                      }
+
+                                      // 安全清理旧图片 (Safe Cleanup)
+                                      if (oldImageUrlToDelete && oldImageUrlToDelete !== imageUrl) {
+                                          const pathToDelete = extractFilePath(oldImageUrlToDelete);
+                                          if (pathToDelete) {
+                                              const { error: deleteError } = await supabase.storage.from('problem-images').remove([pathToDelete]);
+                                              if (deleteError) console.error("清理旧图片失败:", deleteError);
+                                              else console.log("✅ 成功清理旧图片:", pathToDelete);
+                                          }
+                                      }
+
+                                      // 只有当 data.deduct_credits !== false 时才扣除积分
+                                      if (data.deduct_credits !== false) {
+                                          // 修复漏洞 2：后端已完成扣费，前端仅需更新本地状态
+                                          setCredits(prev => prev - 1); 
+                                      } else {
+                                          console.log('Using custom model, skipping credit deduction.');
+                                      }
+                                  }
+                              }
+                          } catch (err) {
+                              console.error('Failed to save history:', err);
+                          }
+                      };
+                      saveToSupabase();
                       
-                      // --- 完成阶段 (finishProgress) ---
                       const finishTimer = setInterval(() => {
                         setProgress((prev) => {
                             if (prev >= 100) {
@@ -534,36 +883,53 @@ export default function Dashboard() {
           }
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert('Error: ' + err.message);
-      setIsLoading(false); // 发生错误时也要停止 Loading
-    } finally {
-      // finally 块不再强制设置为 false，因为成功的逻辑里有延迟设置
-    }
+      showToast('Error: ' + ((err as Error).message || 'Unknown error'), 'error');
+      setIsLoading(false); 
+    } 
   };
 
-  // 导出功能
+  const handleCopyCommands = () => {
+    if (executedCommands.length === 0) return;
+    const text = executedCommands.join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+    });
+  };
+
   const handleExport = (type: 'html' | 'ggb') => {
     if (!ggbApplet || !isGenerated) return;
 
     ggbApplet.getBase64((base64: string) => {
       if (!base64) {
-        alert('无法获取 GGB 数据');
+        showToast('无法获取 GGB 数据', 'error');
         return;
       }
 
+      // 生成动态文件名
+      const now = new Date();
+      const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+      
+      // 优先使用当前项目标题，如果没有则使用题型，再没有则使用“演示”
+      const projectName = currentProjectTitle && currentProjectTitle !== "未命名课件" 
+        ? currentProjectTitle 
+        : (problemType || "演示");
+      
+      const safeProjectName = projectName.replace(/[\\/:*?"<>|]/g, '_'); // 过滤非法字符
+      const baseFilename = `MathMover_${safeProjectName}_${timestamp}`;
+
       if (type === 'ggb') {
-        downloadBlob(base64ToBlob(base64, 'application/vnd.geogebra.file'), 'math_demo.ggb');
+        downloadBlob(base64ToBlob(base64, 'application/vnd.geogebra.file'), `${baseFilename}.ggb`);
       } else {
         const htmlContent = generateExportHTML(base64);
-        downloadBlob(new Blob([htmlContent], { type: 'text/html' }), 'math_demo.html');
+        downloadBlob(new Blob([htmlContent], { type: 'text/html' }), `${baseFilename}.html`);
       }
       setIsExportMenuOpen(false);
     });
   };
 
-  // 辅助函数
   const base64ToBlob = (base64: string, mimeType: string) => {
     const byteCharacters = atob(base64);
     const byteNumbers = new Array(byteCharacters.length);
@@ -587,89 +953,210 @@ export default function Dashboard() {
 
   const generateExportHTML = (base64: string) => {
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Math Demo Export</title>
+    <title>MathMover 交互课件</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; padding: 20px; font-family: sans-serif; background: #f5f5f5; }
-        .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #333; padding: 20px; margin: 0; border-bottom: 1px solid #eee; }
-        #ggb-element { width: 100%; height: 600px; }
+        :root {
+            --bg-color: #FDFCF8;
+            --card-bg: #FFFFFF;
+            --text-primary: #1c1917;
+            --text-secondary: #78716c;
+            --accent-color: #10b981;
+            --border-color: #e7e5e4;
+        }
+        
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 顶部品牌栏 */
+        .header {
+            width: 100%;
+            max-width: 1000px;
+            padding: 20px 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 12px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-box {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 900;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            opacity: 0.8;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+        .subtitle:hover { opacity: 1; color: var(--accent-color); }
+
+        /* 画板容器 */
+        .canvas-container {
+            width: 100%;
+            max-width: 1000px;
+            background: var(--card-bg);
+            border-radius: 24px;
+            box-shadow: 
+                0 20px 25px -5px rgba(0, 0, 0, 0.05), 
+                0 8px 10px -6px rgba(0, 0, 0, 0.01),
+                0 0 0 1px rgba(0,0,0,0.02); /* 微边框 */
+            border: 1px solid var(--border-color);
+            overflow: hidden; /* 关键：裁剪圆角 */
+            position: relative;
+            aspect-ratio: 16/10; /* 保持比例 */
+        }
+
+        #ggb-element {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* 强制覆盖 GeoGebra 样式 */
+        .applet_container, canvas {
+            border: none !important;
+            outline: none !important;
+            border-radius: 0 !important; /* 让容器控制圆角 */
+        }
+        
+        /* 隐藏加载条背景 */
+        .gwt-ProgressBar-shell {
+            border: none !important;
+        }
+
+        /* 响应式适配 */
+        @media (max-width: 1040px) {
+            .header, .canvas-container {
+                width: 92%;
+            }
+            .canvas-container {
+                border-radius: 16px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Math Visualization</h1>
+    
+    <div class="header">
+        <div class="brand">
+            <div class="logo-box">M</div>
+            <div class="title">MathMover 交互课件</div>
+        </div>
+        <a href="https://mathmover.top" target="_blank" class="subtitle">Powered by MathMover.top</a>
+    </div>
+
+    <div class="canvas-container">
         <div id="ggb-element"></div>
     </div>
+
     <script src="https://www.geogebra.org/apps/deployggb.js"></script>
     <script>
         var params = {
             "appName": "classic",
-            "width": 900,
-            "height": 600,
+            "width": 1000,
+            "height": 625,
             "showToolBar": false,
             "showAlgebraInput": false,
             "showMenuBar": false,
+            "showResetIcon": true,
+            "enableLabelDrags": false,
+            "enableShiftDragZoom": true,
+            "enableRightClick": false,
+            "borderColor": "transparent",
             "ggbBase64": "${base64}"
         };
+        
+        // 自动响应式缩放
+        function updateDimensions() {
+            var container = document.querySelector('.canvas-container');
+            if(applet && container) {
+                // 保持 16:10 比例，或者根据容器宽度自适应
+                // GeoGebra 会自动填充父容器
+            }
+        }
+
         var applet = new GGBApplet(params, true);
-        window.onload = function() { applet.inject('ggb-element'); };
+        window.onload = function() { 
+            applet.inject('ggb-element');
+        };
     </script>
 </body>
 </html>`;
   };
 
+  // 渲染逻辑：只保留 Main 和 Right Panel
+  // Left Sidebar 已移除
+  
   return (
-    <div className="flex h-screen w-full bg-[#FDFCF8] font-sans text-stone-800 overflow-hidden selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="flex h-full w-full bg-[#FDFCF8] font-sans text-stone-800 overflow-hidden selection:bg-emerald-100 selection:text-emerald-900">
       
-      {/* 1. Left Sidebar (Fixed) */}
-      <aside className="w-64 bg-[#FDFCF8] border-r border-stone-200 flex flex-col z-30 flex-shrink-0">
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-sm transform -rotate-2">
-            M
-          </div>
-          <span className="font-bold text-lg tracking-tight text-stone-800">MathMover</span>
-        </div>
-
-        <div className="px-4 mb-6">
-          <button 
-            onClick={() => {
-                setFile(null);
-                setPreviewUrl(null);
-                setIsGenerated(false);
-                if (ggbApplet) ggbApplet.newConstruction();
-            }}
-            className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[4px_4px_0px_0px_rgba(6,95,70,0.1)] hover:shadow-[2px_2px_0px_0px_rgba(6,95,70,0.1)] hover:translate-x-[2px] hover:translate-y-[2px] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none border-2 border-transparent"
-          >
-            <Plus className="w-5 h-5 stroke-[3]" />
-            <span>新建课件</span>
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-           <div className="px-3 py-1.5 text-xs font-black text-stone-400 uppercase tracking-wider mb-2">我的工作室</div>
-           <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-50/80 border border-emerald-100 text-emerald-800 font-bold relative transition-colors">
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-emerald-500 rounded-r-full"></div>
-              <LayoutGrid className="w-5 h-5 text-emerald-600" />
-              全部项目
-           </a>
-        </div>
-
-        <div className="p-4 border-t border-stone-200">
-          <button className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-white transition-all text-left group border border-transparent hover:border-stone-200 hover:shadow-sm">
-            <div className="w-10 h-10 rounded-full bg-lime-100 border-2 border-stone-100 flex items-center justify-center text-lime-700 font-black text-sm">
-              D
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-bold text-stone-700 group-hover:text-stone-900">Derek</div>
-            </div>
-            <Settings className="w-4 h-4 text-stone-300 group-hover:text-stone-500" />
-          </button>
-        </div>
-      </aside>
+      {/* Global Toast Notification */}
+      <AnimatePresence>
+          {toast.type && (
+              <motion.div
+                  initial={{ opacity: 0, y: -50, x: '-50%' }}
+                  animate={{ opacity: 1, y: 0, x: '-50%' }}
+                  exit={{ opacity: 0, y: -20, x: '-50%' }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  className={`fixed top-10 left-1/2 z-[10001] px-6 py-3 rounded-full backdrop-blur-md shadow-lg border flex items-center gap-2 ${
+                      toast.type === 'success' 
+                      ? 'bg-emerald-50/90 border-emerald-200 text-emerald-700' 
+                      : 'bg-red-50/90 border-red-200 text-red-600'
+                  }`}
+              >
+                  {toast.type === 'success' ? (
+                      <Check className="w-4 h-4 stroke-[3]" />
+                  ) : (
+                      <X className="w-4 h-4 stroke-[3]" />
+                  )}
+                  <span className="text-sm font-bold">{toast.message}</span>
+              </motion.div>
+          )}
+      </AnimatePresence>
 
       {/* 2. Middle Canvas Area (Fluid) */}
       <main className="flex-1 relative flex flex-col bg-[#F5F5F0]/50 h-full overflow-hidden">
@@ -677,14 +1164,108 @@ export default function Dashboard() {
         {/* Header */}
         {!isFullscreen && (
           <header className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between p-4 pointer-events-none">
-             <div className="pointer-events-auto flex items-center gap-2 bg-white/40 backdrop-blur-md border border-stone-200/50 shadow-sm px-1 py-1 rounded-xl pl-3 opacity-50 hover:opacity-100 hover:bg-white/80 transition-all duration-300">
-                <span className="text-xs font-bold text-stone-500">项目 /</span>
-                <div className="flex items-center gap-1 cursor-pointer hover:bg-stone-50/50 px-2 py-1 rounded-lg -ml-1 transition-colors group">
-                   <h1 className="font-bold text-sm text-stone-700 group-hover:text-emerald-600 transition-colors">
-                      {file ? file.name : "未命名课件"}
-                   </h1>
-                   <ChevronDown className="w-3 h-3 text-stone-400 group-hover:text-emerald-500 stroke-[3]" />
-                </div>
+             <div 
+                ref={projectMenuRef}
+                className="pointer-events-auto relative"
+             >
+                 {/* 触发按钮 */}
+                 <div className="flex items-center gap-2 bg-white/40 backdrop-blur-md border border-stone-200/50 shadow-sm px-1 py-1 rounded-xl pl-3 opacity-90 hover:opacity-100 hover:bg-white/80 transition-all duration-300">
+                    <span className="text-xs font-bold text-stone-500">项目 /</span>
+                    <div 
+                        onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
+                        className="flex items-center gap-1 cursor-pointer hover:bg-stone-50/50 px-2 py-1 rounded-lg -ml-1 transition-colors group"
+                    >
+                        <h1 className="font-bold text-sm text-stone-700 group-hover:text-emerald-600 transition-colors truncate max-w-[150px]">
+                            {currentProjectTitle}
+                        </h1>
+                        <ChevronDown className={`w-3 h-3 text-stone-400 group-hover:text-emerald-500 stroke-[3] transition-transform duration-200 ${isProjectMenuOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                 </div>
+
+                 {/* 下拉菜单 (Popover Style) */}
+                 <AnimatePresence>
+                    {isProjectMenuOpen && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                            className="absolute top-[calc(100%+8px)] left-0 w-64 z-50"
+                        >
+                            {/* 内容容器 */}
+                            <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-stone-100/50 overflow-hidden ring-1 ring-black/5">
+                                <div className="px-4 py-3 border-b border-stone-50 flex items-center justify-between">
+                                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-wider">最近项目</span>
+                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">{recentHistory.length}</span>
+                                </div>
+                                
+                                <div className="max-h-[320px] overflow-y-auto py-1.5 scrollbar-thin scrollbar-thumb-stone-200 scrollbar-track-transparent">
+                                    {recentHistory.length === 0 ? (
+                                        <div className="px-4 py-6 text-xs text-stone-400 text-center flex flex-col items-center gap-2">
+                                            <div className="w-8 h-8 bg-stone-50 rounded-full flex items-center justify-center">
+                                                <Clock className="w-4 h-4 text-stone-300" />
+                                            </div>
+                                            <span>暂无历史记录</span>
+                                        </div>
+                                    ) : (
+                                        recentHistory.map(item => {
+                                            const isActive = item.id === currentHistoryId;
+                                            return (
+                                                <button
+                                                    key={item.id}
+                                                    onClick={() => handleSwitchProject(item)}
+                                                    className={`w-full flex items-center gap-3 px-3 py-2.5 mx-1 rounded-xl transition-all text-left group max-w-[calc(100%-8px)] ${
+                                                        isActive ? 'bg-emerald-50/60' : 'hover:bg-stone-50/80'
+                                                    }`}
+                                                >
+                                                    <div className={`w-10 h-10 rounded-lg border overflow-hidden flex-shrink-0 transition-colors ${
+                                                        isActive ? 'border-emerald-200' : 'bg-stone-50 border-stone-100 group-hover:border-stone-200'
+                                                    }`}>
+                                                        {item.image_url ? (
+                                                            <img src={item.image_url} alt="缩略图" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-stone-300">
+                                                                <Clock className="w-4 h-4" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className={`text-xs font-bold truncate mb-0.5 ${isActive ? 'text-emerald-700' : 'text-stone-700 group-hover:text-stone-900'}`}>
+                                                            {item.title || (item.problem_type ? TYPE_MAP[item.problem_type] : null) || '未命名课件'}
+                                                        </div>
+                                                        <div className="text-[10px] text-stone-400 font-medium flex items-center gap-1">
+                                                            <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                                                            <span className="w-0.5 h-0.5 rounded-full bg-stone-300"></span>
+                                                            <span>{new Date(item.created_at).getHours()}:{String(new Date(item.created_at).getMinutes()).padStart(2, '0')}</span>
+                                                        </div>
+                                                    </div>
+                                                    {isActive && (
+                                                        <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                                                            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                                
+                                {/* 底部快捷操作 */}
+                                <div className="px-2 py-2 border-t border-stone-50 bg-stone-50/30">
+                                    <button 
+                                        onClick={() => {
+                                            setIsProjectMenuOpen(false);
+                                            router.push('/dashboard?action=new');
+                                        }}
+                                        className="w-full py-2 rounded-lg border border-dashed border-stone-200 text-xs font-bold text-stone-500 hover:text-emerald-600 hover:border-emerald-300 hover:bg-white transition-all flex items-center justify-center gap-1.5"
+                                    >
+                                        <PenTool className="w-3 h-3" /> 新建项目
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                 </AnimatePresence>
              </div>
           </header>
         )}
@@ -706,7 +1287,6 @@ export default function Dashboard() {
           >
              {/* Left: Action Area */}
              <div className="flex items-center gap-6 flex-1">
-                {/* 统一的图片上传区：无论是点击还是拖拽，都触发上传 */}
                 <div 
                     className="relative group w-40 h-24 flex-shrink-0 bg-stone-50 rounded-lg border-2 border-dashed border-stone-200 flex items-center justify-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 transition-all overflow-hidden"
                     onClick={() => fileInputRef.current?.click()}
@@ -766,39 +1346,56 @@ export default function Dashboard() {
                             value={problemText}
                             onChange={(e) => setProblemText(e.target.value)}
                             disabled={isLoading}
-                            placeholder="输入题目补充信息（可选，如模糊文字、隐含条件）..."
+                            placeholder="在此输入题目内容或补充信息……"
                             className="w-full max-w-[400px] bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all duration-300 resize-none h-10 focus:h-32 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         />
                     </div>
 
                     {/* Dynamic Action Area (Flex-Shrink-0) */}
-                    <div className="flex-shrink-0 w-[160px] h-[52px] flex items-end">
+                    <div className="flex-shrink-0 w-[160px] h-[52px] flex flex-col justify-end items-center gap-1.5">
                         {isLoading ? (
-                            <button 
-                                disabled
-                                className="w-full h-[42px] bg-stone-100 text-stone-400 font-bold rounded-xl shadow-none flex items-center justify-center gap-2 cursor-not-allowed"
-                            >
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                生成中...
-                            </button>
+                            <div className="w-full flex flex-col items-center">
+                                {userProfile?.use_custom_model && (
+                                    <span className="text-[10px] font-bold text-zinc-500 mb-1 animate-in fade-in slide-in-from-bottom-1 duration-500 whitespace-nowrap">
+                                        使用模型：{userProfile.custom_model_name || 'Custom Model'}
+                                    </span>
+                                )}
+                                <button 
+                                    disabled
+                                    className="w-full h-[42px] bg-stone-100 text-stone-400 font-bold rounded-xl shadow-none flex items-center justify-center gap-2 cursor-not-allowed"
+                                >
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    生成中...
+                                </button>
+                            </div>
                         ) : isGenerated ? (
-                             <button 
-                                 onClick={handleRegenerate}
-                                 className="w-full h-[42px] bg-white border-2 border-stone-200 text-stone-600 font-bold rounded-xl shadow-sm hover:border-emerald-400 hover:text-emerald-600 hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
-                             >
-                                 <RefreshCw className="w-5 h-5 stroke-[2.5]" />
-                                 重新生成
-                             </button>
-                        ) : previewUrl ? (
-                             <button 
-                                 onClick={handleGenerate}
-                                 className="w-full h-[42px] bg-emerald-500 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-600 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
-                             >
-                                 <RefreshCw className="w-5 h-5 stroke-[3]" />
-                                 生成演示
-                             </button>
+                             <div className="w-full flex flex-col items-center">
+                                 <button 
+                                     onClick={handleRegenerate}
+                                     className="w-full h-[42px] bg-white border-2 border-stone-200 text-stone-600 font-bold rounded-xl shadow-sm hover:border-emerald-400 hover:text-emerald-600 hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                                 >
+                                     <RefreshCw className="w-5 h-5 stroke-[2.5]" />
+                                     重新生成
+                                 </button>
+                                 <span className="text-[10px] text-zinc-400 font-medium">
+                                     {userProfile?.use_custom_model ? "🛡️ 不消耗平台积分" : "✨ 消耗 1 积分"}
+                                 </span>
+                             </div>
+                        ) : (previewUrl || problemText.trim()) ? (
+                             <div className="w-full flex flex-col items-center">
+                                 <button 
+                                     onClick={handleGenerate}
+                                     className="w-full h-[42px] bg-emerald-500 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-600 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                                 >
+                                     <RefreshCw className="w-5 h-5 stroke-[3]" />
+                                     生成演示
+                                 </button>
+                                 <span className="text-[10px] text-zinc-400 font-medium">
+                                     {userProfile?.use_custom_model ? "🛡️ 不消耗平台积分" : "✨ 消耗 1 积分"}
+                                 </span>
+                             </div>
                         ) : (
-                             <div className="w-full h-[42px]"></div> // 占位
+                             <div className="w-full h-[42px]"></div> 
                         )}
                     </div>
                 </div>
@@ -818,11 +1415,10 @@ export default function Dashboard() {
           <div 
              className={
                isFullscreen 
-                 ? 'ggb-fullscreen-wrapper' // 全屏态：使用 CSS 类控制
-                 : `relative ${!isGenerated ? 'opacity-100 grayscale pointer-events-none' : ''} bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden inline-block` // 普通态：卡片样式
+                 ? 'ggb-fullscreen-wrapper' 
+                 : `relative ${!isGenerated ? 'opacity-100 grayscale pointer-events-none' : ''} bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden inline-block`
              }
           >
-              {/* CSS 强力覆盖：消除 GGB 黑边 + 全屏缩放逻辑 */}
               <style jsx global>{`
                  #ggb-element, #ggb-element > div { 
                     border: none !important; 
@@ -830,7 +1426,6 @@ export default function Dashboard() {
                     box-shadow: none !important; 
                  }
                  
-                 /* 全屏容器 */
                  .ggb-fullscreen-wrapper { 
                    position: fixed !important; 
                    inset: 0 !important; 
@@ -842,7 +1437,6 @@ export default function Dashboard() {
                    overflow: hidden !important; 
                  }
                  
-                 /* 全屏内容区：应用动态缩放 */
                  .ggb-fullscreen-wrapper .ggb-scaled-content { 
                    width: 900px !important; 
                    height: 600px !important; 
@@ -932,9 +1526,6 @@ export default function Dashboard() {
                                        type="number" 
                                        step="0.01"
                                        value={
-                                           // 逻辑修正：
-                                           // 1. 如果 slider.value 是数字，说明是来自 GGB 的同步值 -> 格式化显示
-                                           // 2. 如果 slider.value 是字符串，说明是用户正在输入的值 -> 原样显示
                                            typeof slider.value === 'number' 
                                               ? slider.value.toFixed(2) 
                                               : slider.value
@@ -948,6 +1539,37 @@ export default function Dashboard() {
                                </div>
                            </div>
                        ))}
+                   </div>
+                </div>
+            )}
+
+            {/* GGB Command Library (New) */}
+            {isGenerated && executedCommands.length > 0 && (
+                <div className="space-y-2 pt-4 border-t border-stone-100 animate-in slide-in-from-right-4 duration-500 delay-100">
+                   <div className="flex items-center justify-between">
+                       <label className="text-[10px] font-black text-stone-400 uppercase tracking-wider">GGB 指令</label>
+                       <button 
+                           onClick={handleCopyCommands}
+                           className="flex items-center gap-1.5 text-[10px] font-bold text-stone-400 hover:text-emerald-600 transition-all bg-stone-50 hover:bg-emerald-50 px-2 py-1 rounded-md active:scale-95"
+                       >
+                           {isCopied ? (
+                               <>
+                                   <Check className="w-3 h-3 stroke-[3]" />
+                                   <span>已复制</span>
+                               </>
+                           ) : (
+                               <>
+                                   <Copy className="w-3 h-3 stroke-[2.5]" />
+                                   <span>复制</span>
+                               </>
+                           )}
+                       </button>
+                   </div>
+                   
+                   <div className="bg-stone-50/50 rounded-xl border border-stone-100 p-3 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-stone-200 scrollbar-track-transparent shadow-inner">
+                       <div className="font-mono text-[10px] leading-relaxed text-stone-600 break-all whitespace-pre-wrap select-all">
+                           {executedCommands.join('\n')}
+                       </div>
                    </div>
                 </div>
             )}
@@ -1000,10 +1622,54 @@ export default function Dashboard() {
                     src={previewUrl} 
                     alt="Original Problem" 
                     className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-                    onClick={(e) => e.stopPropagation()} // 防止点击图片关闭
+                    onClick={(e) => e.stopPropagation()} 
                 />
             </div>
         </div>
+      )}
+
+      {/* Redeem Modal */}
+      {isRedeemModalOpen && (
+          <div 
+              className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-200"
+              onClick={() => setIsRedeemModalOpen(false)}
+          >
+              <div 
+                  className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 border border-stone-100"
+                  onClick={(e) => e.stopPropagation()}
+              >
+                  <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-black text-stone-700">兑换积分</h3>
+                      <button 
+                          onClick={() => setIsRedeemModalOpen(false)}
+                          className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-stone-600 transition-colors"
+                      >
+                          <X className="w-5 h-5" />
+                      </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                      <div className="space-y-2">
+                          <label className="text-xs font-bold text-stone-400 uppercase tracking-wider pl-1">卡密兑换码</label>
+                          <input 
+                              type="text" 
+                              value={redeemCode}
+                              onChange={(e) => setRedeemCode(e.target.value.trim())}
+                              placeholder="请输入 12 位兑换码"
+                              className="w-full px-4 py-3 bg-stone-50 border-2 border-stone-100 rounded-xl text-base font-bold text-stone-700 placeholder:text-stone-300 focus:outline-none focus:border-emerald-500 focus:bg-white transition-all font-mono"
+                          />
+                      </div>
+                      
+                      <button 
+                          onClick={handleRedeem}
+                          disabled={isRedeeming || !redeemCode}
+                          className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-emerald-200 hover:bg-emerald-600 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 disabled:bg-stone-200 disabled:shadow-none disabled:text-stone-400 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                      >
+                          {isRedeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : "立即兑换"}
+                      </button>
+                  </div>
+              </div>
+          </div>
       )}
 
     </div>

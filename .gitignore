@@ -1,6 +1,33 @@
+# 环境变量（敏感信息）
 .env
+.env.local
+.env.*.local
+
+# Python
 __pycache__/
 *.pyc
 venv/
+.venv/
+*.pyo
+*.pyd
+
+# 前端
+node_modules/
+math-mover-next/node_modules/
+.next/
+.out/
+
+# 构建产物
+deploy.tar
+*.tar
+*.gz
+
+# 会员码（不应版本控制）
+codes_*.txt
+membership_codes_*.txt
+
+# IDE
 .idea/
 .vscode/
+*.swp
+*.swo
