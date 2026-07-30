@@ -3,18 +3,48 @@ import json
 import base64
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 from flask_cors import CORS
 from supabase import create_client, Client
 import openai
 import requests
+from urllib.parse import urlparse
+import sys
 
 # 加载环境变量
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=["https://www.mathmover.top"])
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
+DEFAULT_CORS_ORIGINS = [
+    "https://mathmover.top",
+    "https://www.mathmover.top",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3010",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:3010",
+]
+
+
+def get_cors_origins() -> list[str]:
+    extra_origins = [
+        origin.strip()
+        for origin in (os.getenv('CORS_ORIGINS') or '').split(',')
+        if origin.strip()
+    ]
+    return DEFAULT_CORS_ORIGINS + extra_origins
+
+
+CORS(app, origins=get_cors_origins())
 
 # 初始化 Supabase
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -25,12 +55,80 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     print("Warning: Supabase credentials (URL or SERVICE_ROLE_KEY) missing in .env")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+MAX_REMOTE_IMAGE_BYTES = 5 * 1024 * 1024
+MODEL_TIMEOUT_SECONDS = 75
+DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
+
+
+def download_allowed_supabase_image(image_url: str) -> tuple[bytes, str]:
+    if not SUPABASE_URL:
+        raise ValueError('图片 URL 下载服务未配置')
+
+    parsed_url = urlparse(image_url)
+    allowed_host = urlparse(SUPABASE_URL).hostname
+    url_host = parsed_url.hostname
+
+    if parsed_url.scheme != 'https':
+        raise ValueError('仅允许 HTTPS 图片链接')
+    if not allowed_host or url_host != allowed_host:
+        raise ValueError('仅允许来自 Supabase 存储桶的图片链接')
+    if parsed_url.username or parsed_url.password:
+        raise ValueError('图片链接格式无效')
+    if not parsed_url.path.startswith('/storage/v1/object/public/problem-images/'):
+        raise ValueError('仅允许 problem-images 存储桶中的图片链接')
+
+    resp = requests.get(image_url, timeout=(3, 5), allow_redirects=False, stream=True)
+    resp.raise_for_status()
+
+    content_type = resp.headers.get('Content-Type', 'image/jpeg').split(';', 1)[0].strip().lower()
+    if not content_type.startswith('image/'):
+        raise ValueError('图片链接返回的不是图片内容')
+
+    content_length = resp.headers.get('Content-Length')
+    if content_length and int(content_length) > MAX_REMOTE_IMAGE_BYTES:
+        raise ValueError('远程图片不能超过 5MB')
+
+    chunks = []
+    total = 0
+    for chunk in resp.iter_content(chunk_size=64 * 1024):
+        if not chunk:
+            continue
+        total += len(chunk)
+        if total > MAX_REMOTE_IMAGE_BYTES:
+            raise ValueError('远程图片不能超过 5MB')
+        chunks.append(chunk)
+
+    return b''.join(chunks), content_type
+
+
+def has_available_credit(user_id: str) -> bool:
+    """Check credit balance without deducting."""
+    if not supabase:
+        raise RuntimeError('Supabase is not configured')
+
+    supabase.rpc('sync_user_credits', {'user_uuid': user_id}).execute()
+    response = (
+        supabase.table('profiles')
+        .select('monthly_credits, permanent_credits')
+        .eq('id', user_id)
+        .single()
+        .execute()
+    )
+    profile = response.data or {}
+    monthly = int(profile.get('monthly_credits') or 0)
+    permanent = int(profile.get('permanent_credits') or 0)
+    return monthly + permanent > 0
+
+
+def deduct_user_credit(user_id: str) -> None:
+    """Deduct exactly one credit after successful generation."""
+    if not supabase:
+        raise RuntimeError('Supabase is not configured')
+
+    supabase.rpc('decrement_credits_atomic', {'user_uuid': user_id}).execute()
 
 # 默认 Gemini 配置
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
-    default_model = genai.GenerativeModel('gemini-3-flash-preview')
 
 # --- Prompt Definitions (保留原有的 Prompt) ---
 ROUTER_PROMPT = """
@@ -325,26 +423,63 @@ class ModelAdapter:
         raise NotImplementedError
 
 class GeminiAdapter(ModelAdapter):
-    def __init__(self, api_key=None, model_name='gemini-3-flash-preview'):
-        if api_key:
-            genai.configure(api_key=api_key)
-        # Use provided model name or default
-        self.model = genai.GenerativeModel(model_name)
+    def __init__(self, api_key=None, model_name=DEFAULT_GEMINI_MODEL):
+        api_key = (api_key or '').strip()
+        model_name = (model_name or DEFAULT_GEMINI_MODEL).strip()
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY is missing")
+
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(timeout=MODEL_TIMEOUT_SECONDS * 1000),
+        )
+        self.model_name = model_name
 
     def generate(self, prompt, image_bytes=None, mime_type=None):
-        content = []
+        content = [prompt]
         if image_bytes:
-            content.append({'mime_type': mime_type, 'data': image_bytes})
-        content.append(prompt)
-        
-        response = self.model.generate_content(content)
-        if not response.parts:
-            return ""
-        return response.text.strip()
+            content.append(
+                types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type=mime_type or 'image/jpeg',
+                )
+            )
+
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=content,
+        )
+
+        try:
+            text = response.text
+        except Exception:
+            text = ""
+        return (text or "").strip()
 
 class OpenAICompatibleAdapter(ModelAdapter):
     def __init__(self, api_key, base_url, model_name):
-        self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
+        api_key = (api_key or '').strip()
+        base_url = (base_url or '').strip().rstrip('/')
+        model_name = (model_name or '').strip()
+        self.client = openai.OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=MODEL_TIMEOUT_SECONDS,
+        )
+        # By default we do NOT cross-switch DashScope regions for BYOK.
+        # A key can be region-scoped; automatic cross-region fallback can
+        # turn transient timeout into deterministic invalid_api_key.
+        allow_cross_region_fallback = (
+            (os.getenv('ALLOW_DASHSCOPE_CROSS_REGION_FALLBACK') or '').strip().lower() == 'true'
+        )
+        self.fallback_client = None
+        if allow_cross_region_fallback and base_url and 'dashscope-intl.aliyuncs.com' in base_url:
+            fallback_url = base_url.replace('dashscope-intl.aliyuncs.com', 'dashscope.aliyuncs.com')
+            self.fallback_client = openai.OpenAI(
+                api_key=api_key,
+                base_url=fallback_url,
+                timeout=MODEL_TIMEOUT_SECONDS,
+            )
         self.model_name = model_name
 
     def generate(self, prompt, image_bytes=None, mime_type=None):
@@ -378,10 +513,19 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 }
             ]
 
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=messages,
-            )
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                )
+            except Exception as primary_error:
+                if not self.fallback_client:
+                    raise primary_error
+                print(f"WARNING: Custom model primary endpoint failed, retrying DashScope mainland endpoint: {primary_error}")
+                response = self.fallback_client.chat.completions.create(
+                    model=self.model_name,
+                    messages=messages,
+                )
             
             # 检查停止原因
             finish_reason = response.choices[0].finish_reason
@@ -410,12 +554,17 @@ class ModelFactory:
         # 1. Check for custom configuration (BYOK)
         if user_profile and user_profile.get('use_custom_model'):
             print("DEBUG: Using custom model config")
-            api_key = user_profile.get('custom_api_key')
-            base_url = user_profile.get('custom_base_url')
-            model_name = user_profile.get('custom_model_name')
+            api_key = (user_profile.get('custom_api_key') or '').strip()
+            base_url = (user_profile.get('custom_base_url') or '').strip().rstrip('/')
+            model_name = (user_profile.get('custom_model_name') or '').strip()
+            print(f"DEBUG: Custom model config loaded. base_url={base_url}, model={model_name}")
             
             if not api_key:
                  raise ValueError("Custom API Key is missing")
+            if not base_url:
+                 raise ValueError("Custom Base URL is missing")
+            if not model_name:
+                 raise ValueError("Custom model name is missing")
             
             # Special handling for Doubao (Volcengine) compatibility
             # Users might provide base_url without /api/v3, try to handle or assume user provides correct one.
@@ -443,6 +592,33 @@ def handle_exception(e):
 def index():
     return "MathMover Backend is running."
 
+def run_with_heartbeats(func, *args, **kwargs):
+    import threading
+    import queue
+    q = queue.Queue()
+    def worker():
+        try:
+            res = func(*args, **kwargs)
+            q.put(('success', res))
+        except Exception as e:
+            q.put(('error', e))
+            
+    t = threading.Thread(target=worker)
+    t.daemon = True
+    t.start()
+    
+    while True:
+        try:
+            status, val = q.get(timeout=5)
+            if status == 'success':
+                yield ('result', val)
+                return
+            else:
+                yield ('error', val)
+                return
+        except queue.Empty:
+            yield ('heartbeat', '\n')
+
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     """
@@ -452,6 +628,25 @@ def upload_file():
     
     image_data = None
     mime_type = None
+    text_prompt = request.form.get('text', '')
+
+    # Authenticate before reading uploaded files or fetching remote image URLs.
+    auth_header = request.headers.get('Authorization')
+    user_id = None
+    if auth_header and auth_header.startswith('Bearer '):
+        token = auth_header.split(' ', 1)[1]
+        try:
+            user_resp = supabase.auth.get_user(token)
+            if user_resp and user_resp.user:
+                user_id = user_resp.user.id
+        except Exception as e:
+            print(f"Auth Error: {e}")
+            return jsonify({'error': '无效的身份验证凭证'}), 401
+
+    if not user_id:
+        return jsonify({'error': '未授权的请求，请先登录'}), 401
+
+    print(f"DEBUG: 收到请求，已验证 user_id 为 {user_id}")
     
     # 1. 优先检查是否有文件上传
     if 'file' in request.files:
@@ -474,37 +669,15 @@ def upload_file():
         if image_url:
             print(f"DEBUG: 未检测到文件，尝试从 URL 下载: {image_url}")
             try:
-                resp = requests.get(image_url, timeout=(3, 5))
-                resp.raise_for_status()
-                image_data = resp.content
-                mime_type = resp.headers.get('Content-Type', 'image/jpeg') # 默认 jpeg
+                image_data, mime_type = download_allowed_supabase_image(image_url)
                 print(f"DEBUG: 图片下载成功, size: {len(image_data)} bytes, type: {mime_type}")
             except Exception as e:
                 print(f"ERROR: 图片下载失败: {e}")
                 return jsonify({'error': f'Failed to download image from URL: {str(e)}'}), 400
 
     # 3. 如果两者都没有，且也没有 text_prompt，报错
-    text_prompt = request.form.get('text', '')
     if not image_data and not text_prompt.strip():
         return jsonify({'error': '请先上传图片、提供图片URL或输入题目文字内容'}), 400
-    
-    # 修复漏洞 1：从 Authorization Header 获取 Token 并验证，不再信任前端传来的 user_id
-    auth_header = request.headers.get('Authorization')
-    user_id = None
-    if auth_header and auth_header.startswith('Bearer '):
-        token = auth_header.split(' ')[1]
-        try:
-            user_resp = supabase.auth.get_user(token)
-            if user_resp and user_resp.user:
-                user_id = user_resp.user.id
-        except Exception as e:
-            print(f"Auth Error: {e}")
-            return jsonify({'error': '无效的身份验证凭证'}), 401
-
-    if not user_id:
-        return jsonify({'error': '未授权的请求，请先登录'}), 401
-
-    print(f"DEBUG: 收到请求，已验证 user_id 为 {user_id}")
 
     # Determine model configuration and credit deduction
     deduct_credits = True
@@ -512,58 +685,54 @@ def upload_file():
 
     if user_id and supabase:
         try:
-            print(f"DEBUG: 正在查询用户 {user_id} 的 profile...")
-            # 使用 Service Role Key 查询，必须调用 .execute()
+            print(f"DEBUG: Loading profile for user {user_id}...")
             response = supabase.table('profiles').select('*').eq('id', user_id).single().execute()
-            
+
             user_profile = response.data
-            if user_profile:
-                 is_byok = user_profile.get('use_custom_model', False)
-                 
-                 if is_byok:
-                    # BYOK 权限校验
-                    sub_type = user_profile.get('subscription_type', 'free')
-                    expires_at_str = user_profile.get('subscription_expires_at')
-                    
-                    is_valid_sub = False
-                    if sub_type in ['basic', 'pro'] and expires_at_str:
-                        try:
-                            # 处理可能的时区格式
-                            if expires_at_str.endswith('Z'):
-                                expires_at_str = expires_at_str[:-1] + '+00:00'
-                            expires_at = datetime.fromisoformat(expires_at_str)
-                            if expires_at > datetime.now(expires_at.tzinfo):
-                                is_valid_sub = True
-                        except ValueError:
-                            print(f"Error parsing date: {expires_at_str}")
+            if not user_profile:
+                print(f"DEBUG: Profile not found for user {user_id}")
+                return jsonify({'error': 'User profile not found'}), 404
 
-                    if is_valid_sub:
-                        deduct_credits = False
-                        print(f"DEBUG: BYOK mode enabled. User is valid {sub_type} subscriber.")
-                    else:
-                        return jsonify({'error': 'BYOK 模式仅限基础版/专业版会员使用，请前往升级'}), 403
-                 
-                 # 如果需要扣费，直接调用数据库原子扣费函数
-                 if deduct_credits:
-                     try:
-                         # 调用原子扣费函数，如果余额不足，数据库会抛出异常
-                         supabase.rpc('decrement_credits_atomic', {'user_uuid': user_id}).execute()
-                         print(f"DEBUG: 已在后端成功扣除用户 {user_id} 的积分")
-                     except Exception as e:
-                         error_msg = str(e)
-                         print(f"Error deducting credits: {error_msg}")
-                         if 'Insufficient credits' in error_msg:
-                             return jsonify({'error': '积分不足，请充值'}), 403
-                         return jsonify({'error': '扣费失败，请稍后重试'}), 500
+            is_byok = user_profile.get('use_custom_model', False)
 
-            else:
-                 print(f"DEBUG: 未找到用户 {user_id} 的 profile 数据")
-                 return jsonify({'error': '用户数据未找到'}), 404
-                 
+            if is_byok:
+                sub_type = user_profile.get('subscription_type', 'free')
+                expires_at_str = user_profile.get('subscription_expires_at')
+
+                is_valid_sub = False
+                if sub_type in ['basic', 'pro'] and expires_at_str:
+                    try:
+                        if expires_at_str.endswith('Z'):
+                            expires_at_str = expires_at_str[:-1] + '+00:00'
+                        expires_at = datetime.fromisoformat(expires_at_str)
+                        if expires_at > datetime.now(expires_at.tzinfo):
+                            is_valid_sub = True
+                    except ValueError:
+                        print(f"Error parsing subscription date: {expires_at_str}")
+
+                if is_valid_sub:
+                    deduct_credits = False
+                    print(f"DEBUG: BYOK mode enabled. User is valid {sub_type} subscriber.")
+                else:
+                    return jsonify({'error': 'BYOK requires an active Basic or Pro subscription'}), 403
+
+            if deduct_credits:
+                try:
+                    if not has_available_credit(user_id):
+                        return jsonify({'error': 'Insufficient credits'}), 403
+                    print(f"DEBUG: User {user_id} has enough credits. Deduction will happen after generation succeeds.")
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"Error checking credits: {error_msg}")
+                    if 'Insufficient credits' in error_msg:
+                        return jsonify({'error': 'Insufficient credits'}), 403
+                    return jsonify({'error': 'Credit check failed, please try again later'}), 500
+
         except Exception as e:
             print(f"Warning: Failed to fetch user profile: {e}")
             import traceback
             traceback.print_exc()
+            return jsonify({'error': 'Failed to load user profile, please try again later'}), 500
 
     try:
         model_adapter = ModelFactory.create(user_profile)
@@ -572,6 +741,9 @@ def upload_file():
 
     def generate():
         try:
+            # Yield initial status immediately to flush headers and prevent proxy timeout
+            yield json.dumps({'status': 'processing', 'message': '已收到请求，正在分析题目类型...'}) + '\n'
+            
             # --- Step 1: Router ---
             print("DEBUG: Calling Router...")
             try:
@@ -585,11 +757,23 @@ def upload_file():
                 if text_prompt:
                     final_router_prompt = f"待分类的题目内容/补充说明如下：\n{text_prompt}\n\n" + router_prompt_to_use
                 
-                router_result_text = model_adapter.generate(final_router_prompt, image_data, mime_type)
+                # Use run_with_heartbeats to avoid proxy timeout during blocking API call
+                router_result_text = None
+                for status, val in run_with_heartbeats(model_adapter.generate, final_router_prompt, image_data, mime_type):
+                    if status == 'heartbeat':
+                        yield val
+                    elif status == 'error':
+                        raise val
+                    elif status == 'result':
+                        router_result_text = val
+
                 print(f"\n--- [DEBUG: RAW ROUTER OUTPUT] ---\n{router_result_text}\n------------------------------")
             except Exception as router_e:
                 print(f"ERROR: Router failed: {router_e}")
-                yield json.dumps({'status': 'error', 'message': f'分类模型调用失败: {str(router_e)}'}) + '\n'
+                error_text = str(router_e)
+                if 'timeout' in error_text.lower() or 'deadline' in error_text.lower():
+                    error_text = '模型响应超时，请稍后重试或换一张更清晰的图片。'
+                yield json.dumps({'status': 'error', 'message': f'分类模型调用失败: {error_text}'}) + '\n'
                 return
 
             if not router_result_text:
@@ -642,22 +826,49 @@ def upload_file():
             
             print(f"DEBUG: Calling Specialist {category}...")
             try:
-                specialist_result_text = model_adapter.generate(selected_prompt, image_data, mime_type)
+                yield json.dumps({'status': 'processing', 'message': '正在调用专家模型生成指令...'}) + '\n'
+                
+                # Use run_with_heartbeats to avoid proxy timeout during blocking API call
+                specialist_result_text = None
+                for status, val in run_with_heartbeats(model_adapter.generate, selected_prompt, image_data, mime_type):
+                    if status == 'heartbeat':
+                        yield val
+                    elif status == 'error':
+                        raise val
+                    elif status == 'result':
+                        specialist_result_text = val
+
                 print(f"\n--- [DEBUG: RAW SPECIALIST OUTPUT] ---\n{specialist_result_text}\n------------------------------")
             except Exception as specialist_e:
                  print(f"ERROR: Specialist failed: {specialist_e}")
-                 yield json.dumps({'status': 'error', 'message': f'专家模型调用失败: {str(specialist_e)}'}) + '\n'
+                 error_text = str(specialist_e)
+                 if 'timeout' in error_text.lower() or 'deadline' in error_text.lower():
+                     error_text = '模型响应超时，请稍后重试或换一张更清晰的图片。'
+                 yield json.dumps({'status': 'error', 'message': f'专家模型调用失败: {error_text}'}) + '\n'
                  return
 
             # 防御性检查：确保模型返回了内容
             if not specialist_result_text or specialist_result_text.strip() == "":
                  print(f"DEBUG: 模型返回为空！可能是触发了安全过滤或网络问题。")
-                 yield json.dumps({"status": "error", "message": "模型未能生成指令，请尝试更换题目图片或模型。"}).encode() + b'\n'
+                 yield json.dumps({"status": "error", "message": "模型未能生成指令，请尝试更换题目图片或模型。"}) + '\n'
                  return
 
             print(f"DEBUG: Generated text length: {len(specialist_result_text)}")
             
             commands = [line.strip() for line in specialist_result_text.split('\n') if line.strip()]
+
+            if deduct_credits:
+                try:
+                    deduct_user_credit(user_id)
+                    print(f"DEBUG: Deducted 1 credit from user {user_id} after successful generation.")
+                except Exception as deduct_e:
+                    error_msg = str(deduct_e)
+                    print(f"ERROR: Credit deduction after generation failed: {error_msg}")
+                    if 'Insufficient credits' in error_msg:
+                        yield json.dumps({'status': 'error', 'message': '积分不足，请充值'}) + '\n'
+                    else:
+                        yield json.dumps({'status': 'error', 'message': '生成已完成，但扣费失败。请稍后重试。'}) + '\n'
+                    return
             
             # Send completion with credit deduction flag
             yield json.dumps({
@@ -673,6 +884,18 @@ def upload_file():
             traceback.print_exc()
             # 确保将错误返回给前端
             yield json.dumps({'status': 'error', 'message': f'系统内部错误: {str(e)}'}) + '\n'
+
+    if request.form.get('responseMode') != 'stream':
+        try:
+            print("DEBUG: Using buffered upload response mode", flush=True)
+            body = ''.join(generate())
+        except Exception as e:
+            print(f"CRITICAL BUFFERED ERROR: {str(e)}", flush=True)
+            import traceback
+            traceback.print_exc()
+            body = json.dumps({'status': 'error', 'message': f'系统内部错误: {str(e)}'}) + '\n'
+
+        return Response(body, mimetype='application/x-ndjson')
 
     return Response(stream_with_context(generate()), mimetype='application/x-ndjson', headers={'X-Accel-Buffering': 'no'})
 

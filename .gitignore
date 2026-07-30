@@ -2,6 +2,20 @@
 .env
 .env.local
 .env.*.local
+.secrets/
+*.pem
+*.key
+
+# 运行日志与进程文件
+*.log
+*.pid
+
+# 运维记录 / 存储清理报告
+storage-cleanup-*.json
+
+# 本地工具产物
+.local-run-venv/
+.impeccable/
 
 # Python
 __pycache__/
@@ -15,6 +29,7 @@ venv/
 node_modules/
 math-mover-next/node_modules/
 .next/
+.next_stuck*/
 .out/
 
 # 构建产物

@@ -1,13 +1,31 @@
 version: '3.8'
 
 services:
-  web:
+  # 后端服务 (Python Flask)
+  backend:
     build: .
     restart: always
-    # 移除端口映射，使其仅在容器网络内部可访问
+    expose:
+      - "5000"
     volumes:
       - ./.env:/app/.env
 
+  # 前端服务 (Next.js)
+  frontend:
+    build: 
+      context: ./math-mover-next
+      dockerfile: Dockerfile
+    restart: always
+    expose:
+      - "3000"
+    env_file:
+      - ./math-mover-next/.env.local
+    environment:
+      - BACKEND_INTERNAL_URL=http://backend:5000
+    depends_on:
+      - backend
+
+  # 反向代理服务 (Caddy)
   caddy:
     image: caddy:latest
     restart: always
@@ -19,7 +37,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - web
+      - frontend
 
 volumes:
   caddy_data:

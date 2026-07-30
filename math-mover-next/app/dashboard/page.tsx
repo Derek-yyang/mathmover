@@ -1,11 +1,8 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
-import { useState, useRef, useEffect } from 'react';
-import Link from 'next/link'; 
-import { Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useState, useRef, useEffect, Suspense } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   CloudUpload,
   FileDown,
@@ -24,7 +21,10 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import GeoGebraBoard from '../../components/GeoGebraBoard';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { TYPE_MAP, formatGenerationTitle, TOAST_DURATION_MS } from '@/lib/constants';
+
+const MAX_UPLOAD_IMAGE_BYTES = 5 * 1024 * 1024;
 
 // 类型定义
 interface GeoGebraApi {
@@ -72,8 +72,8 @@ export default function Dashboard() {
 }
 
 function DashboardContent() {
-  const searchParams = useSearchParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -107,11 +107,109 @@ function DashboardContent() {
   const [isCopied, setIsCopied] = useState(false);
   const [lastUploadedFile, setLastUploadedFile] = useState<File | null>(null);
   const [lastUploadedUrl, setLastUploadedUrl] = useState<string | null>(null);
+  const [isGgbCommandsExpanded, setIsGgbCommandsExpanded] = useState(false);
+
+  // 全局 Escape 键监听
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isFullscreen) {
+          setIsFullscreen(false);
+        }
+        if (isPreviewImageOpen) {
+          setIsPreviewImageOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [isFullscreen, isPreviewImageOpen]);
+
+  // 文本框 Ctrl+Enter 提交生成
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (!isLoading && (previewUrl || problemText.trim())) {
+        if (isGenerated) {
+          handleRegenerate();
+        } else {
+          handleGenerate();
+        }
+      }
+    }
+  };
 
   // 显示 Toast 提示
   const showToast = (message: string, type: 'success' | 'error') => {
       setToast({ message, type });
-      setTimeout(() => setToast({ message: '', type: null }), 3000);
+      setTimeout(() => setToast({ message: '', type: null }), TOAST_DURATION_MS);
+  };
+
+  const getFreshAccessToken = async () => {
+      let { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.expires_at && Date.now() > session.expires_at * 1000 - 60_000) {
+          const refreshed = await supabase.auth.refreshSession();
+          session = refreshed.data.session;
+      }
+
+      if (!session?.access_token) {
+          throw new Error('登录状态已过期，请重新登录');
+      }
+
+      return session.access_token;
+  };
+
+  const parseUploadError = async (response: Response) => {
+      const errorText = await response.text();
+      let message = errorText;
+
+      try {
+          const data = JSON.parse(errorText);
+          message = data.message || data.error || errorText;
+      } catch {}
+
+      if (response.status === 401) {
+          if (message.includes('无效的身份验证凭证')) {
+              return '身份验证失败（后端认证服务不可用或网络受限），请稍后重试。';
+          }
+          if (message.includes('未授权的请求')) {
+              return '登录状态已过期，请刷新页面或重新登录后再试';
+          }
+          return message || '登录状态已过期，请刷新页面或重新登录后再试';
+      }
+
+      if (
+          message.includes('invalid_api_key') ||
+          message.includes('Incorrect API key') ||
+          message.includes('apikey-error')
+      ) {
+          return '自定义 API Key 无效。请在个人主页重新粘贴正确的阿里云百炼/DashScope API Key，并确认没有多余空格或换行。';
+      }
+
+      return message || `请求失败 (${response.status})`;
+  };
+
+  const postUploadWithFreshAuth = async (formData: FormData) => {
+      const request = async (accessToken: string) => fetch('/api/upload', {
+          method: 'POST',
+          headers: {
+              Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData
+      });
+
+      let response = await request(await getFreshAccessToken());
+
+      if (response.status === 401) {
+          const refreshed = await supabase.auth.refreshSession();
+          const retryToken = refreshed.data.session?.access_token;
+          if (retryToken) {
+              response = await request(retryToken);
+          }
+      }
+
+      return response;
   };
   
   // 历史项目切换相关
@@ -134,39 +232,33 @@ function DashboardContent() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
   
-  // 题目类型映射
-  const TYPE_MAP: Record<string, string> = { 
-      'A': '函数与图像', 
-      'B': '平面几何', 
-      'C': '解析几何', 
-      'D': '立体几何' 
-  };
   
   // 监听用户登录状态
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      
-      // 【诊断 3】Dashboard 读到的 Session
-      console.log("【诊断 3】Dashboard 读到的 Session:", session);
 
       if (!session) {
-        // window.location.replace('/login');
-      } else {
-        setUser(session.user);
-        fetchCredits(session.user.id);
-        fetchRecentHistory(session.user.id);
+        window.location.replace('/login');
+        return;
       }
+
+      setUser({ id: session.user.id });
+      await Promise.all([
+        fetchRecentHistory(session.user.id),
+        fetchCredits(session.user.id)
+      ]);
     };
 
     checkAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        // window.location.replace('/login');
-      } else if (session) {
-         setUser(session.user);
-         fetchRecentHistory(session.user.id);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        window.location.replace('/login');
+      } else {
+        setUser({ id: session.user.id });
+        fetchRecentHistory(session.user.id);
+        fetchCredits(session.user.id);
       }
     });
 
@@ -207,7 +299,7 @@ function DashboardContent() {
           setActiveProjectId(historyId);
           fetchHistoryItem(historyId);
       }
-  }, [searchParams]);
+  }, [router, searchParams, ggbApplet]);
 
   const fetchRecentHistory = async (userId: string) => {
     const { data } = await supabase
@@ -216,38 +308,57 @@ function DashboardContent() {
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(5);
-    setRecentHistory(data || []);
+    const mapped = (data || []).map(g => ({
+      id: g.id,
+      user_id: g.user_id,
+      title: g.title || TYPE_MAP[g.problem_type] || '未命名课件',
+      problem_type: g.problem_type,
+      image_url: g.image_url,
+      ggb_commands: g.ggb_commands,
+      created_at: g.created_at
+    }));
+    setRecentHistory(mapped);
   };
 
   const fetchHistoryItem = async (id: string) => {
-      const { data, error } = await supabase
-          .from('generations')
-          .select('*')
-          .eq('id', id)
-          .single();
-      
+      const { data } = await supabase
+        .from('generations')
+        .select('*')
+        .eq('id', id)
+        .single();
       if (data) {
-          loadHistoryItem(data);
+          loadHistoryItem({
+            id: data.id,
+            user_id: data.user_id,
+            title: data.title || TYPE_MAP[data.problem_type] || '未命名课件',
+            problem_type: data.problem_type,
+            image_url: data.image_url,
+            ggb_commands: data.ggb_commands,
+            created_at: data.created_at
+          });
       }
   };
 
   // 获取积分 (用于生成前检查)
   const fetchCredits = async (userId: string) => {
-      // 先执行积分同步（处理每日赠送逻辑）
       await supabase.rpc('sync_user_credits', { user_uuid: userId });
 
-      const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
-      
-      if (error) console.error('Error fetching credits:', error);
-      else {
-          // 计算总积分：月度赠送 + 永久积分
-          const total = (data?.monthly_credits || 0) + (data?.permanent_credits || 0);
-          setCredits(total);
-          setUserProfile(data);
+      const { data } = await supabase
+        .from('profiles')
+        .select('monthly_credits, permanent_credits, use_custom_model, custom_model_name')
+        .eq('id', userId)
+        .single();
+      if (data) {
+          const monthlyCredits = data.monthly_credits || 0;
+          const permanentCredits = data.permanent_credits || 0;
+          setCredits(monthlyCredits + permanentCredits);
+          setUserProfile({
+            id: userId,
+            monthly_credits: monthlyCredits,
+            permanent_credits: permanentCredits,
+            use_custom_model: data.use_custom_model || false,
+            custom_model_name: data.custom_model_name || undefined
+          });
       }
   };
 
@@ -266,13 +377,12 @@ function DashboardContent() {
       setProblemType(item.problem_type || null);
 
       // 3. 更新标题
-      setCurrentProjectTitle(item.title || (item.problem_type ? TYPE_MAP[item.problem_type] : null) || '未命名课件');
+      setCurrentProjectTitle(formatGenerationTitle(item.title, item.problem_type));
       
       // 4. 恢复指令
       try {
           const commands = JSON.parse(item.ggb_commands);
           if (Array.isArray(commands)) {
-              console.log('Restoring commands from history:', commands.length);
               setPendingCommands(commands); 
               setExecutedCommands(commands);
               setIsGenerated(true); 
@@ -289,51 +399,10 @@ function DashboardContent() {
       router.push(`/dashboard?history_id=${item.id}`);
   };
 
-  // 兑换积分
+  // 兑换积分 - 本地版本暂不支持
   const handleRedeem = async () => {
-      if (!redeemCode || redeemCode.length < 5) {
-          showToast('请输入有效的兑换码', 'error');
-          return;
-      }
-
-      if (!user) {
-          showToast('请先登录', 'error');
-          return;
-      }
-
-      setIsRedeeming(true);
-
-      try {
-          const { data, error } = await supabase.rpc('redeem_code', {
-              code_input: redeemCode,
-              user_uuid: user.id
-          });
-          
-          console.log("RPC 返回结果:", { data, error });
-          
-          if (error) {
-              showToast(`❌ ${error.message}`, 'error');
-              return;
-          }
-
-          // 兼容处理：RPC 返回 table 时 data 可能是数组
-          const result = Array.isArray(data) ? data[0] : data;
-          
-          if (result && result.success) {
-              showToast(`🎉 兑换成功！获得 ${result.points} 积分`, 'success');
-              setCredits(prev => prev + result.points);
-              setIsRedeemModalOpen(false);
-              setRedeemCode('');
-          } else {
-              const msg = result?.message || '兑换失败，未知错误';
-              showToast(`❌ ${msg}`, 'error');
-          }
-      } catch (err: unknown) {
-          console.error('Redeem failed:', err);
-          showToast('兑换失败：' + ((err as Error).message || '未知错误'), 'error');
-      } finally {
-          setIsRedeeming(false);
-      }
+      showToast('本地版本暂不支持积分兑换', 'error');
+      setIsRedeemModalOpen(false);
   };
 
   // 监听粘贴事件
@@ -490,7 +559,6 @@ function DashboardContent() {
   // 监听 GeoGebra 实例就绪并执行待处理指令
   useEffect(() => {
     if (ggbApplet && pendingCommands.length > 0) {
-        console.log('GeoGebra 就绪，开始执行待处理指令:', pendingCommands.length);
         
         ggbApplet.newConstruction(); 
         
@@ -561,6 +629,10 @@ function DashboardContent() {
       showToast('请上传有效的图片文件 (JPG, PNG).', 'error');
       return;
     }
+    if (selectedFile.size > MAX_UPLOAD_IMAGE_BYTES) {
+      showToast('上传的图片不能超过 5MB，请压缩后再试。', 'error');
+      return;
+    }
     setFile(selectedFile);
     
     const reader = new FileReader();
@@ -610,13 +682,10 @@ function DashboardContent() {
         try {
             const parts = url.split('/problem-images/');
             if (parts.length > 1) {
-                // 移除可能存在的 URL 参数 (如 ?t=123)
-                const pathWithPossibleParams = parts[1];
-                return pathWithPossibleParams.split('?')[0];
+                return parts[1].split('?')[0];
             }
             return null;
-        } catch (e) {
-            console.error("Error extracting file path:", e);
+        } catch {
             return null;
         }
     };
@@ -650,33 +719,52 @@ function DashboardContent() {
     }
 
     let imageUrl = '';
+    let uploadedFilePath: string | null = null;
+    let savedToCloud = false;
+    const cleanupUploadedFile = async () => {
+        if (!uploadedFilePath || savedToCloud) return;
+        try {
+            await supabase.storage.from('problem-images').remove([uploadedFilePath]);
+        } catch (cleanupError) {
+            console.warn('Failed to clean up uploaded image after failed generation:', cleanupError);
+        }
+        uploadedFilePath = null;
+    };
+
     // 如果有新文件，先处理上传逻辑
     if (file && user) {
+        if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
+            showToast('上传的图片不能超过 5MB，请压缩后再试。', 'error');
+            setIsLoading(false);
+            return;
+        }
         try {
             // 检查是否可以使用缓存
             if (lastUploadedUrl && lastUploadedFile && file === lastUploadedFile) {
-                console.log('Skipping upload, using cached URL:', lastUploadedUrl);
                 imageUrl = lastUploadedUrl;
             } else {
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-                const filePath = `${user.id}/${fileName}`;
+                // Supabase: upload image to storage
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const bytes = new Uint8Array(arrayBuffer);
+                    const fileExt = file.name.split('.').pop();
+                    const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-                const { error: uploadError } = await supabase.storage
-                    .from('problem-images')
-                    .upload(filePath, file);
-
-                if (uploadError) {
-                    console.error('Supabase upload error:', uploadError);
-                } else {
-                    const { data } = supabase.storage
+                    const { data, error } = await supabase.storage
                         .from('problem-images')
-                        .getPublicUrl(filePath);
-                    imageUrl = data.publicUrl;
-                    
-                    // 更新缓存
+                        .upload(fileName, bytes, { contentType: file.type });
+
+                    if (error) throw error;
+                    uploadedFilePath = data?.path || fileName;
+
+                    const { data: urlData } = supabase.storage
+                        .from('problem-images')
+                        .getPublicUrl(fileName);
+                    imageUrl = urlData.publicUrl;
                     setLastUploadedFile(file);
                     setLastUploadedUrl(imageUrl);
+                } catch (err) {
+                    console.error('Image upload failed:', err);
                 }
             }
         } catch (err) {
@@ -697,30 +785,22 @@ function DashboardContent() {
     if (problemText) {
         formData.append('text', problemText);
     }
+    formData.append('responseMode', 'stream');
     if (user) {
         formData.append('user_id', user.id);
     }
 
     try {
-      // 修复漏洞 1：获取当前 session token 用于后端鉴权
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: formData
-      });
+      const response = await postUploadWithFreshAuth(formData);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Server Error (${response.status}): ${errorText}`);
+        throw new Error(await parseUploadError(response));
       }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let completedReceived = false;
 
       if (!reader) throw new Error('Response body is unavailable');
 
@@ -738,14 +818,24 @@ function DashboardContent() {
               try {
                   const data = JSON.parse(line);
                   
-                  if (data.error) {
-                      throw new Error(data.error);
+                  if (data.error || data.status === 'error') {
+                      const message = data.message || data.error || '生成失败，请稍后重试';
+                      showToast('Error: ' + message, 'error');
+                      await cleanupUploadedFile();
+                      setIsLoading(false);
+                      try {
+                        await reader.cancel();
+                      } catch {}
+                      return;
                   }
 
                   if (data.status === 'classified') {
                       setProblemType(data.category);
                       setLoadingText("正在调用专家模型生成指令...");
+                  } else if (data.status === 'processing') {
+                      setLoadingText(data.message || "正在调用专家模型生成指令...");
                   } else if (data.status === 'completed') {
+                      completedReceived = true;
                       
                       const rawData = data.commands;
                       const validCommands: string[] = [];
@@ -784,77 +874,49 @@ function DashboardContent() {
                       
                       setPendingCommands(validCommands);
                       setExecutedCommands(validCommands);
+                      if (data.deduct_credits !== false) {
+                          setCredits(prev => Math.max(prev - 1, 0));
+                      }
 
-                      const saveToSupabase = async () => {
+                      const saveToCloud = async () => {
+                          if (!user) return false;
                           try {
-                              const { data: { user } } = await supabase.auth.getUser();
-                              if (user) {
-                                  let error = null;
+                              const record = {
+                                  id: activeProjectId || undefined,
+                                  user_id: user.id,
+                                  title: currentProjectTitle === '未命名课件' ? null : currentProjectTitle,
+                                  ggb_commands: JSON.stringify(validCommands),
+                                  problem_type: data.category,
+                                  image_url: imageUrl || null,
+                              };
 
-                                  if (activeProjectId) {
-                                      // Update existing
-                                      console.log('Updating existing project:', activeProjectId);
-                                      const result = await supabase
-                                          .from('generations')
-                                          .update({
-                                              ggb_commands: JSON.stringify(validCommands), 
-                                              problem_type: data.category,
-                                              image_url: imageUrl || null 
-                                          })
-                                          .eq('id', activeProjectId);
-                                      error = result.error;
-                                  } else {
-                                      // Insert new
-                                      console.log('Inserting new project...');
-                                      const result = await supabase
-                                          .from('generations')
-                                          .insert({
-                                              user_id: user.id,
-                                              ggb_commands: JSON.stringify(validCommands), 
-                                              problem_type: data.category,
-                                              image_url: imageUrl || null 
-                                          })
-                                          .select()
-                                          .single();
-                                      
-                                      error = result.error;
-                                      if (result.data) {
-                                          setActiveProjectId(result.data.id);
-                                      }
-                                  }
-                                  
-                                  if (error) {
-                                      console.error('Error saving to Supabase:', error);
-                                  } else {
-                                      // 成功保存后，更新本地缓存的 savedImageUrl
-                                      if (imageUrl) {
-                                          setSavedImageUrl(imageUrl);
-                                      }
+                              const { data: saved, error } = await supabase
+                                  .from('generations')
+                                  .upsert(record)
+                                  .select()
+                                  .single();
 
-                                      // 安全清理旧图片 (Safe Cleanup)
-                                      if (oldImageUrlToDelete && oldImageUrlToDelete !== imageUrl) {
-                                          const pathToDelete = extractFilePath(oldImageUrlToDelete);
-                                          if (pathToDelete) {
-                                              const { error: deleteError } = await supabase.storage.from('problem-images').remove([pathToDelete]);
-                                              if (deleteError) console.error("清理旧图片失败:", deleteError);
-                                              else console.log("✅ 成功清理旧图片:", pathToDelete);
-                                          }
-                                      }
+                              if (error) throw error;
+                              savedToCloud = true;
+                              setActiveProjectId(saved.id);
 
-                                      // 只有当 data.deduct_credits !== false 时才扣除积分
-                                      if (data.deduct_credits !== false) {
-                                          // 修复漏洞 2：后端已完成扣费，前端仅需更新本地状态
-                                          setCredits(prev => prev - 1); 
-                                      } else {
-                                          console.log('Using custom model, skipping credit deduction.');
-                                      }
+                              if (imageUrl) setSavedImageUrl(imageUrl);
+
+                              if (oldImageUrlToDelete && oldImageUrlToDelete !== imageUrl) {
+                                  const fileName = extractFilePath(oldImageUrlToDelete);
+                                  if (fileName) {
+                                      supabase.storage.from('problem-images').remove([fileName]).then(() => {}).catch(() => {});
                                   }
                               }
+
                           } catch (err) {
                               console.error('Failed to save history:', err);
+                              await cleanupUploadedFile();
+                              return false;
                           }
+                          return true;
                       };
-                      saveToSupabase();
+                      await saveToCloud();
                       
                       const finishTimer = setInterval(() => {
                         setProgress((prev) => {
@@ -879,13 +941,26 @@ function DashboardContent() {
                   }
               } catch (e) {
                   console.error('Error parsing JSON chunk:', e);
+                  const message = e instanceof Error ? e.message : '生成响应解析失败';
+                  showToast('Error: ' + message, 'error');
+                  await cleanupUploadedFile();
+                  setIsLoading(false);
+                  try {
+                    await reader.cancel();
+                  } catch {}
+                  return;
               }
           }
+      }
+
+      if (!completedReceived) {
+        throw new Error('生成连接中断，请刷新后重试。');
       }
 
     } catch (err: unknown) {
       console.error(err);
       showToast('Error: ' + ((err as Error).message || 'Unknown error'), 'error');
+      await cleanupUploadedFile();
       setIsLoading(false); 
     } 
   };
@@ -1280,136 +1355,134 @@ function DashboardContent() {
 
           {/* Top: Upload Card (Always Visible) */}
           <div 
-             className={`relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-sm border border-stone-100 p-6 flex items-center justify-between transition-all duration-300 ${isDragOver ? 'border-emerald-400 bg-emerald-50/30' : ''}`}
+             className={`relative z-10 w-full max-w-4xl bg-white rounded-3xl shadow-sm border border-stone-200 p-6 flex flex-col gap-4 transition-all duration-300 ${isDragOver ? 'border-emerald-400 bg-emerald-50/10' : ''}`}
              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
              onDragLeave={() => setIsDragOver(false)}
              onDrop={(e) => { setIsDragOver(false); handleDrop(e); }}
           >
-             {/* Left: Action Area */}
-             <div className="flex items-center gap-6 flex-1">
-                <div 
-                    className="relative group w-40 h-24 flex-shrink-0 bg-stone-50 rounded-lg border-2 border-dashed border-stone-200 flex items-center justify-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/50 transition-all overflow-hidden"
-                    onClick={() => fileInputRef.current?.click()}
-                >
-                    {previewUrl ? (
-                        <>
-                            <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1">
-                                <PenTool className="w-5 h-5" />
-                                <span className="text-xs font-bold">更换图片</span>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center gap-2 text-stone-300 group-hover:text-emerald-500 transition-colors">
-                            <CloudUpload className="w-8 h-8" />
-                            <span className="text-xs font-bold">点击上传</span>
-                        </div>
-                    )}
-                </div>
-                
-             {/* Right: Action Area (Text & Button) */}
-             <div className="flex flex-col justify-between h-full flex-1 gap-4">
-                
-                {/* Title or Progress Area */}
-                <div className="min-h-[28px] flex items-center">
-                    {isLoading ? (
-                            <div className="w-[60%]">
-                                 <div className="flex items-center justify-between mb-1.5">
-                                     <span className="text-sm font-bold text-stone-600 animate-pulse whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">{loadingText}</span>
-                                     {problemType && (
-                                          <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 animate-in fade-in zoom-in duration-300 whitespace-nowrap ml-2">
-                                             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                                             题型识别：{TYPE_MAP[problemType] || problemType}
-                                          </span>
-                                      )}
-                                 </div>
-                                 <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
-                                     <div 
-                                         className="h-full bg-emerald-500 transition-all duration-500 ease-out rounded-full"
-                                         style={{ width: `${progress}%` }}
-                                     ></div>
-                                 </div>
-                            </div>
-                        ) : (
-                        <h3 className="font-bold text-stone-700 text-lg">
-                            {previewUrl ? "图片已就绪" : "上传题目图片"}
-                        </h3>
-                    )}
-                </div>
-
-                {/* Content Container: Textarea + Button */}
-                <div className="flex items-end gap-4 w-full">
-                    
-                    {/* Text Input (Flex-1) */}
-                    <div className="flex-1 min-w-0 relative group">
-                        <textarea
-                            value={problemText}
-                            onChange={(e) => setProblemText(e.target.value)}
-                            disabled={isLoading}
-                            placeholder="在此输入题目内容或补充信息……"
-                            className="w-full max-w-[400px] bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all duration-300 resize-none h-10 focus:h-32 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                        />
-                    </div>
-
-                    {/* Dynamic Action Area (Flex-Shrink-0) */}
-                    <div className="flex-shrink-0 w-[160px] h-[52px] flex flex-col justify-end items-center gap-1.5">
-                        {isLoading ? (
-                            <div className="w-full flex flex-col items-center">
-                                {userProfile?.use_custom_model && (
-                                    <span className="text-[10px] font-bold text-zinc-500 mb-1 animate-in fade-in slide-in-from-bottom-1 duration-500 whitespace-nowrap">
-                                        使用模型：{userProfile.custom_model_name || 'Custom Model'}
-                                    </span>
-                                )}
-                                <button 
-                                    disabled
-                                    className="w-full h-[42px] bg-stone-100 text-stone-400 font-bold rounded-xl shadow-none flex items-center justify-center gap-2 cursor-not-allowed"
-                                >
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                    生成中...
-                                </button>
-                            </div>
-                        ) : isGenerated ? (
-                             <div className="w-full flex flex-col items-center">
-                                 <button 
-                                     onClick={handleRegenerate}
-                                     className="w-full h-[42px] bg-white border-2 border-stone-200 text-stone-600 font-bold rounded-xl shadow-sm hover:border-emerald-400 hover:text-emerald-600 hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
-                                 >
-                                     <RefreshCw className="w-5 h-5 stroke-[2.5]" />
-                                     重新生成
-                                 </button>
-                                 <span className="text-[10px] text-zinc-400 font-medium">
-                                     {userProfile?.use_custom_model ? "🛡️ 不消耗平台积分" : "✨ 消耗 1 积分"}
-                                 </span>
-                             </div>
-                        ) : (previewUrl || problemText.trim()) ? (
-                             <div className="w-full flex flex-col items-center">
-                                 <button 
-                                     onClick={handleGenerate}
-                                     className="w-full h-[42px] bg-emerald-500 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-600 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
-                                 >
-                                     <RefreshCw className="w-5 h-5 stroke-[3]" />
-                                     生成演示
-                                 </button>
-                                 <span className="text-[10px] text-zinc-400 font-medium">
-                                     {userProfile?.use_custom_model ? "🛡️ 不消耗平台积分" : "✨ 消耗 1 积分"}
-                                 </span>
-                             </div>
-                        ) : (
-                             <div className="w-full h-[42px]"></div> 
-                        )}
-                    </div>
-                </div>
+             {/* Top Row: Title or Loading Progress */}
+             <div className="w-full flex items-center justify-between min-h-[28px]">
+                 {isLoading ? (
+                     <div className="w-full">
+                          <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-xs font-bold text-stone-600 animate-pulse truncate max-w-[240px]">{loadingText}</span>
+                              {problemType && (
+                                   <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 animate-in fade-in zoom-in duration-300">
+                                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+                                      题型识别：{TYPE_MAP[problemType] || problemType}
+                                   </span>
+                               )}
+                          </div>
+                          <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
+                              <div 
+                                  className="h-full bg-emerald-500 transition-all duration-500 ease-out rounded-full"
+                                  style={{ width: `${progress}%` }}
+                              ></div>
+                          </div>
+                     </div>
+                 ) : (
+                     <div className="flex items-center justify-between w-full">
+                       <h3 className="font-bold text-stone-700 text-sm tracking-wide">
+                           {previewUrl ? "📸 题目图片已就绪" : "📤 上传题目图片或在此输入补充数学题目信息"}
+                       </h3>
+                       {userProfile?.use_custom_model && (
+                           <span className="bg-stone-50 border border-stone-100 text-stone-500 text-[10px] font-bold px-2 py-0.5 rounded-full animate-in fade-in duration-300">
+                               ⚙️ 自定义模型: {userProfile.custom_model_name || 'Custom Model'}
+                           </span>
+                       )}
+                     </div>
+                 )}
              </div>
 
-             <input 
-                 type="file" 
-                 ref={fileInputRef} 
-                 className="hidden" 
-                 accept="image/*" 
-                 onChange={(e) => e.target.files && handleFileSelect(e.target.files[0])}
-             />
-          </div>
-          </div>
+             {/* Bottom Row: Three-Column Workspace Layout */}
+             <div className="flex items-center gap-4 w-full h-24">
+                 {/* 1. Upload Dropzone */}
+                 <div 
+                     className="relative group w-44 h-full bg-stone-50/50 rounded-2xl border border-dashed border-stone-200 flex items-center justify-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 overflow-hidden"
+                     onClick={() => fileInputRef.current?.click()}
+                 >
+                     {previewUrl ? (
+                         <>
+                             <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1">
+                                 <PenTool className="w-4 h-4" />
+                                 <span className="text-[10px] font-bold">更换图片</span>
+                             </div>
+                         </>
+                     ) : (
+                         <div className="flex flex-col items-center justify-center gap-1.5 text-stone-400 group-hover:text-emerald-500 transition-colors">
+                             <CloudUpload className="w-6 h-6" />
+                             <span className="text-[10px] font-bold">点击上传图片</span>
+                         </div>
+                     )}
+                 </div>
+                 
+                 {/* 2. Text Input */}
+                 <div className="flex-1 h-full relative">
+                     <textarea
+                         value={problemText}
+                         onChange={(e) => setProblemText(e.target.value)}
+                         onKeyDown={handleTextareaKeyDown}
+                         disabled={isLoading}
+                         placeholder="在此输入数学题目的文本、解题提示或描述，按 Ctrl+Enter 快速生成..."
+                         className="w-full h-full bg-stone-50/20 border border-stone-200 rounded-2xl px-3 py-2.5 text-sm text-stone-700 placeholder:text-stone-400 focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 transition-all duration-300 resize-none shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                     />
+                 </div>
+
+                 {/* 3. Action Buttons & Credit Info */}
+                 <div className="w-44 h-full flex flex-col justify-center items-center gap-1.5">
+                     {isLoading ? (
+                         <div className="w-full flex flex-col items-center">
+                             <button 
+                                 disabled
+                                 className="w-full h-11 bg-stone-100 text-stone-400 font-bold rounded-full flex items-center justify-center gap-2 cursor-not-allowed"
+                             >
+                                 <Loader2 className="w-4 h-4 animate-spin" />
+                                 生成中...
+                             </button>
+                         </div>
+                     ) : isGenerated ? (
+                          <div className="w-full flex flex-col items-center gap-1">
+                              <button 
+                                  onClick={handleRegenerate}
+                                  className="w-full h-11 bg-white border border-stone-200 text-stone-700 font-bold rounded-full shadow-sm hover:border-emerald-500 hover:text-emerald-600 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 group"
+                              >
+                                  <RefreshCw className="w-4 h-4 text-emerald-500 group-hover:rotate-180 transition-transform duration-500" />
+                                  重新生成
+                              </button>
+                              <span className="text-[10px] text-stone-400 font-bold tracking-wide">
+                                  {userProfile?.use_custom_model ? "🛡️ 不消耗积分" : "✨ 消耗 1 积分"}
+                              </span>
+                          </div>
+                     ) : (previewUrl || problemText.trim()) ? (
+                          <div className="w-full flex flex-col items-center gap-1">
+                              <button 
+                                  onClick={handleGenerate}
+                                  className="w-full h-11 bg-emerald-500 text-white font-bold rounded-full shadow-md hover:bg-emerald-600 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 group"
+                              >
+                                  <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
+                                  生成课件
+                              </button>
+                              <span className="text-[10px] text-stone-400 font-bold tracking-wide">
+                                  {userProfile?.use_custom_model ? "🛡️ 不消耗积分" : "✨ 消耗 1 积分"}
+                              </span>
+                          </div>
+                     ) : (
+                          <div className="w-full h-11 border border-dashed border-stone-200 rounded-full flex items-center justify-center text-xs font-bold text-stone-300 select-none">
+                              等待输入内容
+                          </div> 
+                     )}
+                 </div>
+              </div>
+
+              <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  className="hidden" 
+                  accept="image/*" 
+                  onChange={(e) => e.target.files && handleFileSelect(e.target.files[0])}
+              />
+           </div>
 
           {/* Bottom: GeoGebra Card (Fixed Aspect Ratio) */}
           <div 
@@ -1548,29 +1621,43 @@ function DashboardContent() {
                 <div className="space-y-2 pt-4 border-t border-stone-100 animate-in slide-in-from-right-4 duration-500 delay-100">
                    <div className="flex items-center justify-between">
                        <label className="text-[10px] font-black text-stone-400 uppercase tracking-wider">GGB 指令</label>
-                       <button 
-                           onClick={handleCopyCommands}
-                           className="flex items-center gap-1.5 text-[10px] font-bold text-stone-400 hover:text-emerald-600 transition-all bg-stone-50 hover:bg-emerald-50 px-2 py-1 rounded-md active:scale-95"
-                       >
-                           {isCopied ? (
-                               <>
-                                   <Check className="w-3 h-3 stroke-[3]" />
-                                   <span>已复制</span>
-                               </>
-                           ) : (
-                               <>
-                                   <Copy className="w-3 h-3 stroke-[2.5]" />
-                                   <span>复制</span>
-                               </>
-                           )}
-                       </button>
-                   </div>
-                   
-                   <div className="bg-stone-50/50 rounded-xl border border-stone-100 p-3 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-stone-200 scrollbar-track-transparent shadow-inner">
-                       <div className="font-mono text-[10px] leading-relaxed text-stone-600 break-all whitespace-pre-wrap select-all">
-                           {executedCommands.join('\n')}
+                       <div className="flex items-center gap-2">
+                           <button 
+                               onClick={() => setIsGgbCommandsExpanded(!isGgbCommandsExpanded)}
+                               className="text-[10px] font-bold text-stone-500 hover:text-emerald-600 transition-all bg-stone-50 hover:bg-emerald-50 px-2 py-1 rounded-md"
+                           >
+                               {isGgbCommandsExpanded ? "收起" : "展开"}
+                           </button>
+                           <button 
+                               onClick={handleCopyCommands}
+                               className="flex items-center gap-1.5 text-[10px] font-bold text-stone-400 hover:text-emerald-600 transition-all bg-stone-50 hover:bg-emerald-50 px-2 py-1 rounded-md active:scale-95"
+                           >
+                               {isCopied ? (
+                                   <>
+                                       <Check className="w-3 h-3 stroke-[3]" />
+                                       <span>已复制</span>
+                                   </>
+                               ) : (
+                                   <>
+                                       <Copy className="w-3 h-3 stroke-[2.5]" />
+                                       <span>复制</span>
+                                   </>
+                               )}
+                           </button>
                        </div>
                    </div>
+                   
+                   {isGgbCommandsExpanded ? (
+                       <div className="bg-stone-50/50 rounded-xl border border-stone-100 p-3 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-stone-200 scrollbar-track-transparent shadow-inner animate-in fade-in duration-200">
+                           <div className="font-mono text-[10px] leading-relaxed text-stone-600 break-all whitespace-pre-wrap select-all">
+                               {executedCommands.join('\n')}
+                           </div>
+                       </div>
+                   ) : (
+                       <div className="bg-stone-50/30 rounded-xl border border-stone-100 px-3 py-2 text-[10px] text-stone-400 font-mono truncate">
+                           {executedCommands[0]}... (共 {executedCommands.length} 条指令)
+                       </div>
+                   )}
                 </div>
             )}
 
@@ -1583,7 +1670,7 @@ function DashboardContent() {
                       <div className="relative">
                           <button 
                              onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                             className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl text-sm font-bold shadow-md hover:shadow-lg hover:translate-y-[-1px] transition-all"
+                             className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full text-sm font-bold shadow-md hover:shadow-lg hover:-translate-y-[1px] transition-all"
                           >
                              <FileDown className="w-4 h-4 stroke-[2.5]" /> 导出项目
                           </button>
@@ -1663,7 +1750,7 @@ function DashboardContent() {
                       <button 
                           onClick={handleRedeem}
                           disabled={isRedeeming || !redeemCode}
-                          className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-emerald-200 hover:bg-emerald-600 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 disabled:bg-stone-200 disabled:shadow-none disabled:text-stone-400 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                          className="w-full py-3 bg-emerald-500 text-white rounded-full font-bold text-sm shadow-lg shadow-emerald-100 hover:bg-emerald-600 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 disabled:bg-stone-200 disabled:shadow-none disabled:text-stone-400 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                       >
                           {isRedeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : "立即兑换"}
                       </button>

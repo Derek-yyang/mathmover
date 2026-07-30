@@ -1,0 +1,17 @@
+.git
+.secrets
+.agents
+.impeccable
+.vercel
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.log
+deploy*.tar
+math-mover-next/.next
+math-mover-next/node_modules
+math-mover-next/out
+math-mover-next/src-tauri/target
+math-mover-next/dev-server-*.log
+promo_video_assets
