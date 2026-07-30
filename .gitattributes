@@ -1,0 +1,9 @@
+# 统一以 LF 检出和导出，保证部署到 Linux 服务器的代码与仓库快照逐字节一致
+* text=auto eol=lf
+
+# 二进制文件不做换行符转换
+*.png binary
+*.ico binary
+*.icns binary
+*.tar binary
+*.gz binary
