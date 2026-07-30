@@ -572,7 +572,20 @@ class ModelFactory:
             
             return OpenAICompatibleAdapter(api_key, base_url, model_name)
         
-        # 2. Default System Model (Gemini)
+        # 2. System default via env: OpenAI-compatible endpoint (e.g. Agnes apihub)
+        #    Set SYSTEM_MODEL_PROVIDER=openai_compatible + SYSTEM_BASE_URL +
+        #    SYSTEM_API_KEY + SYSTEM_MODEL_NAME to override the Gemini default.
+        provider = (os.getenv('SYSTEM_MODEL_PROVIDER') or 'gemini').strip().lower()
+        if provider in ('openai', 'openai_compatible', 'openai-compatible'):
+            api_key = (os.getenv('SYSTEM_API_KEY') or '').strip()
+            base_url = (os.getenv('SYSTEM_BASE_URL') or '').strip().rstrip('/')
+            model_name = (os.getenv('SYSTEM_MODEL_NAME') or '').strip()
+            if api_key and base_url and model_name:
+                print(f"DEBUG: Using system default OpenAI-compatible model: {model_name} @ {base_url}")
+                return OpenAICompatibleAdapter(api_key, base_url, model_name)
+            print("WARNING: SYSTEM_MODEL_PROVIDER is openai_compatible but SYSTEM_API_KEY/SYSTEM_BASE_URL/SYSTEM_MODEL_NAME incomplete, falling back to Gemini")
+
+        # 3. Default System Model (Gemini)
         print("DEBUG: Using system default model (Gemini)")
         return GeminiAdapter(api_key=GOOGLE_API_KEY)
 
