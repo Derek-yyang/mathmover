@@ -86,6 +86,8 @@ export default function AdminCodesPage() {
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [message, setMessage] = useState("");
+  const [generatedCodes, setGeneratedCodes] = useState<CodeRow[]>([]);
+  const [generatedCopied, setGeneratedCopied] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -140,6 +142,8 @@ export default function AdminCodesPage() {
     setGenerating(true);
     setError("");
     setMessage("");
+    setGeneratedCodes([]);
+    setGeneratedCopied(false);
 
     const body =
       nextKind === "credits"
@@ -168,12 +172,25 @@ export default function AdminCodesPage() {
       setRows(data.rows ?? []);
       setSelectedIds((data.rows ?? []).map((row: CodeRow) => row.id));
       setMessage(data.message ?? "生成成功。");
+      setGeneratedCodes(data.rows ?? []);
       await loadRows();
       setSelectedIds((data.rows ?? []).map((row: CodeRow) => row.id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "生成兑换码失败。");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const copyGeneratedCodes = async () => {
+    try {
+      await navigator.clipboard.writeText(
+        generatedCodes.map((row) => row.code).join("\n")
+      );
+      setGeneratedCopied(true);
+      setTimeout(() => setGeneratedCopied(false), 2000);
+    } catch {
+      setError("复制失败，请手动选择复制。");
     }
   };
 
@@ -418,6 +435,36 @@ export default function AdminCodesPage() {
                   }`}
                 >
                   {error || message}
+                  {!error && generatedCodes.length > 0 && (
+                    <div className="mt-3 border-t border-emerald-200 pt-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-black text-emerald-600">
+                          新生成的兑换码（共 {generatedCodes.length} 个）
+                        </span>
+                        <button
+                          onClick={copyGeneratedCodes}
+                          className="inline-flex h-7 items-center gap-1 rounded-full border border-emerald-300 bg-white px-3 text-xs font-black text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                          {generatedCopied ? (
+                            <Check className="h-3.5 w-3.5" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                          {generatedCopied ? "已复制" : "复制全部"}
+                        </button>
+                      </div>
+                      <div className="max-h-40 overflow-y-auto rounded-lg bg-white/70 p-3 font-mono text-xs leading-6 text-stone-700">
+                        {generatedCodes.slice(0, 50).map((row) => (
+                          <div key={row.id}>{row.code}</div>
+                        ))}
+                        {generatedCodes.length > 50 && (
+                          <div className="text-stone-400">
+                            … 其余 {generatedCodes.length - 50} 个请用「复制全部」获取
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
