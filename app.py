@@ -653,7 +653,9 @@ def upload_file():
             if user_resp and user_resp.user:
                 user_id = user_resp.user.id
         except Exception as e:
-            print(f"Auth Error: {e}")
+            import traceback
+            print(f"Auth Error: {type(e).__name__}: {e}")
+            traceback.print_exc()
             return jsonify({'error': '无效的身份验证凭证'}), 401
 
     if not user_id:
