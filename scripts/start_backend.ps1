@@ -5,7 +5,6 @@ $PidPath = Join-Path $Root "backend-local.pid"
 $OutLog = Join-Path $Root "backend-local.out.log"
 $ErrLog = Join-Path $Root "backend-local.err.log"
 $VenvPython = Join-Path $Root ".venv\Scripts\python.exe"
-$LocalRunPython = Join-Path $Root ".local-run-venv\Scripts\python.exe"
 
 if (Test-Path $PidPath) {
     $ExistingPidText = (Get-Content -Raw $PidPath).Trim()
@@ -21,8 +20,6 @@ if (Test-Path $PidPath) {
 
 if (Test-Path $VenvPython) {
     $Python = $VenvPython
-} elseif (Test-Path $LocalRunPython) {
-    $Python = $LocalRunPython
 } else {
     $Python = "python"
 }

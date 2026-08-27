@@ -4,6 +4,7 @@
 .impeccable
 .vercel
 .venv
+.local-run-venv
 __pycache__
 *.pyc
 *.pyo
@@ -14,4 +15,3 @@ math-mover-next/node_modules
 math-mover-next/out
 math-mover-next/src-tauri/target
 math-mover-next/dev-server-*.log
-promo_video_assets
