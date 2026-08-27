@@ -32,6 +32,9 @@ math-mover-next/node_modules/
 .next_stuck*/
 .out/
 
+# Vercel 残留（已改为 Docker 自建部署）
+.vercel/
+
 # 构建产物
 deploy.tar
 *.tar
