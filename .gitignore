@@ -49,3 +49,6 @@ membership_codes_*.txt
 .vscode/
 *.swp
 *.swo
+
+# 原始测试图集（与 benchmarks/cases 重复，仅本地保留）
+测试题目图片/
