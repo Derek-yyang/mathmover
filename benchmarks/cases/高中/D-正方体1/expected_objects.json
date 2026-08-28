@@ -415,6 +415,7 @@
           "\"black\""
         ]
       },
+      "_redefined": true,
       "name": "s11"
     },
     {
@@ -562,6 +563,459 @@
   "redefinitions": [
     "s11"
   ],
+  "records": [
+    {
+      "text": "A = Point({0, 0, 0})",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetColor(A, \"Blue\")",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "B = Point({2, 0, 0})",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetColor(B, \"Blue\")",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "C = Point({2, 2, 0})",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "SetFixed(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetColor(C, \"Blue\")",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "D = Point({0, 2, 0})",
+      "type": "object",
+      "name": "D"
+    },
+    {
+      "text": "SetFixed(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "ShowLabel(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetLabelMode(D, 1)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetColor(D, \"Blue\")",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "A1 = Point({0, 0, 2})",
+      "type": "object",
+      "name": "A1"
+    },
+    {
+      "text": "SetFixed(A1, true)",
+      "type": "attr",
+      "name": "A1"
+    },
+    {
+      "text": "ShowLabel(A1, true)",
+      "type": "attr",
+      "name": "A1"
+    },
+    {
+      "text": "SetLabelMode(A1, 1)",
+      "type": "attr",
+      "name": "A1"
+    },
+    {
+      "text": "SetColor(A1, \"Blue\")",
+      "type": "attr",
+      "name": "A1"
+    },
+    {
+      "text": "B1 = Point({2, 0, 2})",
+      "type": "object",
+      "name": "B1"
+    },
+    {
+      "text": "SetFixed(B1, true)",
+      "type": "attr",
+      "name": "B1"
+    },
+    {
+      "text": "ShowLabel(B1, true)",
+      "type": "attr",
+      "name": "B1"
+    },
+    {
+      "text": "SetLabelMode(B1, 1)",
+      "type": "attr",
+      "name": "B1"
+    },
+    {
+      "text": "SetColor(B1, \"Blue\")",
+      "type": "attr",
+      "name": "B1"
+    },
+    {
+      "text": "C1 = Point({2, 2, 2})",
+      "type": "object",
+      "name": "C1"
+    },
+    {
+      "text": "SetFixed(C1, true)",
+      "type": "attr",
+      "name": "C1"
+    },
+    {
+      "text": "ShowLabel(C1, true)",
+      "type": "attr",
+      "name": "C1"
+    },
+    {
+      "text": "SetLabelMode(C1, 1)",
+      "type": "attr",
+      "name": "C1"
+    },
+    {
+      "text": "SetColor(C1, \"Blue\")",
+      "type": "attr",
+      "name": "C1"
+    },
+    {
+      "text": "D1 = Point({0, 2, 2})",
+      "type": "object",
+      "name": "D1"
+    },
+    {
+      "text": "SetFixed(D1, true)",
+      "type": "attr",
+      "name": "D1"
+    },
+    {
+      "text": "ShowLabel(D1, true)",
+      "type": "attr",
+      "name": "D1"
+    },
+    {
+      "text": "SetLabelMode(D1, 1)",
+      "type": "attr",
+      "name": "D1"
+    },
+    {
+      "text": "SetColor(D1, \"Blue\")",
+      "type": "attr",
+      "name": "D1"
+    },
+    {
+      "text": "E = Point({2, 1, 0})",
+      "type": "object",
+      "name": "E"
+    },
+    {
+      "text": "SetFixed(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "ShowLabel(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "SetLabelMode(E, 1)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "SetColor(E, \"Blue\")",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "s1 = Segment(A, B)",
+      "type": "object",
+      "name": "s1"
+    },
+    {
+      "text": "SetColor(s1, \"Black\")",
+      "type": "attr",
+      "name": "s1"
+    },
+    {
+      "text": "s2 = Segment(B, C)",
+      "type": "object",
+      "name": "s2"
+    },
+    {
+      "text": "SetColor(s2, \"Black\")",
+      "type": "attr",
+      "name": "s2"
+    },
+    {
+      "text": "s3 = Segment(C, D)",
+      "type": "object",
+      "name": "s3"
+    },
+    {
+      "text": "SetColor(s3, \"Black\")",
+      "type": "attr",
+      "name": "s3"
+    },
+    {
+      "text": "s4 = Segment(D, A)",
+      "type": "object",
+      "name": "s4"
+    },
+    {
+      "text": "SetColor(s4, \"Black\")",
+      "type": "attr",
+      "name": "s4"
+    },
+    {
+      "text": "s5 = Segment(A1, B1)",
+      "type": "object",
+      "name": "s5"
+    },
+    {
+      "text": "SetColor(s5, \"Black\")",
+      "type": "attr",
+      "name": "s5"
+    },
+    {
+      "text": "s6 = Segment(B1, C1)",
+      "type": "object",
+      "name": "s6"
+    },
+    {
+      "text": "SetColor(s6, \"Black\")",
+      "type": "attr",
+      "name": "s6"
+    },
+    {
+      "text": "s7 = Segment(C1, D1)",
+      "type": "object",
+      "name": "s7"
+    },
+    {
+      "text": "SetColor(s7, \"Black\")",
+      "type": "attr",
+      "name": "s7"
+    },
+    {
+      "text": "s8 = Segment(D1, A1)",
+      "type": "object",
+      "name": "s8"
+    },
+    {
+      "text": "SetColor(s8, \"Black\")",
+      "type": "attr",
+      "name": "s8"
+    },
+    {
+      "text": "s9 = Segment(A, A1)",
+      "type": "object",
+      "name": "s9"
+    },
+    {
+      "text": "SetColor(s9, \"Black\")",
+      "type": "attr",
+      "name": "s9"
+    },
+    {
+      "text": "s10 = Segment(B, B1)",
+      "type": "object",
+      "name": "s10"
+    },
+    {
+      "text": "SetColor(s10, \"Black\")",
+      "type": "attr",
+      "name": "s10"
+    },
+    {
+      "text": "s11 = Segment(C, CC1)",
+      "type": "object",
+      "name": "s11"
+    },
+    {
+      "text": "s11 = Segment(C, C1)",
+      "type": "object",
+      "name": "s11"
+    },
+    {
+      "text": "SetColor(s11, \"Black\")",
+      "type": "attr",
+      "name": "s11"
+    },
+    {
+      "text": "s12 = Segment(D, D1)",
+      "type": "object",
+      "name": "s12"
+    },
+    {
+      "text": "SetColor(s12, \"Black\")",
+      "type": "attr",
+      "name": "s12"
+    },
+    {
+      "text": "faceAD1E = Polygon(A, D1, E)",
+      "type": "object",
+      "name": "faceAD1E"
+    },
+    {
+      "text": "SetColor(faceAD1E, \"Cyan\")",
+      "type": "attr",
+      "name": "faceAD1E"
+    },
+    {
+      "text": "SetFilling(faceAD1E, 0.25)",
+      "type": "attr",
+      "name": "faceAD1E"
+    },
+    {
+      "text": "faceBCC1B1 = Polygon(B, C, C1, B1)",
+      "type": "object",
+      "name": "faceBCC1B1"
+    },
+    {
+      "text": "SetVisibleInView(faceBCC1B1, -1, false)",
+      "type": "attr",
+      "name": "faceBCC1B1"
+    },
+    {
+      "text": "M = Point({2, 0, 1})",
+      "type": "object",
+      "name": "M"
+    },
+    {
+      "text": "SetVisibleInView(M, -1, false)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "N = Point({2, 1, 2})",
+      "type": "object",
+      "name": "N"
+    },
+    {
+      "text": "SetVisibleInView(N, -1, false)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "pathF = Segment(M, N)",
+      "type": "object",
+      "name": "pathF"
+    },
+    {
+      "text": "SetLineStyle(pathF, 2)",
+      "type": "attr",
+      "name": "pathF"
+    },
+    {
+      "text": "SetColor(pathF, \"Red\")",
+      "type": "attr",
+      "name": "pathF"
+    },
+    {
+      "text": "F = Point(pathF)",
+      "type": "object",
+      "name": "F"
+    },
+    {
+      "text": "ShowLabel(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetLabelMode(F, 1)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetColor(F, \"Red\")",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "sF = Segment(A1, F)",
+      "type": "object",
+      "name": "sF"
+    },
+    {
+      "text": "SetLineStyle(sF, 2)",
+      "type": "attr",
+      "name": "sF"
+    },
+    {
+      "text": "SetColor(sF, \"Red\")",
+      "type": "attr",
+      "name": "sF"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 89,
+    "valid_lines": 89,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "高中/D-正方体1"
 }

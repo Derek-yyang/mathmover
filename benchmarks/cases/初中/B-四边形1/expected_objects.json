@@ -263,6 +263,219 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "A = (0, 0)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "B = (160, 0)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "C = (160, 120)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "D = (0, 120)",
+      "type": "object",
+      "name": "D"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetFixed(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(D, 1)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "rect = Polygon(A, B, C, D)",
+      "type": "object",
+      "name": "rect"
+    },
+    {
+      "text": "E = Midpoint(B, C)",
+      "type": "object",
+      "name": "E"
+    },
+    {
+      "text": "SetFixed(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "ShowLabel(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "SetLabelMode(E, 1)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "t = Slider(0, 1, 0.01)",
+      "type": "object",
+      "name": "t"
+    },
+    {
+      "text": "F = Point(Segment(A, B), t)",
+      "type": "object",
+      "name": "F"
+    },
+    {
+      "text": "SetColor(F, \"Red\")",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "ShowLabel(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetLabelMode(F, 1)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "distSq = (x(F) - x(E))^2 + (y(F) - y(E))^2",
+      "type": "object",
+      "name": "distSq"
+    },
+    {
+      "text": "G = E + (4800 / distSq) * (y(F) - y(E), x(E) - x(F))",
+      "type": "object",
+      "name": "G"
+    },
+    {
+      "text": "SetColor(G, \"Blue\")",
+      "type": "attr",
+      "name": "G"
+    },
+    {
+      "text": "ShowLabel(G, true)",
+      "type": "attr",
+      "name": "G"
+    },
+    {
+      "text": "SetLabelMode(G, 1)",
+      "type": "attr",
+      "name": "G"
+    },
+    {
+      "text": "triGEF = Polygon(G, E, F)",
+      "type": "object",
+      "name": "triGEF"
+    },
+    {
+      "text": "SetColor(triGEF, \"Green\")",
+      "type": "attr",
+      "name": "triGEF"
+    },
+    {
+      "text": "SetFilling(triGEF, 0.3)",
+      "type": "attr",
+      "name": "triGEF"
+    },
+    {
+      "text": "triADG = Polygon(A, D, G)",
+      "type": "object",
+      "name": "triADG"
+    },
+    {
+      "text": "SetColor(triADG, \"Orange\")",
+      "type": "attr",
+      "name": "triADG"
+    },
+    {
+      "text": "SetFilling(triADG, 0.3)",
+      "type": "attr",
+      "name": "triADG"
+    },
+    {
+      "text": "dg = Segment(D, G)",
+      "type": "object",
+      "name": "dg"
+    },
+    {
+      "text": "ag = Segment(A, G)",
+      "type": "object",
+      "name": "ag"
+    },
+    {
+      "text": "angGEF = Angle(F, E, G)",
+      "type": "object",
+      "name": "angGEF"
+    },
+    {
+      "text": "SetFixed(angGEF, true)",
+      "type": "attr",
+      "name": "angGEF"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 41,
+    "valid_lines": 41,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "初中/B-四边形1"
 }

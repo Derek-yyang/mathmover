@@ -402,6 +402,363 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "SetAxesVisible(true, true)",
+      "type": "global"
+    },
+    {
+      "text": "O = (0, 0)",
+      "type": "object",
+      "name": "O"
+    },
+    {
+      "text": "SetFixed(O, true)",
+      "type": "attr",
+      "name": "O"
+    },
+    {
+      "text": "ShowLabel(O, true)",
+      "type": "attr",
+      "name": "O"
+    },
+    {
+      "text": "SetLabelMode(O, 1)",
+      "type": "attr",
+      "name": "O"
+    },
+    {
+      "text": "F1 = (-2, 0)",
+      "type": "object",
+      "name": "F1"
+    },
+    {
+      "text": "SetFixed(F1, true)",
+      "type": "attr",
+      "name": "F1"
+    },
+    {
+      "text": "SetColor(F1, \"Black\")",
+      "type": "attr",
+      "name": "F1"
+    },
+    {
+      "text": "SetPointSize(F1, 4)",
+      "type": "attr",
+      "name": "F1"
+    },
+    {
+      "text": "ShowLabel(F1, true)",
+      "type": "attr",
+      "name": "F1"
+    },
+    {
+      "text": "SetLabelMode(F1, 1)",
+      "type": "attr",
+      "name": "F1"
+    },
+    {
+      "text": "F2 = (2, 0)",
+      "type": "object",
+      "name": "F2"
+    },
+    {
+      "text": "SetFixed(F2, true)",
+      "type": "attr",
+      "name": "F2"
+    },
+    {
+      "text": "SetColor(F2, \"Black\")",
+      "type": "attr",
+      "name": "F2"
+    },
+    {
+      "text": "SetPointSize(F2, 4)",
+      "type": "attr",
+      "name": "F2"
+    },
+    {
+      "text": "ShowLabel(F2, true)",
+      "type": "attr",
+      "name": "F2"
+    },
+    {
+      "text": "SetLabelMode(F2, 1)",
+      "type": "attr",
+      "name": "F2"
+    },
+    {
+      "text": "C = Hyperbola(F1, F2, 1)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "SetColor(C, \"Black\")",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "A = (-1, 0)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "B = (2, 3)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "T = (2, 0)",
+      "type": "object",
+      "name": "T"
+    },
+    {
+      "text": "SetFixed(T, true)",
+      "type": "attr",
+      "name": "T"
+    },
+    {
+      "text": "ShowLabel(T, true)",
+      "type": "attr",
+      "name": "T"
+    },
+    {
+      "text": "SetLabelMode(T, 1)",
+      "type": "attr",
+      "name": "T"
+    },
+    {
+      "text": "asym1 = Line(O, O + (1, 1.732))",
+      "type": "object",
+      "name": "asym1"
+    },
+    {
+      "text": "SetLineStyle(asym1, 3)",
+      "type": "attr",
+      "name": "asym1"
+    },
+    {
+      "text": "SetColor(asym1, \"DarkGray\")",
+      "type": "attr",
+      "name": "asym1"
+    },
+    {
+      "text": "asym2 = Line(O, O + (1, -1.732))",
+      "type": "object",
+      "name": "asym2"
+    },
+    {
+      "text": "SetLineStyle(asym2, 3)",
+      "type": "attr",
+      "name": "asym2"
+    },
+    {
+      "text": "SetColor(asym2, \"DarkGray\")",
+      "type": "attr",
+      "name": "asym2"
+    },
+    {
+      "text": "k = Slider(-5, 5, 0.1)",
+      "type": "object",
+      "name": "k"
+    },
+    {
+      "text": "l = Line(T, T + (1, k))",
+      "type": "object",
+      "name": "l"
+    },
+    {
+      "text": "SetColor(l, \"Blue\")",
+      "type": "attr",
+      "name": "l"
+    },
+    {
+      "text": "ShowLabel(l, true)",
+      "type": "attr",
+      "name": "l"
+    },
+    {
+      "text": "M = Intersect(l, asym1)",
+      "type": "object",
+      "name": "M"
+    },
+    {
+      "text": "ShowLabel(M, true)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "SetLabelMode(M, 1)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "SetColor(M, \"DarkGreen\")",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "N = Intersect(l, asym2)",
+      "type": "object",
+      "name": "N"
+    },
+    {
+      "text": "ShowLabel(N, true)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "SetLabelMode(N, 1)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "SetColor(N, \"DarkGreen\")",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "tempP = Intersect(l, C, 1)",
+      "type": "object",
+      "name": "tempP"
+    },
+    {
+      "text": "tempQ = Intersect(l, C, 2)",
+      "type": "object",
+      "name": "tempQ"
+    },
+    {
+      "text": "P = If(y(tempP) > y(tempQ), tempP, tempQ)",
+      "type": "object",
+      "name": "P"
+    },
+    {
+      "text": "Q = If(y(tempP) < y(tempQ), tempP, tempQ)",
+      "type": "object",
+      "name": "Q"
+    },
+    {
+      "text": "SetVisibleInView(tempP, 1, false)",
+      "type": "attr",
+      "name": "tempP"
+    },
+    {
+      "text": "SetVisibleInView(tempQ, 1, false)",
+      "type": "attr",
+      "name": "tempQ"
+    },
+    {
+      "text": "ShowLabel(P, true)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetLabelMode(P, 1)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetColor(P, \"Red\")",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "ShowLabel(Q, true)",
+      "type": "attr",
+      "name": "Q"
+    },
+    {
+      "text": "SetLabelMode(Q, 1)",
+      "type": "attr",
+      "name": "Q"
+    },
+    {
+      "text": "SetColor(Q, \"Blue\")",
+      "type": "attr",
+      "name": "Q"
+    },
+    {
+      "text": "circlePQ = Circle(Midpoint(P, Q), P)",
+      "type": "object",
+      "name": "circlePQ"
+    },
+    {
+      "text": "SetLineStyle(circlePQ, 2)",
+      "type": "attr",
+      "name": "circlePQ"
+    },
+    {
+      "text": "SetColor(circlePQ, \"Gray\")",
+      "type": "attr",
+      "name": "circlePQ"
+    },
+    {
+      "text": "segAP = Segment(A, P)",
+      "type": "object",
+      "name": "segAP"
+    },
+    {
+      "text": "SetLineStyle(segAP, 2)",
+      "type": "attr",
+      "name": "segAP"
+    },
+    {
+      "text": "SetColor(segAP, \"Red\")",
+      "type": "attr",
+      "name": "segAP"
+    },
+    {
+      "text": "segAQ = Segment(A, Q)",
+      "type": "object",
+      "name": "segAQ"
+    },
+    {
+      "text": "SetLineStyle(segAQ, 2)",
+      "type": "attr",
+      "name": "segAQ"
+    },
+    {
+      "text": "SetColor(segAQ, \"Blue\")",
+      "type": "attr",
+      "name": "segAQ"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 70,
+    "valid_lines": 70,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "高中/C-双曲线1"
 }

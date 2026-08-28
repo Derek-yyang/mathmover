@@ -411,6 +411,344 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "B = (0, 0, 0)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetColor(B, \"Blue\")",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "C = (2.8284, 0, 0)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "SetFixed(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetColor(C, \"Blue\")",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "A = (0, 2, 0)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetColor(A, \"Blue\")",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "P = (1.4142, -1, 1.7321)",
+      "type": "object",
+      "name": "P"
+    },
+    {
+      "text": "SetFixed(P, true)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "ShowLabel(P, true)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetLabelMode(P, 1)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetColor(P, \"Blue\")",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "O = (1.4142, 0, 0)",
+      "type": "object",
+      "name": "O"
+    },
+    {
+      "text": "SetFixed(O, true)",
+      "type": "attr",
+      "name": "O"
+    },
+    {
+      "text": "ShowLabel(O, true)",
+      "type": "attr",
+      "name": "O"
+    },
+    {
+      "text": "SetLabelMode(O, 1)",
+      "type": "attr",
+      "name": "O"
+    },
+    {
+      "text": "SetColor(O, \"Blue\")",
+      "type": "attr",
+      "name": "O"
+    },
+    {
+      "text": "F = (1.4142, 1, 0)",
+      "type": "object",
+      "name": "F"
+    },
+    {
+      "text": "SetFixed(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "ShowLabel(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetLabelMode(F, 1)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetColor(F, \"Blue\")",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "D = (0.7071, -0.5, 0.866)",
+      "type": "object",
+      "name": "D"
+    },
+    {
+      "text": "SetFixed(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "ShowLabel(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetLabelMode(D, 1)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetColor(D, \"Blue\")",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "E = (0.7071, 0.5, 0.866)",
+      "type": "object",
+      "name": "E"
+    },
+    {
+      "text": "SetFixed(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "ShowLabel(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "SetLabelMode(E, 1)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "SetColor(E, \"Blue\")",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "s1 = Segment(A, B)",
+      "type": "object",
+      "name": "s1"
+    },
+    {
+      "text": "SetColor(s1, \"Black\")",
+      "type": "attr",
+      "name": "s1"
+    },
+    {
+      "text": "s2 = Segment(B, C)",
+      "type": "object",
+      "name": "s2"
+    },
+    {
+      "text": "SetColor(s2, \"Black\")",
+      "type": "attr",
+      "name": "s2"
+    },
+    {
+      "text": "s3 = Segment(C, A)",
+      "type": "object",
+      "name": "s3"
+    },
+    {
+      "text": "SetColor(s3, \"Black\")",
+      "type": "attr",
+      "name": "s3"
+    },
+    {
+      "text": "s4 = Segment(P, A)",
+      "type": "object",
+      "name": "s4"
+    },
+    {
+      "text": "SetColor(s4, \"Black\")",
+      "type": "attr",
+      "name": "s4"
+    },
+    {
+      "text": "s5 = Segment(P, B)",
+      "type": "object",
+      "name": "s5"
+    },
+    {
+      "text": "SetColor(s5, \"Black\")",
+      "type": "attr",
+      "name": "s5"
+    },
+    {
+      "text": "s6 = Segment(P, C)",
+      "type": "object",
+      "name": "s6"
+    },
+    {
+      "text": "SetColor(s6, \"Black\")",
+      "type": "attr",
+      "name": "s6"
+    },
+    {
+      "text": "s7 = Segment(A, O)",
+      "type": "object",
+      "name": "s7"
+    },
+    {
+      "text": "SetColor(s7, \"Black\")",
+      "type": "attr",
+      "name": "s7"
+    },
+    {
+      "text": "s8 = Segment(B, F)",
+      "type": "object",
+      "name": "s8"
+    },
+    {
+      "text": "SetColor(s8, \"Black\")",
+      "type": "attr",
+      "name": "s8"
+    },
+    {
+      "text": "s9 = Segment(D, O)",
+      "type": "object",
+      "name": "s9"
+    },
+    {
+      "text": "SetColor(s9, \"Black\")",
+      "type": "attr",
+      "name": "s9"
+    },
+    {
+      "text": "s10 = Segment(A, D)",
+      "type": "object",
+      "name": "s10"
+    },
+    {
+      "text": "SetColor(s10, \"Black\")",
+      "type": "attr",
+      "name": "s10"
+    },
+    {
+      "text": "s11 = Segment(E, F)",
+      "type": "object",
+      "name": "s11"
+    },
+    {
+      "text": "SetColor(s11, \"Black\")",
+      "type": "attr",
+      "name": "s11"
+    },
+    {
+      "text": "poly1 = Polygon(A, D, O)",
+      "type": "object",
+      "name": "poly1"
+    },
+    {
+      "text": "SetColor(poly1, \"Cyan\")",
+      "type": "attr",
+      "name": "poly1"
+    },
+    {
+      "text": "SetFilling(poly1, 0.25)",
+      "type": "attr",
+      "name": "poly1"
+    },
+    {
+      "text": "SetLineStyle(poly1, 1)",
+      "type": "attr",
+      "name": "poly1"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 66,
+    "valid_lines": 66,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "高中/D-多面体1"
 }

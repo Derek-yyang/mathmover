@@ -5,7 +5,7 @@
     {
       "kind": "point",
       "coords": [
-        "0",
+        0.0,
         "sqrt(3)"
       ],
       "numeric": null,
@@ -212,6 +212,179 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "A = (0, sqrt(3))",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "B = (-1, 0)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "C = (1, 0)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "poly1 = Polygon(A, B, C)",
+      "type": "object",
+      "name": "poly1"
+    },
+    {
+      "text": "E = Midpoint(A, B)",
+      "type": "object",
+      "name": "E"
+    },
+    {
+      "text": "F = Midpoint(A, C)",
+      "type": "object",
+      "name": "F"
+    },
+    {
+      "text": "G = Midpoint(B, C)",
+      "type": "object",
+      "name": "G"
+    },
+    {
+      "text": "SetFixed(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "ShowLabel(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "SetLabelMode(E, 1)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "SetFixed(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "ShowLabel(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetLabelMode(F, 1)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetFixed(G, true)",
+      "type": "attr",
+      "name": "G"
+    },
+    {
+      "text": "ShowLabel(G, true)",
+      "type": "attr",
+      "name": "G"
+    },
+    {
+      "text": "SetLabelMode(G, 1)",
+      "type": "attr",
+      "name": "G"
+    },
+    {
+      "text": "EF = Segment(E, F)",
+      "type": "object",
+      "name": "EF"
+    },
+    {
+      "text": "t = Slider(0, 1, 0.01)",
+      "type": "object",
+      "name": "t"
+    },
+    {
+      "text": "P = Point(EF, t)",
+      "type": "object",
+      "name": "P"
+    },
+    {
+      "text": "SetColor(P, 255, 0, 0)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "ShowLabel(P, true)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetLabelMode(P, 1)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "BP = Segment(B, P)",
+      "type": "object",
+      "name": "BP"
+    },
+    {
+      "text": "PG = Segment(P, G)",
+      "type": "object",
+      "name": "PG"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 33,
+    "valid_lines": 33,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "初中/B-三角形2"
 }

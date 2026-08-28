@@ -548,6 +548,27 @@ class OpenAICompatibleAdapter(ModelAdapter):
             print(f"OpenAI Adapter Error: {e}")
             raise e
 
+def validate_custom_base_url(base_url: str) -> None:
+    """BYOK 地址校验：仅允许 HTTPS 公网地址，阻断内网/本机/链路本地目标（SSRF 防护）。"""
+    import ipaddress
+    parsed = urlparse(base_url)
+    if parsed.scheme != 'https':
+        raise ValueError('自定义 Base URL 必须以 https:// 开头')
+    if parsed.username or parsed.password:
+        raise ValueError('自定义 Base URL 不允许包含账号密码')
+    host = (parsed.hostname or '').strip().lower()
+    if not host:
+        raise ValueError('自定义 Base URL 缺少主机名')
+    if host == 'localhost' or host.endswith(('.local', '.internal', '.lan')):
+        raise ValueError('自定义 Base URL 不允许指向本机或内网域名')
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return  # 普通域名，放行
+    if not ip.is_global:
+        raise ValueError('自定义 Base URL 不允许指向内网或保留 IP 地址')
+
+
 class ModelFactory:
     @staticmethod
     def create(user_profile=None):
@@ -565,10 +586,8 @@ class ModelFactory:
                  raise ValueError("Custom Base URL is missing")
             if not model_name:
                  raise ValueError("Custom model name is missing")
-            
-            # Special handling for Doubao (Volcengine) compatibility
-            # Users might provide base_url without /api/v3, try to handle or assume user provides correct one.
-            # But standard OpenAI SDK usually works if base_url is correct.
+
+            validate_custom_base_url(base_url)
             
             return OpenAICompatibleAdapter(api_key, base_url, model_name)
         
@@ -593,13 +612,17 @@ class ModelFactory:
 
 @app.errorhandler(500)
 def internal_error(error):
-    return jsonify({'error': 'Internal Server Error', 'details': str(error)}), 500
+    import traceback
+    print(f"500 error: {error}")
+    traceback.print_exc()
+    return jsonify({'error': '服务器内部错误，请稍后重试'}), 500
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    if isinstance(e,  Exception):
-        return jsonify({'error': str(e)}), 500
-    return jsonify({'error': 'Unknown error'}), 500
+    import traceback
+    print(f"Unhandled exception: {type(e).__name__}: {e}")
+    traceback.print_exc()
+    return jsonify({'error': '服务器内部错误，请稍后重试'}), 500
 
 @app.route('/api/', methods=['GET'])
 def index():

@@ -12,6 +12,7 @@
   "objects": [
     {
       "kind": "function",
+      "param": "x",
       "expr": "x+2",
       "raw": "f_line(x)=x+2",
       "attrs": {},
@@ -19,6 +20,7 @@
     },
     {
       "kind": "function",
+      "param": "x",
       "expr": "2x^2-8x+6",
       "raw": "f_parab(x)=2x^2-8x+6",
       "attrs": {},
@@ -154,7 +156,7 @@
       "kind": "point",
       "coords": [
         "x(P)",
-        "0"
+        0.0
       ],
       "numeric": null,
       "raw": "(x(p),0)",
@@ -278,6 +280,267 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "SetAxesVisible(true, true)",
+      "type": "global"
+    },
+    {
+      "text": "SetGridVisible(true)",
+      "type": "global"
+    },
+    {
+      "text": "f_line(x) = x + 2",
+      "type": "object",
+      "name": "f_line"
+    },
+    {
+      "text": "f_parab(x) = 2x^2 - 8x + 6",
+      "type": "object",
+      "name": "f_parab"
+    },
+    {
+      "text": "f1 = Function(f_line, -2, 5)",
+      "type": "object",
+      "name": "f1"
+    },
+    {
+      "text": "f2 = Function(f_parab, 0.5, 4.5)",
+      "type": "object",
+      "name": "f2"
+    },
+    {
+      "text": "SetColor(f1, \"Blue\")",
+      "type": "attr",
+      "name": "f1"
+    },
+    {
+      "text": "SetColor(f2, \"Green\")",
+      "type": "attr",
+      "name": "f2"
+    },
+    {
+      "text": "A = (0.5, 2.5)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "B = (4, 6)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetColor(A, \"Black\")",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetPointSize(A, 4)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetColor(B, \"Black\")",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetPointSize(B, 4)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "t = Slider(0, 1, 0.01)",
+      "type": "object",
+      "name": "t"
+    },
+    {
+      "text": "P = (1 - t) * A + t * B",
+      "type": "object",
+      "name": "P"
+    },
+    {
+      "text": "SetColor(P, \"Red\")",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "ShowLabel(P, true)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetLabelMode(P, 1)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetPointSize(P, 5)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "D = (x(P), 0)",
+      "type": "object",
+      "name": "D"
+    },
+    {
+      "text": "C = (x(P), f_parab(x(P)))",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "SetFixed(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "ShowLabel(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetLabelMode(D, 1)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetColor(D, \"Black\")",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetPointSize(D, 3)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetFixed(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetColor(C, \"Black\")",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetPointSize(C, 3)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "seg_PC = Segment(P, C)",
+      "type": "object",
+      "name": "seg_PC"
+    },
+    {
+      "text": "SetColor(seg_PC, \"Magenta\")",
+      "type": "attr",
+      "name": "seg_PC"
+    },
+    {
+      "text": "SetLineStyle(seg_PC, \"Dashed\")",
+      "type": "attr",
+      "name": "seg_PC"
+    },
+    {
+      "text": "seg_PD = Segment(P, D)",
+      "type": "object",
+      "name": "seg_PD"
+    },
+    {
+      "text": "SetColor(seg_PD, \"Gray\")",
+      "type": "attr",
+      "name": "seg_PD"
+    },
+    {
+      "text": "SetLineStyle(seg_PD, \"Dashed\")",
+      "type": "attr",
+      "name": "seg_PD"
+    },
+    {
+      "text": "seg_AB = Segment(A, B)",
+      "type": "object",
+      "name": "seg_AB"
+    },
+    {
+      "text": "SetColor(seg_AB, \"Blue\")",
+      "type": "attr",
+      "name": "seg_AB"
+    },
+    {
+      "text": "SetLineStyle(seg_AB, \"Solid\")",
+      "type": "attr",
+      "name": "seg_AB"
+    },
+    {
+      "text": "poly_PAC = Polygon(P, A, C)",
+      "type": "object",
+      "name": "poly_PAC"
+    },
+    {
+      "text": "SetColor(poly_PAC, \"Orange\")",
+      "type": "attr",
+      "name": "poly_PAC"
+    },
+    {
+      "text": "SetFilling(poly_PAC, 0.25)",
+      "type": "attr",
+      "name": "poly_PAC"
+    },
+    {
+      "text": "SetLineStyle(poly_PAC, \"Solid\")",
+      "type": "attr",
+      "name": "poly_PAC"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 51,
+    "valid_lines": 51,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "初中/A-二次函数2"
 }

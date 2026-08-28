@@ -285,6 +285,234 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "B = (0, 0)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "A = (0, 4)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "C = (4, 0)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "D = (4, 4)",
+      "type": "object",
+      "name": "D"
+    },
+    {
+      "text": "E = (1, 0)",
+      "type": "object",
+      "name": "E"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetFixed(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetFixed(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "ShowLabel(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(D, 1)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetLabelMode(E, 1)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "poly1 = Polygon(A, B, C, D)",
+      "type": "object",
+      "name": "poly1"
+    },
+    {
+      "text": "SetColor(poly1, \"Black\")",
+      "type": "attr",
+      "name": "poly1"
+    },
+    {
+      "text": "SetFilling(poly1, 0)",
+      "type": "attr",
+      "name": "poly1"
+    },
+    {
+      "text": "t = Slider(0, 1, 0.01)",
+      "type": "object",
+      "name": "t"
+    },
+    {
+      "text": "F = Point(Segment(B, A), t)",
+      "type": "object",
+      "name": "F"
+    },
+    {
+      "text": "ShowLabel(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetLabelMode(F, 1)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetColor(F, \"Red\")",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "G = Rotate(F, -60°, E)",
+      "type": "object",
+      "name": "G"
+    },
+    {
+      "text": "ShowLabel(G, true)",
+      "type": "attr",
+      "name": "G"
+    },
+    {
+      "text": "SetLabelMode(G, 1)",
+      "type": "attr",
+      "name": "G"
+    },
+    {
+      "text": "SetColor(G, \"Red\")",
+      "type": "attr",
+      "name": "G"
+    },
+    {
+      "text": "poly2 = Polygon(E, F, G)",
+      "type": "object",
+      "name": "poly2"
+    },
+    {
+      "text": "SetColor(poly2, \"Blue\")",
+      "type": "attr",
+      "name": "poly2"
+    },
+    {
+      "text": "SetFilling(poly2, 0.1)",
+      "type": "attr",
+      "name": "poly2"
+    },
+    {
+      "text": "segCG = Segment(C, G)",
+      "type": "object",
+      "name": "segCG"
+    },
+    {
+      "text": "SetColor(segCG, \"Magenta\")",
+      "type": "attr",
+      "name": "segCG"
+    },
+    {
+      "text": "path_F = Segment(B, A)",
+      "type": "object",
+      "name": "path_F"
+    },
+    {
+      "text": "SetLineStyle(path_F, 2)",
+      "type": "attr",
+      "name": "path_F"
+    },
+    {
+      "text": "G_start = Rotate(B, -60°, E)",
+      "type": "object",
+      "name": "G_start"
+    },
+    {
+      "text": "G_end = Rotate(A, -60°, E)",
+      "type": "object",
+      "name": "G_end"
+    },
+    {
+      "text": "path_G = Segment(G_start, G_end)",
+      "type": "object",
+      "name": "path_G"
+    },
+    {
+      "text": "SetLineStyle(path_G, 2)",
+      "type": "attr",
+      "name": "path_G"
+    },
+    {
+      "text": "SetColor(path_G, \"Gray\")",
+      "type": "attr",
+      "name": "path_G"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 44,
+    "valid_lines": 44,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "初中/B-四边形3"
 }

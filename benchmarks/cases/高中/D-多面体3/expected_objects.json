@@ -425,6 +425,349 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "C = (0, 0, 0)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "SetFixed(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetColor(C, \"Blue\")",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "A = (1.414, 0, 0)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetColor(A, \"Blue\")",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "B = (0, 2, 0)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetColor(B, \"Blue\")",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "A_1 = (0, 0, 1.414)",
+      "type": "object",
+      "name": "A_1"
+    },
+    {
+      "text": "SetFixed(A_1, true)",
+      "type": "attr",
+      "name": "A_1"
+    },
+    {
+      "text": "ShowLabel(A_1, true)",
+      "type": "attr",
+      "name": "A_1"
+    },
+    {
+      "text": "SetLabelMode(A_1, 1)",
+      "type": "attr",
+      "name": "A_1"
+    },
+    {
+      "text": "SetColor(A_1, \"Blue\")",
+      "type": "attr",
+      "name": "A_1"
+    },
+    {
+      "text": "C_1 = (-1.414, 0, 1.414)",
+      "type": "object",
+      "name": "C_1"
+    },
+    {
+      "text": "SetFixed(C_1, true)",
+      "type": "attr",
+      "name": "C_1"
+    },
+    {
+      "text": "ShowLabel(C_1, true)",
+      "type": "attr",
+      "name": "C_1"
+    },
+    {
+      "text": "SetLabelMode(C_1, 1)",
+      "type": "attr",
+      "name": "C_1"
+    },
+    {
+      "text": "SetColor(C_1, \"Blue\")",
+      "type": "attr",
+      "name": "C_1"
+    },
+    {
+      "text": "B_1 = (-1.414, 2, 1.414)",
+      "type": "object",
+      "name": "B_1"
+    },
+    {
+      "text": "SetFixed(B_1, true)",
+      "type": "attr",
+      "name": "B_1"
+    },
+    {
+      "text": "ShowLabel(B_1, true)",
+      "type": "attr",
+      "name": "B_1"
+    },
+    {
+      "text": "SetLabelMode(B_1, 1)",
+      "type": "attr",
+      "name": "B_1"
+    },
+    {
+      "text": "SetColor(B_1, \"Blue\")",
+      "type": "attr",
+      "name": "B_1"
+    },
+    {
+      "text": "s1 = Segment(A, B)",
+      "type": "object",
+      "name": "s1"
+    },
+    {
+      "text": "SetColor(s1, \"Black\")",
+      "type": "attr",
+      "name": "s1"
+    },
+    {
+      "text": "s2 = Segment(B, C)",
+      "type": "object",
+      "name": "s2"
+    },
+    {
+      "text": "SetColor(s2, \"Black\")",
+      "type": "attr",
+      "name": "s2"
+    },
+    {
+      "text": "s3 = Segment(C, A)",
+      "type": "object",
+      "name": "s3"
+    },
+    {
+      "text": "SetColor(s3, \"Black\")",
+      "type": "attr",
+      "name": "s3"
+    },
+    {
+      "text": "s4 = Segment(A_1, B_1)",
+      "type": "object",
+      "name": "s4"
+    },
+    {
+      "text": "SetColor(s4, \"Black\")",
+      "type": "attr",
+      "name": "s4"
+    },
+    {
+      "text": "s5 = Segment(B_1, C_1)",
+      "type": "object",
+      "name": "s5"
+    },
+    {
+      "text": "SetColor(s5, \"Black\")",
+      "type": "attr",
+      "name": "s5"
+    },
+    {
+      "text": "s6 = Segment(C_1, A_1)",
+      "type": "object",
+      "name": "s6"
+    },
+    {
+      "text": "SetColor(s6, \"Black\")",
+      "type": "attr",
+      "name": "s6"
+    },
+    {
+      "text": "s7 = Segment(A, A_1)",
+      "type": "object",
+      "name": "s7"
+    },
+    {
+      "text": "SetColor(s7, \"Black\")",
+      "type": "attr",
+      "name": "s7"
+    },
+    {
+      "text": "s8 = Segment(B, B_1)",
+      "type": "object",
+      "name": "s8"
+    },
+    {
+      "text": "SetColor(s8, \"Black\")",
+      "type": "attr",
+      "name": "s8"
+    },
+    {
+      "text": "s9 = Segment(C, C_1)",
+      "type": "object",
+      "name": "s9"
+    },
+    {
+      "text": "SetColor(s9, \"Black\")",
+      "type": "attr",
+      "name": "s9"
+    },
+    {
+      "text": "s10 = Segment(A_1, C)",
+      "type": "object",
+      "name": "s10"
+    },
+    {
+      "text": "SetColor(s10, \"Black\")",
+      "type": "attr",
+      "name": "s10"
+    },
+    {
+      "text": "s11 = Segment(A_1, B)",
+      "type": "object",
+      "name": "s11"
+    },
+    {
+      "text": "SetColor(s11, \"Black\")",
+      "type": "attr",
+      "name": "s11"
+    },
+    {
+      "text": "f1 = Polygon(A, B, C)",
+      "type": "object",
+      "name": "f1"
+    },
+    {
+      "text": "SetColor(f1, \"LightGray\")",
+      "type": "attr",
+      "name": "f1"
+    },
+    {
+      "text": "SetFilling(f1, 0.25)",
+      "type": "attr",
+      "name": "f1"
+    },
+    {
+      "text": "f2 = Polygon(A_1, B_1, C_1)",
+      "type": "object",
+      "name": "f2"
+    },
+    {
+      "text": "SetColor(f2, \"LightGray\")",
+      "type": "attr",
+      "name": "f2"
+    },
+    {
+      "text": "SetFilling(f2, 0.25)",
+      "type": "attr",
+      "name": "f2"
+    },
+    {
+      "text": "f3 = Polygon(A, B, B_1, A_1)",
+      "type": "object",
+      "name": "f3"
+    },
+    {
+      "text": "SetColor(f3, \"LightGray\")",
+      "type": "attr",
+      "name": "f3"
+    },
+    {
+      "text": "SetFilling(f3, 0.25)",
+      "type": "attr",
+      "name": "f3"
+    },
+    {
+      "text": "f4 = Polygon(B, C, C_1, B_1)",
+      "type": "object",
+      "name": "f4"
+    },
+    {
+      "text": "SetColor(f4, \"LightGray\")",
+      "type": "attr",
+      "name": "f4"
+    },
+    {
+      "text": "SetFilling(f4, 0.25)",
+      "type": "attr",
+      "name": "f4"
+    },
+    {
+      "text": "f5 = Polygon(C, A, A_1, C_1)",
+      "type": "object",
+      "name": "f5"
+    },
+    {
+      "text": "SetColor(f5, \"LightGray\")",
+      "type": "attr",
+      "name": "f5"
+    },
+    {
+      "text": "SetFilling(f5, 0.25)",
+      "type": "attr",
+      "name": "f5"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 67,
+    "valid_lines": 67,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "高中/D-多面体3"
 }

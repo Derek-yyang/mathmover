@@ -253,6 +253,189 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "A = (0, 0)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "B = (4, 0)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "t = Slider(0, 1, 0.01)",
+      "type": "object",
+      "name": "t"
+    },
+    {
+      "text": "C = Point(Circle(A, 2), t)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetColor(C, 255, 0, 0)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "M = Midpoint(B, C)",
+      "type": "object",
+      "name": "M"
+    },
+    {
+      "text": "D = M + 0.5 * (-(y(B) - y(C)), x(B) - x(C))",
+      "type": "object",
+      "name": "D"
+    },
+    {
+      "text": "ShowLabel(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetLabelMode(D, 1)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "P = 2 * D - A",
+      "type": "object",
+      "name": "P"
+    },
+    {
+      "text": "ShowLabel(P, true)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetLabelMode(P, 1)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetColor(P, 0, 0, 255)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "poly_ABC = Polygon(A, B, C)",
+      "type": "object",
+      "name": "poly_ABC"
+    },
+    {
+      "text": "poly_BCD = Polygon(B, C, D)",
+      "type": "object",
+      "name": "poly_BCD"
+    },
+    {
+      "text": "seg_AD = Segment(A, D)",
+      "type": "object",
+      "name": "seg_AD"
+    },
+    {
+      "text": "seg_DP = Segment(D, P)",
+      "type": "object",
+      "name": "seg_DP"
+    },
+    {
+      "text": "seg_PB = Segment(P, B)",
+      "type": "object",
+      "name": "seg_PB"
+    },
+    {
+      "text": "seg_AC = Segment(A, C)",
+      "type": "object",
+      "name": "seg_AC"
+    },
+    {
+      "text": "seg_CB = Segment(C, B)",
+      "type": "object",
+      "name": "seg_CB"
+    },
+    {
+      "text": "seg_DB = Segment(D, B)",
+      "type": "object",
+      "name": "seg_DB"
+    },
+    {
+      "text": "seg_DC = Segment(D, C)",
+      "type": "object",
+      "name": "seg_DC"
+    },
+    {
+      "text": "seg_AB = Segment(A, B)",
+      "type": "object",
+      "name": "seg_AB"
+    },
+    {
+      "text": "SetFilling(poly_ABC, 0.05)",
+      "type": "attr",
+      "name": "poly_ABC"
+    },
+    {
+      "text": "SetFilling(poly_BCD, 0.05)",
+      "type": "attr",
+      "name": "poly_BCD"
+    },
+    {
+      "text": "SetColor(poly_ABC, 100, 100, 255)",
+      "type": "attr",
+      "name": "poly_ABC"
+    },
+    {
+      "text": "SetColor(poly_BCD, 255, 150, 100)",
+      "type": "attr",
+      "name": "poly_BCD"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 35,
+    "valid_lines": 35,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "初中/B-三角形1"
 }

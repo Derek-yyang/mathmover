@@ -382,6 +382,348 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "SetAxesVisible(true, true)",
+      "type": "global"
+    },
+    {
+      "text": "F1 = (-2.24, 0)",
+      "type": "object",
+      "name": "F1"
+    },
+    {
+      "text": "F2 = (2.24, 0)",
+      "type": "object",
+      "name": "F2"
+    },
+    {
+      "text": "SetColor(F1, \"Black\")",
+      "type": "attr",
+      "name": "F1"
+    },
+    {
+      "text": "SetPointSize(F1, 4)",
+      "type": "attr",
+      "name": "F1"
+    },
+    {
+      "text": "ShowLabel(F1, true)",
+      "type": "attr",
+      "name": "F1"
+    },
+    {
+      "text": "SetLabelMode(F1, 1)",
+      "type": "attr",
+      "name": "F1"
+    },
+    {
+      "text": "SetVisibleInView(F1, 1, true)",
+      "type": "attr",
+      "name": "F1"
+    },
+    {
+      "text": "SetColor(F2, \"Black\")",
+      "type": "attr",
+      "name": "F2"
+    },
+    {
+      "text": "SetPointSize(F2, 4)",
+      "type": "attr",
+      "name": "F2"
+    },
+    {
+      "text": "ShowLabel(F2, true)",
+      "type": "attr",
+      "name": "F2"
+    },
+    {
+      "text": "SetLabelMode(F2, 1)",
+      "type": "attr",
+      "name": "F2"
+    },
+    {
+      "text": "SetVisibleInView(F2, 1, true)",
+      "type": "attr",
+      "name": "F2"
+    },
+    {
+      "text": "A = (0, 2)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "B = (-3, 0)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "C = (0, -2)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "SetFixed(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "D = (3, 0)",
+      "type": "object",
+      "name": "D"
+    },
+    {
+      "text": "SetFixed(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "ShowLabel(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetLabelMode(D, 1)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "E = Ellipse(F1, F2, 3)",
+      "type": "object",
+      "name": "E"
+    },
+    {
+      "text": "SetColor(E, \"Black\")",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "ShowLabel(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "arcP = Arc(E, D, A)",
+      "type": "object",
+      "name": "arcP"
+    },
+    {
+      "text": "SetVisibleInView(arcP, 1, false)",
+      "type": "attr",
+      "name": "arcP"
+    },
+    {
+      "text": "t = Slider(0.01, 0.99, 0.01)",
+      "type": "object",
+      "name": "t"
+    },
+    {
+      "text": "P = Point(arcP, t)",
+      "type": "object",
+      "name": "P"
+    },
+    {
+      "text": "SetColor(P, \"Red\")",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "ShowLabel(P, true)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetLabelMode(P, 1)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "l_BC = Line(B, C)",
+      "type": "object",
+      "name": "l_BC"
+    },
+    {
+      "text": "SetColor(l_BC, \"Gray\")",
+      "type": "attr",
+      "name": "l_BC"
+    },
+    {
+      "text": "SetLineStyle(l_BC, 2)",
+      "type": "attr",
+      "name": "l_BC"
+    },
+    {
+      "text": "l_PD = Line(P, D)",
+      "type": "object",
+      "name": "l_PD"
+    },
+    {
+      "text": "SetColor(l_PD, \"Blue\")",
+      "type": "attr",
+      "name": "l_PD"
+    },
+    {
+      "text": "M = Intersect(l_PD, l_BC)",
+      "type": "object",
+      "name": "M"
+    },
+    {
+      "text": "SetColor(M, \"Blue\")",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "ShowLabel(M, true)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "SetLabelMode(M, 1)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "l_PA = Line(P, A)",
+      "type": "object",
+      "name": "l_PA"
+    },
+    {
+      "text": "SetColor(l_PA, \"Blue\")",
+      "type": "attr",
+      "name": "l_PA"
+    },
+    {
+      "text": "l_y_neg2 = Line(C, C + (1, 0))",
+      "type": "object",
+      "name": "l_y_neg2"
+    },
+    {
+      "text": "SetColor(l_y_neg2, \"Gray\")",
+      "type": "attr",
+      "name": "l_y_neg2"
+    },
+    {
+      "text": "SetLineStyle(l_y_neg2, 2)",
+      "type": "attr",
+      "name": "l_y_neg2"
+    },
+    {
+      "text": "N = Intersect(l_PA, l_y_neg2)",
+      "type": "object",
+      "name": "N"
+    },
+    {
+      "text": "SetColor(N, \"Blue\")",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "ShowLabel(N, true)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "SetLabelMode(N, 1)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "seg_MN = Segment(M, N)",
+      "type": "object",
+      "name": "seg_MN"
+    },
+    {
+      "text": "SetColor(seg_MN, \"DarkGreen\")",
+      "type": "attr",
+      "name": "seg_MN"
+    },
+    {
+      "text": "SetLineStyle(seg_MN, 1)",
+      "type": "attr",
+      "name": "seg_MN"
+    },
+    {
+      "text": "ShowLabel(seg_MN, true)",
+      "type": "attr",
+      "name": "seg_MN"
+    },
+    {
+      "text": "seg_CD = Segment(C, D)",
+      "type": "object",
+      "name": "seg_CD"
+    },
+    {
+      "text": "SetColor(seg_CD, \"DarkGreen\")",
+      "type": "attr",
+      "name": "seg_CD"
+    },
+    {
+      "text": "SetLineStyle(seg_CD, 1)",
+      "type": "attr",
+      "name": "seg_CD"
+    },
+    {
+      "text": "ShowLabel(seg_CD, true)",
+      "type": "attr",
+      "name": "seg_CD"
+    },
+    {
+      "text": "SetVisibleInView(l_PD, 1, true)",
+      "type": "attr",
+      "name": "l_PD"
+    },
+    {
+      "text": "SetVisibleInView(l_PA, 1, true)",
+      "type": "attr",
+      "name": "l_PA"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 67,
+    "valid_lines": 67,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "高中/C-椭圆2"
 }

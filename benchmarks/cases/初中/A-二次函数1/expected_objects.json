@@ -12,6 +12,7 @@
   "objects": [
     {
       "kind": "function",
+      "param": "x",
       "expr": "-x^2+2x+3",
       "raw": "f(x)=-x^2+2x+3",
       "attrs": {},
@@ -278,6 +279,237 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "SetAxesVisible(true, true)",
+      "type": "global"
+    },
+    {
+      "text": "SetGridVisible(true)",
+      "type": "global"
+    },
+    {
+      "text": "f(x) = -x^2 + 2x + 3",
+      "type": "object",
+      "name": "f"
+    },
+    {
+      "text": "A = (0, 3)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "B = (-1, 0)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "D = (2, 3)",
+      "type": "object",
+      "name": "D"
+    },
+    {
+      "text": "C = (1, 0)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "E = (3, 0)",
+      "type": "object",
+      "name": "E"
+    },
+    {
+      "text": "poly1 = Polygon(A, B, C, D)",
+      "type": "object",
+      "name": "poly1"
+    },
+    {
+      "text": "SetFilling(poly1, 0.2)",
+      "type": "attr",
+      "name": "poly1"
+    },
+    {
+      "text": "SetColor(poly1, \"Blue\")",
+      "type": "attr",
+      "name": "poly1"
+    },
+    {
+      "text": "M = (0.5, 1.5)",
+      "type": "object",
+      "name": "M"
+    },
+    {
+      "text": "l = Line(M, E)",
+      "type": "object",
+      "name": "l"
+    },
+    {
+      "text": "SetColor(l, \"Green\")",
+      "type": "attr",
+      "name": "l"
+    },
+    {
+      "text": "SetLineStyle(l, \"Dashed\")",
+      "type": "attr",
+      "name": "l"
+    },
+    {
+      "text": "F = (-0.4, 2.04)",
+      "type": "object",
+      "name": "F"
+    },
+    {
+      "text": "t = Slider(-0.4, 3, 0.05)",
+      "type": "object",
+      "name": "t"
+    },
+    {
+      "text": "P = (t, -t^2 + 2*t + 3)",
+      "type": "object",
+      "name": "P"
+    },
+    {
+      "text": "poly2 = Polygon(P, F, E)",
+      "type": "object",
+      "name": "poly2"
+    },
+    {
+      "text": "SetFilling(poly2, 0.3)",
+      "type": "attr",
+      "name": "poly2"
+    },
+    {
+      "text": "SetColor(poly2, \"Red\")",
+      "type": "attr",
+      "name": "poly2"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetFixed(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "ShowLabel(D, true)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetLabelMode(D, 1)",
+      "type": "attr",
+      "name": "D"
+    },
+    {
+      "text": "SetFixed(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "ShowLabel(E, true)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "SetLabelMode(E, 1)",
+      "type": "attr",
+      "name": "E"
+    },
+    {
+      "text": "SetFixed(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "ShowLabel(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetLabelMode(F, 1)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetFixed(M, true)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "ShowLabel(M, true)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "SetLabelMode(M, 1)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "SetColor(P, \"Red\")",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "ShowLabel(P, true)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetLabelMode(P, 1)",
+      "type": "attr",
+      "name": "P"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 45,
+    "valid_lines": 45,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "初中/A-二次函数1"
 }

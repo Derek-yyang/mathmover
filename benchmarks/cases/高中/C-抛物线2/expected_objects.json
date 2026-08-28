@@ -40,7 +40,7 @@
     {
       "kind": "equation",
       "expr": "x=-1",
-      "raw": "x=-1",
+      "raw": "d:x=-1",
       "attrs": {
         "visible_in_view": {
           "1": "true"
@@ -275,6 +275,263 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "SetAxesVisible(true, true)",
+      "type": "global"
+    },
+    {
+      "text": "F = (1, 0)",
+      "type": "object",
+      "name": "F"
+    },
+    {
+      "text": "SetFixed(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "ShowLabel(F, true)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetLabelMode(F, 1)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetColor(F, \"Black\")",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "SetPointSize(F, 4)",
+      "type": "attr",
+      "name": "F"
+    },
+    {
+      "text": "d: x = -1",
+      "type": "object",
+      "name": "d"
+    },
+    {
+      "text": "SetVisibleInView(d, 1, true)",
+      "type": "attr",
+      "name": "d"
+    },
+    {
+      "text": "SetLineStyle(d, 2)",
+      "type": "attr",
+      "name": "d"
+    },
+    {
+      "text": "SetColor(d, \"Gray\")",
+      "type": "attr",
+      "name": "d"
+    },
+    {
+      "text": "C = Parabola(F, d)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "SetColor(C, \"Black\")",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "k = Slider(-5, 5, 0.1)",
+      "type": "object",
+      "name": "k"
+    },
+    {
+      "text": "l = Line(F, F + (1, k))",
+      "type": "object",
+      "name": "l"
+    },
+    {
+      "text": "ShowLabel(l, true)",
+      "type": "attr",
+      "name": "l"
+    },
+    {
+      "text": "SetVisibleInView(l, 1, true)",
+      "type": "attr",
+      "name": "l"
+    },
+    {
+      "text": "tempA = Intersect(l, C, 1)",
+      "type": "object",
+      "name": "tempA"
+    },
+    {
+      "text": "tempB = Intersect(l, C, 2)",
+      "type": "object",
+      "name": "tempB"
+    },
+    {
+      "text": "A = If(y(tempA) > y(tempB), tempA, tempB)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "B = If(y(tempA) < y(tempB), tempA, tempB)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "SetVisibleInView(tempA, 1, false)",
+      "type": "attr",
+      "name": "tempA"
+    },
+    {
+      "text": "SetVisibleInView(tempB, 1, false)",
+      "type": "attr",
+      "name": "tempB"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetColor(A, \"Red\")",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetColor(B, \"Red\")",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "l_prime = PerpendicularBisector(A, B)",
+      "type": "object",
+      "name": "l_prime"
+    },
+    {
+      "text": "ShowLabel(l_prime, true)",
+      "type": "attr",
+      "name": "l_prime"
+    },
+    {
+      "text": "SetVisibleInView(l_prime, 1, true)",
+      "type": "attr",
+      "name": "l_prime"
+    },
+    {
+      "text": "SetColor(l_prime, \"DarkGreen\")",
+      "type": "attr",
+      "name": "l_prime"
+    },
+    {
+      "text": "tempM = Intersect(l_prime, C, 1)",
+      "type": "object",
+      "name": "tempM"
+    },
+    {
+      "text": "tempN = Intersect(l_prime, C, 2)",
+      "type": "object",
+      "name": "tempN"
+    },
+    {
+      "text": "M = If(y(tempM) > y(tempN), tempM, tempN)",
+      "type": "object",
+      "name": "M"
+    },
+    {
+      "text": "N = If(y(tempM) < y(tempN), tempM, tempN)",
+      "type": "object",
+      "name": "N"
+    },
+    {
+      "text": "SetVisibleInView(tempM, 1, false)",
+      "type": "attr",
+      "name": "tempM"
+    },
+    {
+      "text": "SetVisibleInView(tempN, 1, false)",
+      "type": "attr",
+      "name": "tempN"
+    },
+    {
+      "text": "ShowLabel(M, true)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "SetLabelMode(M, 1)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "SetColor(M, \"Blue\")",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "ShowLabel(N, true)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "SetLabelMode(N, 1)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "SetColor(N, \"Blue\")",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "circleABMN = Circle(A, M, B)",
+      "type": "object",
+      "name": "circleABMN"
+    },
+    {
+      "text": "ShowLabel(circleABMN, true)",
+      "type": "attr",
+      "name": "circleABMN"
+    },
+    {
+      "text": "SetVisibleInView(circleABMN, 1, true)",
+      "type": "attr",
+      "name": "circleABMN"
+    },
+    {
+      "text": "SetColor(circleABMN, \"Purple\")",
+      "type": "attr",
+      "name": "circleABMN"
+    },
+    {
+      "text": "SetLineStyle(circleABMN, 2)",
+      "type": "attr",
+      "name": "circleABMN"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 50,
+    "valid_lines": 50,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "高中/C-抛物线2"
 }

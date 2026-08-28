@@ -12,6 +12,7 @@
   "objects": [
     {
       "kind": "function",
+      "param": "x",
       "expr": "-x^2+x+6",
       "raw": "f(x)=-x^2+x+6",
       "attrs": {
@@ -165,7 +166,7 @@
       "kind": "point",
       "coords": [
         "m",
-        "f(m)"
+        "-m^2+m+6"
       ],
       "numeric": null,
       "raw": "(m,f(m))",
@@ -212,8 +213,8 @@
     {
       "kind": "point",
       "coords": [
-        "0.5",
-        "f(m)"
+        0.5,
+        "-m^2+m+6"
       ],
       "numeric": null,
       "raw": "(0.5,f(m))",
@@ -280,6 +281,272 @@
     }
   ],
   "redefinitions": [],
+  "records": [
+    {
+      "text": "SetAxesVisible(true, true)",
+      "type": "global"
+    },
+    {
+      "text": "SetGridVisible(true)",
+      "type": "global"
+    },
+    {
+      "text": "f(x) = -x^2 + x + 6",
+      "type": "object",
+      "name": "f"
+    },
+    {
+      "text": "SetColor(f, \"Blue\")",
+      "type": "attr",
+      "name": "f"
+    },
+    {
+      "text": "ShowLabel(f, true)",
+      "type": "attr",
+      "name": "f"
+    },
+    {
+      "text": "A = (-2, 0)",
+      "type": "object",
+      "name": "A"
+    },
+    {
+      "text": "SetFixed(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "ShowLabel(A, true)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetLabelMode(A, 1)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetColor(A, \"Black\")",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "SetPointSize(A, 4)",
+      "type": "attr",
+      "name": "A"
+    },
+    {
+      "text": "B = (3, 0)",
+      "type": "object",
+      "name": "B"
+    },
+    {
+      "text": "SetFixed(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "ShowLabel(B, true)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetLabelMode(B, 1)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetColor(B, \"Black\")",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "SetPointSize(B, 4)",
+      "type": "attr",
+      "name": "B"
+    },
+    {
+      "text": "C = (0, 6)",
+      "type": "object",
+      "name": "C"
+    },
+    {
+      "text": "SetFixed(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "ShowLabel(C, true)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetLabelMode(C, 1)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetColor(C, \"Black\")",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "SetPointSize(C, 4)",
+      "type": "attr",
+      "name": "C"
+    },
+    {
+      "text": "lineBC = Line(B, C)",
+      "type": "object",
+      "name": "lineBC"
+    },
+    {
+      "text": "SetColor(lineBC, \"Gray\")",
+      "type": "attr",
+      "name": "lineBC"
+    },
+    {
+      "text": "axisSym = Line((0.5, 0), (0.5, 1))",
+      "type": "object",
+      "name": "axisSym"
+    },
+    {
+      "text": "SetLineStyle(axisSym, \"Dashed\")",
+      "type": "attr",
+      "name": "axisSym"
+    },
+    {
+      "text": "SetColor(axisSym, \"Gray\")",
+      "type": "attr",
+      "name": "axisSym"
+    },
+    {
+      "text": "m = Slider(0.51, 2.99, 0.01)",
+      "type": "object",
+      "name": "m"
+    },
+    {
+      "text": "P = (m, f(m))",
+      "type": "object",
+      "name": "P"
+    },
+    {
+      "text": "SetColor(P, \"Red\")",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "ShowLabel(P, true)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetLabelMode(P, 1)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "SetPointSize(P, 5)",
+      "type": "attr",
+      "name": "P"
+    },
+    {
+      "text": "N = (m, -2 * m + 6)",
+      "type": "object",
+      "name": "N"
+    },
+    {
+      "text": "SetColor(N, \"Black\")",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "ShowLabel(N, true)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "SetLabelMode(N, 1)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "SetPointSize(N, 3)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "M = (0.5, f(m))",
+      "type": "object",
+      "name": "M"
+    },
+    {
+      "text": "SetColor(M, \"Black\")",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "ShowLabel(M, true)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "SetLabelMode(M, 1)",
+      "type": "attr",
+      "name": "M"
+    },
+    {
+      "text": "SetPointSize(N, 3)",
+      "type": "attr",
+      "name": "N"
+    },
+    {
+      "text": "segPN = Segment(P, N)",
+      "type": "object",
+      "name": "segPN"
+    },
+    {
+      "text": "SetLineStyle(segPN, \"Dashed\")",
+      "type": "attr",
+      "name": "segPN"
+    },
+    {
+      "text": "SetColor(segPN, \"Gray\")",
+      "type": "attr",
+      "name": "segPN"
+    },
+    {
+      "text": "segPM = Segment(P, M)",
+      "type": "object",
+      "name": "segPM"
+    },
+    {
+      "text": "SetLineStyle(segPM, \"Dashed\")",
+      "type": "attr",
+      "name": "segPM"
+    },
+    {
+      "text": "SetColor(segPM, \"Gray\")",
+      "type": "attr",
+      "name": "segPM"
+    },
+    {
+      "text": "segNB = Segment(N, B)",
+      "type": "object",
+      "name": "segNB"
+    },
+    {
+      "text": "SetColor(segNB, \"Green\")",
+      "type": "attr",
+      "name": "segNB"
+    }
+  ],
+  "stats": {
+    "cleaned_lines": 52,
+    "valid_lines": 52,
+    "invalid_lines": 0,
+    "validity": 1.0
+  },
   "unparsed": [],
   "case": "初中/A-二次函数3"
 }
