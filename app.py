@@ -13,6 +13,9 @@ import requests
 from urllib.parse import urlparse
 import sys
 
+# GGB 指令解析器（与基线判分工具 scripts/benchmark.py 共用同一实现）
+import ggb_parser
+
 # 加载环境变量
 load_dotenv()
 
@@ -892,8 +895,46 @@ def upload_file():
                  return
 
             print(f"DEBUG: Generated text length: {len(specialist_result_text)}")
-            
-            commands = [line.strip() for line in specialist_result_text.split('\n') if line.strip()]
+
+            # --- P0 指令校验层：解析 -> 白名单校验 -> 低合格率自动重试一次 -> 清洗下发 ---
+            validation = ggb_parser.validate_text(specialist_result_text)
+            retried = False
+            if (not validation['ok'] and validation['validity'] < 0.95
+                    and not specialist_result_text.startswith("Error:")):
+                invalid_preview = '\n'.join(validation['invalid_lines'][:10])
+                print(f"WARNING: 指令校验未通过 (有效率 {validation['validity']})，自动重试一次。"
+                      f"无效行: {validation['invalid_lines'][:5]}")
+                yield json.dumps({'status': 'processing', 'message': '发现无效指令，正在自动修正...'}) + '\n'
+                retry_prompt = (
+                    selected_prompt
+                    + "\n\n【修正要求】你上一次输出的以下行不是合法的 GeoGebra 命令，"
+                      "请重新输出完整指令列表，确保每一行都是可被 GeoGebra evalCommand 执行的命令，"
+                      "不要输出任何注释、说明文字或无法解析的内容：\n"
+                    + invalid_preview
+                )
+                try:
+                    retry_result_text = None
+                    for status, val in run_with_heartbeats(model_adapter.generate, retry_prompt, image_data, mime_type):
+                        if status == 'heartbeat':
+                            yield val
+                        elif status == 'error':
+                            raise val
+                        elif status == 'result':
+                            retry_result_text = val
+                    if retry_result_text:
+                        retry_validation = ggb_parser.validate_text(retry_result_text)
+                        print(f"DEBUG: 重试后有效率 {retry_validation['validity']} "
+                              f"(原 {validation['validity']})")
+                        if retry_validation['validity'] >= validation['validity']:
+                            specialist_result_text = retry_result_text
+                            validation = retry_validation
+                        retried = True
+                except Exception as retry_e:
+                    print(f"WARNING: 校验重试失败，沿用原结果: {retry_e}")
+
+            print(f"DEBUG: 指令校验完成: 有效率 {validation['validity']}, "
+                  f"无效行 {validation['invalid_lines']}, 重试 {retried}")
+            commands = ggb_parser.extract_valid_commands(specialist_result_text)
 
             if deduct_credits:
                 try:
@@ -910,10 +951,14 @@ def upload_file():
             
             # Send completion with credit deduction flag
             yield json.dumps({
-                'status': 'completed', 
-                'commands': commands, 
+                'status': 'completed',
+                'commands': commands,
                 'category': category,
-                'deduct_credits': deduct_credits
+                'deduct_credits': deduct_credits,
+                'validation': {
+                    'validity': validation['validity'],
+                    'retried': retried,
+                }
             }) + '\n'
 
         except Exception as e:

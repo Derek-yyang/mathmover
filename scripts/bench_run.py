@@ -76,7 +76,7 @@ def generate_once(backend: str, token: str, image: Path):
                 headers={"Authorization": f"Bearer {token}"},
                 files={"file": (image.name, f, "image/png")},
                 data={"text": "", "responseMode": "stream"},
-                stream=True, timeout=(15, 300),
+                stream=True, timeout=(15, 900),
             )
         if resp.status_code != 200:
             return "error", {"message": f"HTTP {resp.status_code}: {resp.text[:200]}"}
@@ -121,12 +121,15 @@ def cmd_run(args):
         cand_path.write_text("\n".join(commands) + "\n", encoding="utf-8")
         result = score_case(case, "\n".join(commands))
         result["status"] = "completed"
-        result["validity_note"] = payload.get("deduct_credits")
+        gen_validation = payload.get("validation") or {}
+        result["gen_validity"] = gen_validation.get("validity")
+        result["gen_retried"] = gen_validation.get("retried")
         results.append(result)
         mark = "PASS" if result["pass"] else "FAIL"
+        extra = f" 缺失{result['missing'][:4]}" if result["missing"] else ""
+        retry_note = " [已重试]" if result.get("gen_retried") else ""
         print(f"[{i:>2}/{len(cases)}] {name}: {mark} "
-              f"{result['matched']}/{result['expected']}"
-              + (f" 缺失{result['missing'][:4]}" if result["missing"] else ""))
+              f"{result['matched']}/{result['expected']}{extra}{retry_note}")
 
     done = [r for r in results if r.get("status") == "completed"]
     passed = sum(1 for r in done if r["pass"])

@@ -145,6 +145,8 @@ def clean_lines(text: str):
             continue
         if s.startswith("#") or s.startswith("//"):
             continue
+        if re.fullmatch(r"`{3,}[\w]*", s):
+            continue  # markdown 围栏
         cmds.append(s)
     return mode, cmds
 

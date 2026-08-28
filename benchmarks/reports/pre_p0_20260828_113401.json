@@ -1,0 +1,296 @@
+{
+  "label": "pre_p0",
+  "backend": "http://127.0.0.1:5000",
+  "finished_at": "2026-08-28T11:34:01",
+  "total": 26,
+  "completed": 13,
+  "failed_requests": 13,
+  "pass": 1,
+  "pass_rate": 0.0769,
+  "results": [
+    {
+      "case": "初中/A-二次函数1",
+      "expected": 13,
+      "matched": 13,
+      "missing": [],
+      "hygiene": [],
+      "warnings": [],
+      "pass": true,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "初中/A-二次函数2",
+      "expected": 14,
+      "matched": 7,
+      "missing": [
+        "f1",
+        "f2",
+        "t",
+        "P",
+        "D",
+        "C",
+        "seg_PD"
+      ],
+      "hygiene": [],
+      "warnings": [
+        "3 行无法解析: ['SetLineThickness(segPC, 3)', 'SetOptions( \"ZoomIn\", false )', 'SetOptions( \"ZoomOut\", false )']"
+      ],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "初中/A-二次函数3",
+      "expected": 13,
+      "matched": 9,
+      "missing": [
+        "lineBC",
+        "axisSym",
+        "m",
+        "segNB"
+      ],
+      "hygiene": [],
+      "warnings": [
+        "1 行无法解析: ['SetOptions(\"Zoom\", false)']"
+      ],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "初中/A-二次函数4",
+      "expected": 15,
+      "matched": 7,
+      "missing": [
+        "k",
+        "x_c",
+        "x_d",
+        "C",
+        "D",
+        "Segment_CD",
+        "Segment_PC",
+        "Segment_PD"
+      ],
+      "hygiene": [],
+      "warnings": [],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "初中/A-二次函数5",
+      "expected": 12,
+      "matched": 10,
+      "missing": [
+        "t",
+        "seg_MQ"
+      ],
+      "hygiene": [],
+      "warnings": [],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "初中/B-三角形1",
+      "expected": 17,
+      "matched": 8,
+      "missing": [
+        "C",
+        "D",
+        "P",
+        "poly_ABC",
+        "seg_AD",
+        "seg_DP",
+        "seg_CB",
+        "seg_DB",
+        "seg_DC"
+      ],
+      "hygiene": [],
+      "warnings": [],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "初中/B-三角形2",
+      "expected": 12,
+      "matched": 8,
+      "missing": [
+        "A",
+        "P",
+        "BP",
+        "PG"
+      ],
+      "hygiene": [],
+      "warnings": [
+        "3 行无法解析: ['Segment(B, P)', 'Segment(P, G)', 'Segment(B, G)']"
+      ],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "初中/B-四边形1",
+      "expected": 15,
+      "matched": 11,
+      "missing": [
+        "E",
+        "distSq",
+        "G",
+        "ag"
+      ],
+      "hygiene": [],
+      "warnings": [],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "初中/B-四边形2",
+      "expected": 16,
+      "matched": 11,
+      "missing": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "t"
+      ],
+      "hygiene": [],
+      "warnings": [],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "初中/B-四边形3",
+      "expected": 15,
+      "matched": 13,
+      "missing": [
+        "t",
+        "F"
+      ],
+      "hygiene": [],
+      "warnings": [],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "高中/C-双曲线1",
+      "expected": 20,
+      "matched": 12,
+      "missing": [
+        "O",
+        "C",
+        "asym1",
+        "asym2",
+        "l",
+        "circlePQ",
+        "segAP",
+        "segAQ"
+      ],
+      "hygiene": [],
+      "warnings": [],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "高中/C-抛物线1",
+      "expected": 16,
+      "matched": 12,
+      "missing": [
+        "C",
+        "m",
+        "asymp1",
+        "asymp2"
+      ],
+      "hygiene": [],
+      "warnings": [],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "高中/C-抛物线2",
+      "expected": 15,
+      "matched": 14,
+      "missing": [
+        "l"
+      ],
+      "hygiene": [],
+      "warnings": [],
+      "pass": false,
+      "status": "completed",
+      "validity_note": true
+    },
+    {
+      "case": "高中/C-椭圆1",
+      "status": "error",
+      "error": "专家模型调用失败: [WinError 10054] 远程主机强迫关闭了一个现有的连接。"
+    },
+    {
+      "case": "高中/C-椭圆2",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/C-椭圆3",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/C-椭圆4",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/D-圆锥1",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/D-多面体1",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/D-多面体2",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/D-多面体3",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/D-正方体1",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/D-正方体2",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/D-正方体3",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/D-球1",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    },
+    {
+      "case": "高中/D-球2",
+      "status": "error",
+      "error": "分类模型调用失败: 400 FAILED_PRECONDITION. {'error': {'code': 400, 'message': 'User location is not supported for the API use.', 'status': 'FAILED_PRECONDITION'}}"
+    }
+  ]
+}
