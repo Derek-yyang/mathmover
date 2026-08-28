@@ -52,3 +52,6 @@ membership_codes_*.txt
 
 # 原始测试图集（与 benchmarks/cases 重复，仅本地保留）
 测试题目图片/
+
+# 本地模型配置（含 key，不入库）
+config.json

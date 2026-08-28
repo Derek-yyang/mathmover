@@ -21,8 +21,15 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import GeoGebraBoard from '../../components/GeoGebraBoard';
-import { supabase } from '@/lib/supabase';
 import { TYPE_MAP, formatGenerationTitle, TOAST_DURATION_MS } from '@/lib/constants';
+import {
+  GenerationRecord,
+  listGenerations,
+  getGeneration,
+  saveGeneration,
+  makeThumbnail,
+  onGenerationsChanged,
+} from '@/lib/local-store';
 
 const MAX_UPLOAD_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -43,24 +50,6 @@ interface GeoGebraApi {
   getAllObjectNames: () => string[];
   getObjectType: (name: string) => string;
   isIndependent: (name: string) => boolean;
-}
-
-interface GenerationRecord {
-  id: string;
-  user_id: string;
-  title: string | null;
-  problem_type: string | null;
-  image_url: string | null;
-  ggb_commands: string;
-  created_at: string;
-}
-
-interface UserProfile {
-  id: string;
-  monthly_credits: number;
-  permanent_credits: number;
-  use_custom_model: boolean;
-  custom_model_name?: string;
 }
 
 export default function Dashboard() {
@@ -92,14 +81,7 @@ function DashboardContent() {
   const [isPreviewImageOpen, setIsPreviewImageOpen] = useState(false); 
   const [sliders, setSliders] = useState<{name: string, value: number | string, min: number, max: number}[]>([]); 
   const [activeSliderName, setActiveSliderName] = useState<string | null>(null); 
-  const [problemText, setProblemText] = useState(''); 
-  const [user, setUser] = useState<{ id: string } | null>(null); 
-  const [credits, setCredits] = useState<number>(0); 
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-
-  const [isRedeemModalOpen, setIsRedeemModalOpen] = useState(false); 
-  const [redeemCode, setRedeemCode] = useState(''); 
-  const [isRedeeming, setIsRedeeming] = useState(false); 
+  const [problemText, setProblemText] = useState('');
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | null }>({ message: '', type: null });
 
   const [pendingCommands, setPendingCommands] = useState<string[]>([]);
@@ -145,21 +127,6 @@ function DashboardContent() {
       setTimeout(() => setToast({ message: '', type: null }), TOAST_DURATION_MS);
   };
 
-  const getFreshAccessToken = async () => {
-      let { data: { session } } = await supabase.auth.getSession();
-
-      if (session?.expires_at && Date.now() > session.expires_at * 1000 - 60_000) {
-          const refreshed = await supabase.auth.refreshSession();
-          session = refreshed.data.session;
-      }
-
-      if (!session?.access_token) {
-          throw new Error('登录状态已过期，请重新登录');
-      }
-
-      return session.access_token;
-  };
-
   const parseUploadError = async (response: Response) => {
       const errorText = await response.text();
       let message = errorText;
@@ -169,48 +136,21 @@ function DashboardContent() {
           message = data.message || data.error || errorText;
       } catch {}
 
-      if (response.status === 401) {
-          if (message.includes('无效的身份验证凭证')) {
-              return '身份验证失败（后端认证服务不可用或网络受限），请稍后重试。';
-          }
-          if (message.includes('未授权的请求')) {
-              return '登录状态已过期，请刷新页面或重新登录后再试';
-          }
-          return message || '登录状态已过期，请刷新页面或重新登录后再试';
-      }
-
       if (
           message.includes('invalid_api_key') ||
           message.includes('Incorrect API key') ||
           message.includes('apikey-error')
       ) {
-          return '自定义 API Key 无效。请在个人主页重新粘贴正确的阿里云百炼/DashScope API Key，并确认没有多余空格或换行。';
+          return 'API Key 无效。请在侧边栏「模型设置」中重新粘贴正确的 API Key，并确认没有多余空格或换行。';
       }
 
       return message || `请求失败 (${response.status})`;
   };
 
-  const postUploadWithFreshAuth = async (formData: FormData) => {
-      const request = async (accessToken: string) => fetch('/api/upload', {
-          method: 'POST',
-          headers: {
-              Authorization: `Bearer ${accessToken}`,
-          },
-          body: formData
-      });
-
-      let response = await request(await getFreshAccessToken());
-
-      if (response.status === 401) {
-          const refreshed = await supabase.auth.refreshSession();
-          const retryToken = refreshed.data.session?.access_token;
-          if (retryToken) {
-              response = await request(retryToken);
-          }
-      }
-
-      return response;
-  };
+  const postUpload = async (formData: FormData) => fetch('/api/upload', {
+      method: 'POST',
+      body: formData
+  });
   
   // 历史项目切换相关
   const [recentHistory, setRecentHistory] = useState<GenerationRecord[]>([]);
@@ -233,36 +173,14 @@ function DashboardContent() {
   }, []);
   
   
-  // 监听用户登录状态
+  // 初始化：加载本地历史（去 SaaS 化，无登录态）
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+    refreshRecentHistory();
+  }, []);
 
-      if (!session) {
-        window.location.replace('/login');
-        return;
-      }
-
-      setUser({ id: session.user.id });
-      await Promise.all([
-        fetchRecentHistory(session.user.id),
-        fetchCredits(session.user.id)
-      ]);
-    };
-
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        window.location.replace('/login');
-      } else {
-        setUser({ id: session.user.id });
-        fetchRecentHistory(session.user.id);
-        fetchCredits(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+  // 监听本地历史变化（生成/删除后同步）
+  useEffect(() => {
+    return onGenerationsChanged(refreshRecentHistory);
   }, []);
 
   // 监听 URL 参数变化 (响应 Sidebar 操作)
@@ -270,14 +188,7 @@ function DashboardContent() {
       const action = searchParams.get('action');
       const historyId = searchParams.get('history_id');
 
-      // 1. 处理兑换 (已改为跳转到个人中心，此处仅保留逻辑兼容或移除)
-      // 如果 action === 'redeem'，重定向到 profile
-      if (action === 'redeem') {
-          router.push('/dashboard/profile?tab=credits');
-          return;
-      } 
-      
-      // 2. 处理新建 (由 Sidebar 触发)
+      // 1. 处理新建 (由 Sidebar 触发)
       if (action === 'new') {
           setFile(null);
           setPreviewUrl(null);
@@ -286,12 +197,11 @@ function DashboardContent() {
           setProblemType(null);
           setProgress(0);
           setCurrentProjectTitle("未命名课件");
-          setLastUploadedFile(null); // 重置缓存
+          setLastUploadedFile(null);
           setLastUploadedUrl(null);
-          setActiveProjectId(null); // 重置当前项目 ID
+          setActiveProjectId(null);
           setSavedImageUrl(null);
           if (ggbApplet) ggbApplet.newConstruction();
-          // 清理 URL，防止刷新后仍然重置
           router.replace('/dashboard');
       }
 
@@ -301,108 +211,45 @@ function DashboardContent() {
       }
   }, [router, searchParams, ggbApplet]);
 
-  const fetchRecentHistory = async (userId: string) => {
-    const { data } = await supabase
-      .from('generations')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(5);
-    const mapped = (data || []).map(g => ({
-      id: g.id,
-      user_id: g.user_id,
-      title: g.title || TYPE_MAP[g.problem_type] || '未命名课件',
-      problem_type: g.problem_type,
-      image_url: g.image_url,
-      ggb_commands: g.ggb_commands,
-      created_at: g.created_at
-    }));
-    setRecentHistory(mapped);
+  const refreshRecentHistory = () => {
+    setRecentHistory(listGenerations().slice(0, 5));
   };
 
-  const fetchHistoryItem = async (id: string) => {
-      const { data } = await supabase
-        .from('generations')
-        .select('*')
-        .eq('id', id)
-        .single();
-      if (data) {
-          loadHistoryItem({
-            id: data.id,
-            user_id: data.user_id,
-            title: data.title || TYPE_MAP[data.problem_type] || '未命名课件',
-            problem_type: data.problem_type,
-            image_url: data.image_url,
-            ggb_commands: data.ggb_commands,
-            created_at: data.created_at
-          });
-      }
-  };
-
-  // 获取积分 (用于生成前检查)
-  const fetchCredits = async (userId: string) => {
-      await supabase.rpc('sync_user_credits', { user_uuid: userId });
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('monthly_credits, permanent_credits, use_custom_model, custom_model_name')
-        .eq('id', userId)
-        .single();
-      if (data) {
-          const monthlyCredits = data.monthly_credits || 0;
-          const permanentCredits = data.permanent_credits || 0;
-          setCredits(monthlyCredits + permanentCredits);
-          setUserProfile({
-            id: userId,
-            monthly_credits: monthlyCredits,
-            permanent_credits: permanentCredits,
-            use_custom_model: data.use_custom_model || false,
-            custom_model_name: data.custom_model_name || undefined
-          });
-      }
-  };
-
-  // 加载历史记录项
-  const loadHistoryItem = (item: GenerationRecord) => {
-      // 1. 恢复图片预览
-      if (item.image_url) {
-          setPreviewUrl(item.image_url);
-          setSavedImageUrl(item.image_url);
-      } else {
-          setPreviewUrl(null);
-          setSavedImageUrl(null);
-      }
-      
-      // 2. 恢复题型
-      setProblemType(item.problem_type || null);
-
-      // 3. 更新标题
-      setCurrentProjectTitle(formatGenerationTitle(item.title, item.problem_type));
-      
-      // 4. 恢复指令
-      try {
-          const commands = JSON.parse(item.ggb_commands);
-          if (Array.isArray(commands)) {
-              setPendingCommands(commands); 
-              setExecutedCommands(commands);
-              setIsGenerated(true); 
-          }
-      } catch (e) {
-          console.error('Failed to parse history commands:', e);
+  const fetchHistoryItem = (id: string) => {
+      const record = getGeneration(id);
+      if (record) {
+          loadHistoryItem(record);
       }
   };
 
   const handleSwitchProject = (item: GenerationRecord) => {
       setIsProjectMenuOpen(false);
-      // 使用 router.push 触发 URL 变化，从而触发 useEffect -> fetchHistoryItem -> loadHistoryItem
-      // 这样保持了逻辑的一致性，且 URL 与内容同步
       router.push(`/dashboard?history_id=${item.id}`);
   };
 
-  // 兑换积分 - 本地版本暂不支持
-  const handleRedeem = async () => {
-      showToast('本地版本暂不支持积分兑换', 'error');
-      setIsRedeemModalOpen(false);
+  // 加载历史记录项
+  const loadHistoryItem = (item: GenerationRecord) => {
+      // 1. 恢复图片预览（本地缩略图）
+      if (item.thumbnail) {
+          setPreviewUrl(item.thumbnail);
+          setSavedImageUrl(item.thumbnail);
+      } else {
+          setPreviewUrl(null);
+          setSavedImageUrl(null);
+      }
+
+      // 2. 恢复题型
+      setProblemType(item.problem_type || null);
+
+      // 3. 更新标题
+      setCurrentProjectTitle(formatGenerationTitle(item.title, item.problem_type));
+
+      // 4. 恢复指令
+      if (Array.isArray(item.commands) && item.commands.length > 0) {
+          setPendingCommands(item.commands);
+          setExecutedCommands(item.commands);
+          setIsGenerated(true);
+      }
   };
 
   // 监听粘贴事件
@@ -677,121 +524,31 @@ function DashboardContent() {
   }, [isFullscreen]);
 
   const handleGenerate = async () => {
-    // 提取路径的工具函数 (Path Extractor)
-    const extractFilePath = (url: string) => {
-        try {
-            const parts = url.split('/problem-images/');
-            if (parts.length > 1) {
-                return parts[1].split('?')[0];
-            }
-            return null;
-        } catch {
-            return null;
-        }
-    };
-
-    let oldImageUrlToDelete: string | null = null;
-    
-    // 记录旧图片链接 (Capture Old Image)
-    // 如果 activeProjectId 存在，且 savedImageUrl 有值，且当前正在上传新文件 (file 存在)
-    if (activeProjectId && savedImageUrl && file) {
-         oldImageUrlToDelete = savedImageUrl;
-    }
-
     // 允许无文件生成：只要有 file、previewUrl 或者 problemText 即可继续
     if (!file && !previewUrl && !problemText.trim()) return;
-    
-    // 前端积分预检查 (Credit Pre-check)
-    // 只有在非 BYOK 模式下才检查积分余额
-    if (user && !userProfile?.use_custom_model && credits <= 0) {
-        showToast('积分不足，请充值', 'error');
-        return; // 直接返回，不触发任何加载状态
-    }
 
     setIsLoading(true);
     setIsGenerated(false);
-    setProgress(0); 
-    setLoadingText("正在识别题目图像信息..."); 
+    setProgress(0);
+    setLoadingText("正在识别题目图像信息...");
     setProblemType(null);
-    
+
     if (ggbApplet) {
       ggbApplet.newConstruction();
-    }
-
-    let imageUrl = '';
-    let uploadedFilePath: string | null = null;
-    let savedToCloud = false;
-    const cleanupUploadedFile = async () => {
-        if (!uploadedFilePath || savedToCloud) return;
-        try {
-            await supabase.storage.from('problem-images').remove([uploadedFilePath]);
-        } catch (cleanupError) {
-            console.warn('Failed to clean up uploaded image after failed generation:', cleanupError);
-        }
-        uploadedFilePath = null;
-    };
-
-    // 如果有新文件，先处理上传逻辑
-    if (file && user) {
-        if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
-            showToast('上传的图片不能超过 5MB，请压缩后再试。', 'error');
-            setIsLoading(false);
-            return;
-        }
-        try {
-            // 检查是否可以使用缓存
-            if (lastUploadedUrl && lastUploadedFile && file === lastUploadedFile) {
-                imageUrl = lastUploadedUrl;
-            } else {
-                // Supabase: upload image to storage
-                try {
-                    const arrayBuffer = await file.arrayBuffer();
-                    const bytes = new Uint8Array(arrayBuffer);
-                    const fileExt = file.name.split('.').pop();
-                    const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-                    const { data, error } = await supabase.storage
-                        .from('problem-images')
-                        .upload(fileName, bytes, { contentType: file.type });
-
-                    if (error) throw error;
-                    uploadedFilePath = data?.path || fileName;
-
-                    const { data: urlData } = supabase.storage
-                        .from('problem-images')
-                        .getPublicUrl(fileName);
-                    imageUrl = urlData.publicUrl;
-                    setLastUploadedFile(file);
-                    setLastUploadedUrl(imageUrl);
-                } catch (err) {
-                    console.error('Image upload failed:', err);
-                }
-            }
-        } catch (err) {
-            console.error('Image upload failed:', err);
-        }
-    } else if (!file && previewUrl) {
-        // 如果没有新文件，但有预览图（历史记录），直接使用 previewUrl
-        imageUrl = previewUrl;
     }
 
     const formData = new FormData();
     if (file) {
         formData.append('file', file);
-    } else if (imageUrl) {
-        formData.append('imageUrl', imageUrl);
     }
 
     if (problemText) {
         formData.append('text', problemText);
     }
     formData.append('responseMode', 'stream');
-    if (user) {
-        formData.append('user_id', user.id);
-    }
 
     try {
-      const response = await postUploadWithFreshAuth(formData);
+      const response = await postUpload(formData);
 
       if (!response.ok) {
         throw new Error(await parseUploadError(response));
@@ -821,7 +578,6 @@ function DashboardContent() {
                   if (data.error || data.status === 'error') {
                       const message = data.message || data.error || '生成失败，请稍后重试';
                       showToast('Error: ' + message, 'error');
-                      await cleanupUploadedFile();
                       setIsLoading(false);
                       try {
                         await reader.cancel();
@@ -874,49 +630,23 @@ function DashboardContent() {
                       
                       setPendingCommands(validCommands);
                       setExecutedCommands(validCommands);
-                      if (data.deduct_credits !== false) {
-                          setCredits(prev => Math.max(prev - 1, 0));
+
+                      // 保存到本地历史（localStorage）
+                      try {
+                          const thumbnail = await makeThumbnail(file as File);
+                          const saved = saveGeneration({
+                              id: activeProjectId || undefined,
+                              title: currentProjectTitle === '未命名课件' ? '' : currentProjectTitle,
+                              commands: validCommands,
+                              problem_type: data.category,
+                              category: data.category,
+                              thumbnail,
+                          });
+                          setActiveProjectId(saved.id);
+                          if (thumbnail) setSavedImageUrl(thumbnail);
+                      } catch (err) {
+                          console.error('Failed to save local history:', err);
                       }
-
-                      const saveToCloud = async () => {
-                          if (!user) return false;
-                          try {
-                              const record = {
-                                  id: activeProjectId || undefined,
-                                  user_id: user.id,
-                                  title: currentProjectTitle === '未命名课件' ? null : currentProjectTitle,
-                                  ggb_commands: JSON.stringify(validCommands),
-                                  problem_type: data.category,
-                                  image_url: imageUrl || null,
-                              };
-
-                              const { data: saved, error } = await supabase
-                                  .from('generations')
-                                  .upsert(record)
-                                  .select()
-                                  .single();
-
-                              if (error) throw error;
-                              savedToCloud = true;
-                              setActiveProjectId(saved.id);
-
-                              if (imageUrl) setSavedImageUrl(imageUrl);
-
-                              if (oldImageUrlToDelete && oldImageUrlToDelete !== imageUrl) {
-                                  const fileName = extractFilePath(oldImageUrlToDelete);
-                                  if (fileName) {
-                                      supabase.storage.from('problem-images').remove([fileName]).then(() => {}).catch(() => {});
-                                  }
-                              }
-
-                          } catch (err) {
-                              console.error('Failed to save history:', err);
-                              await cleanupUploadedFile();
-                              return false;
-                          }
-                          return true;
-                      };
-                      await saveToCloud();
                       
                       const finishTimer = setInterval(() => {
                         setProgress((prev) => {
@@ -943,7 +673,6 @@ function DashboardContent() {
                   console.error('Error parsing JSON chunk:', e);
                   const message = e instanceof Error ? e.message : '生成响应解析失败';
                   showToast('Error: ' + message, 'error');
-                  await cleanupUploadedFile();
                   setIsLoading(false);
                   try {
                     await reader.cancel();
@@ -960,7 +689,6 @@ function DashboardContent() {
     } catch (err: unknown) {
       console.error(err);
       showToast('Error: ' + ((err as Error).message || 'Unknown error'), 'error');
-      await cleanupUploadedFile();
       setIsLoading(false); 
     } 
   };
@@ -1296,8 +1024,8 @@ function DashboardContent() {
                                                     <div className={`w-10 h-10 rounded-lg border overflow-hidden flex-shrink-0 transition-colors ${
                                                         isActive ? 'border-emerald-200' : 'bg-stone-50 border-stone-100 group-hover:border-stone-200'
                                                     }`}>
-                                                        {item.image_url ? (
-                                                            <img src={item.image_url} alt="缩略图" className="w-full h-full object-cover" />
+                                                        {item.thumbnail ? (
+                                                            <img src={item.thumbnail} alt="缩略图" className="w-full h-full object-cover" />
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center text-stone-300">
                                                                 <Clock className="w-4 h-4" />
@@ -1385,11 +1113,6 @@ function DashboardContent() {
                        <h3 className="font-bold text-stone-700 text-sm tracking-wide">
                            {previewUrl ? "📸 题目图片已就绪" : "📤 上传题目图片或在此输入补充数学题目信息"}
                        </h3>
-                       {userProfile?.use_custom_model && (
-                           <span className="bg-stone-50 border border-stone-100 text-stone-500 text-[10px] font-bold px-2 py-0.5 rounded-full animate-in fade-in duration-300">
-                               ⚙️ 自定义模型: {userProfile.custom_model_name || 'Custom Model'}
-                           </span>
-                       )}
                      </div>
                  )}
              </div>
@@ -1451,7 +1174,7 @@ function DashboardContent() {
                                   重新生成
                               </button>
                               <span className="text-[10px] text-stone-400 font-bold tracking-wide">
-                                  {userProfile?.use_custom_model ? "🛡️ 不消耗积分" : "✨ 消耗 1 积分"}
+                                  <span></span>
                               </span>
                           </div>
                      ) : (previewUrl || problemText.trim()) ? (
@@ -1464,7 +1187,7 @@ function DashboardContent() {
                                   生成课件
                               </button>
                               <span className="text-[10px] text-stone-400 font-bold tracking-wide">
-                                  {userProfile?.use_custom_model ? "🛡️ 不消耗积分" : "✨ 消耗 1 积分"}
+                                  <span></span>
                               </span>
                           </div>
                      ) : (
@@ -1713,50 +1436,6 @@ function DashboardContent() {
                 />
             </div>
         </div>
-      )}
-
-      {/* Redeem Modal */}
-      {isRedeemModalOpen && (
-          <div 
-              className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-200"
-              onClick={() => setIsRedeemModalOpen(false)}
-          >
-              <div 
-                  className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200 border border-stone-100"
-                  onClick={(e) => e.stopPropagation()}
-              >
-                  <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-black text-stone-700">兑换积分</h3>
-                      <button 
-                          onClick={() => setIsRedeemModalOpen(false)}
-                          className="p-1 hover:bg-stone-100 rounded-full text-stone-400 hover:text-stone-600 transition-colors"
-                      >
-                          <X className="w-5 h-5" />
-                      </button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                      <div className="space-y-2">
-                          <label className="text-xs font-bold text-stone-400 uppercase tracking-wider pl-1">卡密兑换码</label>
-                          <input 
-                              type="text" 
-                              value={redeemCode}
-                              onChange={(e) => setRedeemCode(e.target.value.trim())}
-                              placeholder="请输入 12 位兑换码"
-                              className="w-full px-4 py-3 bg-stone-50 border-2 border-stone-100 rounded-xl text-base font-bold text-stone-700 placeholder:text-stone-300 focus:outline-none focus:border-emerald-500 focus:bg-white transition-all font-mono"
-                          />
-                      </div>
-                      
-                      <button 
-                          onClick={handleRedeem}
-                          disabled={isRedeeming || !redeemCode}
-                          className="w-full py-3 bg-emerald-500 text-white rounded-full font-bold text-sm shadow-lg shadow-emerald-100 hover:bg-emerald-600 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 disabled:bg-stone-200 disabled:shadow-none disabled:text-stone-400 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                      >
-                          {isRedeeming ? <Loader2 className="w-4 h-4 animate-spin" /> : "立即兑换"}
-                      </button>
-                  </div>
-              </div>
-          </div>
       )}
 
     </div>

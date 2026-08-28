@@ -7,7 +7,6 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 from flask_cors import CORS
-from supabase import create_client, Client
 import openai
 import requests
 from urllib.parse import urlparse
@@ -49,86 +48,48 @@ def get_cors_origins() -> list[str]:
 
 CORS(app, origins=get_cors_origins())
 
-# 初始化 Supabase
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-# 使用 Service Role Key 以绕过 RLS (Row Level Security) 限制，确保后端能读取所有用户的配置
-SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    print("Warning: Supabase credentials (URL or SERVICE_ROLE_KEY) missing in .env")
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 MAX_REMOTE_IMAGE_BYTES = 5 * 1024 * 1024
 MODEL_TIMEOUT_SECONDS = int(os.getenv('MODEL_TIMEOUT_SECONDS', '75'))
 DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
 
-
-def download_allowed_supabase_image(image_url: str) -> tuple[bytes, str]:
-    if not SUPABASE_URL:
-        raise ValueError('图片 URL 下载服务未配置')
-
-    parsed_url = urlparse(image_url)
-    allowed_host = urlparse(SUPABASE_URL).hostname
-    url_host = parsed_url.hostname
-
-    if parsed_url.scheme != 'https':
-        raise ValueError('仅允许 HTTPS 图片链接')
-    if not allowed_host or url_host != allowed_host:
-        raise ValueError('仅允许来自 Supabase 存储桶的图片链接')
-    if parsed_url.username or parsed_url.password:
-        raise ValueError('图片链接格式无效')
-    if not parsed_url.path.startswith('/storage/v1/object/public/problem-images/'):
-        raise ValueError('仅允许 problem-images 存储桶中的图片链接')
-
-    resp = requests.get(image_url, timeout=(3, 5), allow_redirects=False, stream=True)
-    resp.raise_for_status()
-
-    content_type = resp.headers.get('Content-Type', 'image/jpeg').split(';', 1)[0].strip().lower()
-    if not content_type.startswith('image/'):
-        raise ValueError('图片链接返回的不是图片内容')
-
-    content_length = resp.headers.get('Content-Length')
-    if content_length and int(content_length) > MAX_REMOTE_IMAGE_BYTES:
-        raise ValueError('远程图片不能超过 5MB')
-
-    chunks = []
-    total = 0
-    for chunk in resp.iter_content(chunk_size=64 * 1024):
-        if not chunk:
-            continue
-        total += len(chunk)
-        if total > MAX_REMOTE_IMAGE_BYTES:
-            raise ValueError('远程图片不能超过 5MB')
-        chunks.append(chunk)
-
-    return b''.join(chunks), content_type
+# --- 本地模型配置层（去 SaaS 化）---
+# 运行时模型配置存于本地 config.json（可经 /api/config 修改），替代原 Supabase profiles。
+# 优先级：config.json > .env SYSTEM_* > Gemini 默认。
+CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+CONFIG_KEYS = ('provider', 'base_url', 'api_key', 'model_name')
 
 
-def has_available_credit(user_id: str) -> bool:
-    """Check credit balance without deducting."""
-    if not supabase:
-        raise RuntimeError('Supabase is not configured')
-
-    supabase.rpc('sync_user_credits', {'user_uuid': user_id}).execute()
-    response = (
-        supabase.table('profiles')
-        .select('monthly_credits, permanent_credits')
-        .eq('id', user_id)
-        .single()
-        .execute()
-    )
-    profile = response.data or {}
-    monthly = int(profile.get('monthly_credits') or 0)
-    permanent = int(profile.get('permanent_credits') or 0)
-    return monthly + permanent > 0
+def load_local_model_config() -> dict:
+    try:
+        with open(CONFIG_PATH, encoding='utf-8') as f:
+            raw = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        raw = {}
+    return {k: (raw.get(k) or '').strip() for k in CONFIG_KEYS}
 
 
-def deduct_user_credit(user_id: str) -> None:
-    """Deduct exactly one credit after successful generation."""
-    if not supabase:
-        raise RuntimeError('Supabase is not configured')
+def save_local_model_config(cfg: dict) -> dict:
+    clean = {k: (cfg.get(k) or '').strip() for k in CONFIG_KEYS}
+    with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+        json.dump(clean, f, ensure_ascii=False, indent=2)
+    return clean
 
-    supabase.rpc('decrement_credits_atomic', {'user_uuid': user_id}).execute()
+
+def apply_env_defaults(cfg: dict) -> dict:
+    """config.json 缺项时回落到 .env SYSTEM_* / Gemini。"""
+    if not cfg.get('provider'):
+        env_provider = (os.getenv('SYSTEM_MODEL_PROVIDER') or '').strip().lower()
+        cfg['provider'] = 'openai_compatible' if env_provider in ('openai', 'openai_compatible', 'openai-compatible') else 'gemini'
+    if cfg['provider'] == 'openai_compatible':
+        cfg['base_url'] = cfg.get('base_url') or (os.getenv('SYSTEM_BASE_URL') or '')
+        cfg['api_key'] = cfg.get('api_key') or (os.getenv('SYSTEM_API_KEY') or '')
+        cfg['model_name'] = cfg.get('model_name') or (os.getenv('SYSTEM_MODEL_NAME') or '')
+    else:
+        cfg['base_url'] = ''
+        cfg['api_key'] = cfg.get('api_key') or (os.getenv('GOOGLE_API_KEY') or '')
+        cfg['model_name'] = cfg.get('model_name') or DEFAULT_GEMINI_MODEL
+    return cfg
+
 
 # 默认 Gemini 配置
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
@@ -574,44 +535,61 @@ def validate_custom_base_url(base_url: str) -> None:
 
 class ModelFactory:
     @staticmethod
-    def create(user_profile=None):
-        # 1. Check for custom configuration (BYOK)
-        if user_profile and user_profile.get('use_custom_model'):
-            print("DEBUG: Using custom model config")
-            api_key = (user_profile.get('custom_api_key') or '').strip()
-            base_url = (user_profile.get('custom_base_url') or '').strip().rstrip('/')
-            model_name = (user_profile.get('custom_model_name') or '').strip()
-            print(f"DEBUG: Custom model config loaded. base_url={base_url}, model={model_name}")
-            
-            if not api_key:
-                 raise ValueError("Custom API Key is missing")
-            if not base_url:
-                 raise ValueError("Custom Base URL is missing")
-            if not model_name:
-                 raise ValueError("Custom model name is missing")
+    def create(local_cfg=None):
+        """按本地配置创建模型适配器。
 
+        local_cfg 来自 config.json（经 apply_env_defaults 补齐默认值）。
+        provider: openai_compatible | gemini
+        """
+        cfg = apply_env_defaults(dict(local_cfg or {}))
+        provider = cfg.get('provider')
+        api_key = (cfg.get('api_key') or '').strip()
+        base_url = (cfg.get('base_url') or '').strip().rstrip('/')
+        model_name = (cfg.get('model_name') or '').strip()
+
+        if provider == 'openai_compatible':
+            if not (api_key and base_url and model_name):
+                raise ValueError('模型配置不完整：请在设置中填写 API Key、Base URL 和模型名称')
             validate_custom_base_url(base_url)
-            
+            print(f"DEBUG: Using model {model_name} @ {base_url}")
             return OpenAICompatibleAdapter(api_key, base_url, model_name)
-        
-        # 2. System default via env: OpenAI-compatible endpoint (e.g. Agnes apihub)
-        #    Set SYSTEM_MODEL_PROVIDER=openai_compatible + SYSTEM_BASE_URL +
-        #    SYSTEM_API_KEY + SYSTEM_MODEL_NAME to override the Gemini default.
-        provider = (os.getenv('SYSTEM_MODEL_PROVIDER') or 'gemini').strip().lower()
-        if provider in ('openai', 'openai_compatible', 'openai-compatible'):
-            api_key = (os.getenv('SYSTEM_API_KEY') or '').strip()
-            base_url = (os.getenv('SYSTEM_BASE_URL') or '').strip().rstrip('/')
-            model_name = (os.getenv('SYSTEM_MODEL_NAME') or '').strip()
-            if api_key and base_url and model_name:
-                print(f"DEBUG: Using system default OpenAI-compatible model: {model_name} @ {base_url}")
-                return OpenAICompatibleAdapter(api_key, base_url, model_name)
-            print("WARNING: SYSTEM_MODEL_PROVIDER is openai_compatible but SYSTEM_API_KEY/SYSTEM_BASE_URL/SYSTEM_MODEL_NAME incomplete, falling back to Gemini")
 
-        # 3. Default System Model (Gemini)
-        print("DEBUG: Using system default model (Gemini)")
-        return GeminiAdapter(api_key=GOOGLE_API_KEY)
+        if not api_key:
+            raise ValueError('缺少 GOOGLE_API_KEY：请在设置中填写 API Key 或切换到 OpenAI 兼容端点')
+        print(f"DEBUG: Using Gemini model {model_name or DEFAULT_GEMINI_MODEL}")
+        return GeminiAdapter(api_key=api_key)
 
 # --- Routes ---
+
+@app.route('/api/config', methods=['GET', 'POST'])
+def api_config():
+    """本地模型配置读写。GET 返回配置（key 掩码），POST 保存并即时生效。"""
+    if request.method == 'GET':
+        cfg = apply_env_defaults(load_local_model_config())
+        masked = dict(cfg)
+        if masked.get('api_key'):
+            k = masked['api_key']
+            masked['api_key_masked'] = (k[:6] + '***' + k[-4:]) if len(k) > 12 else '***'
+        masked.pop('api_key', None)
+        masked['configured'] = True
+        return jsonify(masked)
+
+    body = request.get_json(silent=True) or {}
+    current = load_local_model_config()
+    # 未提供 api_key 时保留旧值，避免设置页回显掩码后误存
+    if not (body.get('api_key') or '').strip():
+        body['api_key'] = current.get('api_key', '')
+    if 'provider' in body and body['provider'] not in ('openai_compatible', 'gemini'):
+        return jsonify({'error': 'provider 必须是 openai_compatible 或 gemini'}), 400
+    saved = save_local_model_config({**current, **body})
+    if saved.get('provider') == 'openai_compatible' and saved.get('base_url'):
+        try:
+            validate_custom_base_url(saved['base_url'])
+        except ValueError as e:
+            save_local_model_config(current)
+            return jsonify({'error': str(e)}), 400
+    print(f"DEBUG: 模型配置已更新 -> provider={saved.get('provider')}, model={saved.get('model_name')}")
+    return jsonify({'ok': True})
 
 @app.errorhandler(500)
 def internal_error(error):
@@ -669,26 +647,6 @@ def upload_file():
     mime_type = None
     text_prompt = request.form.get('text', '')
 
-    # Authenticate before reading uploaded files or fetching remote image URLs.
-    auth_header = request.headers.get('Authorization')
-    user_id = None
-    if auth_header and auth_header.startswith('Bearer '):
-        token = auth_header.split(' ', 1)[1]
-        try:
-            user_resp = supabase.auth.get_user(token)
-            if user_resp and user_resp.user:
-                user_id = user_resp.user.id
-        except Exception as e:
-            import traceback
-            print(f"Auth Error: {type(e).__name__}: {e}")
-            traceback.print_exc()
-            return jsonify({'error': '无效的身份验证凭证'}), 401
-
-    if not user_id:
-        return jsonify({'error': '未授权的请求，请先登录'}), 401
-
-    print(f"DEBUG: 收到请求，已验证 user_id 为 {user_id}")
-    
     # 1. 优先检查是否有文件上传
     if 'file' in request.files:
         file = request.files['file']
@@ -699,83 +657,18 @@ def upload_file():
             file.seek(0)
             if file_size > 5 * 1024 * 1024:
                 return jsonify({'error': '上传的图片不能超过 5MB'}), 400
-                
+
             image_data = file.read()
             mime_type = file.mimetype
             print(f"DEBUG: 从文件上传中读取图片, size: {len(image_data)} bytes, type: {mime_type}")
 
-    # 2. 如果没有文件，检查是否有 imageUrl
-    if not image_data:
-        image_url = request.form.get('imageUrl')
-        if image_url:
-            print(f"DEBUG: 未检测到文件，尝试从 URL 下载: {image_url}")
-            try:
-                image_data, mime_type = download_allowed_supabase_image(image_url)
-                print(f"DEBUG: 图片下载成功, size: {len(image_data)} bytes, type: {mime_type}")
-            except Exception as e:
-                print(f"ERROR: 图片下载失败: {e}")
-                return jsonify({'error': f'Failed to download image from URL: {str(e)}'}), 400
-
-    # 3. 如果两者都没有，且也没有 text_prompt，报错
     if not image_data and not text_prompt.strip():
-        return jsonify({'error': '请先上传图片、提供图片URL或输入题目文字内容'}), 400
-
-    # Determine model configuration and credit deduction
-    deduct_credits = True
-    user_profile = None
-
-    if user_id and supabase:
-        try:
-            print(f"DEBUG: Loading profile for user {user_id}...")
-            response = supabase.table('profiles').select('*').eq('id', user_id).single().execute()
-
-            user_profile = response.data
-            if not user_profile:
-                print(f"DEBUG: Profile not found for user {user_id}")
-                return jsonify({'error': 'User profile not found'}), 404
-
-            is_byok = user_profile.get('use_custom_model', False)
-
-            if is_byok:
-                sub_type = user_profile.get('subscription_type', 'free')
-                expires_at_str = user_profile.get('subscription_expires_at')
-
-                is_valid_sub = False
-                if sub_type in ['basic', 'pro'] and expires_at_str:
-                    try:
-                        if expires_at_str.endswith('Z'):
-                            expires_at_str = expires_at_str[:-1] + '+00:00'
-                        expires_at = datetime.fromisoformat(expires_at_str)
-                        if expires_at > datetime.now(expires_at.tzinfo):
-                            is_valid_sub = True
-                    except ValueError:
-                        print(f"Error parsing subscription date: {expires_at_str}")
-
-                if is_valid_sub:
-                    deduct_credits = False
-                    print(f"DEBUG: BYOK mode enabled. User is valid {sub_type} subscriber.")
-                else:
-                    return jsonify({'error': 'BYOK requires an active Basic or Pro subscription'}), 403
-
-            if deduct_credits:
-                try:
-                    if not has_available_credit(user_id):
-                        return jsonify({'error': 'Insufficient credits'}), 403
-                    print(f"DEBUG: User {user_id} has enough credits. Deduction will happen after generation succeeds.")
-                except Exception as e:
-                    error_msg = str(e)
-                    print(f"Error checking credits: {error_msg}")
-                    if 'Insufficient credits' in error_msg:
-                        return jsonify({'error': 'Insufficient credits'}), 403
-                    return jsonify({'error': 'Credit check failed, please try again later'}), 500
-
-        except Exception as e:
-            print(f"Warning: Failed to fetch user profile: {e}")
-            import traceback
-            traceback.print_exc()
-            return jsonify({'error': 'Failed to load user profile, please try again later'}), 500
+        return jsonify({'error': '请先上传图片或输入题目文字内容'}), 400
 
     try:
+        model_adapter = ModelFactory.create(load_local_model_config())
+    except Exception as e:
+        return jsonify({'error': f'Model configuration error: {str(e)}'}), 500
         model_adapter = ModelFactory.create(user_profile)
     except Exception as e:
         return jsonify({'error': f'Model configuration error: {str(e)}'}), 500
@@ -936,25 +829,10 @@ def upload_file():
                   f"无效行 {validation['invalid_lines']}, 重试 {retried}")
             commands = ggb_parser.extract_valid_commands(specialist_result_text)
 
-            if deduct_credits:
-                try:
-                    deduct_user_credit(user_id)
-                    print(f"DEBUG: Deducted 1 credit from user {user_id} after successful generation.")
-                except Exception as deduct_e:
-                    error_msg = str(deduct_e)
-                    print(f"ERROR: Credit deduction after generation failed: {error_msg}")
-                    if 'Insufficient credits' in error_msg:
-                        yield json.dumps({'status': 'error', 'message': '积分不足，请充值'}) + '\n'
-                    else:
-                        yield json.dumps({'status': 'error', 'message': '生成已完成，但扣费失败。请稍后重试。'}) + '\n'
-                    return
-            
-            # Send completion with credit deduction flag
             yield json.dumps({
                 'status': 'completed',
                 'commands': commands,
                 'category': category,
-                'deduct_credits': deduct_credits,
                 'validation': {
                     'validity': validation['validity'],
                     'retried': retried,

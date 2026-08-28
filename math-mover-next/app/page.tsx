@@ -2,15 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, ArrowLeft, Cuboid, Play, Leaf, User as UserIcon, Check, Zap, Crown, Rocket, ScanEye, Box, MousePointerClick, Cpu, FileUp } from "lucide-react";
+import { ArrowRight, ArrowLeft, Cuboid, Play, Leaf, Check, Zap, Crown, Rocket, ScanEye, Box, MousePointerClick, Cpu, FileUp } from "lucide-react";
 import { motion } from 'framer-motion';
-import { supabase } from "@/lib/supabase";
-import {
-  BillingCycle,
-  SubscriptionPlan,
-  getSubscriptionPricing as getPricing,
-  getSubscriptionPurchaseUrl,
-} from "@/lib/billing";
 
 import dynamic from 'next/dynamic';
 
@@ -20,19 +13,6 @@ const GeoGebraBoard = dynamic(() => import('@/components/GeoGebraBoard'), {
 });
 
 export default function LandingPage() {
-  const [user, setUser] = useState<any>(null);
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
-
-  // 购买跳转逻辑
-  const handlePurchase = (plan: SubscriptionPlan, cycle: BillingCycle) => {
-    const targetUrl = getSubscriptionPurchaseUrl(plan, cycle);
-    if (targetUrl) {
-        window.open(targetUrl, '_blank');
-    } else {
-        // 如果没有配置链接，则跳转到登录页/工作台
-        window.location.href = '/dashboard?action=redeem';
-    }
-  };
   const [activeShowcase, setActiveShowcase] = useState(0);
   const [ggbApplet, setGgbApplet] = useState<any>(null);
 
@@ -261,23 +241,6 @@ SetColor(sF, "Black")
       }
   ];
 
-  // 用户状态检查
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setUser(session.user);
-      }
-    };
-    checkUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
   // 封装绘图逻辑
   const drawCase = (index: number, apiInstance?: any) => {
     const ggb = apiInstance || ggbApplet;
@@ -377,36 +340,13 @@ SetColor(sF, "Black")
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-emerald-600 transition-all duration-300 group-hover:w-full rounded-full opacity-80"></span>
             </Link>
             <Link href="#pricing" scroll={true} className="text-sm font-medium text-zinc-600 hover:text-emerald-600 transition-colors relative group">
-              价格方案
+              开源免费
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-emerald-600 transition-all duration-300 group-hover:w-full rounded-full opacity-80"></span>
             </Link>
           </div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-4">
-            {user ? (
-              // 已登录状态：显示头像 and 用户名
-              <Link 
-                  href="/dashboard/profile"
-                  className="flex items-center gap-3 px-2 py-1 select-none cursor-pointer hover:bg-zinc-100/50 hover:opacity-80 rounded-lg transition-all"
-              >
-                  <div className="w-9 h-9 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0 shadow-sm">
-                      <UserIcon className="w-5 h-5 stroke-[2.5]" />
-                  </div>
-                  <span className="text-sm font-bold text-zinc-600 truncate max-w-[120px] hidden sm:block">
-                      {user.email || '用户'}
-                  </span>
-              </Link>
-            ) : (
-              // 未登录状态：显示登录链接
-              <Link
-                href="/login"
-                className="text-sm font-bold text-stone-600 hover:text-stone-900 px-5 py-2.5 rounded-full hover:bg-emerald-50 transition-colors"
-              >
-                登录
-              </Link>
-            )}
-            
             <Link
               href="/dashboard"
               className="px-6 py-2.5 rounded-full font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm hover:shadow-md hover:-translate-y-[1px] transition-all active:scale-95"
@@ -697,236 +637,38 @@ SetColor(sF, "Black")
 
       {/* Pricing Section (Integrated) */}
       <section className="py-24 relative z-10" id="pricing">
-        <div className="max-w-6xl mx-auto px-6">
-          
-          <div className="text-center mb-16 space-y-6">
+        <div className="max-w-4xl mx-auto px-6">
+
+          <div className="text-center mb-14 space-y-5">
               <h2 className="text-4xl md:text-5xl font-black text-stone-800 tracking-tight">
-                  选择适合您的创作计划
+                  完全免费，开箱即用
               </h2>
               <p className="text-stone-500 font-bold max-w-2xl mx-auto text-lg">
-                  无论您是初学者还是专业极客，MathMover 都能为您提供强大的数学可视化支持。
+                  MathMover 是开源项目。接入你自己的模型 API Key，即可无限制使用全部功能。
               </p>
+          </div>
 
-              {/* Billing Toggle - Pill Style */}
-              <div className="flex items-center justify-center gap-1 mt-8 bg-stone-100 p-1 rounded-full border border-stone-200 w-fit mx-auto relative">
-                  {[
-                      { id: 'monthly', label: '月付' },
-                      { id: 'quarterly', label: '季付', discount: '-10%', color: 'bg-orange-500' },
-                      { id: 'annually', label: '年付', discount: '-20%', color: 'bg-red-500' },
-                  ].map((item) => (
-                      <button
-                          key={item.id}
-                          onClick={() => setBillingCycle(item.id as any)}
-                          className={`px-6 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 relative z-10 ${
-                              billingCycle === item.id 
-                              ? 'bg-white text-emerald-600 shadow-sm' 
-                              : 'text-stone-400 hover:text-stone-600'
-                          }`}
-                      >
-                          {item.label}
-                          {item.discount && (
-                              <span className={`${item.color} text-white text-[10px] px-1.5 py-0.5 rounded-full leading-none`}>
-                                  {item.discount}
-                              </span>
-                          )}
-                      </button>
-                  ))}
+          <div className="grid md:grid-cols-3 gap-6">
+              <div className="bg-white rounded-3xl border border-stone-200 p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                      <Cpu className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-bold text-stone-800 text-lg">自带 Key</h3>
+                  <p className="text-sm text-stone-500 font-medium leading-relaxed">支持任意 OpenAI 兼容端点与 Gemini，在工作台设置中一分钟完成配置。</p>
               </div>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-start">
-              
-              {/* Card A: Free Plan (Experience) */}
-              <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.1 }}
-                  className="bg-white rounded-[2rem] p-8 border border-stone-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full relative overflow-hidden group"
-              >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-stone-50 rounded-full blur-[60px] -mr-16 -mt-16 group-hover:bg-stone-100 transition-colors"></div>
-                  
-                  <div className="mb-6 relative">
-                      <div className="w-12 h-12 bg-stone-100 rounded-2xl flex items-center justify-center text-stone-500 mb-4 group-hover:rotate-12 transition-transform">
-                          <Rocket className="w-6 h-6" />
-                      </div>
-                      <h3 className="text-xl font-black text-stone-800">体验版</h3>
-                      <p className="text-stone-400 text-sm font-bold mt-1">零成本开启数学可视化之旅</p>
+              <div className="bg-white rounded-3xl border border-stone-200 p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                      <Zap className="w-6 h-6" />
                   </div>
-
-                  <div className="flex items-baseline gap-1 mb-8 relative">
-                      <span className="text-4xl font-black text-stone-800">¥0</span>
-                      <span className="text-stone-400 font-bold">/ 永久</span>
+                  <h3 className="font-bold text-stone-800 text-lg">无限制生成</h3>
+                  <p className="text-sm text-stone-500 font-medium leading-relaxed">没有积分与订阅，生成次数只取决于你自己的 API 额度。</p>
+              </div>
+              <div className="bg-white rounded-3xl border border-stone-200 p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                      <Leaf className="w-6 h-6" />
                   </div>
-                  
-                  <div className="space-y-4 mb-8 flex-1 relative">
-                      <div className="flex items-start gap-3">
-                          <Check className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
-                          <span className="text-sm font-bold text-stone-600">每日赠送 <span className="text-emerald-600">3</span> 积分</span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                          <Check className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
-                          <span className="text-sm font-bold text-stone-600">每日零点自动重置</span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                          <Check className="w-5 h-5 text-stone-300 flex-shrink-0 mt-0.5" />
-                          <span className="text-sm font-bold text-stone-400 line-through decoration-stone-300">不支持 BYOK 极客模式</span>
-                      </div>
-                  </div>
-
-                  <button className="w-full py-3.5 bg-stone-100 text-stone-400 font-bold rounded-full cursor-not-allowed relative">
-                      当前版本
-                  </button>
-              </motion.div>
-
-              {/* Card B: Basic Plan (New) */}
-              <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.2 }}
-                  className="bg-white rounded-[2rem] p-8 border border-stone-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full relative overflow-hidden group"
-              >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-full blur-[60px] -mr-16 -mt-16 group-hover:bg-teal-100 transition-colors"></div>
-
-                  <div className="mb-6 relative">
-                      <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center mb-4 group-hover:rotate-12 transition-transform border border-teal-100">
-                          <Cuboid className="w-6 h-6" />
-                      </div>
-                      <h3 className="text-xl font-black text-stone-800">基础会员 Basic</h3>
-                      <p className="text-stone-400 text-sm font-bold mt-1">适合自备api Key 的用户</p>
-                  </div>
-
-                  <div className="flex items-baseline gap-1 mb-1 relative">
-                      <span className="text-4xl font-black text-stone-800">¥{getPricing('basic', billingCycle).total}</span>
-                      <span className="text-stone-400 font-bold"> / {getPricing('basic', billingCycle).unit}</span>
-                  </div>
-                  <div className="text-[10px] text-stone-400 font-bold mb-8 relative">
-                      {billingCycle !== 'monthly' && `折合 ¥${getPricing('basic', billingCycle).avg} / 月`}
-                  </div>
-                  
-                  <div className="space-y-4 mb-8 flex-1 relative">
-                      <div className="flex items-start gap-3">
-                          <Check className="w-5 h-5 text-teal-500 flex-shrink-0 mt-0.5" />
-                          <div className="flex flex-col">
-                              <span className="text-sm font-bold text-stone-600">解锁 BYOK 模式</span>
-                              <span className="text-[10px] text-teal-600 font-bold">支持 Qwen3.5 plus, Doubao-Seed 2.0 等</span>
-                          </div>
-                      </div>
-                      <div className="flex items-start gap-3">
-                          <Check className="w-5 h-5 text-stone-300 flex-shrink-0 mt-0.5" />
-                          <span className="text-sm font-bold text-stone-400">不赠送平台积分</span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                          <Check className="w-5 h-5 text-teal-500 flex-shrink-0 mt-0.5" />
-                          <span className="text-sm font-bold text-stone-600">标准生成队列</span>
-                      </div>
-                  </div>
-
-                  <button 
-                      onClick={() => handlePurchase('basic', billingCycle)}
-                      className="w-full py-3.5 bg-white border-2 border-stone-200 text-stone-600 font-bold rounded-full hover:border-emerald-400 hover:text-emerald-600 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all text-center block"
-                  >
-                      立即订阅
-                  </button>
-              </motion.div>
-
-              {/* Card C: Pro Subscription (Featured) */}
-              <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.3 }}
-                  className="bg-emerald-500 rounded-[2rem] p-8 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-300 flex flex-col h-full relative overflow-hidden z-10 border border-emerald-400"
-              >
-                  {/* Glowing Effect */}
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-400 rounded-full blur-[100px] opacity-30 -mr-20 -mt-20 pointer-events-none"></div>
-                  
-                  <div className="absolute top-6 right-6">
-                      <span className="bg-white/20 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm backdrop-blur-sm">
-                          <Crown className="w-3 h-3 fill-current" /> 最推荐
-                      </span>
-                  </div>
-
-                  <div className="mb-6 relative">
-                      <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white mb-4 backdrop-blur-sm">
-                          <Zap className="w-6 h-6 fill-current" />
-                      </div>
-                      <h3 className="text-xl font-black text-white">高级会员 Pro</h3>
-                      <p className="text-emerald-50 text-sm font-bold mt-1">全能旗舰，算力与自由兼得</p>
-                  </div>
-
-                  <div className="flex items-baseline gap-1 mb-1 relative">
-                      <span className="text-5xl font-black text-white tracking-tight">
-                          ¥{getPricing('pro', billingCycle).total}
-                      </span>
-                      <span className="text-emerald-100 font-bold">
-                          / {getPricing('pro', billingCycle).unit}
-                      </span>
-                  </div>
-                  <div className="text-[10px] text-emerald-100/60 font-bold mb-6 relative">
-                      {billingCycle !== 'monthly' && `折合 ¥${getPricing('pro', billingCycle).avg} / 月`}
-                  </div>
-                  
-                  <div className="space-y-5 mb-10 flex-1 relative">
-                      <div className="flex items-start gap-3">
-                          <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <Check className="w-3 h-3 text-white stroke-[3]" />
-                          </div>
-                          <span className="text-sm font-bold text-white">
-                              每月赠送 <span className="text-white text-lg">60</span> 积分
-                          </span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                          <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <Check className="w-3 h-3 text-white stroke-[3]" />
-                          </div>
-                          <div className="flex flex-col">
-                              <span className="text-sm font-bold text-white">解锁 BYOK 极客模式</span>
-                              <span className="text-[10px] text-emerald-50 font-bold">支持自定义 API Key</span>
-                          </div>
-                      </div>
-                      <div className="flex items-start gap-3">
-                          <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <Check className="w-3 h-3 text-white stroke-[3]" />
-                          </div>
-                          <span className="text-sm font-bold text-white">标准生成队列</span>
-                      </div>
-                  </div>
-
-                  <button 
-                      onClick={() => handlePurchase('pro', billingCycle)}
-                      className="w-full py-4 bg-white text-emerald-600 font-black rounded-full shadow-md hover:shadow-lg hover:bg-emerald-50 hover:scale-[1.01] active:scale-[0.98] transition-all text-center relative overflow-hidden group/btn"
-                  >
-                      <span className="relative z-10 flex items-center justify-center gap-2">
-                          立即订阅 <ArrowLeft className="w-4 h-4 rotate-180" />
-                      </span>
-                  </button>
-              </motion.div>
-
-          </div>
-          
-          <div className="mt-16 text-center max-w-xl mx-auto bg-stone-50 rounded-2xl p-6 border border-stone-100">
-              <div className="flex items-start gap-3 text-left">
-                  <div className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center flex-shrink-0 text-stone-500 font-bold">
-                      i
-                  </div>
-                  <div>
-                      <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-bold text-stone-800 text-sm">关于 BYOK (Bring Your Own Key) 模式</h4>
-                          <a 
-                              href="https://dcnql2nounts.feishu.cn/docx/OEbXdheS3oxfqyxNy7Zc3ksUnJb" 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline flex items-center gap-0.5 bg-emerald-50 px-2 py-0.5 rounded-full transition-colors"
-                          >
-                              如何使用 BYOK 模式 <ArrowRight className="w-3 h-3" />
-                          </a>
-                      </div>
-                      <p className="text-xs text-stone-500 leading-relaxed font-medium">
-                          该模式仅对<span className="text-emerald-600 font-bold"> 基础会员及以上等级 </span>开放。开启后，您可以使用自己的 Qwen/Doubao/Gemini 等模型 API Key 进行生成，不再消耗平台积分，且可以使用更强大的模型 (如 GPT-5, Gemini3.1-pro) 以获得最佳效果。
-                      </p>
-                  </div>
+                  <h3 className="font-bold text-stone-800 text-lg">本地与开源</h3>
+                  <p className="text-sm text-stone-500 font-medium leading-relaxed">配置与历史都保存在你自己的设备上，代码完全开放。</p>
               </div>
           </div>
 
