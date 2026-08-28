@@ -31,6 +31,23 @@
 - 判分在对象语义层（kind + 坐标/参数/引用序列，坐标带容差），不比对指令顺序
 - 收录新题后需重跑 `parse` 刷新 expected_objects.json，再 `selftest` 确认工具链自洽
 
+## 跑批复测流程（pre/post 对比）
+
+```bash
+# 0. 确定模型通道后启动后端（Gemini 需代理；GLM/DashScope 直连）
+.venv/Scripts/python.exe app.py
+
+# 1. 跑批（自动等通道就绪、地域抖动自动重试）
+.venv/Scripts/python.exe scripts/bench_run.py --label pre_p0 --fresh   # 或 post_p0
+
+# 2. 换通道/换轮次前归档当前候选，避免被覆盖
+#    candidate_commands.txt -> candidate_pre_p0.txt（或 candidate_glm.txt 等）
+```
+
+- 模型通道写在根 .env 的 `SYSTEM_*` 四行（OpenAI 兼容端点均可用，含 GLM 模板）
+- 测试账号凭证在 `.secrets/bench_account.json`（跑分会自动登录扣积分）
+- 报告输出在 `benchmarks/reports/<标签>_<时间>.json`
+
 ## 注意
 
 - 题目图片为真题，仅随**私有**仓库保存；开源公开前需替换为自编题（见 PIPELINE_ROADMAP.md 第三节 P3）

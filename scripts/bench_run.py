@@ -67,38 +67,86 @@ def get_access_token(args) -> str:
     return resp.json()["access_token"]
 
 
-def generate_once(backend: str, token: str, image: Path):
-    """提交一题，返回 (status, payload)。status: completed | error | exception"""
-    try:
-        with image.open("rb") as f:
-            resp = requests.post(
-                f"{backend}/api/upload",
-                headers={"Authorization": f"Bearer {token}"},
-                files={"file": (image.name, f, "image/png")},
-                data={"text": "", "responseMode": "stream"},
-                stream=True, timeout=(15, 900),
-            )
-        if resp.status_code != 200:
-            return "error", {"message": f"HTTP {resp.status_code}: {resp.text[:200]}"}
-        final = None
-        for raw in resp.iter_lines(decode_unicode=True):
-            if not raw or not raw.strip():
-                continue  # 心跳
-            try:
-                event = json.loads(raw)
-            except json.JSONDecodeError:
+def generate_once(backend: str, token: str, image: Path, channel_retries: int = 5):
+    """提交一题，返回 (status, payload)。status: completed | error | exception
+    遇到 Gemini 地域拦截（代理出口被 Google 拒）时等待后重试，容忍代理节点抖动。"""
+    attempts = 0
+    while True:
+        attempts += 1
+        try:
+            with image.open("rb") as f:
+                resp = requests.post(
+                    f"{backend}/api/upload",
+                    headers={"Authorization": f"Bearer {token}"},
+                    files={"file": (image.name, f, "image/png")},
+                    data={"text": "", "responseMode": "stream"},
+                    stream=True, timeout=(15, 900),
+                )
+            if resp.status_code != 200:
+                return "error", {"message": f"HTTP {resp.status_code}: {resp.text[:200]}"}
+            final = None
+            for raw in resp.iter_lines(decode_unicode=True):
+                if not raw or not raw.strip():
+                    continue  # 心跳
+                try:
+                    event = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                final = event
+                if event.get("status") in ("completed", "error"):
+                    break
+            if final is None:
+                return "error", {"message": "流结束但无事件"}
+            msg = str(final.get("message", ""))
+            if final.get("status") == "error" and "User location is not supported" in msg:
+                if attempts <= channel_retries:
+                    print(f"    ... 通道抖动，等待 60s 重试（{attempts}/{channel_retries}）")
+                    time.sleep(60)
+                    continue
+            return ("completed" if final.get("status") == "completed" else "error"), final
+        except requests.RequestException as e:
+            if attempts <= channel_retries:
+                print(f"    ... 网络异常，等待 30s 重试（{attempts}/{channel_retries}）: {str(e)[:60]}")
+                time.sleep(30)
                 continue
-            final = event
-            if event.get("status") in ("completed", "error"):
-                break
-        if final is None:
-            return "error", {"message": "流结束但无事件"}
-        return ("completed" if final.get("status") == "completed" else "error"), final
-    except requests.RequestException as e:
-        return "exception", {"message": str(e)}
+            return "exception", {"message": str(e)}
+
+
+def wait_for_channel(max_wait_minutes: int = 15) -> bool:
+    """跑批前确认 Gemini 通道可用（用 .env 的 key 走 7897 代理探测）。"""
+    env = {}
+    for line in (ROOT / ".env").read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, _, v = line.partition("=")
+            env[k.strip()] = v.strip()
+    key = env.get("GOOGLE_API_KEY")
+    if not key:
+        print("警告: .env 无 GOOGLE_API_KEY，跳过通道检查")
+        return True
+    deadline = time.time() + max_wait_minutes * 60
+    while time.time() < deadline:
+        try:
+            r = requests.get(
+                "https://generativelanguage.googleapis.com/v1beta/models",
+                params={"key": key},
+                proxies={"http": "http://127.0.0.1:7897", "https": "http://127.0.0.1:7897"},
+                timeout=15,
+            )
+            if r.status_code == 200:
+                print("通道检查: OK")
+                return True
+            print(f"通道检查: HTTP {r.status_code}（节点被 Gemini 拒绝），60s 后重查…")
+        except requests.RequestException as e:
+            print(f"通道检查: 网络异常 {str(e)[:50]}，60s 后重查…")
+        time.sleep(60)
+    print("通道长时间不可用，放弃本轮")
+    return False
 
 
 def cmd_run(args):
+    if not args.skip_channel_check and not wait_for_channel():
+        raise SystemExit(1)
     token = get_access_token(args)
     cases = sorted(p.parent for p in CASES_DIR.rglob("problem.png"))
     if args.limit:
@@ -162,6 +210,7 @@ def main():
     ap.add_argument("--label", default="run", help="报告标签，如 pre_p0 / post_p0")
     ap.add_argument("--fresh", action="store_true", help="忽略已有候选，全部重跑")
     ap.add_argument("--limit", type=int, default=0, help="只跑前 N 个案例（调试用）")
+    ap.add_argument("--skip-channel-check", action="store_true", help="跳过跑批前的 Gemini 通道检查")
     args = ap.parse_args()
     cmd_run(args)
 
