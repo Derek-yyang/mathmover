@@ -1,0 +1,259 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "-4",
+        "0"
+      ],
+      "numeric": [
+        -4.0,
+        0.0
+      ],
+      "raw": "(-4,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "F1"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "4",
+        "0"
+      ],
+      "numeric": [
+        4.0,
+        0.0
+      ],
+      "raw": "(4,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "F2"
+    },
+    {
+      "kind": "ellipse",
+      "args": [
+        "f1",
+        "f2",
+        "6"
+      ],
+      "raw": "ellipse(f1,f2,6)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "C"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "6",
+        "0"
+      ],
+      "numeric": [
+        6.0,
+        0.0
+      ],
+      "raw": "(6,0)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "V_start"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "4.4721"
+      ],
+      "numeric": [
+        0.0,
+        4.4721
+      ],
+      "raw": "(0,4.4721)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "V_end"
+    },
+    {
+      "kind": "arc",
+      "args": [
+        "c",
+        "v_start",
+        "v_end"
+      ],
+      "raw": "arc(c,v_start,v_end)",
+      "attrs": {},
+      "name": "arcM"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "0",
+        "1",
+        "0.01"
+      ],
+      "numeric": [
+        0.0,
+        1.0,
+        0.01
+      ],
+      "raw": "slider(0,1,0.01)",
+      "attrs": {},
+      "name": "t"
+    },
+    {
+      "kind": "moving_point",
+      "path": [
+        "arcm",
+        "t"
+      ],
+      "raw": "point(arcm,t)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"red\""
+        ],
+        "setpointsize": [
+          "5"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "M"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "m",
+        "f1",
+        "f2"
+      ],
+      "raw": "polygon(m,f1,f2)",
+      "attrs": {
+        "setcolor": [
+          "\"lightblue\""
+        ],
+        "setfilling": [
+          "0.3"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "triangleMF1F2"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "m",
+        "f1"
+      ],
+      "raw": "segment(m,f1)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "segMF1"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "m",
+        "f2"
+      ],
+      "raw": "segment(m,f2)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "segMF2"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "f1",
+        "f2"
+      ],
+      "raw": "segment(f1,f2)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "segF1F2"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "高中/C-椭圆4"
+}

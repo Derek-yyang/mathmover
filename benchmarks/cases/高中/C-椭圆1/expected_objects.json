@@ -1,0 +1,385 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "0"
+      ],
+      "numeric": [
+        0.0,
+        0.0
+      ],
+      "raw": "(0,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "O"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-2",
+        "0"
+      ],
+      "numeric": [
+        -2.0,
+        0.0
+      ],
+      "raw": "(-2,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "-1"
+      ],
+      "numeric": [
+        0.0,
+        -1.0
+      ],
+      "raw": "(0,-1)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-1.732",
+        "0.5"
+      ],
+      "numeric": [
+        -1.732,
+        0.5
+      ],
+      "raw": "(-1.732,0.5)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "P_check"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-1.732",
+        "0"
+      ],
+      "numeric": [
+        -1.732,
+        0.0
+      ],
+      "raw": "(-1.732,0)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        },
+        "setfixed": [
+          "true"
+        ]
+      },
+      "name": "F1"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "1.732",
+        "0"
+      ],
+      "numeric": [
+        1.732,
+        0.0
+      ],
+      "raw": "(1.732,0)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        },
+        "setfixed": [
+          "true"
+        ]
+      },
+      "name": "F2"
+    },
+    {
+      "kind": "ellipse",
+      "args": [
+        "f1",
+        "f2",
+        "2"
+      ],
+      "raw": "ellipse(f1,f2,2)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ]
+      },
+      "name": "C_curve"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2",
+        "0"
+      ],
+      "numeric": [
+        2.0,
+        0.0
+      ],
+      "raw": "(2,0)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "V_right"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "1"
+      ],
+      "numeric": [
+        0.0,
+        1.0
+      ],
+      "raw": "(0,1)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "V_top"
+    },
+    {
+      "kind": "arc",
+      "args": [
+        "c_curve",
+        "v_right",
+        "v_top"
+      ],
+      "raw": "arc(c_curve,v_right,v_top)",
+      "attrs": {},
+      "name": "arcM"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "0.01",
+        "0.99",
+        "0.01"
+      ],
+      "numeric": [
+        0.01,
+        0.99,
+        0.01
+      ],
+      "raw": "slider(0.01,0.99,0.01)",
+      "attrs": {},
+      "name": "t_m"
+    },
+    {
+      "kind": "moving_point",
+      "path": [
+        "arcm",
+        "t_m"
+      ],
+      "raw": "point(arcm,t_m)",
+      "attrs": {
+        "setcolor": [
+          "\"red\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "M"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "m",
+        "b"
+      ],
+      "raw": "line(m,b)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "lineMB"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "m",
+        "a"
+      ],
+      "raw": "line(m,a)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "lineMA"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "(0,0)",
+        "(1,0)"
+      ],
+      "raw": "line((0,0),(1,0))",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "xAxis_line"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "(0,0)",
+        "(0,1)"
+      ],
+      "raw": "line((0,0),(0,1))",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "yAxis_line"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "linemb",
+        "xaxis_line"
+      ],
+      "raw": "intersect(linemb,xaxis_line)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"darkgreen\""
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "linema",
+        "yaxis_line"
+      ],
+      "raw": "intersect(linema,yaxis_line)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"darkgreen\""
+        ]
+      },
+      "name": "D"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "o",
+        "c",
+        "d"
+      ],
+      "raw": "polygon(o,c,d)",
+      "attrs": {
+        "setcolor": [
+          "\"lightblue\""
+        ],
+        "setfilling": [
+          "0.3"
+        ],
+        "showlabel": [
+          "false"
+        ]
+      },
+      "name": "triOCD"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "高中/C-椭圆1"
+}

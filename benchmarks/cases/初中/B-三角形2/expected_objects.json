@@ -1,0 +1,217 @@
+{
+  "mode": "2D",
+  "scene_attrs": {},
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "sqrt(3)"
+      ],
+      "numeric": null,
+      "raw": "(0,sqrt(3))",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-1",
+        "0"
+      ],
+      "numeric": [
+        -1.0,
+        0.0
+      ],
+      "raw": "(-1,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "1",
+        "0"
+      ],
+      "numeric": [
+        1.0,
+        0.0
+      ],
+      "raw": "(1,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "a",
+        "b",
+        "c"
+      ],
+      "raw": "polygon(a,b,c)",
+      "attrs": {},
+      "name": "poly1"
+    },
+    {
+      "kind": "midpoint",
+      "args": [
+        "a",
+        "b"
+      ],
+      "raw": "midpoint(a,b)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "E"
+    },
+    {
+      "kind": "midpoint",
+      "args": [
+        "a",
+        "c"
+      ],
+      "raw": "midpoint(a,c)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "F"
+    },
+    {
+      "kind": "midpoint",
+      "args": [
+        "b",
+        "c"
+      ],
+      "raw": "midpoint(b,c)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "G"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "e",
+        "f"
+      ],
+      "raw": "segment(e,f)",
+      "attrs": {},
+      "name": "EF"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "0",
+        "1",
+        "0.01"
+      ],
+      "numeric": [
+        0.0,
+        1.0,
+        0.01
+      ],
+      "raw": "slider(0,1,0.01)",
+      "attrs": {},
+      "name": "t"
+    },
+    {
+      "kind": "moving_point",
+      "path": [
+        "ef",
+        "t"
+      ],
+      "raw": "point(ef,t)",
+      "attrs": {
+        "setcolor": [
+          "255",
+          "0",
+          "0"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "P"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "b",
+        "p"
+      ],
+      "raw": "segment(b,p)",
+      "attrs": {},
+      "name": "BP"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "g"
+      ],
+      "raw": "segment(p,g)",
+      "attrs": {},
+      "name": "PG"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "初中/B-三角形2"
+}

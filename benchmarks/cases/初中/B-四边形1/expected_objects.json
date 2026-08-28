@@ -1,0 +1,268 @@
+{
+  "mode": "2D",
+  "scene_attrs": {},
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "0"
+      ],
+      "numeric": [
+        0.0,
+        0.0
+      ],
+      "raw": "(0,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "160",
+        "0"
+      ],
+      "numeric": [
+        160.0,
+        0.0
+      ],
+      "raw": "(160,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "160",
+        "120"
+      ],
+      "numeric": [
+        160.0,
+        120.0
+      ],
+      "raw": "(160,120)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "120"
+      ],
+      "numeric": [
+        0.0,
+        120.0
+      ],
+      "raw": "(0,120)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "D"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ],
+      "raw": "polygon(a,b,c,d)",
+      "attrs": {},
+      "name": "rect"
+    },
+    {
+      "kind": "midpoint",
+      "args": [
+        "b",
+        "c"
+      ],
+      "raw": "midpoint(b,c)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "E"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "0",
+        "1",
+        "0.01"
+      ],
+      "numeric": [
+        0.0,
+        1.0,
+        0.01
+      ],
+      "raw": "slider(0,1,0.01)",
+      "attrs": {},
+      "name": "t"
+    },
+    {
+      "kind": "moving_point",
+      "path": [
+        "segment(a,b)",
+        "t"
+      ],
+      "raw": "point(segment(a,b),t)",
+      "attrs": {
+        "setcolor": [
+          "\"red\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "F"
+    },
+    {
+      "kind": "expression",
+      "expr": "(x(f)-x(e))^2+(y(f)-y(e))^2",
+      "raw": "(x(f)-x(e))^2+(y(f)-y(e))^2",
+      "attrs": {},
+      "name": "distSq"
+    },
+    {
+      "kind": "expression",
+      "expr": "e+(4800/distsq)*(y(f)-y(e),x(e)-x(f))",
+      "raw": "e+(4800/distsq)*(y(f)-y(e),x(e)-x(f))",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "G"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "g",
+        "e",
+        "f"
+      ],
+      "raw": "polygon(g,e,f)",
+      "attrs": {
+        "setcolor": [
+          "\"green\""
+        ],
+        "setfilling": [
+          "0.3"
+        ]
+      },
+      "name": "triGEF"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "a",
+        "d",
+        "g"
+      ],
+      "raw": "polygon(a,d,g)",
+      "attrs": {
+        "setcolor": [
+          "\"orange\""
+        ],
+        "setfilling": [
+          "0.3"
+        ]
+      },
+      "name": "triADG"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "d",
+        "g"
+      ],
+      "raw": "segment(d,g)",
+      "attrs": {},
+      "name": "dg"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "a",
+        "g"
+      ],
+      "raw": "segment(a,g)",
+      "attrs": {},
+      "name": "ag"
+    },
+    {
+      "kind": "angle",
+      "args": [
+        "f",
+        "e",
+        "g"
+      ],
+      "raw": "angle(f,e,g)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ]
+      },
+      "name": "angGEF"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "初中/B-四边形1"
+}

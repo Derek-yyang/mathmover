@@ -1,0 +1,280 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "1",
+        "0"
+      ],
+      "numeric": [
+        1.0,
+        0.0
+      ],
+      "raw": "(1,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ]
+      },
+      "name": "F"
+    },
+    {
+      "kind": "equation",
+      "expr": "x=-1",
+      "raw": "x=-1",
+      "attrs": {
+        "visible_in_view": {
+          "1": "true"
+        },
+        "setlinestyle": [
+          "2"
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "d"
+    },
+    {
+      "kind": "parabola",
+      "args": [
+        "f",
+        "d"
+      ],
+      "raw": "parabola(f,d)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "-5",
+        "5",
+        "0.1"
+      ],
+      "numeric": [
+        -5.0,
+        5.0,
+        0.1
+      ],
+      "raw": "slider(-5,5,0.1)",
+      "attrs": {},
+      "name": "k"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "f",
+        "f+(1,k)"
+      ],
+      "raw": "line(f,f+(1,k))",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "l"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "l",
+        "c",
+        "1"
+      ],
+      "raw": "intersect(l,c,1)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempA"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "l",
+        "c",
+        "2"
+      ],
+      "raw": "intersect(l,c,2)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempB"
+    },
+    {
+      "kind": "expression",
+      "expr": "if(y(tempa)>y(tempb),tempa,tempb)",
+      "raw": "if(y(tempa)>y(tempb),tempa,tempb)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"red\""
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "expression",
+      "expr": "if(y(tempa)<y(tempb),tempa,tempb)",
+      "raw": "if(y(tempa)<y(tempb),tempa,tempb)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"red\""
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "perpendicularbisector",
+      "args": [
+        "a",
+        "b"
+      ],
+      "raw": "perpendicularbisector(a,b)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        },
+        "setcolor": [
+          "\"darkgreen\""
+        ]
+      },
+      "name": "l_prime"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "l_prime",
+        "c",
+        "1"
+      ],
+      "raw": "intersect(l_prime,c,1)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempM"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "l_prime",
+        "c",
+        "2"
+      ],
+      "raw": "intersect(l_prime,c,2)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempN"
+    },
+    {
+      "kind": "expression",
+      "expr": "if(y(tempm)>y(tempn),tempm,tempn)",
+      "raw": "if(y(tempm)>y(tempn),tempm,tempn)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "M"
+    },
+    {
+      "kind": "expression",
+      "expr": "if(y(tempm)<y(tempn),tempm,tempn)",
+      "raw": "if(y(tempm)<y(tempn),tempm,tempn)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "N"
+    },
+    {
+      "kind": "circle",
+      "args": [
+        "a",
+        "m",
+        "b"
+      ],
+      "raw": "circle(a,m,b)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        },
+        "setcolor": [
+          "\"purple\""
+        ],
+        "setlinestyle": [
+          "2"
+        ]
+      },
+      "name": "circleABMN"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "高中/C-抛物线2"
+}

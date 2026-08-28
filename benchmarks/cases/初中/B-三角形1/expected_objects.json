@@ -1,0 +1,258 @@
+{
+  "mode": "2D",
+  "scene_attrs": {},
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "0"
+      ],
+      "numeric": [
+        0.0,
+        0.0
+      ],
+      "raw": "(0,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "4",
+        "0"
+      ],
+      "numeric": [
+        4.0,
+        0.0
+      ],
+      "raw": "(4,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "0",
+        "1",
+        "0.01"
+      ],
+      "numeric": [
+        0.0,
+        1.0,
+        0.01
+      ],
+      "raw": "slider(0,1,0.01)",
+      "attrs": {},
+      "name": "t"
+    },
+    {
+      "kind": "moving_point",
+      "path": [
+        "circle(a,2)",
+        "t"
+      ],
+      "raw": "point(circle(a,2),t)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "255",
+          "0",
+          "0"
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "midpoint",
+      "args": [
+        "b",
+        "c"
+      ],
+      "raw": "midpoint(b,c)",
+      "attrs": {},
+      "name": "M"
+    },
+    {
+      "kind": "expression",
+      "expr": "m+0.5*(-(y(b)-y(c)),x(b)-x(c))",
+      "raw": "m+0.5*(-(y(b)-y(c)),x(b)-x(c))",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "D"
+    },
+    {
+      "kind": "expression",
+      "expr": "2*d-a",
+      "raw": "2*d-a",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "0",
+          "0",
+          "255"
+        ]
+      },
+      "name": "P"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "a",
+        "b",
+        "c"
+      ],
+      "raw": "polygon(a,b,c)",
+      "attrs": {
+        "setfilling": [
+          "0.05"
+        ],
+        "setcolor": [
+          "100",
+          "100",
+          "255"
+        ]
+      },
+      "name": "poly_ABC"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "b",
+        "c",
+        "d"
+      ],
+      "raw": "polygon(b,c,d)",
+      "attrs": {
+        "setfilling": [
+          "0.05"
+        ],
+        "setcolor": [
+          "255",
+          "150",
+          "100"
+        ]
+      },
+      "name": "poly_BCD"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "a",
+        "d"
+      ],
+      "raw": "segment(a,d)",
+      "attrs": {},
+      "name": "seg_AD"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "d",
+        "p"
+      ],
+      "raw": "segment(d,p)",
+      "attrs": {},
+      "name": "seg_DP"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "b"
+      ],
+      "raw": "segment(p,b)",
+      "attrs": {},
+      "name": "seg_PB"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "a",
+        "c"
+      ],
+      "raw": "segment(a,c)",
+      "attrs": {},
+      "name": "seg_AC"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "c",
+        "b"
+      ],
+      "raw": "segment(c,b)",
+      "attrs": {},
+      "name": "seg_CB"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "d",
+        "b"
+      ],
+      "raw": "segment(d,b)",
+      "attrs": {},
+      "name": "seg_DB"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "d",
+        "c"
+      ],
+      "raw": "segment(d,c)",
+      "attrs": {},
+      "name": "seg_DC"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "a",
+        "b"
+      ],
+      "raw": "segment(a,b)",
+      "attrs": {},
+      "name": "seg_AB"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "初中/B-三角形1"
+}

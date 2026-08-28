@@ -1,0 +1,283 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ],
+    "setgridvisible": [
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "function",
+      "expr": "-x^2+2x+3",
+      "raw": "f(x)=-x^2+2x+3",
+      "attrs": {},
+      "name": "f"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "3"
+      ],
+      "numeric": [
+        0.0,
+        3.0
+      ],
+      "raw": "(0,3)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-1",
+        "0"
+      ],
+      "numeric": [
+        -1.0,
+        0.0
+      ],
+      "raw": "(-1,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2",
+        "3"
+      ],
+      "numeric": [
+        2.0,
+        3.0
+      ],
+      "raw": "(2,3)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "D"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "1",
+        "0"
+      ],
+      "numeric": [
+        1.0,
+        0.0
+      ],
+      "raw": "(1,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "3",
+        "0"
+      ],
+      "numeric": [
+        3.0,
+        0.0
+      ],
+      "raw": "(3,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "E"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ],
+      "raw": "polygon(a,b,c,d)",
+      "attrs": {
+        "setfilling": [
+          "0.2"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "poly1"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0.5",
+        "1.5"
+      ],
+      "numeric": [
+        0.5,
+        1.5
+      ],
+      "raw": "(0.5,1.5)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "M"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "m",
+        "e"
+      ],
+      "raw": "line(m,e)",
+      "attrs": {
+        "setcolor": [
+          "\"green\""
+        ],
+        "setlinestyle": [
+          "\"dashed\""
+        ]
+      },
+      "name": "l"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-0.4",
+        "2.04"
+      ],
+      "numeric": [
+        -0.4,
+        2.04
+      ],
+      "raw": "(-0.4,2.04)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "F"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "-0.4",
+        "3",
+        "0.05"
+      ],
+      "numeric": [
+        -0.4,
+        3.0,
+        0.05
+      ],
+      "raw": "slider(-0.4,3,0.05)",
+      "attrs": {},
+      "name": "t"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "t",
+        "-t^2 + 2*t + 3"
+      ],
+      "numeric": null,
+      "raw": "(t,-t^2+2*t+3)",
+      "attrs": {
+        "setcolor": [
+          "\"red\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "P"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "p",
+        "f",
+        "e"
+      ],
+      "raw": "polygon(p,f,e)",
+      "attrs": {
+        "setfilling": [
+          "0.3"
+        ],
+        "setcolor": [
+          "\"red\""
+        ]
+      },
+      "name": "poly2"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "初中/A-二次函数1"
+}

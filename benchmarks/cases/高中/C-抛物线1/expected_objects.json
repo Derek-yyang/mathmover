@@ -1,0 +1,344 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "-1.732",
+        "0"
+      ],
+      "numeric": [
+        -1.732,
+        0.0
+      ],
+      "raw": "(-1.732,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "F1"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "1.732",
+        "0"
+      ],
+      "numeric": [
+        1.732,
+        0.0
+      ],
+      "raw": "(1.732,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "F2"
+    },
+    {
+      "kind": "hyperbola",
+      "args": [
+        "f1",
+        "f2",
+        "1.414"
+      ],
+      "raw": "hyperbola(f1,f2,1.414)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "C"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2",
+        "1"
+      ],
+      "numeric": [
+        2.0,
+        1.0
+      ],
+      "raw": "(2,1)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "A"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "-1.5",
+        "1.5",
+        "0.1"
+      ],
+      "numeric": [
+        -1.5,
+        1.5,
+        0.1
+      ],
+      "raw": "slider(-1.5,1.5,0.1)",
+      "attrs": {},
+      "name": "m"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "a",
+        "a+(1,m)"
+      ],
+      "raw": "line(a,a+(1,m))",
+      "attrs": {
+        "visible_in_view": {
+          "1": "true"
+        },
+        "setlinestyle": [
+          "2"
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "lineAP"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "a",
+        "a+(1,-m)"
+      ],
+      "raw": "line(a,a+(1,-m))",
+      "attrs": {
+        "visible_in_view": {
+          "1": "true"
+        },
+        "setlinestyle": [
+          "2"
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "lineAQ"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "lineap",
+        "c",
+        "1"
+      ],
+      "raw": "intersect(lineap,c,1)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempP1"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "lineap",
+        "c",
+        "2"
+      ],
+      "raw": "intersect(lineap,c,2)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempP2"
+    },
+    {
+      "kind": "expression",
+      "expr": "if(distance(tempp1,a)>0.01,tempp1,tempp2)",
+      "raw": "if(distance(tempp1,a)>0.01,tempp1,tempp2)",
+      "attrs": {
+        "setcolor": [
+          "\"red\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "P"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "lineaq",
+        "c",
+        "1"
+      ],
+      "raw": "intersect(lineaq,c,1)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempQ1"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "lineaq",
+        "c",
+        "2"
+      ],
+      "raw": "intersect(lineaq,c,2)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempQ2"
+    },
+    {
+      "kind": "expression",
+      "expr": "if(distance(tempq1,a)>0.01,tempq1,tempq2)",
+      "raw": "if(distance(tempq1,a)>0.01,tempq1,tempq2)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "Q"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "p",
+        "q"
+      ],
+      "raw": "line(p,q)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "setthickness": [
+          "2"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "l"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "(0,0)",
+        "(1.414,1)"
+      ],
+      "raw": "line((0,0),(1.414,1))",
+      "attrs": {
+        "setlinestyle": [
+          "3"
+        ],
+        "setcolor": [
+          "\"darkgray\""
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "asymp1"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "(0,0)",
+        "(1.414,-1)"
+      ],
+      "raw": "line((0,0),(1.414,-1))",
+      "attrs": {
+        "setlinestyle": [
+          "3"
+        ],
+        "setcolor": [
+          "\"darkgray\""
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "asymp2"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "高中/C-抛物线1"
+}

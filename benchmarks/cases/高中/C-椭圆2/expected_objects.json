@@ -1,0 +1,387 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "-2.24",
+        "0"
+      ],
+      "numeric": [
+        -2.24,
+        0.0
+      ],
+      "raw": "(-2.24,0)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "F1"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2.24",
+        "0"
+      ],
+      "numeric": [
+        2.24,
+        0.0
+      ],
+      "raw": "(2.24,0)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "F2"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "2"
+      ],
+      "numeric": [
+        0.0,
+        2.0
+      ],
+      "raw": "(0,2)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-3",
+        "0"
+      ],
+      "numeric": [
+        -3.0,
+        0.0
+      ],
+      "raw": "(-3,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "-2"
+      ],
+      "numeric": [
+        0.0,
+        -2.0
+      ],
+      "raw": "(0,-2)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "3",
+        "0"
+      ],
+      "numeric": [
+        3.0,
+        0.0
+      ],
+      "raw": "(3,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "D"
+    },
+    {
+      "kind": "ellipse",
+      "args": [
+        "f1",
+        "f2",
+        "3"
+      ],
+      "raw": "ellipse(f1,f2,3)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "showlabel": [
+          "true"
+        ]
+      },
+      "name": "E"
+    },
+    {
+      "kind": "arc",
+      "args": [
+        "e",
+        "d",
+        "a"
+      ],
+      "raw": "arc(e,d,a)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "arcP"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "0.01",
+        "0.99",
+        "0.01"
+      ],
+      "numeric": [
+        0.01,
+        0.99,
+        0.01
+      ],
+      "raw": "slider(0.01,0.99,0.01)",
+      "attrs": {},
+      "name": "t"
+    },
+    {
+      "kind": "moving_point",
+      "path": [
+        "arcp",
+        "t"
+      ],
+      "raw": "point(arcp,t)",
+      "attrs": {
+        "setcolor": [
+          "\"red\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "P"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "b",
+        "c"
+      ],
+      "raw": "line(b,c)",
+      "attrs": {
+        "setcolor": [
+          "\"gray\""
+        ],
+        "setlinestyle": [
+          "2"
+        ]
+      },
+      "name": "l_BC"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "p",
+        "d"
+      ],
+      "raw": "line(p,d)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "l_PD"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "l_pd",
+        "l_bc"
+      ],
+      "raw": "intersect(l_pd,l_bc)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "M"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "p",
+        "a"
+      ],
+      "raw": "line(p,a)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "l_PA"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "c",
+        "c+(1,0)"
+      ],
+      "raw": "line(c,c+(1,0))",
+      "attrs": {
+        "setcolor": [
+          "\"gray\""
+        ],
+        "setlinestyle": [
+          "2"
+        ]
+      },
+      "name": "l_y_neg2"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "l_pa",
+        "l_y_neg2"
+      ],
+      "raw": "intersect(l_pa,l_y_neg2)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "N"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "m",
+        "n"
+      ],
+      "raw": "segment(m,n)",
+      "attrs": {
+        "setcolor": [
+          "\"darkgreen\""
+        ],
+        "setlinestyle": [
+          "1"
+        ],
+        "showlabel": [
+          "true"
+        ]
+      },
+      "name": "seg_MN"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "c",
+        "d"
+      ],
+      "raw": "segment(c,d)",
+      "attrs": {
+        "setcolor": [
+          "\"darkgreen\""
+        ],
+        "setlinestyle": [
+          "1"
+        ],
+        "showlabel": [
+          "true"
+        ]
+      },
+      "name": "seg_CD"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "高中/C-椭圆2"
+}

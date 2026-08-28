@@ -1,0 +1,407 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "0"
+      ],
+      "numeric": [
+        0.0,
+        0.0
+      ],
+      "raw": "(0,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "O"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-2",
+        "0"
+      ],
+      "numeric": [
+        -2.0,
+        0.0
+      ],
+      "raw": "(-2,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "F1"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2",
+        "0"
+      ],
+      "numeric": [
+        2.0,
+        0.0
+      ],
+      "raw": "(2,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "F2"
+    },
+    {
+      "kind": "hyperbola",
+      "args": [
+        "f1",
+        "f2",
+        "1"
+      ],
+      "raw": "hyperbola(f1,f2,1)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-1",
+        "0"
+      ],
+      "numeric": [
+        -1.0,
+        0.0
+      ],
+      "raw": "(-1,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2",
+        "3"
+      ],
+      "numeric": [
+        2.0,
+        3.0
+      ],
+      "raw": "(2,3)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2",
+        "0"
+      ],
+      "numeric": [
+        2.0,
+        0.0
+      ],
+      "raw": "(2,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "T"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "o",
+        "o+(1,1.732)"
+      ],
+      "raw": "line(o,o+(1,1.732))",
+      "attrs": {
+        "setlinestyle": [
+          "3"
+        ],
+        "setcolor": [
+          "\"darkgray\""
+        ]
+      },
+      "name": "asym1"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "o",
+        "o+(1,-1.732)"
+      ],
+      "raw": "line(o,o+(1,-1.732))",
+      "attrs": {
+        "setlinestyle": [
+          "3"
+        ],
+        "setcolor": [
+          "\"darkgray\""
+        ]
+      },
+      "name": "asym2"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "-5",
+        "5",
+        "0.1"
+      ],
+      "numeric": [
+        -5.0,
+        5.0,
+        0.1
+      ],
+      "raw": "slider(-5,5,0.1)",
+      "attrs": {},
+      "name": "k"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "t",
+        "t+(1,k)"
+      ],
+      "raw": "line(t,t+(1,k))",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "showlabel": [
+          "true"
+        ]
+      },
+      "name": "l"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "l",
+        "asym1"
+      ],
+      "raw": "intersect(l,asym1)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"darkgreen\""
+        ]
+      },
+      "name": "M"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "l",
+        "asym2"
+      ],
+      "raw": "intersect(l,asym2)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"darkgreen\""
+        ]
+      },
+      "name": "N"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "l",
+        "c",
+        "1"
+      ],
+      "raw": "intersect(l,c,1)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempP"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "l",
+        "c",
+        "2"
+      ],
+      "raw": "intersect(l,c,2)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempQ"
+    },
+    {
+      "kind": "expression",
+      "expr": "if(y(tempp)>y(tempq),tempp,tempq)",
+      "raw": "if(y(tempp)>y(tempq),tempp,tempq)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"red\""
+        ]
+      },
+      "name": "P"
+    },
+    {
+      "kind": "expression",
+      "expr": "if(y(tempp)<y(tempq),tempp,tempq)",
+      "raw": "if(y(tempp)<y(tempq),tempp,tempq)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "Q"
+    },
+    {
+      "kind": "circle",
+      "args": [
+        "midpoint(p,q)",
+        "p"
+      ],
+      "raw": "circle(midpoint(p,q),p)",
+      "attrs": {
+        "setlinestyle": [
+          "2"
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "circlePQ"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "a",
+        "p"
+      ],
+      "raw": "segment(a,p)",
+      "attrs": {
+        "setlinestyle": [
+          "2"
+        ],
+        "setcolor": [
+          "\"red\""
+        ]
+      },
+      "name": "segAP"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "a",
+        "q"
+      ],
+      "raw": "segment(a,q)",
+      "attrs": {
+        "setlinestyle": [
+          "2"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "segAQ"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "高中/C-双曲线1"
+}

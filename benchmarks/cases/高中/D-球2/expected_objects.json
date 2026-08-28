@@ -1,0 +1,344 @@
+{
+  "mode": "3D",
+  "scene_attrs": {},
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "0",
+        "0"
+      ],
+      "numeric": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "raw": "(0,0,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2",
+        "0",
+        "0"
+      ],
+      "numeric": [
+        2.0,
+        0.0,
+        0.0
+      ],
+      "raw": "(2,0,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2",
+        "3.4641",
+        "0"
+      ],
+      "numeric": [
+        2.0,
+        3.4641,
+        0.0
+      ],
+      "raw": "(2,3.4641,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "0",
+        "2"
+      ],
+      "numeric": [
+        0.0,
+        0.0,
+        2.0
+      ],
+      "raw": "(0,0,2)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "P"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "a",
+        "b"
+      ],
+      "raw": "segment(a,b)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ]
+      },
+      "name": "s1"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "b",
+        "c"
+      ],
+      "raw": "segment(b,c)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ]
+      },
+      "name": "s2"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "a",
+        "c"
+      ],
+      "raw": "segment(a,c)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ]
+      },
+      "name": "s3"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "a"
+      ],
+      "raw": "segment(p,a)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ]
+      },
+      "name": "s4"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "b"
+      ],
+      "raw": "segment(p,b)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ]
+      },
+      "name": "s5"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "c"
+      ],
+      "raw": "segment(p,c)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ]
+      },
+      "name": "s6"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "a",
+        "b",
+        "c"
+      ],
+      "raw": "polygon(a,b,c)",
+      "attrs": {
+        "setfilling": [
+          "0.1"
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "f1"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "p",
+        "a",
+        "b"
+      ],
+      "raw": "polygon(p,a,b)",
+      "attrs": {
+        "setfilling": [
+          "0.1"
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "f2"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "p",
+        "b",
+        "c"
+      ],
+      "raw": "polygon(p,b,c)",
+      "attrs": {
+        "setfilling": [
+          "0.1"
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "f3"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "p",
+        "a",
+        "c"
+      ],
+      "raw": "polygon(p,a,c)",
+      "attrs": {
+        "setfilling": [
+          "0.1"
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "f4"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "1",
+        "1.7321",
+        "1"
+      ],
+      "numeric": [
+        1.0,
+        1.7321,
+        1.0
+      ],
+      "raw": "(1,1.7321,1)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "O"
+    },
+    {
+      "kind": "sphere",
+      "args": [
+        "o",
+        "p"
+      ],
+      "raw": "sphere(o,p)",
+      "attrs": {
+        "setcolor": [
+          "\"lightgray\""
+        ],
+        "setfilling": [
+          "0.1"
+        ]
+      },
+      "name": "sph"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "sph",
+        "xoyplane"
+      ],
+      "raw": "intersect(sph,xoyplane)",
+      "attrs": {
+        "setlinestyle": [
+          "2"
+        ],
+        "setcolor": [
+          "\"black\""
+        ]
+      },
+      "name": "c1"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "高中/D-球2"
+}

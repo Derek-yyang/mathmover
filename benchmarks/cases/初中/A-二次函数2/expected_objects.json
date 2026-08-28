@@ -1,0 +1,283 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ],
+    "setgridvisible": [
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "function",
+      "expr": "x+2",
+      "raw": "f_line(x)=x+2",
+      "attrs": {},
+      "name": "f_line"
+    },
+    {
+      "kind": "function",
+      "expr": "2x^2-8x+6",
+      "raw": "f_parab(x)=2x^2-8x+6",
+      "attrs": {},
+      "name": "f_parab"
+    },
+    {
+      "kind": "function",
+      "args": [
+        "f_line",
+        "-2",
+        "5"
+      ],
+      "raw": "function(f_line,-2,5)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "f1"
+    },
+    {
+      "kind": "function",
+      "args": [
+        "f_parab",
+        "0.5",
+        "4.5"
+      ],
+      "raw": "function(f_parab,0.5,4.5)",
+      "attrs": {
+        "setcolor": [
+          "\"green\""
+        ]
+      },
+      "name": "f2"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0.5",
+        "2.5"
+      ],
+      "numeric": [
+        0.5,
+        2.5
+      ],
+      "raw": "(0.5,2.5)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "4",
+        "6"
+      ],
+      "numeric": [
+        4.0,
+        6.0
+      ],
+      "raw": "(4,6)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "0",
+        "1",
+        "0.01"
+      ],
+      "numeric": [
+        0.0,
+        1.0,
+        0.01
+      ],
+      "raw": "slider(0,1,0.01)",
+      "attrs": {},
+      "name": "t"
+    },
+    {
+      "kind": "expression",
+      "expr": "(1-t)*a+t*b",
+      "raw": "(1-t)*a+t*b",
+      "attrs": {
+        "setcolor": [
+          "\"red\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setpointsize": [
+          "5"
+        ]
+      },
+      "name": "P"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "x(P)",
+        "0"
+      ],
+      "numeric": null,
+      "raw": "(x(p),0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "3"
+        ]
+      },
+      "name": "D"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "x(P)",
+        "f_parab(x(P))"
+      ],
+      "numeric": null,
+      "raw": "(x(p),f_parab(x(p)))",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "3"
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "c"
+      ],
+      "raw": "segment(p,c)",
+      "attrs": {
+        "setcolor": [
+          "\"magenta\""
+        ],
+        "setlinestyle": [
+          "\"dashed\""
+        ]
+      },
+      "name": "seg_PC"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "d"
+      ],
+      "raw": "segment(p,d)",
+      "attrs": {
+        "setcolor": [
+          "\"gray\""
+        ],
+        "setlinestyle": [
+          "\"dashed\""
+        ]
+      },
+      "name": "seg_PD"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "a",
+        "b"
+      ],
+      "raw": "segment(a,b)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "setlinestyle": [
+          "\"solid\""
+        ]
+      },
+      "name": "seg_AB"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "p",
+        "a",
+        "c"
+      ],
+      "raw": "polygon(p,a,c)",
+      "attrs": {
+        "setcolor": [
+          "\"orange\""
+        ],
+        "setfilling": [
+          "0.25"
+        ],
+        "setlinestyle": [
+          "\"solid\""
+        ]
+      },
+      "name": "poly_PAC"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "初中/A-二次函数2"
+}

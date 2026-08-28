@@ -1,0 +1,277 @@
+{
+  "mode": "2D",
+  "scene_attrs": {},
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "-sqrt(5)",
+        "2*sqrt(5)"
+      ],
+      "numeric": null,
+      "raw": "(-sqrt(5),2*sqrt(5))",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-sqrt(5)",
+        "0"
+      ],
+      "numeric": null,
+      "raw": "(-sqrt(5),0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "sqrt(5)",
+        "0"
+      ],
+      "numeric": null,
+      "raw": "(sqrt(5),0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "sqrt(5)",
+        "2*sqrt(5)"
+      ],
+      "numeric": null,
+      "raw": "(sqrt(5),2*sqrt(5))",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "D"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "0"
+      ],
+      "numeric": [
+        0.0,
+        0.0
+      ],
+      "raw": "(0,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "O"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ],
+      "raw": "polygon(a,b,c,d)",
+      "attrs": {
+        "setfilling": [
+          "0.05"
+        ]
+      },
+      "name": "poly1"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "0",
+        "3.14",
+        "0.01"
+      ],
+      "numeric": [
+        0.0,
+        3.14,
+        0.01
+      ],
+      "raw": "slider(0,3.14,0.01)",
+      "attrs": {},
+      "name": "t"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2 * cos(t)",
+        "2 * sin(t)"
+      ],
+      "numeric": null,
+      "raw": "(2*cos(t),2*sin(t))",
+      "attrs": {
+        "setcolor": [
+          "\"red\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "E"
+    },
+    {
+      "kind": "rotate",
+      "args": [
+        "e",
+        "90°",
+        "d"
+      ],
+      "raw": "rotate(e,90°,d)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "F"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "d",
+        "e"
+      ],
+      "raw": "segment(d,e)",
+      "attrs": {},
+      "name": "segDE"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "d",
+        "f"
+      ],
+      "raw": "segment(d,f)",
+      "attrs": {},
+      "name": "segDF"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "a",
+        "e"
+      ],
+      "raw": "segment(a,e)",
+      "attrs": {},
+      "name": "segAE"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "c",
+        "f"
+      ],
+      "raw": "segment(c,f)",
+      "attrs": {},
+      "name": "segCF"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "o",
+        "f"
+      ],
+      "raw": "segment(o,f)",
+      "attrs": {
+        "setcolor": [
+          "\"magenta\""
+        ]
+      },
+      "name": "segOF"
+    },
+    {
+      "kind": "circle",
+      "args": [
+        "o",
+        "2"
+      ],
+      "raw": "circle(o,2)",
+      "attrs": {
+        "setlinestyle": [
+          "2"
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "pathE"
+    },
+    {
+      "kind": "angle",
+      "args": [
+        "e",
+        "d",
+        "f"
+      ],
+      "raw": "angle(e,d,f)",
+      "attrs": {
+        "showlabel": [
+          "false"
+        ]
+      },
+      "name": "angRot"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "初中/B-四边形2"
+}

@@ -1,0 +1,285 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ],
+    "setgridvisible": [
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "function",
+      "expr": "-x^2+x+6",
+      "raw": "f(x)=-x^2+x+6",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "showlabel": [
+          "true"
+        ]
+      },
+      "name": "f"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-2",
+        "0"
+      ],
+      "numeric": [
+        -2.0,
+        0.0
+      ],
+      "raw": "(-2,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "3",
+        "0"
+      ],
+      "numeric": [
+        3.0,
+        0.0
+      ],
+      "raw": "(3,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "6"
+      ],
+      "numeric": [
+        0.0,
+        6.0
+      ],
+      "raw": "(0,6)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "b",
+        "c"
+      ],
+      "raw": "line(b,c)",
+      "attrs": {
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "lineBC"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "(0.5,0)",
+        "(0.5,1)"
+      ],
+      "raw": "line((0.5,0),(0.5,1))",
+      "attrs": {
+        "setlinestyle": [
+          "\"dashed\""
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "axisSym"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "0.51",
+        "2.99",
+        "0.01"
+      ],
+      "numeric": [
+        0.51,
+        2.99,
+        0.01
+      ],
+      "raw": "slider(0.51,2.99,0.01)",
+      "attrs": {},
+      "name": "m"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "m",
+        "f(m)"
+      ],
+      "numeric": null,
+      "raw": "(m,f(m))",
+      "attrs": {
+        "setcolor": [
+          "\"red\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setpointsize": [
+          "5"
+        ]
+      },
+      "name": "P"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "m",
+        "-2 * m + 6"
+      ],
+      "numeric": null,
+      "raw": "(m,-2*m+6)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setpointsize": [
+          "3"
+        ]
+      },
+      "name": "N"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0.5",
+        "f(m)"
+      ],
+      "numeric": null,
+      "raw": "(0.5,f(m))",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "M"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "n"
+      ],
+      "raw": "segment(p,n)",
+      "attrs": {
+        "setlinestyle": [
+          "\"dashed\""
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "segPN"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "m"
+      ],
+      "raw": "segment(p,m)",
+      "attrs": {
+        "setlinestyle": [
+          "\"dashed\""
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "segPM"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "n",
+        "b"
+      ],
+      "raw": "segment(n,b)",
+      "attrs": {
+        "setcolor": [
+          "\"green\""
+        ]
+      },
+      "name": "segNB"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "初中/A-二次函数3"
+}

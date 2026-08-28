@@ -19,6 +19,18 @@
 
 四条全过才收录；未达标的题不收录，留作后续改进的对照样本。
 
+## 工具（scripts/benchmark.py）
+
+```bash
+.venv/Scripts/python.exe scripts/benchmark.py parse      # 解析金标准 -> expected_objects.json
+.venv/Scripts/python.exe scripts/benchmark.py selftest   # 自对照判分，应 26/26 PASS
+.venv/Scripts/python.exe scripts/benchmark.py score --case benchmarks/cases/初中/A-二次函数1 --candidate 某候选.txt
+```
+
+- 解析时自动剔除 `MODE:` 行、`#` 注释、空行；同名重复定义以最后一次为准
+- 判分在对象语义层（kind + 坐标/参数/引用序列，坐标带容差），不比对指令顺序
+- 收录新题后需重跑 `parse` 刷新 expected_objects.json，再 `selftest` 确认工具链自洽
+
 ## 注意
 
 - 题目图片为真题，仅随**私有**仓库保存；开源公开前需替换为自编题（见 PIPELINE_ROADMAP.md 第三节 P3）

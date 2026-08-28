@@ -1,0 +1,296 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ],
+    "setgridvisible": [
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "function",
+      "expr": "-x^2+3x+4",
+      "raw": "f(x)=-x^2+3x+4",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "f"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "-3",
+        "3",
+        "0.05"
+      ],
+      "numeric": [
+        -3.0,
+        3.0,
+        0.05
+      ],
+      "raw": "slider(-3,3,0.05)",
+      "attrs": {
+        "setvalue": [
+          "2"
+        ]
+      },
+      "name": "k"
+    },
+    {
+      "kind": "function",
+      "expr": "k*x+2",
+      "raw": "g(x)=k*x+2",
+      "attrs": {
+        "setcolor": [
+          "\"green\""
+        ]
+      },
+      "name": "g"
+    },
+    {
+      "kind": "expression",
+      "expr": "((3-k)-sqrt((k-3)^2+8))/2",
+      "raw": "((3-k)-sqrt((k-3)^2+8))/2",
+      "attrs": {},
+      "name": "x_c"
+    },
+    {
+      "kind": "expression",
+      "expr": "((3-k)+sqrt((k-3)^2+8))/2",
+      "raw": "((3-k)+sqrt((k-3)^2+8))/2",
+      "attrs": {},
+      "name": "x_d"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "x_c",
+        "f(x_c)"
+      ],
+      "numeric": null,
+      "raw": "(x_c,f(x_c))",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "x_d",
+        "f(x_d)"
+      ],
+      "numeric": null,
+      "raw": "(x_d,f(x_d))",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ]
+      },
+      "name": "D"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-2 / k",
+        "0"
+      ],
+      "numeric": null,
+      "raw": "(-2/k,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "2"
+      ],
+      "numeric": [
+        0.0,
+        2.0
+      ],
+      "raw": "(0,2)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "x_c",
+        "x_d",
+        "0.01"
+      ],
+      "numeric": null,
+      "raw": "slider(x_c,x_d,0.01)",
+      "attrs": {
+        "setvalue": [
+          "0.5"
+        ]
+      },
+      "name": "t"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "t",
+        "f(t)"
+      ],
+      "numeric": null,
+      "raw": "(t,f(t))",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"red\""
+        ],
+        "setpointsize": [
+          "5"
+        ]
+      },
+      "name": "P"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "p",
+        "c",
+        "d"
+      ],
+      "raw": "polygon(p,c,d)",
+      "attrs": {
+        "setcolor": [
+          "\"orange\""
+        ],
+        "setfilling": [
+          "0.3"
+        ]
+      },
+      "name": "poly_PCD"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "c",
+        "d"
+      ],
+      "raw": "segment(c,d)",
+      "attrs": {
+        "setlinestyle": [
+          "\"dashed\""
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "Segment_CD"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "c"
+      ],
+      "raw": "segment(p,c)",
+      "attrs": {
+        "setlinestyle": [
+          "\"dashed\""
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "Segment_PC"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "p",
+        "d"
+      ],
+      "raw": "segment(p,d)",
+      "attrs": {
+        "setlinestyle": [
+          "\"dashed\""
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "Segment_PD"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "初中/A-二次函数4"
+}

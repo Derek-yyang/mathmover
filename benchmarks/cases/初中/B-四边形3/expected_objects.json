@@ -1,0 +1,290 @@
+{
+  "mode": "2D",
+  "scene_attrs": {},
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "0"
+      ],
+      "numeric": [
+        0.0,
+        0.0
+      ],
+      "raw": "(0,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "4"
+      ],
+      "numeric": [
+        0.0,
+        4.0
+      ],
+      "raw": "(0,4)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "4",
+        "0"
+      ],
+      "numeric": [
+        4.0,
+        0.0
+      ],
+      "raw": "(4,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "4",
+        "4"
+      ],
+      "numeric": [
+        4.0,
+        4.0
+      ],
+      "raw": "(4,4)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "D"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "1",
+        "0"
+      ],
+      "numeric": [
+        1.0,
+        0.0
+      ],
+      "raw": "(1,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "E"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ],
+      "raw": "polygon(a,b,c,d)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "setfilling": [
+          "0"
+        ]
+      },
+      "name": "poly1"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "0",
+        "1",
+        "0.01"
+      ],
+      "numeric": [
+        0.0,
+        1.0,
+        0.01
+      ],
+      "raw": "slider(0,1,0.01)",
+      "attrs": {},
+      "name": "t"
+    },
+    {
+      "kind": "moving_point",
+      "path": [
+        "segment(b,a)",
+        "t"
+      ],
+      "raw": "point(segment(b,a),t)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"red\""
+        ]
+      },
+      "name": "F"
+    },
+    {
+      "kind": "rotate",
+      "args": [
+        "f",
+        "-60°",
+        "e"
+      ],
+      "raw": "rotate(f,-60°,e)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"red\""
+        ]
+      },
+      "name": "G"
+    },
+    {
+      "kind": "polygon",
+      "args": [
+        "e",
+        "f",
+        "g"
+      ],
+      "raw": "polygon(e,f,g)",
+      "attrs": {
+        "setcolor": [
+          "\"blue\""
+        ],
+        "setfilling": [
+          "0.1"
+        ]
+      },
+      "name": "poly2"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "c",
+        "g"
+      ],
+      "raw": "segment(c,g)",
+      "attrs": {
+        "setcolor": [
+          "\"magenta\""
+        ]
+      },
+      "name": "segCG"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "b",
+        "a"
+      ],
+      "raw": "segment(b,a)",
+      "attrs": {
+        "setlinestyle": [
+          "2"
+        ]
+      },
+      "name": "path_F"
+    },
+    {
+      "kind": "rotate",
+      "args": [
+        "b",
+        "-60°",
+        "e"
+      ],
+      "raw": "rotate(b,-60°,e)",
+      "attrs": {},
+      "name": "G_start"
+    },
+    {
+      "kind": "rotate",
+      "args": [
+        "a",
+        "-60°",
+        "e"
+      ],
+      "raw": "rotate(a,-60°,e)",
+      "attrs": {},
+      "name": "G_end"
+    },
+    {
+      "kind": "segment",
+      "args": [
+        "g_start",
+        "g_end"
+      ],
+      "raw": "segment(g_start,g_end)",
+      "attrs": {
+        "setlinestyle": [
+          "2"
+        ],
+        "setcolor": [
+          "\"gray\""
+        ]
+      },
+      "name": "path_G"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "初中/B-四边形3"
+}

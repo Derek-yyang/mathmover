@@ -1,0 +1,396 @@
+{
+  "mode": "2D",
+  "scene_attrs": {
+    "setaxesvisible": [
+      "true",
+      "true"
+    ]
+  },
+  "objects": [
+    {
+      "kind": "point",
+      "coords": [
+        "-2.828",
+        "0"
+      ],
+      "numeric": [
+        -2.828,
+        0.0
+      ],
+      "raw": "(-2.828,0)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "F1"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "2.828",
+        "0"
+      ],
+      "numeric": [
+        2.828,
+        0.0
+      ],
+      "raw": "(2.828,0)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "setpointsize": [
+          "4"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "F2"
+    },
+    {
+      "kind": "ellipse",
+      "args": [
+        "f1",
+        "f2",
+        "3"
+      ],
+      "raw": "ellipse(f1,f2,3)",
+      "attrs": {
+        "setcolor": [
+          "\"black\""
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "E"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "-3",
+        "0"
+      ],
+      "numeric": [
+        -3.0,
+        0.0
+      ],
+      "raw": "(-3,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "A"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "3",
+        "0"
+      ],
+      "numeric": [
+        3.0,
+        0.0
+      ],
+      "raw": "(3,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "B"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "0",
+        "1"
+      ],
+      "numeric": [
+        0.0,
+        1.0
+      ],
+      "raw": "(0,1)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "G"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "(6,-10)",
+        "(6,10)"
+      ],
+      "raw": "line((6,-10),(6,10))",
+      "attrs": {
+        "setcolor": [
+          "\"gray\""
+        ],
+        "setlinestyle": [
+          "2"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "L_p"
+    },
+    {
+      "kind": "slider",
+      "args": [
+        "-10",
+        "10",
+        "0.1"
+      ],
+      "numeric": [
+        -10.0,
+        10.0,
+        0.1
+      ],
+      "raw": "slider(-10,10,0.1)",
+      "attrs": {},
+      "name": "m"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "6",
+        "m"
+      ],
+      "numeric": null,
+      "raw": "(6,m)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"red\""
+        ]
+      },
+      "name": "P"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "p",
+        "a"
+      ],
+      "raw": "line(p,a)",
+      "attrs": {
+        "setcolor": [
+          "\"lightgray\""
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "linePA"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "linepa",
+        "e",
+        "1"
+      ],
+      "raw": "intersect(linepa,e,1)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempC1"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "linepa",
+        "e",
+        "2"
+      ],
+      "raw": "intersect(linepa,e,2)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempC2"
+    },
+    {
+      "kind": "expression",
+      "expr": "if(distance(tempc1,a)>0.01,tempc1,tempc2)",
+      "raw": "if(distance(tempc1,a)>0.01,tempc1,tempc2)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "C"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "p",
+        "b"
+      ],
+      "raw": "line(p,b)",
+      "attrs": {
+        "setcolor": [
+          "\"lightgray\""
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "linePB"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "linepb",
+        "e",
+        "1"
+      ],
+      "raw": "intersect(linepb,e,1)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempD1"
+    },
+    {
+      "kind": "intersect",
+      "args": [
+        "linepb",
+        "e",
+        "2"
+      ],
+      "raw": "intersect(linepb,e,2)",
+      "attrs": {
+        "visible_in_view": {
+          "1": "false"
+        }
+      },
+      "name": "tempD2"
+    },
+    {
+      "kind": "expression",
+      "expr": "if(distance(tempd1,b)>0.01,tempd1,tempd2)",
+      "raw": "if(distance(tempd1,b)>0.01,tempd1,tempd2)",
+      "attrs": {
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ],
+        "setcolor": [
+          "\"blue\""
+        ]
+      },
+      "name": "D"
+    },
+    {
+      "kind": "line",
+      "args": [
+        "c",
+        "d"
+      ],
+      "raw": "line(c,d)",
+      "attrs": {
+        "setcolor": [
+          "\"darkgreen\""
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "visible_in_view": {
+          "1": "true"
+        }
+      },
+      "name": "lineCD"
+    },
+    {
+      "kind": "point",
+      "coords": [
+        "1.5",
+        "0"
+      ],
+      "numeric": [
+        1.5,
+        0.0
+      ],
+      "raw": "(1.5,0)",
+      "attrs": {
+        "setfixed": [
+          "true"
+        ],
+        "setcolor": [
+          "\"magenta\""
+        ],
+        "setpointsize": [
+          "5"
+        ],
+        "showlabel": [
+          "true"
+        ],
+        "setlabelmode": [
+          "1"
+        ]
+      },
+      "name": "Q"
+    }
+  ],
+  "redefinitions": [],
+  "unparsed": [],
+  "case": "高中/C-椭圆3"
+}
