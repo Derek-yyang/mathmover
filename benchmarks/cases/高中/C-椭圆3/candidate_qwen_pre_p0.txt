@@ -1,0 +1,106 @@
+MODE: 2D
+// 1. 基础设置与坐标系
+SetAxesVisible(true, true)
+// 2. 定义椭圆参数与焦点
+// 椭圆 E: x^2/9 + y^2 = 1 => a=3, b=1 => c = sqrt(9-1) = sqrt(8)
+a = 3
+b = 1
+c_val = sqrt(8)
+F1 = (-c_val, 0)
+F2 = (c_val, 0)
+SetColor(F1, "Black")
+SetPointSize(F1, 4)
+SetLabelMode(F1, 1)
+SetVisibleInView(F1, 1, true)
+SetColor(F2, "Black")
+SetPointSize(F2, 4)
+SetLabelMode(F2, 1)
+SetVisibleInView(F2, 1, true)
+// 3. 构建椭圆 E (使用参数定义法)
+E = Ellipse(F1, F2, a)
+SetColor(E, "Black")
+SetLineStyle(E, 1)
+// 4. 定义定点 A, B, G
+// A, B 为左右顶点，G 为上顶点
+A = (-3, 0)
+B = (3, 0)
+G = (0, 1)
+// 锁定定点并设置样式
+SetFixed(A, true)
+ShowLabel(A, true)
+SetLabelMode(A, 1)
+SetVisibleInView(A, 1, true)
+SetFixed(B, true)
+ShowLabel(B, true)
+SetLabelMode(B, 1)
+SetVisibleInView(B, 1, true)
+SetFixed(G, true)
+ShowLabel(G, true)
+SetLabelMode(G, 1)
+SetVisibleInView(G, 1, true)
+// 5. 定义动点 P 及其轨迹直线 x=6
+// P 为直线 x=6 上的动点
+line_x6 = Line((6, -5), (6, 5))
+SetColor(line_x6, "Gray")
+SetLineStyle(line_x6, 2)
+SetVisibleInView(line_x6, 1, true)
+// 滑块 t 控制 P 的纵坐标
+t = Slider(-5, 5, 0.1)
+P = (6, t)
+SetColor(P, "Blue")
+SetPointSize(P, 5)
+ShowLabel(P, true)
+SetLabelMode(P, 1)
+SetVisibleInView(P, 1, true)
+// 6. 构建直线 PA, PB 及交点 C, D
+// 直线 PA
+linePA = Line(P, A)
+SetColor(linePA, "Blue")
+SetVisibleInView(linePA, 1, true)
+// 直线 PB
+linePB = Line(P, B)
+SetColor(linePB, "Blue")
+SetVisibleInView(linePB, 1, true)
+// 获取交点 C (PA 与 E 的另一交点)
+// 先获取两个交点
+tempC1 = Intersect(linePA, E, 1)
+tempC2 = Intersect(linePA, E, 2)
+// 隐藏临时点
+SetVisibleInView(tempC1, 1, false)
+SetVisibleInView(tempC2, 1, false)
+// 筛选出不是 A 的点作为 C (距离 A 较远的点)
+C = If(Distance(tempC1, A) > 0.1, tempC1, tempC2)
+SetColor(C, "Red")
+SetPointSize(C, 4)
+ShowLabel(C, true)
+SetLabelMode(C, 1)
+SetVisibleInView(C, 1, true)
+// 获取交点 D (PB 与 E 的另一交点)
+// 先获取两个交点
+tempD1 = Intersect(linePB, E, 1)
+tempD2 = Intersect(linePB, E, 2)
+// 隐藏临时点
+SetVisibleInView(tempD1, 1, false)
+SetVisibleInView(tempD2, 1, false)
+// 筛选出不是 B 的点作为 D
+D = If(Distance(tempD1, B) > 0.1, tempD1, tempD2)
+SetColor(D, "Red")
+SetPointSize(D, 4)
+ShowLabel(D, true)
+SetLabelMode(D, 1)
+SetVisibleInView(D, 1, true)
+// 7. 构建直线 CD
+lineCD = Line(C, D)
+SetColor(lineCD, "Green")
+SetLineStyle(lineCD, 1)
+SetVisibleInView(lineCD, 1, true)
+// 8. 标记定点 Q (理论计算结果：x = a^2 / x_P = 9/6 = 1.5)
+// 用于验证直线 CD 过定点
+Q = (1.5, 0)
+SetColor(Q, "Black")
+SetPointSize(Q, 5)
+ShowLabel(Q, true)
+SetLabelMode(Q, 1)
+SetVisibleInView(Q, 1, true)
+// 添加文字说明 Q 是定点 (可选，题目未强制要求，但为了演示清晰)
+// Text("定点 (1.5, 0)", Q)  <-- 题目要求不要出现文字说明，故省略

@@ -161,6 +161,10 @@ def cmd_run(args):
             print(f"[{i:>2}/{len(cases)}] {name}: 已有候选，跳过（--fresh 重跑）")
             continue
         status, payload = generate_once(args.backend, token, case / "problem.png")
+        if status == "error" and "HTTP 401" in str(payload.get("message", "")):
+            print("    ... token 过期，重新登录后重试")
+            token = get_access_token(args)
+            status, payload = generate_once(args.backend, token, case / "problem.png")
         if status != "completed":
             results.append({"case": name, "status": status, "error": payload.get("message", "")})
             print(f"[{i:>2}/{len(cases)}] {name}: ❌ {payload.get('message', '')[:80]}")

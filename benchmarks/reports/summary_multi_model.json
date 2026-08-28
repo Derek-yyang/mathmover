@@ -1,0 +1,547 @@
+{
+  "gemini_pre": [
+    {
+      "case": "初中/A-二次函数1",
+      "pass": true,
+      "match": 1.0,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/A-二次函数2",
+      "pass": false,
+      "match": 0.5,
+      "validity": 0.9524,
+      "invalid_lines": 3
+    },
+    {
+      "case": "初中/A-二次函数3",
+      "pass": false,
+      "match": 0.6923076923076923,
+      "validity": 0.9828,
+      "invalid_lines": 1
+    },
+    {
+      "case": "初中/A-二次函数4",
+      "pass": false,
+      "match": 0.4666666666666667,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/A-二次函数5",
+      "pass": false,
+      "match": 0.8333333333333334,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-三角形1",
+      "pass": false,
+      "match": 0.47058823529411764,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-三角形2",
+      "pass": false,
+      "match": 0.6666666666666666,
+      "validity": 0.9211,
+      "invalid_lines": 3
+    },
+    {
+      "case": "初中/B-四边形1",
+      "pass": false,
+      "match": 0.7333333333333333,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-四边形2",
+      "pass": false,
+      "match": 0.6875,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-四边形3",
+      "pass": false,
+      "match": 0.8666666666666667,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-双曲线1",
+      "pass": false,
+      "match": 0.6,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-抛物线1",
+      "pass": false,
+      "match": 0.75,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-抛物线2",
+      "pass": false,
+      "match": 0.9333333333333333,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆1",
+      "pass": false,
+      "match": 0.7894736842105263,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆2",
+      "pass": false,
+      "match": 0.6666666666666666,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆3",
+      "pass": false,
+      "match": 0.7368421052631579,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆4",
+      "pass": false,
+      "match": 0.8333333333333334,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-圆锥1",
+      "pass": false,
+      "match": 0.782608695652174,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-多面体1",
+      "pass": false,
+      "match": 0.65,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-多面体2",
+      "pass": false,
+      "match": 0.6470588235294118,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-多面体3",
+      "pass": false,
+      "match": 0.5909090909090909,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-正方体1",
+      "pass": false,
+      "match": 0.8214285714285714,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-正方体2",
+      "pass": false,
+      "match": 0.9629629629629629,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-正方体3",
+      "pass": false,
+      "match": 0.9642857142857143,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-球1",
+      "pass": false,
+      "match": 0.8823529411764706,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-球2",
+      "pass": false,
+      "match": 0.8823529411764706,
+      "validity": 1.0,
+      "invalid_lines": 0
+    }
+  ],
+  "qwen_pre": [
+    {
+      "case": "初中/A-二次函数1",
+      "pass": false,
+      "match": 0.8461538461538461,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/A-二次函数2",
+      "pass": false,
+      "match": 0.2857142857142857,
+      "validity": 0.9688,
+      "invalid_lines": 1
+    },
+    {
+      "case": "初中/A-二次函数3",
+      "pass": false,
+      "match": 0.7692307692307693,
+      "validity": 0.9315,
+      "invalid_lines": 5
+    },
+    {
+      "case": "初中/A-二次函数4",
+      "pass": false,
+      "match": 0.4,
+      "validity": 0.9787,
+      "invalid_lines": 1
+    },
+    {
+      "case": "初中/A-二次函数5",
+      "pass": false,
+      "match": 0.6666666666666666,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-三角形1",
+      "pass": false,
+      "match": 0.11764705882352941,
+      "validity": 0.7931,
+      "invalid_lines": 6
+    },
+    {
+      "case": "初中/B-三角形2",
+      "pass": false,
+      "match": 0.9166666666666666,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-四边形1",
+      "pass": false,
+      "match": 0.6,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-四边形2",
+      "pass": false,
+      "match": 0.25,
+      "validity": 0.8605,
+      "invalid_lines": 6
+    },
+    {
+      "case": "初中/B-四边形3",
+      "pass": false,
+      "match": 0.8666666666666667,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-双曲线1",
+      "pass": false,
+      "match": 0.5,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-抛物线1",
+      "pass": false,
+      "match": 0.4375,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-抛物线2",
+      "pass": false,
+      "match": 0.8666666666666667,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆1",
+      "pass": false,
+      "match": 0.5263157894736842,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆2",
+      "pass": false,
+      "match": 0.5555555555555556,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆3",
+      "pass": false,
+      "match": 0.5789473684210527,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆4",
+      "pass": false,
+      "match": 0.3333333333333333,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-圆锥1",
+      "pass": false,
+      "match": 0.43478260869565216,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-多面体1",
+      "pass": false,
+      "match": 0.6,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-多面体2",
+      "pass": false,
+      "match": 0.47058823529411764,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-多面体3",
+      "pass": false,
+      "match": 0.22727272727272727,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-正方体1",
+      "pass": false,
+      "match": 0.4642857142857143,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-正方体2",
+      "pass": false,
+      "match": 0.5555555555555556,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-正方体3",
+      "pass": false,
+      "match": 0.8214285714285714,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-球1",
+      "pass": false,
+      "match": 0.7058823529411765,
+      "validity": 1.0,
+      "invalid_lines": 0
+    }
+  ],
+  "qwen_post": [
+    {
+      "case": "初中/A-二次函数1",
+      "pass": false,
+      "match": 0.9230769230769231,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/A-二次函数2",
+      "pass": false,
+      "match": 0.35714285714285715,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/A-二次函数3",
+      "pass": false,
+      "match": 0.8461538461538461,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/A-二次函数4",
+      "pass": false,
+      "match": 0.5333333333333333,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/A-二次函数5",
+      "pass": false,
+      "match": 0.6666666666666666,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-三角形1",
+      "pass": false,
+      "match": 0.17647058823529413,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-三角形2",
+      "pass": false,
+      "match": 0.9166666666666666,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-四边形1",
+      "pass": false,
+      "match": 0.6,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-四边形2",
+      "pass": false,
+      "match": 0.5,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "初中/B-四边形3",
+      "pass": false,
+      "match": 0.6,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-双曲线1",
+      "pass": false,
+      "match": 0.45,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-抛物线1",
+      "pass": false,
+      "match": 0.375,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-抛物线2",
+      "pass": false,
+      "match": 0.7333333333333333,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆1",
+      "pass": false,
+      "match": 0.47368421052631576,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆2",
+      "pass": false,
+      "match": 0.7222222222222222,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆3",
+      "pass": false,
+      "match": 0.42105263157894735,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/C-椭圆4",
+      "pass": false,
+      "match": 0.5,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-圆锥1",
+      "pass": false,
+      "match": 0.6086956521739131,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-多面体1",
+      "pass": false,
+      "match": 0.65,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-多面体2",
+      "pass": false,
+      "match": 0.6470588235294118,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-多面体3",
+      "pass": false,
+      "match": 0.5909090909090909,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-正方体1",
+      "pass": false,
+      "match": 0.7857142857142857,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-正方体2",
+      "pass": true,
+      "match": 1.0,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-正方体3",
+      "pass": false,
+      "match": 0.8214285714285714,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-球1",
+      "pass": false,
+      "match": 0.6470588235294118,
+      "validity": 1.0,
+      "invalid_lines": 0
+    },
+    {
+      "case": "高中/D-球2",
+      "pass": false,
+      "match": 0.5882352941176471,
+      "validity": 1.0,
+      "invalid_lines": 0
+    }
+  ]
+}
