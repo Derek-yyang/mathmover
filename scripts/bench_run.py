@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from scripts.benchmark import score_case, CASES_DIR  # noqa: E402
+from ggb_parser import parse_commands  # noqa: E402
 
 ENV_LOCAL = ROOT / "math-mover-next" / ".env.local"
 
@@ -154,6 +155,7 @@ def cmd_run(args):
     print(f"共 {len(cases)} 个案例，后端 {args.backend}，标签 {args.label}\n")
 
     results = []
+    unknown_counter = {}
     for i, case in enumerate(cases, 1):
         name = str(case.relative_to(CASES_DIR)).replace("\\", "/")
         cand_path = case / "candidate_commands.txt"
@@ -194,6 +196,7 @@ def cmd_run(args):
         "failed_requests": len(results) - len(done),
         "pass": passed,
         "pass_rate": round(passed / len(done), 4) if done else 0,
+        "unknown_commands": unknown_counter,
         "results": results,
     }
     report_dir = ROOT / "benchmarks" / "reports"

@@ -39,7 +39,7 @@ interface GeoGebraApi {
   setPerspective: (p: string) => void;
   setAxesVisible: (x: boolean, y: boolean, z?: boolean) => void;
   setGridVisible: (v: boolean) => void;
-  evalCommand: (cmd: string) => void;
+  evalCommand: (cmd: string) => boolean | void;
   getValue: (name: string) => number;
   setValue: (name: string, val: number) => void;
   registerUpdateListener: (fn: (name: string) => void) => void;
@@ -441,14 +441,23 @@ function DashboardContent() {
             }
     
             setTimeout(() => {
+                let failedCount = 0;
                 commandsToRun.forEach((cmd) => {
                      try {
-                         const cleanCmd = cmd.replace(/\\"/g, '"'); 
-                         ggbApplet.evalCommand(cleanCmd);
+                         const cleanCmd = cmd.replace(/\\"/g, '"');
+                         const ok = ggbApplet.evalCommand(cleanCmd);
+                         if (ok === false) failedCount++;
                      } catch (err) {
                          console.error('❌ 执行失败:', cmd, err);
+                         failedCount++;
                      }
                 });
+                if (failedCount > 0) {
+                    console.warn(`[MathMover] ${failedCount}/${commandsToRun.length} 条指令未被执行`);
+                    if (failedCount >= 3) {
+                        showToast(`有 ${failedCount} 条指令未能执行，图形可能不完整`, 'error');
+                    }
+                }
                 
                 ggbApplet.evalCommand('SetFontSize(10)');
     

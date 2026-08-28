@@ -132,8 +132,12 @@
       "name": "tempB"
     },
     {
-      "kind": "expression",
-      "expr": "if(y(tempa)>y(tempb),tempa,tempb)",
+      "kind": "if",
+      "args": [
+        "y(tempa)>y(tempb)",
+        "tempa",
+        "tempb"
+      ],
       "raw": "if(y(tempa)>y(tempb),tempa,tempb)",
       "attrs": {
         "showlabel": [
@@ -149,8 +153,12 @@
       "name": "A"
     },
     {
-      "kind": "expression",
-      "expr": "if(y(tempa)<y(tempb),tempa,tempb)",
+      "kind": "if",
+      "args": [
+        "y(tempa)<y(tempb)",
+        "tempa",
+        "tempb"
+      ],
       "raw": "if(y(tempa)<y(tempb),tempa,tempb)",
       "attrs": {
         "showlabel": [
@@ -216,8 +224,12 @@
       "name": "tempN"
     },
     {
-      "kind": "expression",
-      "expr": "if(y(tempm)>y(tempn),tempm,tempn)",
+      "kind": "if",
+      "args": [
+        "y(tempm)>y(tempn)",
+        "tempm",
+        "tempn"
+      ],
       "raw": "if(y(tempm)>y(tempn),tempm,tempn)",
       "attrs": {
         "showlabel": [
@@ -233,8 +245,12 @@
       "name": "M"
     },
     {
-      "kind": "expression",
-      "expr": "if(y(tempm)<y(tempn),tempm,tempn)",
+      "kind": "if",
+      "args": [
+        "y(tempm)<y(tempn)",
+        "tempm",
+        "tempn"
+      ],
       "raw": "if(y(tempm)<y(tempn),tempm,tempn)",
       "attrs": {
         "showlabel": [
@@ -526,6 +542,7 @@
       "name": "circleABMN"
     }
   ],
+  "unknown_commands": [],
   "stats": {
     "cleaned_lines": 50,
     "valid_lines": 50,

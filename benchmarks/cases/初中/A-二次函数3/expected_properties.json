@@ -1,0 +1,104 @@
+{
+  "case": "初中/A-二次函数3",
+  "properties": [
+    {
+      "type": "syntax_clean",
+      "desc": "语法干净"
+    },
+    {
+      "type": "no_text",
+      "desc": "无文字对象"
+    },
+    {
+      "type": "function_through",
+      "points": [
+        [
+          -4,
+          -14.0
+        ],
+        [
+          -3,
+          -6.0
+        ],
+        [
+          -2,
+          0.0
+        ],
+        [
+          -1,
+          4.0
+        ],
+        [
+          -0.5,
+          5.25
+        ],
+        [
+          0.5,
+          6.25
+        ],
+        [
+          1,
+          6.0
+        ],
+        [
+          2,
+          4.0
+        ],
+        [
+          3,
+          0.0
+        ],
+        [
+          4,
+          -6.0
+        ]
+      ],
+      "desc": "函数 f 采样等价",
+      "tol": 0.2
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        -2.0,
+        0.0
+      ],
+      "desc": "点 A"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        3.0,
+        0.0
+      ],
+      "desc": "点 B"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        0.0,
+        6.0
+      ],
+      "desc": "点 C"
+    },
+    {
+      "type": "line_through",
+      "points": [
+        [
+          0.5,
+          0.0
+        ],
+        [
+          0.5,
+          1.0
+        ]
+      ],
+      "desc": "line axisSym"
+    },
+    {
+      "type": "slider_range",
+      "min": 0.51,
+      "max": 2.99,
+      "desc": "滑块 m"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "case": "高中/C-抛物线1",
+  "properties": [
+    {
+      "type": "syntax_clean",
+      "desc": "语法干净"
+    },
+    {
+      "type": "no_text",
+      "desc": "无文字对象"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        -1.732,
+        0.0
+      ],
+      "desc": "点 F1"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        1.732,
+        0.0
+      ],
+      "desc": "点 F2"
+    },
+    {
+      "type": "conic_exists",
+      "conic_kind": "hyperbola",
+      "desc": "hyperbola C"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        2.0,
+        1.0
+      ],
+      "desc": "点 A"
+    },
+    {
+      "type": "slider_range",
+      "min": -1.5,
+      "max": 1.5,
+      "desc": "滑块 m"
+    },
+    {
+      "type": "line_through",
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.414,
+          1.0
+        ]
+      ],
+      "desc": "line asymp1"
+    },
+    {
+      "type": "line_through",
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.414,
+          -1.0
+        ]
+      ],
+      "desc": "line asymp2"
+    }
+  ]
+}

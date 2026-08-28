@@ -316,8 +316,12 @@
       "name": "tempQ"
     },
     {
-      "kind": "expression",
-      "expr": "if(y(tempp)>y(tempq),tempp,tempq)",
+      "kind": "if",
+      "args": [
+        "y(tempp)>y(tempq)",
+        "tempp",
+        "tempq"
+      ],
       "raw": "if(y(tempp)>y(tempq),tempp,tempq)",
       "attrs": {
         "showlabel": [
@@ -333,8 +337,12 @@
       "name": "P"
     },
     {
-      "kind": "expression",
-      "expr": "if(y(tempp)<y(tempq),tempp,tempq)",
+      "kind": "if",
+      "args": [
+        "y(tempp)<y(tempq)",
+        "tempp",
+        "tempq"
+      ],
       "raw": "if(y(tempp)<y(tempq),tempp,tempq)",
       "attrs": {
         "showlabel": [
@@ -753,6 +761,7 @@
       "name": "segAQ"
     }
   ],
+  "unknown_commands": [],
   "stats": {
     "cleaned_lines": 70,
     "valid_lines": 70,

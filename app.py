@@ -163,11 +163,7 @@ PROMPT_FUNCTION = """
 6. **辅助构造**:
    - 若有辅助线（如垂线、平分线），使用 `Line(A, B)` 或 `Segment(A, B)`。
    - 样式: `SetLineStyle(L, "Dashed")`, `SetColor(L, "Gray")`。
-   - 理解题目图片、题干文字和各小问文字，如果题意中有对封闭图形（如三角形、平行四边形等等）的描述，**务必**用 Polygon 构建对应封闭区域后，执行 `SetFilling(poly, 0.2)`（或根据题意自选浅色），透明度可设为 0.2–0.4；若仅需描边，则改用 `SetLineStyle(poly, "Dashed")` 并 `SetColor(poly, "Gray")`。
-### 严格语法约束
-- 对象: Point, Slider, Function, Intersect, Segment, Line, Polygon.
-- 属性: SetColor, SetLineStyle, SetFixed, SetLabelMode, ShowLabel, SetFilling.
-"""
+   - 理解题目图片、题干文字和各小问文字，如果题意中有对封闭图形（如三角形、平行四边形等等）的描述，**务必**用 Polygon 构建对应封闭区域后，执行 `SetFilling(poly, 0.2)`（或根据题意自选浅色），透明度可设为 0.2–0.4；若仅需描边，则改用 `SetLineStyle(poly, "Dashed")` 并 `SetColor(poly, "Gray")`。"""
 
 PROMPT_GEOMETRY = """
 你是一位平面几何专家。请生成 GeoGebra 指令来构建题目中的几何图形。
@@ -214,10 +210,6 @@ PROMPT_GEOMETRY = """
 6. **辅助构造**:
    - 垂线、中线、角平分线：使用 `Segment`, `Midpoint`, `AngleBisector` 等指令。
    - 动点的路径，可以用虚线表示，例如：直线路径可以是l: Segment((1,1), (5,5)), SetLineStyle(l, 2)`；圆路径可以是 c: Circle((0,0), 3), SetLineStyle(c, 2)。
-
-### 严格语法约束
-- 对象: Point, Slider, Polygon, Circle, Segment, Line, Angle, AngleBisector, Midpoint, Intersect.
-- 属性: SetColor, SetFilling, SetLineStyle, SetFixed, SetLabelMode, ShowLabel.
 """
 
 PROMPT_ANALYTIC = """
@@ -300,11 +292,6 @@ PROMPT_ANALYTIC = """
      - **准线**：用 `Line` 或 `Segment` 绘制后，设置虚线样式 `SetLineStyle(directrix, 2)` 并着色 `SetColor(directrix, "Gray")`。
      - **渐近线**：双曲线渐近线用 `Line` 绘制，设置 `SetLineStyle(asymptote, 3)`（点划线）与 `SetColor(asymptote, "DarkGray")`。
      - **区域填充**：若题目要求填充椭圆/双曲线与直线围成的区域，先用 `Intersect` 求交点，再用 `Polygon` 构建封闭区域，最后 `SetFilling(region, 0.2)` 并设置浅色填充。
-
-### 严格语法约束
-- 对象: Point, Slider, Circle, Ellipse, Hyperbola, Parabola, Segment, Line, Intersect, Arc.
-- 属性: SetColor, SetLineStyle, SetFixed, SetLabelMode, ShowLabel, SetVisibleInView.
-- 禁用: ImplicitCurve
 """
 
 PROMPT_SOLID = """
@@ -367,10 +354,6 @@ PROMPT_SOLID = """
      - 需要表现“截面”“阴影区域”时，用 `Polygon` 构建封闭多边形后，`SetFilling(poly, 0.25)` 设置 25 % 透明度，颜色取浅色；若仅需描边，则 `SetLineStyle(poly, 2)` 并 `SetColor(poly, "Gray")`。
    - **文字与标签**：
      - 严禁出现任何文字说明；所有信息仅通过点、线、面、颜色与透明度表达。
-
-### 严格语法约束
-- 对象: Point, Segment, Polygon, Circle, Arc, Sphere, Cone, Cylinder, Intersect, PointIn.
-- 属性: SetColor, SetFilling, SetLineStyle, SetFixed, SetLabelMode, ShowLabel, SetVisibleInView.
 """
 
 PROMPT_MAP = {
@@ -379,6 +362,29 @@ PROMPT_MAP = {
     'C': PROMPT_ANALYTIC,
     'D': PROMPT_SOLID
 }
+
+
+def build_allowed_commands_suffix(category: str) -> str:
+    """从 ggb_commands.json（单一事实来源）生成 prompt 的允许命令集。
+
+    与校验白名单同源：这里列出什么，解析器就放行什么。
+    """
+    names = ggb_parser.whitelist_command_names()
+    views = ["2d", "3d"] if category == 'D' else ["2d"]
+    ctor_lines = []
+    for v in views:
+        label = "3D 专用" if v == "3d" else "2D"
+        cmds = names.get(v, [])
+        if cmds:
+            ctor_lines.append(f"- {'3D ' if v == '3d' else ''}构造命令: {', '.join(cmds)}")
+    return (
+        "\n### 严格语法约束（系统自动生成，与校验白名单同源）\n"
+        + "\n".join(ctor_lines)
+        + f"\n- 属性命令: {', '.join(names['attributes'])}"
+        + f"\n- 视图命令: {', '.join(names['globals'])}"
+        + "\n- 仅可使用以上命令，不要使用任何其他命令，不要输出注释或说明文字。\n"
+    )
+
 
 # --- Model Factory & Adapters ---
 
@@ -754,7 +760,7 @@ def upload_file():
             yield json.dumps({'status': 'classified', 'category': category, 'reason': reason}) + '\n'
             
             # --- Step 2: Specialist ---
-            selected_prompt = PROMPT_MAP[category]
+            selected_prompt = PROMPT_MAP[category] + build_allowed_commands_suffix(category)
             if text_prompt:
                 selected_prompt = f"用户补充说明：{text_prompt}\n\n" + selected_prompt
             

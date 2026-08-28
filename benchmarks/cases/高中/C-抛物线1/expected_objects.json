@@ -205,8 +205,12 @@
       "name": "tempP2"
     },
     {
-      "kind": "expression",
-      "expr": "if(distance(tempp1,a)>0.01,tempp1,tempp2)",
+      "kind": "if",
+      "args": [
+        "distance(tempp1,a)>0.01",
+        "tempp1",
+        "tempp2"
+      ],
       "raw": "if(distance(tempp1,a)>0.01,tempp1,tempp2)",
       "attrs": {
         "setcolor": [
@@ -255,8 +259,12 @@
       "name": "tempQ2"
     },
     {
-      "kind": "expression",
-      "expr": "if(distance(tempq1,a)>0.01,tempq1,tempq2)",
+      "kind": "if",
+      "args": [
+        "distance(tempq1,a)>0.01",
+        "tempq1",
+        "tempq2"
+      ],
       "raw": "if(distance(tempq1,a)>0.01,tempq1,tempq2)",
       "attrs": {
         "setcolor": [
@@ -655,6 +663,7 @@
       "name": "asymp2"
     }
   ],
+  "unknown_commands": [],
   "stats": {
     "cleaned_lines": 63,
     "valid_lines": 63,

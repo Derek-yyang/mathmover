@@ -8,30 +8,82 @@ GGB 指令解析器（共享模块）。
 
 判分/校验口径在对象语义层（kind + 坐标/参数/引用序列），不比对指令顺序。
 `MODE:` 行、`#` 注释、空行在清洗阶段剔除；同名重复定义以最后一次为准。
+
+白名单策略（P1.5 反转）：
+  - 权威命令表来自 ggb_commands.json（单一事实来源，prompt 允许集同源）
+  - "形式像命令但白名单外"的行：放行下发 + 标记 unknown_command（GGB 自己
+    静默失败一条的伤害 < 我们丢掉一条合法指令的伤害）
+  - 只有完全不像命令的行（纯文字）才剔除
 """
+import json
+import os
 import re
 
-FLOAT_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
+_FLOAT_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
 FUNC_DEF_RE = re.compile(r"^([A-Za-z]\w*)\s*\(([^)]*)\)\s*=\s*(.+)$")
 DEF_RE = re.compile(r"^([A-Za-z]\w*)\s*=\s*(.+)$")
 CMD_RE = re.compile(r"^([A-Za-z]\w*)\s*\((.*)\)\s*$")
 COLON_DEF_RE = re.compile(r"^([A-Za-z]\w*)\s*:\s*(.+)$")
 MODE_RE = re.compile(r"^MODE\s*:\s*(\w+)$", re.I)
 
-CONSTRUCTORS = {
-    "point", "slider", "polygon", "segment", "line", "circle", "ellipse",
-    "hyperbola", "parabola", "arc", "midpoint", "intersect", "sphere",
-    "cone", "cylinder", "angle", "anglebisector", "perpendicularbisector",
-    "perpendicularline", "function", "vector", "text", "tangent", "dilate",
-    "translate", "rotate", "reflect", "locus", "pointin",
-}
+_COMMANDS_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ggb_commands.json")
+_whitelist_cache = None
 
-ATTR_COMMANDS = {
-    "setfixed", "showlabel", "setlabelmode", "setcolor", "setpointsize",
-    "setfilling", "setlinestyle", "setvisibleinview", "setcaption",
-    "setvalue", "setthickness",
-}
-GLOBAL_COMMANDS = {"setaxesvisible", "setgridvisible", "zoomin", "zoomout", "centerview"}
+
+def load_whitelist(refresh=False) -> dict:
+    """加载权威命令表（低写字母 key）。结构:
+    {constructors: {name: {"views": ["2d"/"3d"]}}, attributes: set, globals: set}
+    """
+    global _whitelist_cache
+    if _whitelist_cache is not None and not refresh:
+        return _whitelist_cache
+    wl = {"constructors": {}, "attributes": set(), "globals": set()}
+    try:
+        with open(_COMMANDS_JSON, encoding="utf-8") as f:
+            raw = json.load(f)
+        for view, names in raw.get("constructors", {}).items():
+            for n in names:
+                wl["constructors"].setdefault(n.lower(), {"views": []})["views"].append(view)
+        wl["attributes"] = {n.lower() for n in raw.get("attributes", [])}
+        wl["globals"] = {n.lower() for n in raw.get("globals", [])}
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"WARNING: ggb_commands.json 加载失败({e})，回退到内置归纳清单")
+        # 回退清单：原归纳版白名单，保证解析器在缺文件时仍可用
+        fallback_2d = ("point", "slider", "function", "intersect", "segment", "line",
+                       "polygon", "circle", "ellipse", "hyperbola", "parabola", "arc",
+                       "midpoint", "angle", "anglebisector", "text", "root", "derivative")
+        for n in fallback_2d:
+            wl["constructors"].setdefault(n, {"views": ["2d"]})
+        wl["attributes"] = {"setcolor", "setfilling", "setlinestyle", "setfixed",
+                            "showlabel", "setlabelmode", "setpointsize"}
+        wl["globals"] = {"setaxesvisible", "setgridvisible"}
+    _whitelist_cache = wl
+    return wl
+
+
+def whitelist_command_names() -> dict:
+    """给 prompt 生成用：返回 {'2d': [...], '3d': [...], 'attributes': [...], 'globals': [...]}"""
+    wl = load_whitelist()
+    by_view = {"2d": [], "3d": []}
+    for name_l, info in sorted(wl["constructors"].items()):
+        for v in info["views"]:
+            by_view.setdefault(v, []).append(name_l)
+    # 找出仅属于 3d 的构造器，其余默认进 2d
+    only_3d = {n for n, info in wl["constructors"].items()
+               if "2d" not in info["views"]}
+    by_view["2d"] = sorted(n for n in by_view.get("2d", []) if n not in only_3d)
+    by_view["3d"] = sorted(set(by_view.get("3d", [])) | only_3d)
+    return {
+        "2d": by_view["2d"],
+        "3d": by_view["3d"],
+        "attributes": sorted(wl["attributes"]),
+        "globals": sorted(wl["globals"]),
+    }
+
+
+CONSTRUCTORS = {n for n in load_whitelist()["constructors"]}
+ATTR_COMMANDS = load_whitelist()["attributes"] | {"setvalue"}
+GLOBAL_COMMANDS = load_whitelist()["globals"]
 
 
 def norm(s: str) -> str:
@@ -64,7 +116,7 @@ def split_top_level(s: str) -> list:
 
 def try_float(s: str):
     s = s.strip()
-    return float(s) if FLOAT_RE.match(s) else None
+    return float(s) if _FLOAT_RE.match(s) else None
 
 
 def _parse_coords(parts: list):
@@ -109,6 +161,9 @@ def parse_rhs(rhs: str) -> dict:
         if head in CONSTRUCTORS:
             return {"kind": head, "args": [norm(a) for a in args],
                     "raw": norm(rhs_s)}
+        # 白名单外的构造器：仍按对象定义保留（策略反转：宁可放过）
+        return {"kind": "unknown", "head": head, "args": [norm(a) for a in args],
+                "raw": norm(rhs_s)}
     if "=" in rhs_s:
         return {"kind": "function", "expr": norm(rhs_s), "raw": norm(rhs_s)}
     return {"kind": "expression", "expr": norm(rhs_s), "raw": norm(rhs_s)}
@@ -301,18 +356,28 @@ def parse_commands(text: str) -> dict:
                     obj["attrs"][head] = value
                 records.append({"text": line, "type": "attr", "name": target})
                 continue
+            if head.startswith(("set", "show", "hide")) and args:
+                # 形如属性命令但白名单外（如 SetOptions）：放行 + 标记（P1.5 策略反转）
+                records.append({"text": line, "type": "unknown_command", "name": head})
+                continue
+            # 其他白名单外的命令形式（如 Execute）：放行 + 标记
+            records.append({"text": line, "type": "unknown_command", "name": head})
+            continue
         records.append({"text": line, "type": "unparsed"})
 
     valid = sum(1 for r in records if r["type"] != "unparsed")
     total = len(records)
     resolve_point_coords(objects)
     redefinitions = sorted({n for n, o in objects.items() if o.get("_redefined")})
+    unknown_commands = sorted({r.get("name", "") for r in records
+                               if r["type"] == "unknown_command"} - {""})
     return {
         "mode": mode,
         "scene_attrs": scene_attrs,
         "objects": [objects[n] | {"name": n} for n in order],
         "redefinitions": redefinitions,
         "records": records,
+        "unknown_commands": unknown_commands,
         "stats": {
             "cleaned_lines": total,
             "valid_lines": valid,
@@ -334,13 +399,18 @@ def extract_valid_commands(text: str) -> list:
 
 
 def validate_text(text: str) -> dict:
-    """P0 校验层用的摘要：有效率 + 无效行明细 + 建议动作。"""
+    """P0 校验层用的摘要：有效率 + 无效行明细 + 未知命令遥测 + 建议动作。
+
+    无效（触发重试）= 纯文字/残缺行（unparsed）；
+    未知命令（白名单外）= 放行下发，仅记录遥测，不触发重试。
+    """
     ir = parse_commands(text)
     stats = ir["stats"]
     return {
         "ir": ir,
         "validity": stats["validity"],
         "invalid_lines": ir["unparsed"],
+        "unknown_commands": ir["unknown_commands"],
         "has_text_object": any(o["kind"] == "text" for o in ir["objects"]),
         "ok": stats["invalid_lines"] == 0,
     }

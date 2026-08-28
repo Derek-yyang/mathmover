@@ -1,0 +1,20 @@
+{
+  "Gemini 改造前": {
+    "cases": 26,
+    "pass": 20,
+    "pass_rate": 0.7692,
+    "avg_property_hit_rate": 0.9231
+  },
+  "qwen 改造前": {
+    "cases": 25,
+    "pass": 10,
+    "pass_rate": 0.4,
+    "avg_property_hit_rate": 0.7974
+  },
+  "qwen 改造后(P0)": {
+    "cases": 26,
+    "pass": 7,
+    "pass_rate": 0.2692,
+    "avg_property_hit_rate": 0.7735
+  }
+}

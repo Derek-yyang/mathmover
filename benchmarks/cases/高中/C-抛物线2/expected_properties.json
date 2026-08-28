@@ -1,0 +1,37 @@
+{
+  "case": "高中/C-抛物线2",
+  "properties": [
+    {
+      "type": "syntax_clean",
+      "desc": "语法干净"
+    },
+    {
+      "type": "no_text",
+      "desc": "无文字对象"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        1.0,
+        0.0
+      ],
+      "desc": "点 F"
+    },
+    {
+      "type": "equation_present",
+      "expr": "x=-1",
+      "desc": "方程 d"
+    },
+    {
+      "type": "conic_exists",
+      "conic_kind": "parabola",
+      "desc": "parabola C"
+    },
+    {
+      "type": "slider_range",
+      "min": -5.0,
+      "max": 5.0,
+      "desc": "滑块 k"
+    }
+  ]
+}

@@ -259,8 +259,12 @@
       "name": "tempC2"
     },
     {
-      "kind": "expression",
-      "expr": "if(distance(tempc1,a)>0.01,tempc1,tempc2)",
+      "kind": "if",
+      "args": [
+        "distance(tempc1,a)>0.01",
+        "tempc1",
+        "tempc2"
+      ],
       "raw": "if(distance(tempc1,a)>0.01,tempc1,tempc2)",
       "attrs": {
         "showlabel": [
@@ -323,8 +327,12 @@
       "name": "tempD2"
     },
     {
-      "kind": "expression",
-      "expr": "if(distance(tempd1,b)>0.01,tempd1,tempd2)",
+      "kind": "if",
+      "args": [
+        "distance(tempd1,b)>0.01",
+        "tempd1",
+        "tempd2"
+      ],
       "raw": "if(distance(tempd1,b)>0.01,tempd1,tempd2)",
       "attrs": {
         "showlabel": [
@@ -732,6 +740,7 @@
       "name": "Q"
     }
   ],
+  "unknown_commands": [],
   "stats": {
     "cleaned_lines": 68,
     "valid_lines": 68,

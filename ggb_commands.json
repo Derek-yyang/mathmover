@@ -1,0 +1,40 @@
+{
+  "version": "2026-08-28",
+  "note": "MathMover 校验白名单与 prompt 允许集的单一事实来源。constructors 按 view 分组；attributes 为对象属性命令；globals 为视图/全局命令。未知命令策略：放行下发 + 标记 unknown_command（见 ggb_parser.py）。",
+  "constructors": {
+    "2d": [
+      "Point", "PointIn", "Intersect", "Midpoint", "Center", "Vertex",
+      "Root", "Roots", "Extremum", "InflectionPoint", "Focus", "Directrix",
+      "Segment", "Line", "Ray", "Vector", "PerpendicularLine",
+      "PerpendicularBisector", "AngleBisector", "Tangent", "BestFitLine",
+      "Circle", "CircleArc", "CircleSector", "CircumcircleArc", "CircumcircleSector",
+      "Ellipse", "Hyperbola", "Parabola", "Conic", "Arc", "Sector", "Invert",
+      "Polygon", "Polyline", "RigidPolygon", "Locus",
+      "Slider", "Function", "Derivative", "Integral", "NIntegral",
+      "If", "Distance", "Angle", "Area", "Perimeter", "Circumference",
+      "Slope", "Radius", "Length", "Spline", "Text",
+      "Translate", "Rotate", "Dilate", "Reflect",
+      "Sequence", "Element", "FitPoly", "FitLine", "TaylorPolynomial"
+    ],
+    "3d": [
+      "Sphere", "Cone", "Cylinder", "Plane", "PerpendicularPlane",
+      "ParallelPlane", "PlaneBisector", "LineBisector", "IntersectPath",
+      "IntersectConic", "Pyramid", "Prism", "Tetrahedron", "Net",
+      "Extrusion", "Surface", "Curve"
+    ]
+  },
+  "attributes": [
+    "SetColor", "SetDynamicColor", "SetBackgroundColor",
+    "SetFilling", "SetLineStyle", "SetLineThickness", "SetThickness",
+    "SetPointSize", "SetPointStyle", "SetFixed", "SetTrace",
+    "ShowLabel", "SetLabelMode", "SetLabelStyle", "SetCaption",
+    "SetVisibleInView", "SetValue", "SetConditionToShowObject",
+    "SetTooltipMode", "SetLayer", "SetSeed"
+  ],
+  "globals": [
+    "SetPerspective", "SetAxesVisible", "SetGridVisible",
+    "ShowAxes", "ShowGrid", "CenterView", "SetActiveView",
+    "ZoomIn", "ZoomOut", "ZoomPadding", "SetViewDirection",
+    "SetFontSize", "Execute", "UpdateConstruction", "Delete"
+  ]
+}

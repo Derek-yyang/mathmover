@@ -1,0 +1,67 @@
+{
+  "case": "高中/D-多面体3",
+  "properties": [
+    {
+      "type": "syntax_clean",
+      "desc": "语法干净"
+    },
+    {
+      "type": "no_text",
+      "desc": "无文字对象"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "desc": "点 C"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        1.414,
+        0.0,
+        0.0
+      ],
+      "desc": "点 A"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        0.0,
+        2.0,
+        0.0
+      ],
+      "desc": "点 B"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        0.0,
+        0.0,
+        1.414
+      ],
+      "desc": "点 A_1"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        -1.414,
+        0.0,
+        1.414
+      ],
+      "desc": "点 C_1"
+    },
+    {
+      "type": "point_at",
+      "coords": [
+        -1.414,
+        2.0,
+        1.414
+      ],
+      "desc": "点 B_1"
+    }
+  ]
+}
