@@ -1,0 +1,805 @@
+{
+  "finished_at": "2026-08-29T20:41:06",
+  "judge_model": "qwen3.8-flash",
+  "total": 24,
+  "l3_pass": 17,
+  "l3_partial": 4,
+  "l3_pass_rate": 0.7083,
+  "disagreements": [
+    {
+      "case": "初中/A-二次函数1",
+      "verdict": "partial",
+      "reason": "动点P移动正确，但图中缺失了题目关键的直线l、点E和点F，存在明显缺漏。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数1_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "P"
+        ],
+        "moved": null,
+        "detail": "读取失败: TypeError: g.getX is not a function",
+        "frame_value": 3.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数3",
+      "verdict": "pass",
+      "reason": "抛物线过A、B、C三点且开口向下，对称轴、点P、N、M及垂直关系均正确呈现。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数3_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数4",
+      "verdict": "pass",
+      "reason": "抛物线、直线及交点C、D均存在，且随k值变化的坐标计算完全正确，准确表达了核心内容。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数4_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数5",
+      "verdict": "partial",
+      "reason": "抛物线、C、Q及动点M位置正确且随滑块移动，但缺少点A、B及∠MBQ相关线段与角度标注。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数5_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数5_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数5_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "M"
+        ],
+        "moved": null,
+        "detail": "读取失败: TypeError: g.getX is not a function",
+        "frame_value": 4.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-四边形2",
+      "verdict": "pass",
+      "reason": "图中正方形、圆及动点E、F位置正确，E在圆上移动，F随E绕D逆时针旋转90度同步移动，核心内容表达正确。",
+      "frames": [
+        "benchmarks\\shots\\初中_B-四边形2_f1.png",
+        "benchmarks\\shots\\初中_B-四边形2_f2.png",
+        "benchmarks\\shots\\初中_B-四边形2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-双曲线1",
+      "verdict": "partial",
+      "reason": "双曲线、渐近线、定点S(2,0)及动点P随k移动正确，但缺失Q点与以PQ为直径的圆，核心对象不全。",
+      "frames": [
+        "benchmarks\\shots\\高中_C-双曲线1_f1.png",
+        "benchmarks\\shots\\高中_C-双曲线1_f2.png",
+        "benchmarks\\shots\\高中_C-双曲线1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-抛物线2",
+      "verdict": "partial",
+      "reason": "抛物线、F、直线l及动点A、B正确随滑块移动，但缺垂直平分线l'、交点M、N及圆，核心条件未表达。",
+      "frames": [
+        "benchmarks\\shots\\高中_C-抛物线2_f1.png",
+        "benchmarks\\shots\\高中_C-抛物线2_f2.png",
+        "benchmarks\\shots\\高中_C-抛物线2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "equation_present",
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆1",
+      "verdict": "pass",
+      "reason": "椭圆、顶点A/B、动点M及交点C、D均正确，M随滑块移动，坐标关系与题意吻合",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆1_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆1_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆2",
+      "verdict": "pass",
+      "reason": "椭圆、顶点、各直线及动点P均正确，P随滑块沿第一象限弧移动，M、N交点与MN//CD关系成立。",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆2_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆2_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆3",
+      "verdict": "pass",
+      "reason": "椭圆、顶点、P在x=6上移动，C、D交点随P变化，CD过定点S(1.5,0)均正确表达。",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆3_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆3_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "P"
+        ],
+        "moved": null,
+        "detail": "读取失败: TypeError: g.getX is not a function",
+        "frame_value": 4.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆4",
+      "verdict": "pass",
+      "reason": "椭圆、焦点F1F2、第一象限动点M及三角形均正确，M随滑块沿椭圆弧移动，坐标满足方程。",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆4_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆4_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆4_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-多面体2",
+      "verdict": "pass",
+      "reason": "底面正方形ABCD、四个垂直正三角形及顶面EFGH均正确，EF平行底面，坐标无误",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体2_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-多面体3",
+      "verdict": "pass",
+      "reason": "GeoGebra图正确构建了满足题目条件的三棱柱模型，顶点的空间坐标关系准确表达了题干中的垂直和角度条件。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体3_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-正方体1",
+      "verdict": "pass",
+      "reason": "正确绘制了正方体及点E的位置，平面AD1E的几何关系表达准确，核心要素完整。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-正方体1_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-正方体2",
+      "verdict": "pass",
+      "reason": "图中正确绘制了正方体、底面中心O、侧面点P及线段D1O和OP，位置关系与题目一致。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-正方体2_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    }
+  ],
+  "results": [
+    {
+      "case": "初中/A-二次函数1",
+      "verdict": "partial",
+      "reason": "动点P移动正确，但图中缺失了题目关键的直线l、点E和点F，存在明显缺漏。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数1_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "P"
+        ],
+        "moved": null,
+        "detail": "读取失败: TypeError: g.getX is not a function",
+        "frame_value": 3.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数2",
+      "verdict": "pass",
+      "reason": "直线、抛物线、交点及动点P、C、D的位置关系和随滑块变化的轨迹均完全正确。",
+      "frames": [],
+      "numeric_check": {
+        "driven_points": [
+          "P",
+          "C",
+          "D"
+        ],
+        "moved": null,
+        "detail": "读取失败: TypeError: g.getX is not a function",
+        "frame_value": 4.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "一致"
+    },
+    {
+      "case": "初中/A-二次函数3",
+      "verdict": "pass",
+      "reason": "抛物线过A、B、C三点且开口向下，对称轴、点P、N、M及垂直关系均正确呈现。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数3_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数4",
+      "verdict": "pass",
+      "reason": "抛物线、直线及交点C、D均存在，且随k值变化的坐标计算完全正确，准确表达了核心内容。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数4_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数5",
+      "verdict": "partial",
+      "reason": "抛物线、C、Q及动点M位置正确且随滑块移动，但缺少点A、B及∠MBQ相关线段与角度标注。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数5_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数5_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数5_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "M"
+        ],
+        "moved": null,
+        "detail": "读取失败: TypeError: g.getX is not a function",
+        "frame_value": 4.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-三角形1",
+      "verdict": "pass",
+      "reason": "A、B固定，红点C绕A动，等腰直角D与P=2D-A关系正确，三帧动点位置变化符合题意。",
+      "frames": [],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "一致"
+    },
+    {
+      "case": "初中/B-三角形2",
+      "verdict": "pass",
+      "reason": "正三角形、中位线EF及点G等关键对象正确，动点P在线段EF上移动，并正确连接了PB和PG。",
+      "frames": [],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "一致"
+    },
+    {
+      "case": "初中/B-四边形1",
+      "verdict": "fail",
+      "reason": "GeoGebra图仅有坐标系和原点A，矩形、点E/F/G及相关线段全部缺失，未表达题目核心内容。",
+      "frames": [
+        "benchmarks\\shots\\初中_B-四边形1_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "slider_range"
+      ],
+      "agreement": "一致"
+    },
+    {
+      "case": "初中/B-四边形2",
+      "verdict": "pass",
+      "reason": "图中正方形、圆及动点E、F位置正确，E在圆上移动，F随E绕D逆时针旋转90度同步移动，核心内容表达正确。",
+      "frames": [
+        "benchmarks\\shots\\初中_B-四边形2_f1.png",
+        "benchmarks\\shots\\初中_B-四边形2_f2.png",
+        "benchmarks\\shots\\初中_B-四边形2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-四边形3",
+      "verdict": "pass",
+      "reason": "正方形、定点E、动点F及等边三角形EFG的位置和动态变化均正确，符合向右作的条件。",
+      "frames": [],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "一致"
+    },
+    {
+      "case": "高中/C-双曲线1",
+      "verdict": "partial",
+      "reason": "双曲线、渐近线、定点S(2,0)及动点P随k移动正确，但缺失Q点与以PQ为直径的圆，核心对象不全。",
+      "frames": [
+        "benchmarks\\shots\\高中_C-双曲线1_f1.png",
+        "benchmarks\\shots\\高中_C-双曲线1_f2.png",
+        "benchmarks\\shots\\高中_C-双曲线1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-抛物线2",
+      "verdict": "partial",
+      "reason": "抛物线、F、直线l及动点A、B正确随滑块移动，但缺垂直平分线l'、交点M、N及圆，核心条件未表达。",
+      "frames": [
+        "benchmarks\\shots\\高中_C-抛物线2_f1.png",
+        "benchmarks\\shots\\高中_C-抛物线2_f2.png",
+        "benchmarks\\shots\\高中_C-抛物线2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "equation_present",
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆1",
+      "verdict": "pass",
+      "reason": "椭圆、顶点A/B、动点M及交点C、D均正确，M随滑块移动，坐标关系与题意吻合",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆1_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆1_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆2",
+      "verdict": "pass",
+      "reason": "椭圆、顶点、各直线及动点P均正确，P随滑块沿第一象限弧移动，M、N交点与MN//CD关系成立。",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆2_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆2_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆3",
+      "verdict": "pass",
+      "reason": "椭圆、顶点、P在x=6上移动，C、D交点随P变化，CD过定点S(1.5,0)均正确表达。",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆3_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆3_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "P"
+        ],
+        "moved": null,
+        "detail": "读取失败: TypeError: g.getX is not a function",
+        "frame_value": 4.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "slider_range"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆4",
+      "verdict": "pass",
+      "reason": "椭圆、焦点F1F2、第一象限动点M及三角形均正确，M随滑块沿椭圆弧移动，坐标满足方程。",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆4_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆4_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆4_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-多面体1",
+      "verdict": "fail",
+      "reason": "缺失关键点D、F及核心辅助线EF、AO等，无法体现题目要求的线面关系。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体1_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at",
+        "point_at",
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "一致"
+    },
+    {
+      "case": "高中/D-多面体2",
+      "verdict": "pass",
+      "reason": "底面正方形ABCD、四个垂直正三角形及顶面EFGH均正确，EF平行底面，坐标无误",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体2_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-多面体3",
+      "verdict": "pass",
+      "reason": "GeoGebra图正确构建了满足题目条件的三棱柱模型，顶点的空间坐标关系准确表达了题干中的垂直和角度条件。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体3_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-正方体1",
+      "verdict": "pass",
+      "reason": "正确绘制了正方体及点E的位置，平面AD1E的几何关系表达准确，核心要素完整。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-正方体1_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-正方体2",
+      "verdict": "pass",
+      "reason": "图中正确绘制了正方体、底面中心O、侧面点P及线段D1O和OP，位置关系与题目一致。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-正方体2_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-正方体3",
+      "verdict": "pass",
+      "reason": "正确绘制了正方体、体对角线AC1上的动点M及连线A1M、DM。标签虽重叠，但核心几何关系表达清晰正确。",
+      "frames": [],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "一致"
+    },
+    {
+      "case": "高中/D-球1",
+      "verdict": "pass",
+      "reason": "圆O以BC为直径、平面PBC⊥ABC、PB/PC长度及外接球心S均正确，A在圆上，核心内容完整。",
+      "frames": [],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "一致"
+    },
+    {
+      "case": "高中/D-球2",
+      "verdict": "fail",
+      "reason": "C置于(0,4,0)使∠A为直角，不满足鳖臑条件；球心(0,2,1)半径√5，B(2,0,0)不在球面上，外接球表达错误。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-球2_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": ""
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "一致"
+    }
+  ]
+}

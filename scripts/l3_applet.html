@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="https://www.geogebra.org/apps/deployggb.js"></script>
+</head>
+<body style="margin:0">
+<div id="ggb"></div>
+<script>
+window.__ready = false;
+window.__errors = [];
+var params = {
+  appName: "classic",
+  perspective: "G",
+  width: 1000,
+  height: 700,
+  showToolBar: false,
+  showAlgebraInput: false,
+  showMenuBar: false,
+  enableShiftDragZoom: false,
+  showResetIcon: false,
+  showAxes: true,
+  showGrid: true,
+  errorDialogsActive: false,
+  appletOnLoad: function (api) {
+    window.ggbApplet = api;
+    window.__ready = true;
+  }
+};
+var applet = new GGBApplet(params, true);
+applet.inject('ggb');
+</script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 基线批量跑分：把全部案例的题目图批量提交到 MathMover 后端，
-保存每题的候选指令，并对照金标准 expected_objects.json 判分。
+保存每题的候选指令，并以性质判分（L2）为主指标。严口径（L1）已退役。
 
 前置条件：
   1. 本地后端已启动（python app.py，端口 5000）
@@ -24,7 +24,7 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts.benchmark import score_case, CASES_DIR  # noqa: E402
+from scripts.properties import evaluate_properties, CASES_DIR  # noqa: E402
 from ggb_parser import parse_commands  # noqa: E402
 
 ENV_LOCAL = ROOT / "math-mover-next" / ".env.local"
@@ -172,21 +172,31 @@ def cmd_run(args):
             print(f"[{i:>2}/{len(cases)}] {name}: ❌ {payload.get('message', '')[:80]}")
             continue
         commands = payload.get("commands") or []
-        cand_path.write_text("\n".join(commands) + "\n", encoding="utf-8")
-        result = score_case(case, "\n".join(commands))
+        cand_text = "\n".join(commands)
+        cand_path.write_text(cand_text + "\n", encoding="utf-8")
+        cand_ir = parse_commands(cand_text)
+        for u in cand_ir["unknown_commands"]:
+            unknown_counter[u] = unknown_counter.get(u, 0) + 1
+        # 主指标：性质判分（L2）。严口径（L1 金标准比对）已退役，见 benchmarks/README.md
+        result = evaluate_properties(case, cand_text)
         result["status"] = "completed"
         gen_validation = payload.get("validation") or {}
         result["gen_validity"] = gen_validation.get("validity")
         result["gen_retried"] = gen_validation.get("retried")
         results.append(result)
         mark = "PASS" if result["pass"] else "FAIL"
-        extra = f" 缺失{result['missing'][:4]}" if result["missing"] else ""
+        total = result.get("total", 0)
+        hit = total - len(result.get("failed", []))
+        fail_types = ",".join(sorted({f["type"] for f in result.get("failed", [])}))[:40]
+        extra = f" 未过:{fail_types}" if result.get("failed") else ""
         retry_note = " [已重试]" if result.get("gen_retried") else ""
         print(f"[{i:>2}/{len(cases)}] {name}: {mark} "
-              f"{result['matched']}/{result['expected']}{extra}{retry_note}")
+              f"性质 {hit}/{total}{extra}{retry_note}")
 
     done = [r for r in results if r.get("status") == "completed"]
     passed = sum(1 for r in done if r["pass"])
+    total_props = sum(r.get("total", 0) for r in done)
+    hit_props = sum(r.get("total", 0) - len(r.get("failed", [])) for r in done)
     summary = {
         "label": args.label,
         "backend": args.backend,
@@ -196,6 +206,7 @@ def cmd_run(args):
         "failed_requests": len(results) - len(done),
         "pass": passed,
         "pass_rate": round(passed / len(done), 4) if done else 0,
+        "property_hit_rate": round(hit_props / total_props, 4) if total_props else 0,
         "unknown_commands": unknown_counter,
         "results": results,
     }
@@ -203,8 +214,8 @@ def cmd_run(args):
     report_dir.mkdir(exist_ok=True)
     report_path = report_dir / f"{args.label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     report_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\n===== 结果：{passed}/{len(done)} PASS（可用率 {summary['pass_rate']:.0%}），"
-          f"请求失败 {summary['failed_requests']} =====")
+    print(f"\n===== 结果：{passed}/{len(done)} PASS（可用率 {summary['pass_rate']:.0%}，"
+          f"性质命中 {summary['property_hit_rate']:.0%}），请求失败 {summary['failed_requests']} =====")
     print(f"报告已写入 {report_path.relative_to(ROOT)}")
 
 
