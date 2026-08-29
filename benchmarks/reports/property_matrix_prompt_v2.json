@@ -1,0 +1,20 @@
+{
+  "qwen3.5-plus + 旧prompt": {
+    "cases": 25,
+    "pass": 10,
+    "pass_rate": 0.4,
+    "avg_property_hit": 0.7974
+  },
+  "qwen3.5-plus + 旧prompt + P0": {
+    "cases": 26,
+    "pass": 7,
+    "pass_rate": 0.2692,
+    "avg_property_hit": 0.7735
+  },
+  "qwen3.8-flash + 新范例prompt": {
+    "cases": 24,
+    "pass": 6,
+    "pass_rate": 0.25,
+    "avg_property_hit": 0.7953
+  }
+}
