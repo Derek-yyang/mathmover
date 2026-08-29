@@ -460,10 +460,29 @@ function DashboardContent() {
                 }
                 
                 ggbApplet.evalCommand('SetFontSize(10)');
-    
+
                 if (currentMode === '2D') {
-                    ggbApplet.evalCommand('CenterView((0,0))');
-                    ggbApplet.evalCommand('ZoomIn(-10)'); 
+                    // 视窗自适应：按题目坐标的尺度与质心定视野。
+                    // 固定 CenterView((0,0)) + ZoomIn(-10) 会让大坐标题（如按实际尺寸
+                    // 建模的 160x120 矩形）整个落在视野外，用户看到空白坐标系。
+                    const coords: number[][] = [];
+                    commandsToRun.forEach((cmd) => {
+                        const pairs = cmd.matchAll(/\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g);
+                        for (const p of pairs) {
+                            coords.push([parseFloat(p[1]), parseFloat(p[2])]);
+                        }
+                    });
+                    const maxAbs = Math.max(0, ...coords.flat().map(Math.abs));
+                    if (maxAbs > 12 && coords.length > 0) {
+                        const cx = coords.reduce((s, c) => s + c[0], 0) / coords.length;
+                        const cy = coords.reduce((s, c) => s + c[1], 0) / coords.length;
+                        const factor = 10 / (maxAbs * 1.6);
+                        ggbApplet.evalCommand(`CenterView((${cx.toFixed(2)}, ${cy.toFixed(2)}))`);
+                        ggbApplet.evalCommand(`ZoomIn(${factor.toFixed(4)})`);
+                    } else {
+                        ggbApplet.evalCommand('CenterView((0,0))');
+                        ggbApplet.evalCommand('ZoomIn(-10)');
+                    }
                 }
         
                 ggbApplet.refreshViews();
