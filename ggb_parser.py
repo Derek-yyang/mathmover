@@ -388,13 +388,34 @@ def parse_commands(text: str) -> dict:
     }
 
 
+def reorder_commands(lines: list) -> list:
+    """定义先行重排：属性命令移动到全部对象定义之后（保持各组内原顺序）。
+
+    背景：模型生成的指令流常出现 SetColor(F1,...) 先于 F1 定义，GeoGebra 对
+    引用未定义对象的属性命令静默返回 false，样式全部丢失。两遍扫描即可保证
+    属性必然在目标对象存在后执行；对象定义之间保持原依赖顺序不动。
+    """
+    first_pass, second_pass = [], []
+    for r in lines:
+        # r 可能是纯字符串；此处输入为已清洗的 records
+        t = r.get("type")
+        if t in ("attr",):
+            second_pass.append(r["text"])
+        else:
+            first_pass.append(r["text"])
+    return first_pass + second_pass
+
+
 def extract_valid_commands(text: str) -> list:
-    """提取可下发前端的指令流：MODE 行 + 全部有效指令行（剔除注释/无效行）。"""
+    """提取可下发前端的指令流：MODE 行 + 全部有效指令行（定义先行重排）。
+
+    剔除注释/无效行；未知命令与全局命令随定义组先行，属性命令统一殿后。
+    """
     ir = parse_commands(text)
     out = []
     if ir["mode"]:
         out.append(f"MODE: {ir['mode']}")
-    out.extend(r["text"] for r in ir["records"] if r["type"] != "unparsed")
+    out.extend(reorder_commands(ir["records"]))
     return out
 
 

@@ -441,22 +441,41 @@ function DashboardContent() {
             }
     
             setTimeout(() => {
-                let failedCount = 0;
-                commandsToRun.forEach((cmd) => {
-                     try {
-                         const cleanCmd = cmd.replace(/\\"/g, '"');
-                         const ok = ggbApplet.evalCommand(cleanCmd);
-                         if (ok === false) failedCount++;
-                     } catch (err) {
-                         console.error('❌ 执行失败:', cmd, err);
-                         failedCount++;
-                     }
-                });
-                if (failedCount > 0) {
-                    console.warn(`[MathMover] ${failedCount}/${commandsToRun.length} 条指令未被执行`);
-                    if (failedCount >= 3) {
-                        showToast(`有 ${failedCount} 条指令未能执行，图形可能不完整`, 'error');
-                    }
+                const execList = (list: string[]) => {
+                    const failed: string[] = [];
+                    list.forEach((cmd) => {
+                         try {
+                             const cleanCmd = cmd.replace(/\\"/g, '"');
+                             // 注意：GGB 的 evalCommand 对属性命令即使成功也返回 false，
+                             // 返回值只用于筛选重放候选，不作为最终失败依据
+                             const ok = ggbApplet.evalCommand(cleanCmd);
+                             if (ok === false) failed.push(cmd);
+                         } catch (err) {
+                             console.error('❌ 执行失败:', cmd, err);
+                             failed.push(cmd);
+                         }
+                    });
+                    return failed;
+                };
+
+                // 第一遍：建立对象（属性命令若先于对象定义会被 GGB 静默丢弃）
+                const failed = execList(commandsToRun);
+                // 第二遍：补属性 + 兜底 setPerspective 异步重建期间的竞态丢失
+                if (failed.length > 0) {
+                    setTimeout(() => {
+                        const stillFailed = execList(failed);
+                        // 真失败判定：定义行执行后目标对象仍不存在（返回值不可信，
+                        // 属性命令成功也返回 false，故只对"对象缺失"告警）
+                        const names = new Set(ggbApplet.getAllObjectNames() as string[]);
+                        const trulyMissing = stillFailed.filter((cmd) => {
+                            const m = cmd.match(/^([A-Za-z]\w*)\s*=/);
+                            return m && !names.has(m[1]);
+                        });
+                        if (trulyMissing.length > 0) {
+                            console.warn(`[MathMover] ${trulyMissing.length}/${commandsToRun.length} 条对象指令重放后仍未建立`, trulyMissing);
+                            showToast(`有 ${trulyMissing.length} 个对象未能创建，图形可能不完整`, 'error');
+                        }
+                    }, 500);
                 }
                 
                 ggbApplet.evalCommand('SetFontSize(10)');

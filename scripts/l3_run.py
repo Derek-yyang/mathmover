@@ -241,9 +241,9 @@ def main():
         for i, case in enumerate(cases, 1):
             name = str(case.relative_to(CASES_DIR)).replace("\\", "/")
             cand = (case / "candidate_commands.txt").read_text(encoding="utf-8")
-            mode, commands = clean_lines(cand)
-            if mode:
-                commands = [f"MODE: {mode}"] + commands  # 渲染器需要 MODE 行切换 3D 视图
+            # 与产品端同源：清洗 + 定义先行重排 + MODE 组装（extract_valid_commands）
+            from ggb_parser import extract_valid_commands
+            commands = extract_valid_commands(cand)
             stem = name.replace("/", "_")
             frames, numeric_check, err = render_multiframe(page_factory, commands, stem)
             if not frames:
