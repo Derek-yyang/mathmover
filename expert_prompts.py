@@ -27,10 +27,12 @@ _COMMON_RULES = """【通用规则】
 8. 对象命名用简短英文与字母（A、B、C、f、lineAB、triOCD），与题目标号一致。
 """
 
-_WALKTHROUGH_A = r"""【完整范例】先看一道函数题是怎么从题意变成指令流的。
+_WALKTHROUGH_A = r"""【完整范例】先看一道函数压轴题是怎么从题意变成指令流的。
 
-题目：抛物线 f(x) = -x^2 + 2x + 3 经过点 A(0,3)、B(-1,0)，与 x 轴另一交点为 E，
-顶点为 V。点 P 为抛物线上一动点（横坐标为 t）。
+题目：抛物线 f(x) = -x^2 + 2x + 3 经过平行四边形 ABCD 的顶点 A(0,3)、B(-1,0)、D(2,3)，
+与 x 轴另一交点为 E。直线 l 过 E 且平分平行四边形面积（即过对角线交点 M），
+与抛物线交于另一点 F。点 P 为直线 l 上方抛物线上一动点（横坐标 t），
+构建三角形 PFE 观察其面积变化。
 
 指令流：
 MODE: 2D
@@ -46,31 +48,53 @@ B = (-1, 0)
 SetFixed(B, true)
 ShowLabel(B, true)
 SetLabelMode(B, 1)
+D = (2, 3)
+SetFixed(D, true)
+ShowLabel(D, true)
+SetLabelMode(D, 1)
 E = (Root(f, 2, 4), 0)
 SetColor(E, "Black")
 SetPointSize(E, 4)
 SetLabelMode(E, 1)
 ShowLabel(E, true)
-V = Extremum(f)
-SetColor(V, "Black")
-SetPointSize(V, 4)
-SetLabelMode(V, 1)
-ShowLabel(V, true)
-t = Slider(-1, 3, 0.05)
+C = B + D - A
+SetFixed(C, true)
+ShowLabel(C, true)
+SetLabelMode(C, 1)
+polyABCD = Polygon(A, B, C, D)
+SetFilling(polyABCD, 0.2)
+SetColor(polyABCD, "Blue")
+M = (A + C) / 2
+SetFixed(M, true)
+ShowLabel(M, true)
+SetLabelMode(M, 1)
+l = Line(E, M)
+SetColor(l, "Green")
+SetLineStyle(l, 2)
+F = Intersect(l, f, 2)
+SetColor(F, "Black")
+SetPointSize(F, 4)
+SetLabelMode(F, 1)
+ShowLabel(F, true)
+t = Slider(-0.5, 3, 0.05)
 P = (t, f(t))
 SetColor(P, "Red")
 ShowLabel(P, true)
 SetLabelMode(P, 1)
+polyPFE = Polygon(P, F, E)
+SetFilling(polyPFE, 0.3)
+SetColor(polyPFE, "Red")
 
 讲解：
-- 开头两条 SetAxesVisible/SetGridVisible 是固定起手式。
-- A、B 是题目直接给的定点，写坐标后做三件套。
-- E 是"与 x 轴另一交点"——不要手算 x=3，用 Root(f, 2, 4) 让引擎在区间内找零点，
-  坐标写成 (Root(f, 2, 4), 0) 直接得到 x 轴上的点。
-- 顶点 V 用 Extremum(f)，引擎自动给出，同样无需手算。
-- 动点 P 的标准做法：滑块 t 控制横坐标，纵坐标写 f(t)——函数值也让引擎算。
-- 题目若有定义域限制，用 Function(f, xMin, xMax) 截断曲线；
-  有封闭区域（如三角形面积）需求时用 Polygon 构建并 SetFilling。
+- 题目给的每个点（A、B、D）都要建对象 + 三件套，一个都不能省。
+- E 是"与 x 轴另一交点"：用 (Root(f, 2, 4), 0) 让引擎找零点，不要手算 x=3。
+- 平行四边形的第四个顶点 C：用向量关系 C = B + D - A 交给引擎，
+  对角线交点 M = (A + C) / 2 同理——几何关系全部写表达式。
+- 直线 l 与抛物线的交点 F：用 Intersect(l, f, 2)（索引 2 取第二个交点），
+  绝不解方程手算坐标。
+- 动点 P：滑块 t 控制横坐标，纵坐标 f(t) 让引擎算。
+- 题目涉及的封闭图形（平行四边形 ABCD、动态三角形 PFE）都用 Polygon + SetFilling。
+- 复杂压轴题的指令流就是这些标准件的组合——按骨架顺序逐个落实，不要遗漏题目对象。
 """
 
 _PROMPT_A = """你是一位函数与图像专家。根据题目图片和/或文字，输出绘制该函数图像的 GeoGebra 指令流。
