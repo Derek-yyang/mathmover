@@ -82,12 +82,36 @@ def render_multiframe(browser_page_factory, commands, case_stem, max_frames=3):
             page.evaluate("(cmd) => window.ggbApplet.evalCommand(cmd)", cmd)
         page.evaluate("() => { window.ggbApplet.evalCommand('SetFontSize(12)'); }")
         if mode == "2D":
-            page.evaluate("""() => {
-                const g = window.ggbApplet;
-                g.evalCommand('CenterView((0,0))');
-                g.evalCommand('ZoomIn(-10)');
-                g.refreshViews();
-            }""")
+            # 视窗自适应：按候选坐标的尺度与质心定视野（固定 ZoomIn(-10) 会让
+            # 大坐标题目整个落在视窗外）
+            coords_all = []
+            for o in ir["objects"]:
+                if o["kind"] == "point":
+                    for c in (o.get("numeric") or o.get("coords") or [])[:2]:
+                        try:
+                            coords_all.append(float(c))
+                        except (TypeError, ValueError):
+                            pass
+            if coords_all and max(abs(v) for v in coords_all) > 12:
+                cx = sum(coords_all[0::2]) / max(1, len(coords_all[0::2]))
+                cy = sum(coords_all[1::2]) / max(1, len(coords_all[1::2]))
+                span = max(abs(v) for v in coords_all)
+                page.evaluate(
+                    """([cx, cy, span]) => {
+                        const g = window.ggbApplet;
+                        g.evalCommand(`CenterView((${cx}, ${cy}))`);
+                        g.evalCommand(`ZoomIn(${10 / (span * 1.6)})`);
+                        g.refreshViews();
+                    }""",
+                    [round(cx, 2), round(cy, 2), round(span, 2)],
+                )
+            else:
+                page.evaluate("""() => {
+                    const g = window.ggbApplet;
+                    g.evalCommand('CenterView((0,0))');
+                    g.evalCommand('ZoomIn(-10)');
+                    g.refreshViews();
+                }""")
         time.sleep(2.0)
 
         # 取帧：无滑块 1 帧；有滑块取首/中/末三帧（限制 max_frames）

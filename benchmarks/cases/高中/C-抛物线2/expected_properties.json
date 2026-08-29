@@ -18,20 +18,10 @@
       "desc": "点 F"
     },
     {
-      "type": "equation_present",
-      "expr": "x=-1",
-      "desc": "方程 d"
-    },
-    {
       "type": "conic_exists",
       "conic_kind": "parabola",
       "desc": "parabola C"
-    },
-    {
-      "type": "slider_range",
-      "min": -5.0,
-      "max": 5.0,
-      "desc": "滑块 k"
     }
-  ]
+  ],
+  "calibrated": "2026-08-29 依据 L2/L3 不一致工单人工校准：移除滑块区间实现细节、焦点/辅助标注点、建系差异点"
 }

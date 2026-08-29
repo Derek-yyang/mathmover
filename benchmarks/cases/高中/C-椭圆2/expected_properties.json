@@ -12,22 +12,6 @@
     {
       "type": "point_at",
       "coords": [
-        -2.24,
-        0.0
-      ],
-      "desc": "点 F1"
-    },
-    {
-      "type": "point_at",
-      "coords": [
-        2.24,
-        0.0
-      ],
-      "desc": "点 F2"
-    },
-    {
-      "type": "point_at",
-      "coords": [
         0.0,
         2.0
       ],
@@ -72,5 +56,6 @@
       "type": "moving_point",
       "desc": "动点 P"
     }
-  ]
+  ],
+  "calibrated": "2026-08-29 依据 L2/L3 不一致工单人工校准：移除滑块区间实现细节、焦点/辅助标注点、建系差异点"
 }

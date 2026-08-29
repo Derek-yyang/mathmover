@@ -39,14 +39,6 @@
       "desc": "点 V_start"
     },
     {
-      "type": "point_at",
-      "coords": [
-        0.0,
-        4.4721
-      ],
-      "desc": "点 V_end"
-    },
-    {
       "type": "slider_range",
       "min": 0.0,
       "max": 1.0,
@@ -56,5 +48,6 @@
       "type": "moving_point",
       "desc": "动点 M"
     }
-  ]
+  ],
+  "calibrated": "2026-08-29 依据 L2/L3 不一致工单人工校准：移除滑块区间实现细节、焦点/辅助标注点、建系差异点"
 }

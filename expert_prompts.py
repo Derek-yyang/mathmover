@@ -16,15 +16,17 @@
 
 _COMMON_RULES = """【通用规则】
 1. 输出第一行必须是 MODE: 2D 或 MODE: 3D，其后每行一条指令。
-2. 不输出任何注释、说明文字、markdown 代码块标记。
-3. 静态定点三件套：SetFixed(P, true) + ShowLabel(P, true) + SetLabelMode(P, 1)。
-4. 动点必须由滑块或路径驱动（如 Point(路径, t)），统一红色，只做两件套
+2. 题目中出现的每一个对象（点、直线、圆、角度、由条件构造出的交点/垂线/轨迹等，
+   包括小问里才提到的对象）都必须逐一建成 GeoGebra 对象，一个都不能省略。
+3. 不输出任何注释、说明文字、markdown 代码块标记。
+4. 静态定点三件套：SetFixed(P, true) + ShowLabel(P, true) + SetLabelMode(P, 1)。
+5. 动点必须由滑块或路径驱动（如 Point(路径, t)），统一红色，只做两件套
    （ShowLabel + SetLabelMode），绝不要 SetFixed 动点。
-5. 坐标一律写精确表达式（如 sqrt(3)、2*pi、(1, sqrt(2))），不要写 1.732 这类十进制近似。
-6. 交点、零点、极值、中点等可计算的量交给 GeoGebra 引擎命令
+6. 坐标一律写精确表达式（如 sqrt(3)、2*pi、(1, sqrt(2))），不要写 1.732 这类十进制近似。
+7. 交点、零点、极值、中点等可计算的量交给 GeoGebra 引擎命令
    （Intersect / Root / Extremum / Midpoint / Focus），不要自己手算数值。
-7. 封闭图形用 Polygon 构建并设浅色填充 SetFilling(图形, 0.2~0.4)。
-8. 对象命名用简短英文与字母（A、B、C、f、lineAB、triOCD），与题目标号一致。
+8. 封闭图形用 Polygon 构建并设浅色填充 SetFilling(图形, 0.2~0.4)。
+9. 对象命名用简短英文与字母（A、B、C、f、lineAB、triOCD），与题目标号一致。
 """
 
 _WALKTHROUGH_A = r"""【完整范例】先看一道函数压轴题是怎么从题意变成指令流的。

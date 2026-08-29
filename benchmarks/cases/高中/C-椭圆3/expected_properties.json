@@ -10,22 +10,6 @@
       "desc": "无文字对象"
     },
     {
-      "type": "point_at",
-      "coords": [
-        -2.828,
-        0.0
-      ],
-      "desc": "点 F1"
-    },
-    {
-      "type": "point_at",
-      "coords": [
-        2.828,
-        0.0
-      ],
-      "desc": "点 F2"
-    },
-    {
       "type": "conic_exists",
       "conic_kind": "ellipse",
       "desc": "ellipse E"
@@ -69,12 +53,6 @@
       "desc": "line L_p"
     },
     {
-      "type": "slider_range",
-      "min": -10.0,
-      "max": 10.0,
-      "desc": "滑块 m"
-    },
-    {
       "type": "point_at",
       "coords": [
         1.5,
@@ -82,5 +60,6 @@
       ],
       "desc": "点 Q"
     }
-  ]
+  ],
+  "calibrated": "2026-08-29 依据 L2/L3 不一致工单人工校准：移除滑块区间实现细节、焦点/辅助标注点、建系差异点"
 }
