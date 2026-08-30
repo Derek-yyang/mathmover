@@ -27,7 +27,7 @@ CASES_DIR = ROOT / "benchmarks" / "cases"
 DEFAULT_REPORT = ROOT / "benchmarks" / "reports" / "l3_20260829_215953.json"
 REVIEW_MAP = ROOT / "benchmarks" / "reports" / "review_map.json"
 IMPORT_FILE = ROOT / "math-mover-next" / "public" / "review_import.json"
-THUMB_MAX = 260
+THUMB_MAX = 900  # 需支撑 lightbox 放大阅读题干；900px 下 25 条约 2MB，配额内
 
 
 def make_thumb_dataurl(image_path: Path) -> str:
@@ -35,7 +35,7 @@ def make_thumb_dataurl(image_path: Path) -> str:
     img = Image.open(image_path).convert("RGB")
     img.thumbnail((THUMB_MAX, THUMB_MAX))
     buf = BytesIO()
-    img.save(buf, format="JPEG", quality=72)
+    img.save(buf, format="JPEG", quality=68)
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
