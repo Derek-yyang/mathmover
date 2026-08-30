@@ -45,6 +45,7 @@ interface GeoGebraApi {
   registerUpdateListener: (fn: (name: string) => void) => void;
   unregisterUpdateListener: (fn: (name: string) => void) => void;
   getBase64: (cb: (b64: string) => void) => void;
+  getViewProperties?: (view: number) => unknown; // 视图就绪探针（异步重建检测）
   refreshViews: () => void;
   recalcDisplay?: () => void;
   getAllObjectNames: () => string[];
@@ -434,16 +435,42 @@ function DashboardContent() {
             }
     
             if (currentMode === '2D') {
-                ggbApplet.evalCommand('setPerspective("G")');
-                ggbApplet.evalCommand('ShowAxes(true)');
-                ggbApplet.evalCommand('ShowGrid(true)');
+                // setPerspective 是 API 方法而非几何命令：evalCommand 字符串形式
+                // 在 3D→2D 切换时静默失败（视图残留 3D），必须用方法调用（与 3D 分支一致）
+                ggbApplet.setPerspective("G");
+                ggbApplet.setAxesVisible(true, true);
+                ggbApplet.setGridVisible(true);
             } else {
-                ggbApplet.setPerspective("T"); 
+                ggbApplet.setPerspective("T");
                 ggbApplet.setAxesVisible(true, true, true);
                 ggbApplet.setGridVisible(true);
             }
-    
-            setTimeout(() => {
+
+            // 视图就绪等待：setPerspective 是异步重建视图（尤其 3D→2D 切换），
+            // 固定延时不可靠——视图未就绪时 evalCommand 会画进错误的空间或静默失败。
+            // 探针：2D 等视图1可用，3D 等视图2出现；每 100ms 轮询，上限 3s。
+            const waitForView = (cb: () => void) => {
+                const viewIndex = currentMode === '2D' ? 1 : 2;
+                let waited = 0;
+                const tick = () => {
+                    if (execSessionRef.current !== session) return; // 已切题，放弃
+                    let ready = false;
+                    try {
+                        ready = typeof ggbApplet.getViewProperties === 'function'
+                            ? !!ggbApplet.getViewProperties(viewIndex)
+                            : true;
+                    } catch {
+                        ready = false;
+                    }
+                    if (ready) { cb(); return; }
+                    if (waited >= 3000) { cb(); return; } // 探针不可用时退化为定时执行
+                    waited += 100;
+                    setTimeout(tick, 100);
+                };
+                setTimeout(tick, 100);
+            };
+
+            waitForView(() => {
                 if (execSessionRef.current !== session) return; // 已切题，旧执行流自毁
                 const execList = (list: string[]) => {
                     const failed: string[] = [];
@@ -516,9 +543,11 @@ function DashboardContent() {
                 }
         
                 setPendingCommands([]);
-                
-                setTimeout(() => detectSliders(ggbApplet), 500);
-            }, 300); 
+
+                setTimeout(() => {
+                    if (execSessionRef.current === session) detectSliders(ggbApplet);
+                }, 500);
+            }); // waitForView
         }, 50);
     }
   }, [ggbApplet, pendingCommands]);
