@@ -156,6 +156,8 @@ function DashboardContent() {
   const [recentHistory, setRecentHistory] = useState<GenerationRecord[]>([]);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const projectMenuRef = useRef<HTMLDivElement>(null);
+  // 指令执行会话令牌：切换题目时递增，旧执行流的定时器触发后自毁，防止交错执行
+  const execSessionRef = useRef(0);
   const currentHistoryId = searchParams.get('history_id');
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [savedImageUrl, setSavedImageUrl] = useState<string | null>(null);
@@ -406,7 +408,8 @@ function DashboardContent() {
   // 监听 GeoGebra 实例就绪并执行待处理指令
   useEffect(() => {
     if (ggbApplet && pendingCommands.length > 0) {
-        
+        const session = ++execSessionRef.current;
+
         ggbApplet.newConstruction(); 
         
         setTimeout(() => {
@@ -441,6 +444,7 @@ function DashboardContent() {
             }
     
             setTimeout(() => {
+                if (execSessionRef.current !== session) return; // 已切题，旧执行流自毁
                 const execList = (list: string[]) => {
                     const failed: string[] = [];
                     list.forEach((cmd) => {
@@ -463,6 +467,7 @@ function DashboardContent() {
                 // 第二遍：补属性 + 兜底 setPerspective 异步重建期间的竞态丢失
                 if (failed.length > 0) {
                     setTimeout(() => {
+                        if (execSessionRef.current !== session) return; // 已切题，旧执行流自毁
                         const stillFailed = execList(failed);
                         // 真失败判定：定义行执行后目标对象仍不存在（返回值不可信，
                         // 属性命令成功也返回 false，故只对"对象缺失"告警）
