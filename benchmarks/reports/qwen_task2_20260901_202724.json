@@ -1,0 +1,144 @@
+{
+  "label": "qwen_task2",
+  "backend": "http://127.0.0.1:5000",
+  "finished_at": "2026-09-01T20:27:24",
+  "total": 26,
+  "completed": 0,
+  "failed_requests": 26,
+  "pass": 0,
+  "pass_rate": 0,
+  "property_hit_rate": 0,
+  "unknown_commands": {},
+  "results": [
+    {
+      "case": "初中/A-二次函数1",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "初中/A-二次函数2",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "初中/A-二次函数3",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "初中/A-二次函数4",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "初中/A-二次函数5",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "初中/B-三角形1",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "初中/B-三角形2",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "初中/B-四边形1",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "初中/B-四边形2",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "初中/B-四边形3",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/C-双曲线1",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/C-抛物线1",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/C-抛物线2",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/C-椭圆1",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/C-椭圆2",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/C-椭圆3",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/C-椭圆4",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/D-圆锥1",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/D-多面体1",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/D-多面体2",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/D-多面体3",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/D-正方体1",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/D-正方体2",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/D-正方体3",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/D-球1",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    },
+    {
+      "case": "高中/D-球2",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    }
+  ]
+}

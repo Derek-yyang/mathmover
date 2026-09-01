@@ -219,6 +219,13 @@ def safe_arith(s: str):
         return None
 
 
+def _num_or_none(v: str):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def resolve_numeric_env(objects: dict):
     """数值常量传播：x_f = -0.4 之类的标量定义进 env，供坐标引用解析。"""
     env = {}
@@ -250,7 +257,11 @@ def _subst_env(expr: str, env: dict) -> str:
 
 
 def resolve_point_coords(objects: dict):
-    """对坐标为表达式/变量引用/函数调用的点做解析（常量传播 + 函数展开）。"""
+    """对坐标为表达式/变量引用/函数调用的点做解析（常量传播 + 函数展开）。
+
+    同时处理向量表达式形式的点定义（P1.5 prompt 教的防手算写法）：
+      A1 = A + (0, 0, 2)  /  D = M + 0.5 * (-(y(B)-y(C)), x(B)-x(C))  /  P = 2 * D - A
+    """
     env = resolve_numeric_env(objects)
     funcs = {n: o for n, o in objects.items()
              if o["kind"] == "function" and o.get("expr") is not None and o.get("param")}
@@ -266,6 +277,34 @@ def resolve_point_coords(objects: dict):
                     for n2, o2 in objects.items():
                         if o2 is o:
                             env[n2] = v
+    # 向量表达式点：BASE + (dx, dy[, dz]) / BASE - (...) / [k *] (...) 组合
+    for o in objects.values():
+        if o["kind"] != "expression" or o.get("numeric") or not o.get("expr"):
+            continue
+        expr = o["expr"]
+        base_vec = None
+        # 抽取表达式中的具名点引用与元组，按 +/- 顺序累加
+        tokens = re.findall(r"([A-Za-z]\w*)|\(([^()]+)\)|([+-])|(\*|(?:\d+\.?\d*))", expr)
+        # 简化：仅处理 "A + (dx,dy[,dz])" 与 "A - (...)" 及系数形式 "k*(...)"、"A + k*(...)"
+        m = re.match(r"^([a-z]\w*)\s*([+-])\s*(?:(\d*\.?\d+)\s*\*\s*)?\(([^()]+)\)$", expr)
+        if m:
+            base = m.group(1)
+            sign = -1 if m.group(2) == "-" else 1
+            coef = float(m.group(3)) if m.group(3) else 1.0
+            base_vec = None
+            # expr 已 norm 为小写而 objects 键是原名——大小写不敏感查找
+            base_obj = next((objects[n] for n in objects if n.lower() == base), None)
+            # base 可能是点（坐标）或标量环境值（一维平移）
+            if base_obj is not None and base_obj.get("numeric"):
+                base_vec = list(base_obj["numeric"])
+            elif base in env:
+                base_vec = [env[base]]
+            if base_vec is not None:
+                offs = [_num_or_none(v) for v in m.group(4).split(",")]
+                if all(v is not None for v in offs) and len(offs) == len(base_vec):
+                    o["numeric"] = [round(b + sign * coef * v, 9) for b, v in zip(base_vec, offs)]
+                    o["kind"] = "point"
+                    o["coords"] = [str(v) for v in o["numeric"]]
     for o in objects.values():
         if o["kind"] != "point" or o.get("numeric"):
             continue

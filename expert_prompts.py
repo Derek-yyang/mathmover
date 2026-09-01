@@ -27,6 +27,11 @@ _COMMON_RULES = """【通用规则】
    （Intersect / Root / Extremum / Midpoint / Focus），不要自己手算数值。
 8. 封闭图形用 Polygon 构建并设浅色填充 SetFilling(图形, 0.2~0.4)。
 9. 对象命名用简短英文与字母（A、B、C、f、lineAB、triOCD），与题目标号一致。
+10. 题目称某点为"动点"或描述其"运动/变化"时，必须绑定滑块或路径
+   （Point(路径, t)），即使能算出满足条件的具体坐标，也禁止写成死坐标。
+11. PerpendicularLine(点, 直线)——点在前、直线在后，顺序不能反。
+12. 输出前自查：题目里每个编号对象（含小问对象）在指令流中都有对应行，
+   漏一个就是不合格。
 """
 
 _WALKTHROUGH_A = r"""【完整范例】先看一道函数压轴题是怎么从题意变成指令流的。
@@ -175,11 +180,12 @@ _PROMPT_B = """你是一位平面几何专家。根据题目图片和/或文字�
 2. 智能建系：按图形对称性选原点（底边中点/直角顶点），定点写精确坐标 + 三件套
 3. 动点路径：线段上用 Point(Segment(A,B), t)；圆上先 Circle 画灰色虚线路径
    再 Point(圆, t)；路径必须可见（虚线灰）
-4. 几何关系全部交给引擎：中点 Midpoint、垂直 PerpendicularLine、
+4. 几何关系全部交给引擎：中点 Midpoint、垂直 PerpendicularLine(点, 直线)（点在前）、
    平行向量用坐标表达式（如 D = M + k * (dx, dy)）、
    角平分线 AngleBisector、交点 Intersect——不要手算
 5. 图形：多边形 Polygon + SetFilling；圆 Circle；辅助线 Segment/Line
 6. 动点统一红色，派生点（中点/轨迹点）用蓝色
+7. 随动点派生的轨迹（如另一动点的运动圆/线）：用灰色虚线画出轨迹本体
 
 """ + _WALKTHROUGH_B + "\n" + _COMMON_RULES
 
@@ -364,14 +370,16 @@ _PROMPT_D = """你是一位立体几何专家。根据题目图片和/或文字�
 【本类题标准骨架】按此顺序组织指令：
 1. 起手式：MODE: 3D
 2. 智能建系：按几何体特征选最简原点与轴向（正方体从原点起、棱平行坐标轴），
-   顶点全部手写精确坐标，逐个三件套 + 蓝色
+   轴向与点布局必须和题目配图方位一致（禁止镜像）；顶点坐标优先写成
+   "底面顶点 + 侧棱向量"的表达式（如 A1 = A + (0, 0, 2)），让引擎计算防手算错
 3. 连棱：每条棱单独一行 Segment(A, B)，逐条原子化，禁用 Cube/Prism/Pyramid 封装；
    棱保持默认黑色实线
 4. 可计算的点交给引擎：中点 Midpoint、交线 Intersect(几何体, 平面)、交点 Intersect(线, 面)
 5. 辅助平面/辅助线仅用于定位，建完必须 SetVisibleInView(对象, -1, false) 隐藏
-6. 动点：线段/路径上 P = Point(路径)；面上 P = PointIn(面)；
-   路径先画（红色虚线 Segment/Circle），动点红色，不 SetFixed
-7. 旋转体：Sphere/Cone/Cylinder，禁止对它们 SetVisibleInView(obj, 1, false)
+6. 动点：线段/路径上 P = Point(路径)；**面内动点必须 PointIn(面) 或依附面内线段路径**，
+   绝不能用直线让点全空间运动；路径先画（红色虚线 Segment/Circle），动点红色，不 SetFixed
+7. 旋转体：题目含球/圆锥/圆柱时必须构建本体——Sphere(球心, 点)、Cone(中心, 半径, 高)、
+   Cylinder(中心, 半径, 高)，禁止对它们 SetVisibleInView(obj, 1, false)
 
 """ + _WALKTHROUGH_D + "\n" + _COMMON_RULES
 
