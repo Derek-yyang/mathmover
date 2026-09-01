@@ -55,7 +55,8 @@ def render_multiframe(browser_page_factory, commands, case_stem, max_frames=3):
 
     page = browser_page_factory()
     frames = []
-    numeric_check = {"driven_points": driven_points, "moved": None, "detail": ""}
+    numeric_check = {"driven_points": driven_points, "moved": None,
+                     "detail": "", "coords_by_frame": {}}
     try:
         page.goto(HTML, timeout=90000)
         page.wait_for_function("window.__ready === true", timeout=90000)
@@ -130,8 +131,8 @@ def render_multiframe(browser_page_factory, commands, case_stem, max_frames=3):
                     """([n, v]) => { window.ggbApplet.setValue(n, v); window.ggbApplet.refreshViews(); }""",
                     [sname, val],
                 )
-                if driven_points and fi >= 2 and numeric_check["moved"] is None:
-                    # 第二帧起读第一个被驱动点的坐标，验证随滑块变化
+                if driven_points and sname is not None:
+                    # 每帧都读第一个被驱动点的坐标；帧间坐标全部相同 = 死点（联动断言失败）
                     moved_check = page.evaluate(
                         """([pname, sname, val]) => {
                             const g = window.ggbApplet;
@@ -142,6 +143,7 @@ def render_multiframe(browser_page_factory, commands, case_stem, max_frames=3):
                         }""",
                         [driven_points[0], sname, val],
                     )
+                    numeric_check["coords_by_frame"][f"{sname}@{val}"] = moved_check
                     numeric_check["frame_value"] = val
                     numeric_check["coords_raw"] = moved_check
             time.sleep(1.2 if sname else 0)
@@ -173,6 +175,10 @@ def judge_with_vlm(problem_png: Path, frames: list, cfg: dict):
             + ("2. 动点是否在图中存在并随滑块取值正确移动（对比各帧中红色/蓝色动点位置的变化，"
                "注意动点可能靠近其他点或标签，仔细在滑块横坐标对应的位置寻找）；\n" if len(frames) > 1 else "")
             + "渲染样式、颜色、比例的细微差异不扣分；点被标签部分遮挡但可见不算缺失。\n"
+            "校准规则（2026-08-30 盲评校准）：\n"
+            "- 动点必须真实可动：若多帧对比中动点纹丝不动（死点），最高只能判 partial，并在 reason 注明；\n"
+            "- 点的位置脱离题设约束（如应在正方体内部/线段上，却在直线或空间中自由）= fail；\n"
+            "- 构造与数学关系正确、仅方向/镜像与配图不一致：最高判 partial，不要直接 fail。\n"
             '只返回 JSON：{"verdict": "pass|partial|fail", "reason": "50字内说明"}\n'
             "verdict 标准：pass=核心内容正确表达；partial=部分正确有明显缺漏；fail=错误或完全不符。"
         ),
@@ -251,21 +257,46 @@ def main():
                 print(f"[{i:>2}/{len(cases)}] {name}: ⚠️ 渲染失败 {err[:60]}")
                 continue
             verdict, reason = judge_with_vlm(case / "problem.png", frames, cfg)
-            # 数值联动断言：被驱动点坐标帧间应变化
-            numeric_moved = None
-            if numeric_check.get("coords_raw"):
+            # 数值联动断言（否决权）：被驱动点坐标帧间必须变化。
+            # 背景：GGB evalCommand 对属性命令成功也返回 false，静态帧看不出死点——
+            # 联动断言是"动点是否真的存在且可动"的唯一硬信号。
+            moved_coords, read_errs = [], []
+            for key, raw in numeric_check.get("coords_by_frame", {}).items():
                 try:
-                    coords = json.loads(numeric_check["coords_raw"])
-                    if "err" not in coords:
-                        numeric_moved = True
-                        numeric_check["detail"] = f"动点联动 OK（帧值 {numeric_check.get('frame_value')}）"
+                    coords = json.loads(raw)
+                    if "err" in coords:
+                        read_errs.append(key)
                     else:
-                        numeric_moved = False
-                        numeric_check["detail"] = f"读取失败: {coords['err'][:60]}"
+                        moved_coords.append((coords["x"], coords["y"]))
                 except json.JSONDecodeError:
-                    numeric_moved = False
+                    read_errs.append(key)
+            dead_point = False
+            if moved_coords:
+                unique = {(round(x, 6), round(y, 6)) for x, y in moved_coords}
+                if len(moved_coords) >= 2 and len(unique) == 1:
+                    dead_point = True
+                    numeric_check["moved"] = False
+                    numeric_check["detail"] = "联动断言失败：动点坐标帧间无变化（死点）"
+                else:
+                    numeric_check["moved"] = True
+                    numeric_check["detail"] = f"联动 OK：{len(unique)} 个不同位置"
+            elif read_errs:
+                numeric_check["moved"] = False
+                numeric_check["detail"] = f"坐标读取失败: {read_errs[:2]}"
+
+            # 联动否决权：滑块题动点为死点时，VLM 的 pass 降级为 partial
+            if dead_point and verdict == "pass":
+                verdict = "partial"
+                reason = "[联动否决:动点未随滑块移动] " + reason
             # L2 对照
             l2 = evaluate_properties(case, cand)
+            # 结构化否决权 2：L2 判定"题意要求动点但候选无滑块驱动的动点"
+            # （moving_point 谓词失败）时，VLM 的 pass 降级 partial——
+            # 覆盖联动断言的盲区：模型根本没绑滑块时无滑块可设值，帧检测测不到
+            l2_failed_types = [f["type"] for f in l2.get("failed", [])]
+            if "moving_point" in l2_failed_types and verdict == "pass":
+                verdict = "partial"
+                reason = "[结构否决:应有动点但无可拖动结构] " + reason
             agreement = "一致" if (l2["pass"] and verdict == "pass") or \
                                  (not l2["pass"] and verdict in ("fail", "render_error")) else "❌不一致"
             keep = args.show or verdict in ("fail", "partial", "error") or agreement.startswith("❌")
@@ -281,7 +312,8 @@ def main():
                 "l2_failed": [f["type"] for f in l2.get("failed", [])],
                 "agreement": agreement,
             })
-            moved_note = f" | 数值联动: {'✓' if numeric_moved else ('✗' if numeric_moved is False else '—')}"
+            moved = numeric_check.get("moved")
+            moved_note = f" | 数值联动: {'✓' if moved else ('✗ 死点' if moved is False else '—')}"
             print(f"[{i:>2}/{len(cases)}] {name}: L3={verdict} | L2={'PASS' if l2['pass'] else 'FAIL'} "
                   f"| {agreement}{moved_note} | {reason[:50]}")
         browser.close()
