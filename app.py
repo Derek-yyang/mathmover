@@ -50,14 +50,14 @@ def get_cors_origins() -> list[str]:
 CORS(app, origins=get_cors_origins())
 
 MAX_REMOTE_IMAGE_BYTES = 5 * 1024 * 1024
-MODEL_TIMEOUT_SECONDS = int(os.getenv('MODEL_TIMEOUT_SECONDS', '75'))
 DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
+DEFAULT_MODEL_TIMEOUT = int(os.getenv('MODEL_TIMEOUT_SECONDS', '75'))
 
 # --- 本地模型配置层（去 SaaS 化）---
 # 运行时模型配置存于本地 config.json（可经 /api/config 修改），替代原 Supabase profiles。
 # 优先级：config.json > .env SYSTEM_* > Gemini 默认。
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
-CONFIG_KEYS = ('provider', 'base_url', 'api_key', 'model_name')
+CONFIG_KEYS = ('provider', 'base_url', 'api_key', 'model_name', 'timeout_seconds')
 
 
 def load_local_model_config() -> dict:
@@ -66,11 +66,18 @@ def load_local_model_config() -> dict:
             raw = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         raw = {}
-    return {k: (raw.get(k) or '').strip() for k in CONFIG_KEYS}
+    out = {}
+    for k in CONFIG_KEYS:
+        v = raw.get(k)
+        out[k] = str(v).strip() if v is not None else ''
+    return out
 
 
 def save_local_model_config(cfg: dict) -> dict:
-    clean = {k: (cfg.get(k) or '').strip() for k in CONFIG_KEYS}
+    clean = {}
+    for k in CONFIG_KEYS:
+        v = cfg.get(k)
+        clean[k] = str(v).strip() if v is not None else '' 
     with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
         json.dump(clean, f, ensure_ascii=False, indent=2)
     return clean
@@ -78,6 +85,7 @@ def save_local_model_config(cfg: dict) -> dict:
 
 def apply_env_defaults(cfg: dict) -> dict:
     """config.json 缺项时回落到 .env SYSTEM_* / Gemini。"""
+    cfg['timeout_seconds'] = cfg.get('timeout_seconds') or str(DEFAULT_MODEL_TIMEOUT)
     if not cfg.get('provider'):
         env_provider = (os.getenv('SYSTEM_MODEL_PROVIDER') or '').strip().lower()
         cfg['provider'] = 'openai_compatible' if env_provider in ('openai', 'openai_compatible', 'openai-compatible') else 'gemini'
@@ -144,7 +152,7 @@ class ModelAdapter:
         raise NotImplementedError
 
 class GeminiAdapter(ModelAdapter):
-    def __init__(self, api_key=None, model_name=DEFAULT_GEMINI_MODEL):
+    def __init__(self, api_key=None, model_name=DEFAULT_GEMINI_MODEL, timeout_seconds=None):
         api_key = (api_key or '').strip()
         model_name = (model_name or DEFAULT_GEMINI_MODEL).strip()
         if not api_key:
@@ -152,7 +160,7 @@ class GeminiAdapter(ModelAdapter):
 
         self.client = genai.Client(
             api_key=api_key,
-            http_options=types.HttpOptions(timeout=MODEL_TIMEOUT_SECONDS * 1000),
+            http_options=types.HttpOptions(timeout=int(timeout_seconds or MODEL_TIMEOUT_SECONDS) * 1000),
         )
         self.model_name = model_name
 
@@ -178,14 +186,14 @@ class GeminiAdapter(ModelAdapter):
         return (text or "").strip()
 
 class OpenAICompatibleAdapter(ModelAdapter):
-    def __init__(self, api_key, base_url, model_name):
+    def __init__(self, api_key, base_url, model_name, timeout_seconds=None):
         api_key = (api_key or '').strip()
         base_url = (base_url or '').strip().rstrip('/')
         model_name = (model_name or '').strip()
         self.client = openai.OpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=MODEL_TIMEOUT_SECONDS,
+            timeout=int(timeout_seconds or MODEL_TIMEOUT_SECONDS),
         )
         # By default we do NOT cross-switch DashScope regions for BYOK.
         # A key can be region-scoped; automatic cross-region fallback can
@@ -308,13 +316,13 @@ class ModelFactory:
             if not (api_key and base_url and model_name):
                 raise ValueError('模型配置不完整：请在设置中填写 API Key、Base URL 和模型名称')
             validate_custom_base_url(base_url)
-            print(f"DEBUG: Using model {model_name} @ {base_url}")
-            return OpenAICompatibleAdapter(api_key, base_url, model_name)
+            print(f"DEBUG: Using model {model_name} @ {base_url} (timeout {cfg.get('timeout_seconds')}s)")
+            return OpenAICompatibleAdapter(api_key, base_url, model_name, cfg.get('timeout_seconds'))
 
         if not api_key:
             raise ValueError('缺少 GOOGLE_API_KEY：请在设置中填写 API Key 或切换到 OpenAI 兼容端点')
         print(f"DEBUG: Using Gemini model {model_name or DEFAULT_GEMINI_MODEL}")
-        return GeminiAdapter(api_key=api_key)
+        return GeminiAdapter(api_key=api_key, timeout_seconds=cfg.get('timeout_seconds'))
 
 # --- Routes ---
 
