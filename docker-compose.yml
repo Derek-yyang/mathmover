@@ -2,24 +2,23 @@ version: '3.8'
 
 services:
   # 后端服务 (Python Flask)
+  # 模型配置来自根目录 config.json（随代码 COPY 进镜像，或用 volumes 挂载热更新）
   backend:
     build: .
     restart: always
     expose:
       - "5000"
     volumes:
-      - ./.env:/app/.env
+      - ./config.json:/app/config.json
 
   # 前端服务 (Next.js)
   frontend:
-    build: 
+    build:
       context: ./math-mover-next
       dockerfile: Dockerfile
     restart: always
     expose:
       - "3000"
-    env_file:
-      - ./math-mover-next/.env.local
     environment:
       - BACKEND_INTERNAL_URL=http://backend:5000
     depends_on:
