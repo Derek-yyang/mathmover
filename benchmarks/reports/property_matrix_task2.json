@@ -9,18 +9,18 @@
     "cases": 25,
     "pass": 21,
     "pass_rate": 0.84,
-    "property_hit": 0.965
+    "property_hit": 0.97
   },
   "qwen3.8+旧prompt修补": {
     "cases": 25,
-    "pass": 18,
-    "pass_rate": 0.72,
-    "property_hit": 0.9394
+    "pass": 21,
+    "pass_rate": 0.84,
+    "property_hit": 0.9747
   },
   "qwen3.8+新范例prompt(task2)": {
     "cases": 26,
-    "pass": 19,
-    "pass_rate": 0.7308,
-    "property_hit": 0.9275
+    "pass": 21,
+    "pass_rate": 0.8077,
+    "property_hit": 0.9662
   }
 }

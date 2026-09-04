@@ -395,6 +395,8 @@ def _eval_geo_expr(expr: str, objects: dict, funcs: dict, env: dict):
             if any(a is None for a in args):
                 return None
             if fname in MATH_FUNCS:
+                if any(isinstance(a, list) for a in args):
+                    return None  # 数学函数不接收向量参数
                 import math as _math
                 return float(getattr(_math, MATH_FUNCS[fname])(*args))
             if fname in MATH_CONSTS:
