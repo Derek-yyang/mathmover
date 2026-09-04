@@ -1,26 +1,26 @@
 {
   "Gemini+旧prompt": {
     "cases": 26,
-    "pass": 21,
-    "pass_rate": 0.8077,
-    "property_hit": 0.942
+    "pass": 23,
+    "pass_rate": 0.8846,
+    "property_hit": 0.9855
   },
   "qwen3.5+旧prompt": {
     "cases": 25,
-    "pass": 16,
-    "pass_rate": 0.64,
-    "property_hit": 0.87
+    "pass": 21,
+    "pass_rate": 0.84,
+    "property_hit": 0.965
   },
   "qwen3.8+旧prompt修补": {
     "cases": 25,
-    "pass": 13,
-    "pass_rate": 0.52,
-    "property_hit": 0.8384
+    "pass": 18,
+    "pass_rate": 0.72,
+    "property_hit": 0.9394
   },
   "qwen3.8+新范例prompt(task2)": {
     "cases": 26,
-    "pass": 15,
-    "pass_rate": 0.5769,
-    "property_hit": 0.8357
+    "pass": 19,
+    "pass_rate": 0.7308,
+    "property_hit": 0.9275
   }
 }

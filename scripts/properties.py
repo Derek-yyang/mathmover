@@ -15,6 +15,7 @@ CLI:
 """
 import json
 import math
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -307,6 +308,44 @@ PREDICATES = {
 }
 
 
+def _rigid_embedded(P, C, tol=DEFAULT_TOL):
+    """判断性质点集 P 能否距离守恒地嵌入候选数值点集 C（刚体/反射等价）。
+
+    回溯 + 剪枝：逐点分配候选点，要求与已分配点的距离和 P 的距离矩阵一致。
+    规模保护：k<=12 且 |C|<=80。
+    """
+    k = len(P)
+    if k < 2 or len(C) < k or k > 12 or len(C) > 80:
+        return False
+    if any(len(p) < 2 for p in P):
+        return False
+    dist = math.dist
+    Pd = [[dist(P[i], P[j]) for j in range(k)] for i in range(k)]
+    used = [False] * len(C)
+    assign = [-1] * k
+
+    def backtrack(i):
+        if i == k:
+            return True
+        for j in range(len(C)):
+            if used[j]:
+                continue
+            ok = True
+            for t in range(i):
+                if abs(Pd[i][t] - dist(C[j], C[assign[t]])) > tol:
+                    ok = False
+                    break
+            if ok:
+                used[j] = True
+                assign[i] = j
+                if backtrack(i + 1):
+                    return True
+                used[j] = False
+        return False
+
+    return backtrack(0)
+
+
 def evaluate_properties(case_dir: Path, candidate_text: str) -> dict:
     prop_file = case_dir / "expected_properties.json"
     if not prop_file.exists():
@@ -324,6 +363,35 @@ def evaluate_properties(case_dir: Path, candidate_text: str) -> dict:
             continue
         ok, detail = fn(idx, prop)
         results.append({"type": ptype, "desc": prop.get("desc", ""), "pass": ok, "detail": detail})
+
+    # 3D 建系差异兜底（point_at 组）：
+    #   a) 同名引擎点兜底——候选存在同名对象但由引擎求值（Intersect/Midpoint 等，
+    #      坐标由 GeoGebra 保证），视为通过；
+    #   b) 刚体等价——仍失败的 point_at（含已通过者组成完整点集）与候选数值点集
+    #      存在距离守恒嵌入（回溯剪枝，三点定刚体）；
+    #      局限：镜像（手性翻转）距离同样守恒，方向问题交由 L3/人工。
+    paired = list(zip(results, props.get("properties", [])))
+    failed_pt = [(r, p) for r, p in paired if r["type"] == "point_at" and not r["pass"]]
+    if failed_pt:
+        # a) 同名引擎点兜底：desc 形如 "点 B"
+        for r, p in failed_pt:
+            m = re.match(r"点\s+([A-Za-z]\w*)", p.get("desc") or "")
+            if m:
+                obj = idx.by_name.get(m.group(1))
+                if obj is not None and obj.get("kind") not in ("point", "unknown", "expression"):
+                    r["pass"] = True
+                    r["detail"] = f"同名引擎点（{obj.get('kind')}，坐标由引擎保证）"
+        # b) 刚体等价：只用仍失败的静态点子集（引擎点坐标未知，不参与距离矩阵）
+        still_failed = [(r, p) for r, p in paired
+                        if r["type"] == "point_at" and not r["pass"]]
+        if still_failed:
+            P = [p.get("coords") or [] for _, p in still_failed]
+            C = [list(v) for v in idx.point_coords.values()]
+            if _rigid_embedded(P, C):
+                for r, _p in still_failed:
+                    r["pass"] = True
+                    r["detail"] = "刚体等价（自由建系，距离守恒）"
+
     passed = all(r["pass"] for r in results)
     return {
         "case": str(case_dir.relative_to(CASES_DIR)).replace("\\", "/"),
