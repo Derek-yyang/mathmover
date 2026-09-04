@@ -379,7 +379,8 @@ _PROMPT_D = """你是一位立体几何专家。根据题目图片和/或文字�
 6. 动点：线段/路径上 P = Point(路径)；**面内动点必须 PointIn(面) 或依附面内线段路径**，
    绝不能用直线让点全空间运动；路径先画（红色虚线 Segment/Circle），动点红色，不 SetFixed
 7. 旋转体：题目含球/圆锥/圆柱时必须构建本体——Sphere(球心, 点)、Cone(中心, 半径, 高)、
-   Cylinder(中心, 半径, 高)，禁止对它们 SetVisibleInView(obj, 1, false)
+   Cylinder(中心, 半径, 高)，禁止对它们 SetVisibleInView(obj, 1, false)；
+   球心等定位点由几何条件用 Midpoint/Intersect 引擎求出并建成对象（不能省略）
 
 """ + _WALKTHROUGH_D + "\n" + _COMMON_RULES
 

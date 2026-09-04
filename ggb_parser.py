@@ -206,15 +206,34 @@ def clean_lines(text: str):
     return mode, cmds
 
 
-ARITH_RE = re.compile(r"^[\d\s+\-*/().]+$")
+ARITH_RE = re.compile(r"^[\d\s+\-*/().%^]+$")
+# 数学函数/常量白名单（sqrt(3) 等精确表达式坐标）
+MATH_FUNCS = {"sin": "sin", "cos": "cos", "tan": "tan", "sqrt": "sqrt",
+              "exp": "exp", "log": "log10", "ln": "log"}
+MATH_CONSTS = {"pi": 3.141592653589793, "e": 2.718281828459045}
+EXPR_IDENT_RE = re.compile(r"[A-Za-z_]\w*")
 
 
 def safe_arith(s: str):
-    """纯数值四则运算求值（如 (0+1)/2），含字母则放弃。"""
-    if not ARITH_RE.match(s):
+    """数值表达式求值：四则运算 + 数学函数/常量（如 2*sqrt(3)、pi/2）。
+
+    标识符必须全部命中白名单（函数/常量），出现未知变量则返回 None。
+    支持 ^ 幂与隐式乘号（2sqrt(3)）。
+    """
+    s = (s or "").strip()
+    if not s:
         return None
+    s = s.replace("^", "**")
+    s = re.sub(r"(?<=[0-9)])\s*(?=[A-Za-z(])", "*", s)
+    idents = {i.lower() for i in EXPR_IDENT_RE.findall(s)}
+    if idents and not idents <= (set(MATH_FUNCS) | set(MATH_CONSTS)):
+        return None  # 含未知变量（如 x、t），交由调用方处理
+    import math as _math
+    env = {n: getattr(_math, attr) for n, attr in MATH_FUNCS.items()}
+    env.update(MATH_CONSTS)
+    env["abs"] = abs
     try:
-        return float(eval(s, {"__builtins__": {}}, {}))  # noqa: S307 输入已经白名单过滤
+        return float(eval(s, {"__builtins__": {}}, env))  # noqa: S307 标识符已白名单
     except Exception:
         return None
 
