@@ -151,7 +151,7 @@ def parse_rhs(rhs: str) -> dict:
             return {"kind": "point", "coords": raw, "numeric": numeric,
                     "raw": norm(rhs_s)}
         if head == "slider" and len(args) >= 2:
-            nums = [try_float(a) for a in args[:3]]
+            nums = [try_float(a) if try_float(a) is not None else safe_arith(a) for a in args[:3]]
             return {"kind": "slider", "args": [norm(a) for a in args],
                     "numeric": nums if all(n is not None for n in nums[:2]) else None,
                     "raw": norm(rhs_s)}
@@ -245,6 +245,180 @@ def _num_or_none(v: str):
         return None
 
 
+
+# ---------- AST 安全求值器（向量/函数/引擎零点） ----------
+
+def _eval_with_x(expr: str, x: float):
+    """带变量 x 的数学表达式求值（白名单函数，支持 ^ 与隐式乘号）。"""
+    s = (expr or "").strip()
+    if not s:
+        return None
+    s = s.replace("^", "**")
+    s = re.sub(r"(?<=[0-9)])\s*(?=[A-Za-z(])", "*", s)
+    idents = {i.lower() for i in EXPR_IDENT_RE.findall(s)}
+    known = set(MATH_FUNCS) | set(MATH_CONSTS) | {"x"}
+    if idents and not idents <= known:
+        return None
+    import math as _math
+    env = {n: getattr(_math, attr) for n, attr in MATH_FUNCS.items()}
+    env.update(MATH_CONSTS)
+    env["x"] = x
+    env["abs"] = abs
+    try:
+        return float(eval(s, {"__builtins__": {}}, env))  # noqa: S307 标识符已白名单
+    except Exception:
+        return None
+
+
+def _root_of(expr: str, a: float, b: float):
+    """GGB Root(f, a, b) 语义：区间 [a,b] 内第一个零点（网格扫描 + 二分）。"""
+    N = 200
+    prev_x, prev_v = a, _eval_with_x(expr, a)
+    if prev_v is None:
+        return None
+    if abs(prev_v) < 1e-9:
+        return a  # 区间端点恰为零点
+    for i in range(1, N + 1):
+        x = a + (b - a) * i / N
+        v = _eval_with_x(expr, x)
+        if v == 0:
+            return x  # 网格点恰为零点
+        if v is not None and prev_v * v < 0:
+            lo, hi = prev_x, x
+            flo = prev_v
+            for _ in range(60):
+                mid = (lo + hi) / 2
+                vm = _eval_with_x(expr, mid)
+                if vm is None:
+                    break
+                if flo * vm < 0:
+                    hi = mid
+                else:
+                    lo, flo = mid, vm
+            return (lo + hi) / 2
+        if v is not None:
+            prev_x, prev_v = x, v
+    return None
+
+
+def _eval_geo_expr(expr: str, objects: dict, funcs: dict, env: dict):
+    """AST 安全求值：标量/向量（元组）混合运算、函数代入、引擎零点 Root。
+
+    返回数值（标量）或 list（向量），失败返回 None。
+    """
+    import ast as _ast
+    try:
+        tree = _ast.parse(expr.replace("^", "**"), mode="eval")
+    except SyntaxError:
+        return None
+
+    def ev(node):
+        if isinstance(node, _ast.Expression):
+            return ev(node.body)
+        if isinstance(node, _ast.Constant):
+            return node.value
+        if isinstance(node, _ast.BinOp):
+            l = ev(node.left)
+            r = ev(node.right)
+            if l is None or r is None:
+                return None
+            lv = l if isinstance(l, list) else [l]
+            rv = r if isinstance(r, list) else [r]
+            if isinstance(node.op, _ast.Add):
+                if len(lv) == len(rv):
+                    return [a + b for a, b in zip(lv, rv)]
+                if len(rv) == 1:
+                    return [a + rv[0] for a in lv]
+                if len(lv) == 1:
+                    return [lv[0] + b for b in rv]
+                return None
+            if isinstance(node.op, _ast.Sub):
+                if len(lv) == len(rv):
+                    return [a - b for a, b in zip(lv, rv)]
+                if len(rv) == 1:
+                    return [a - rv[0] for a in lv]
+                return None
+            if isinstance(node.op, _ast.Mult):
+                if len(lv) == 1:
+                    return [lv[0] * b for b in rv]
+                if len(rv) == 1:
+                    return [a * rv[0] for a in lv]
+                return None
+            if isinstance(node.op, _ast.Div):
+                if len(rv) == 1 and rv[0] != 0:
+                    return [a / rv[0] for a in lv]
+                return None
+            if isinstance(node.op, _ast.Pow):
+                if len(lv) == 1 and len(rv) == 1:
+                    return [lv[0] ** rv[0]]
+                return None
+            return None
+        if isinstance(node, _ast.UnaryOp):
+            v = ev(node.operand)
+            if v is None:
+                return None
+            if isinstance(node.op, _ast.USub):
+                return [-x for x in v] if isinstance(v, list) else -v
+            return v
+        if isinstance(node, _ast.Tuple):
+            vals = [ev(e) for e in node.elts]
+            if any(v is None for v in vals):
+                return None
+            flat = []
+            for v in vals:
+                flat.extend(v if isinstance(v, list) else [v])
+            return flat
+        if isinstance(node, _ast.Name):
+            n = node.id
+            nl = n.lower()
+            obj = next((objects[k] for k in objects if k.lower() == nl), None)
+            if obj is not None:
+                if obj.get("numeric"):
+                    return list(obj["numeric"]) if len(obj["numeric"]) > 1 else obj["numeric"][0]
+                if "numeric_scalar" in obj:
+                    return obj["numeric_scalar"]
+                return None
+            if nl in env:
+                return env[nl]
+            return None
+        if isinstance(node, _ast.Call):
+            fname = node.func.id.lower() if isinstance(node.func, _ast.Name) else ""
+            if fname == "root" and len(node.args) >= 3 and isinstance(node.args[0], _ast.Name):
+                # Root(f, a, b)：首参是函数名（非值），须在求值 args 前特判
+                fobj = funcs.get(node.args[0].id.lower())
+                a = ev(node.args[1])
+                b = ev(node.args[2])
+                if fobj and fobj.get("expr") is not None and a is not None and b is not None:
+                    return _root_of(fobj["expr"], a, b)
+                return None
+            args = [ev(a) for a in node.args]
+            if any(a is None for a in args):
+                return None
+            if fname in MATH_FUNCS:
+                import math as _math
+                return float(getattr(_math, MATH_FUNCS[fname])(*args))
+            if fname in MATH_CONSTS:
+                return MATH_CONSTS[fname]
+            if fname == "root" and len(args) >= 3:
+                # Root(f, a, b)：args[0] 是函数名（Name 节点求值为 None，需特殊取）
+                if isinstance(node.args[0], _ast.Name):
+                    fobj = funcs.get(node.args[0].id.lower())
+                    if fobj and fobj.get("expr") is not None:
+                        root = _root_of(fobj["expr"], args[1], args[2])
+                        return root
+                return None
+            if fname in funcs and len(args) == 1:
+                fobj = funcs[fname]
+                return _eval_with_x(fobj["expr"], args[0])
+            return None
+        return None
+
+    return ev(tree.body)
+
+
+
+
+
 def resolve_numeric_env(objects: dict):
     """数值常量传播：x_f = -0.4 之类的标量定义进 env，供坐标引用解析。"""
     env = {}
@@ -284,6 +458,20 @@ def resolve_point_coords(objects: dict):
     env = resolve_numeric_env(objects)
     funcs = {n: o for n, o in objects.items()
              if o["kind"] == "function" and o.get("expr") is not None and o.get("param")}
+    # AST 求值：向量表达式 ((A+C)/2、B+D-A)、函数代入 (f(0)、g(4))、引擎零点 (Root(f,a,b))
+    for _ in range(2):
+        for o in objects.values():
+            if o.get("kind") == "expression" and not o.get("numeric") and o.get("expr"):
+                v = _eval_geo_expr(o["expr"], objects, funcs, env)
+                if isinstance(v, list) and len(v) >= 2 and all(isinstance(t, (int, float)) for t in v):
+                    o["kind"] = "point"
+                    o["numeric"] = [round(t, 9) for t in v]
+                elif isinstance(v, (int, float)):
+                    o["numeric_scalar"] = v
+                    o["numeric"] = [v]
+                    for n2, o2 in objects.items():
+                        if o2 is o:
+                            env[n2] = v
     # 两轮迭代：标量表达式可引用更早的表达式（y_f = -0.6 * x_f + 1.8）
     for _ in range(2):
         for o in objects.values():
@@ -339,6 +527,8 @@ def resolve_point_coords(objects: dict):
                 if m and m.group(1) in funcs:
                     f = funcs[m.group(1)]
                     c = _subst_param(f["expr"], f["param"], m.group(2))
+            if v is None:
+                v = _eval_geo_expr(c, objects, funcs, env)
             resolved.append(v if v is not None else c)
         if resolved:
             nums = [v for v in resolved if isinstance(v, float)]
