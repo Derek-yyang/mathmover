@@ -1,5 +1,18 @@
 [
-  {"name": "qwen38-flash", "provider": "dashscope",
-   "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-   "api_key": "FILL_ME", "model_name": "qwen3.8-flash", "timeout_seconds": 240}
+  {"name": "kimi-k3", "provider": "opencode-zen",
+   "base_url": "https://opencode.ai/zen/go/v1",
+   "api_key": "sk-uJRYRb61clK6egqOscNfB03nQmFsJ8UFdINtbdNy6Lkewec7KofRf0CiSofL5dMF",
+   "model_name": "kimi-k3", "timeout_seconds": 240},
+  {"name": "deepseek-v4-vision", "provider": "opencode-zen",
+   "base_url": "https://opencode.ai/zen/go/v1",
+   "api_key": "sk-uJRYRb61clK6egqOscNfB03nQmFsJ8UFdINtbdNy6Lkewec7KofRf0CiSofL5dMF",
+   "model_name": "deepseek-v4-flash-vision-exp", "timeout_seconds": 240},
+  {"name": "minimax-m3", "provider": "opencode-zen",
+   "base_url": "https://opencode.ai/zen/go/v1",
+   "api_key": "sk-uJRYRb61clK6egqOscNfB03nQmFsJ8UFdINtbdNy6Lkewec7KofRf0CiSofL5dMF",
+   "model_name": "minimax-m3", "timeout_seconds": 300},
+  {"name": "qwen38-max", "provider": "opencode-zen",
+   "base_url": "https://opencode.ai/zen/go/v1",
+   "api_key": "sk-uJRYRb61clK6egqOscNfB03nQmFsJ8UFdINtbdNy6Lkewec7KofRf0CiSofL5dMF",
+   "model_name": "qwen3.8-max", "timeout_seconds": 300}
 ]
