@@ -31,20 +31,31 @@
 3. **minimax-m3 首例质量良好**：A-二次函数1 满分 11/11（think 清理后判），具备继续验收价值。
 4. **验证闭环全绿**：deepseek/minimax 两轮跑批 unknown_commands 遥测为空，P0 校验层稳定。
 
-## 阻塞项：生成通道全部欠费（2026-09-05 确认）
+## 阻塞项：生成通道欠费/故障（2026-09-05 晚逐一探测确认）
 
-| 通道 | 状态 |
-|---|---|
-| opencode zen（旧 key） | ❌ CreditsError 余额耗尽，qwen3.8 三轮即经此通道 |
-| api.b.ai（新 key `sk-2gvw...ptx`） | ⚠️ key 有效，但 403「Deposit required to unlock premium models」 |
+新供应商 api.b.ai（key `sk-2gvw...ptx` 有效）全模型探测结果：
 
-api.b.ai 登记的可用模型：deepseek-v4-vision / glm-5.3-flash / minimax-m3 / hy-3 / mimo-2.5
-（后三个为待评估候选，评估同样依赖充值后通道）。
+| 模型（分销商真实 ID） | 文本 | 视觉 | 判定 |
+|---|---|---|---|
+| **glm-5.3-flash** | ✅ 200 | ✅ 200（166KB 原图直读） | **当前唯一全可用 → 已挂生产 config.json，单题探针 PASS 11/11，初筛启动** |
+| minimax-m3 | ❌ 403 | — | **充值墙**「Deposit required to unlock premium models」，补跑阻塞 |
+| deepseek-v4-flash-vision-exp（= 用户所称 deepseek-v4-vision） | ❌ 502 | — | 分销商上游故障，r2/r3 补轮前重试 |
+| qwen3.8-flash | ✅ 200 | ❌ 502（小图也挂） | 视觉路由坏，本管线（传图）不可用 |
+| qwen3.8-max / deepseek-v4-flash / mimo-v2.5(-pro) | ❌ 502 | — | 上游故障 |
+| hy3 / hy4-preview | ✅ 200 / ❌ 400 | ❌ 502 | hy3 视觉坏；hy4 需内部余额 |
+| kimi-k3 / kimi-k2.6 / glm-5.3 | ❌ 403 | — | 同一充值墙 |
 
-## 待办（通道恢复后按序执行）
+注意：用户提供的模型名与分销商实际 ID 有偏差（hy-3→`hy3`、mimo-2.5→`mimo-v2.5`、
+deepseek-v4-vision→`deepseek-v4-flash-vision-exp`），登记清单已按真实 ID 修正。
 
-1. 补跑 minimax-m3 全 26 题：`acceptance_run.py --rounds 1`（清单内仅登记 minimax）或
-   `.venv/Scripts/python.exe scripts/bench_run.py --label acc_minimax-m3_r1 --fresh --skip-channel-check`
-2. 评估 glm-5.3-flash / hy-3 / mimo-2.5（小请求探测 → 视觉能力初筛 → 决定是否入验收清单）
-3. deepseek-v4-vision 补满 3 轮；过线模型统一补 L3 视觉判官
-4. 产出最终三模型验收结论，更新本报告与路线图
+旧通道 opencode zen（qwen3.8 三轮即经此跑出）：CreditsError 余额耗尽。
+qwen3.8-flash 的 DashScope 直连 key 随 `.env` 丢失，无法恢复原生产配置——
+生产已改挂 glm-5.3-flash（全可用模型中验收数据最优候选）。
+
+## 待办（按序执行）
+
+1. **glm-5.3-flash 初筛**（跑批中）：26 题 × 1 轮，报告入 `acceptance_<时间>/`
+2. **minimax-m3 补跑 25 题**：阻塞于充值墙——用户充值 api.b.ai 或另提供通道后执行
+   （`.venv/Scripts/python.exe scripts/bench_run.py --label acc_minimax-m3_r1 --fresh --skip-channel-check`）
+3. deepseek-v4-flash-vision-exp 502 重试；恢复后补 r2/r3
+4. 过线模型统一补 L3 视觉判官；产出最终三模型验收结论，更新本报告与路线图
