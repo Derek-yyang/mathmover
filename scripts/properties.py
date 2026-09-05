@@ -352,6 +352,10 @@ def evaluate_properties(case_dir: Path, candidate_text: str) -> dict:
         return {"case": str(case_dir.relative_to(CASES_DIR)).replace("\\", "/"),
                 "skip": True, "pass": True, "results": []}
     props = json.loads(prop_file.read_text(encoding="utf-8"))
+    if props.get("skip"):
+        return {"case": str(case_dir.relative_to(CASES_DIR)).replace("\\", "/"),
+                "skip": True, "pass": True, "skip_reason": props.get("skip_reason", ""),
+                "results": []}
     ir = parse_commands(candidate_text)
     idx = CandidateIndex(ir)
     results = []

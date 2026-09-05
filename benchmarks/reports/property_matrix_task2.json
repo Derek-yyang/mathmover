@@ -1,26 +1,38 @@
 {
   "Gemini+旧prompt": {
-    "cases": 26,
+    "cases": 25,
     "pass": 23,
-    "pass_rate": 0.8846,
-    "property_hit": 0.9855
+    "pass_rate": 0.92,
+    "property_hit": 0.9898
   },
   "qwen3.5+旧prompt": {
-    "cases": 25,
-    "pass": 21,
-    "pass_rate": 0.84,
-    "property_hit": 0.97
+    "cases": 24,
+    "pass": 20,
+    "pass_rate": 0.8333,
+    "property_hit": 0.9737
   },
   "qwen3.8+旧prompt修补": {
     "cases": 25,
-    "pass": 21,
-    "pass_rate": 0.84,
-    "property_hit": 0.9747
+    "pass": 22,
+    "pass_rate": 0.88,
+    "property_hit": 0.9797
   },
-  "qwen3.8+新范例prompt(task2)": {
-    "cases": 26,
-    "pass": 21,
-    "pass_rate": 0.8077,
-    "property_hit": 0.9662
+  "qwen3.8+新范例prompt": {
+    "cases": 25,
+    "pass": 22,
+    "pass_rate": 0.88,
+    "property_hit": 0.9848
+  },
+  "qwen3.8+新范例 r2": {
+    "cases": 25,
+    "pass": 23,
+    "pass_rate": 0.92,
+    "property_hit": 0.9898
+  },
+  "qwen3.8+新范例 r3": {
+    "cases": 25,
+    "pass": 24,
+    "pass_rate": 0.96,
+    "property_hit": 0.9949
   }
 }
