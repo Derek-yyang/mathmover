@@ -1,4 +1,7 @@
-# 正式验收对比报告（三模型）— 2026-09-05
+# 正式验收对比报告（五模型）— 2026-09-05
+
+> **验收名单（用户拍板 2026-09-05 晚）**：glm-5.3-flash、qwen3.8-flash、hy3、deepseek-v4-flash-vision-exp、mimo-v2.5。
+> minimax-m3 移出名单。登记见 `benchmarks/acceptance_models.json`（含分销商真实模型 ID）。
 
 ## 验收口径（用户已拍板，见 PIPELINE_ROADMAP.md）
 
@@ -11,9 +14,11 @@
 
 | 模型 | r1 | r2 | r3 | 性质命中 | 状态 |
 |---|---|---|---|---|---|
-| **qwen3.8-flash**（新范例 prompt） | **88%** (22/25) | **92%** (23/25) | **96%** (24/25) | 98.5~99.5% | ✅ L2 三轮完成，L3 待补 |
-| **deepseek-v4-vision** | **88%** (22/25) | 待补 | 待补 | 97.5% | 🟡 r1 完成，通道欠费中断 |
-| **minimax-m3** | 1/26 后中断 | — | — | —（首例 11/11 全过） | 🔴 阻塞：通道欠费 |
+| **qwen3.8-flash**（新范例 prompt） | **88%** (22/25) | **92%** (23/25) | **96%** (24/25) | 98.5~99.5% | ✅ L2 三轮完成（opencode 通道，数据复用），L3 待补 |
+| **deepseek-v4-vision** | **88%** (22/25) | 待补 | 待补 | 97.5% | 🟡 r1 完成；新通道余额=0，补轮阻塞 |
+| **glm-5.3-flash** | 跑批中 | — | — | —（探针 11/11） | 🟢 初筛进行中 |
+| **hy3** | 待跑 | — | — | — | 🟢 通道已恢复（文本+视觉 200），排队中 |
+| **mimo-2.5** | — | — | — | — | 🔴 视觉无可用渠道（503），变体 mimo-v2.5-pro 零余额墙 |
 
 数据来源：
 - qwen 三轮：`property_matrix_task2.json`（清单校准后重算，commit `bb8c9ff`）
@@ -28,34 +33,37 @@
    - `C-抛物线2`：conic_exists（圆锥曲线未建成）
    - `C-椭圆4`：point_at / slider_range / moving_point（定点+动点体系缺失）
    - `D-球1`：no_text（残留文字对象）
-3. **minimax-m3 首例质量良好**：A-二次函数1 满分 11/11（think 清理后判），具备继续验收价值。
+3. **glm-5.3-flash 探针良好**：A-二次函数1 满分 11/11（端到端含 P0 校验），具备验收价值。
+   （历史记录：minimax-m3 中断前首例亦 11/11，后按用户决定移出名单）
 4. **验证闭环全绿**：deepseek/minimax 两轮跑批 unknown_commands 遥测为空，P0 校验层稳定。
 
-## 阻塞项：生成通道欠费/故障（2026-09-05 晚逐一探测确认）
+## 阻塞项：生成通道（2026-09-05 晚两轮探测，通道状态是动态的）
 
-新供应商 api.b.ai（key `sk-2gvw...ptx` 有效）全模型探测结果：
+新供应商 api.b.ai（key `sk-2gvw...ptx` 有效）五模型最终状态：
 
 | 模型（分销商真实 ID） | 文本 | 视觉 | 判定 |
 |---|---|---|---|
-| **glm-5.3-flash** | ✅ 200 | ✅ 200（166KB 原图直读） | **当前唯一全可用 → 已挂生产 config.json，单题探针 PASS 11/11，初筛启动** |
-| minimax-m3 | ❌ 403 | — | **充值墙**「Deposit required to unlock premium models」，补跑阻塞 |
-| deepseek-v4-flash-vision-exp（= 用户所称 deepseek-v4-vision） | ❌ 502 | — | 分销商上游故障，r2/r3 补轮前重试 |
-| qwen3.8-flash | ✅ 200 | ❌ 502（小图也挂） | 视觉路由坏，本管线（传图）不可用 |
-| qwen3.8-max / deepseek-v4-flash / mimo-v2.5(-pro) | ❌ 502 | — | 上游故障 |
-| hy3 / hy4-preview | ✅ 200 / ❌ 400 | ❌ 502 | hy3 视觉坏；hy4 需内部余额 |
-| kimi-k3 / kimi-k2.6 / glm-5.3 | ❌ 403 | — | 同一充值墙 |
+| **glm-5.3-flash** | ✅ | ✅（166KB 原图直读） | **全可用 → 已挂生产 config.json，初筛跑批中** |
+| **qwen3.8-flash** | ✅ | ✅（首轮 502，二轮恢复） | **全可用**；三轮验收数据已存在（复用），生产 config 待切换 |
+| **hy3** | ✅ | ✅（首轮 502，二轮恢复） | **全可用 → 排队跑 r1** |
+| deepseek-v4-flash-vision-exp（=用户所称 ds） | ❌ 400 | ❌ 400 | **内部余额=0**（credit insufficient），所有 deepseek 变体同墙 |
+| mimo-v2.5（=用户所称 mimo） | ✅ | ❌ 503 无可用渠道 | 视觉通道缺失；变体 mimo-v2.5-pro 亦余额=0 |
+
+结论：**五模型中 3 个可立即跑（glm/qwen3.8/hy3），deepseek 与 mimo 需分销商充值**（同一把 key，
+账户内部 credit balance=0；此前 403「Deposit required」与 502 均为其网关的不同表现形态）。
+若坚持补齐 ds/mimo：充值 api.b.ai 或另提供通道；mimo 还需分销商开通视觉渠道。
 
 注意：用户提供的模型名与分销商实际 ID 有偏差（hy-3→`hy3`、mimo-2.5→`mimo-v2.5`、
 deepseek-v4-vision→`deepseek-v4-flash-vision-exp`），登记清单已按真实 ID 修正。
 
-旧通道 opencode zen（qwen3.8 三轮即经此跑出）：CreditsError 余额耗尽。
-qwen3.8-flash 的 DashScope 直连 key 随 `.env` 丢失，无法恢复原生产配置——
-生产已改挂 glm-5.3-flash（全可用模型中验收数据最优候选）。
+旧通道 opencode zen（qwen3.8 三轮、deepseek r1 即经此跑出）：CreditsError 余额耗尽。
+qwen3.8-flash 的 DashScope 直连 key 随 `.env` 丢失。
 
 ## 待办（按序执行）
 
 1. **glm-5.3-flash 初筛**（跑批中）：26 题 × 1 轮，报告入 `acceptance_<时间>/`
-2. **minimax-m3 补跑 25 题**：阻塞于充值墙——用户充值 api.b.ai 或另提供通道后执行
-   （`.venv/Scripts/python.exe scripts/bench_run.py --label acc_minimax-m3_r1 --fresh --skip-channel-check`）
-3. deepseek-v4-flash-vision-exp 502 重试；恢复后补 r2/r3
-4. 过线模型统一补 L3 视觉判官；产出最终三模型验收结论，更新本报告与路线图
+2. **hy3 初筛**：glm 批次结束后串行执行（后端 config.json 单配置，不能并行）
+3. **qwen3.8-flash**：三轮数据复用；可选在新通道补确认轮
+4. **deepseek r2/r3、mimo 初筛**：阻塞于分销商余额——充值或换通道后执行
+   （deepseek r1 的 22/25=88% 已入库，`candidate_deepseek_r1` 候选归档待做）
+5. 过线模型统一补 L3 视觉判官；产出最终验收结论，更新本报告与路线图
