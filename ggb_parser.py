@@ -186,8 +186,14 @@ def strip_inline_comment(line: str) -> str:
     return "".join(out).strip()
 
 
+def strip_think_blocks(text: str) -> str:
+    """剔除 <think>...</think> 思考块（minimax 等模型的 content 内嵌思考段）。"""
+    return re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.I)
+
+
 def clean_lines(text: str):
-    """剔除 MODE 头、# 注释、// 行内注释、空行；返回 (mode, [指令行])。"""
+    """剔除 MODE 头、# 注释、// 行内注释、think 块、空行；返回 (mode, [指令行])。"""
+    text = strip_think_blocks(text)
     mode = None
     cmds = []
     for line in text.splitlines():

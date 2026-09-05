@@ -1,0 +1,173 @@
+MODE: 2D
+<think>We need to construct the parabola passing through A(-2,0), B(3,0), C(0,6). Find a, b, c.
+y = a(x+2)(x-3), passes through (0,6): 6 = a(2)(-3) = -6a, so a = -1.
+y = -(x+2)(x-3) = -(x² - x - 6) = -x² + x + 6.
+So f(x) = -x² + x + 6.
+P is on parabola, P = (m, f(m)), with 1/2 < m < 3.
+PN ⊥ x-axis, intersects BC at N.
+PM ⊥ y-axis, intersects axis of symmetry at M.
+BC: line from B(3,0) to C(0,6). Slope = (6-0)/(0-3) = -2. Equation: y = -2x + 6, or y = -2(x-3).
+P = (m, f(m)), N is on BC with same x-coordinate m: N = (m, -2m + 6).
+PN = |f(m) - (-2m+6)| = |-m²+m+6+2m-6| = |-m²+3m| = m² - 3m (since 1/2 < m < 3, -m²+3m < 0, so PN = -f(m) + 2m - 6... wait let me reconsider).
+f(m) = -m²+m+6. For m in (0,3), f(m) > 0. At m=3, f=0. At m=1/2, f = -1/4+1/2+6 = 6.25.
+BC at x=m: y = -2m+6. At m=1/2: y = 5. At m=3: y=0.
+f(m) - (-2m+6) = -m²+m+6+2m-6 = -m²+3m. For m in (1/2, 3), -m²+3m > 0, so f(m) > -2m+6, meaning P is above N. So PN = -m² + 3m.
+Axis of symmetry: x = -b/(2a) = -1/(-2) = 1/2.
+M = (1/2, f(m))? PM ⊥ y-axis means PM is horizontal, so P and M have same y-coordinate. M is on axis of symmetry x=1/2. So M = (1/2, f(m)).
+PM = |m - 1/2| = m - 1/2 (since m > 1/2).
+Condition PM = (1/2)PN:
+m - 1/2 = (1/2)(-m² + 3m)
+2m - 1 = -m² + 3m
+m² - m - 1 = 0
+m = (1 ± √5)/2. Since 1/2 < m < 3, m = (1+√5)/2.
+Now let me build the GeoGebra instruction stream.
+Objects:
+- f(x) = -x² + x + 6
+- A = (-2, 0)
+- B = (3, 0)
+- C = (0, 6)
+- Slider m in (1/2, 3)
+- P = (m, f(m))
+- lineBC: from B to C
+- N = (m, lineBC(m)) - intersection with vertical line through P
+- Axis of symmetry x = 1/2
+- M = (1/2, f(m))
+- linePN: vertical line through P
+- linePM: horizontal line through P
+Let me write the commands.
+SetAxesVisible(true, true)
+SetGridVisible(true)
+f(x) = -x² + x + 6
+A = (-2, 0)
+B = (3, 0)
+C = (0, 6)
+lineBC = Line(B, C)
+m = Slider(0.5, 3, 0.01, 1)
+P = (m, f(m))
+linePM = PerpendicularLine(P, xAxis)
+Wait, PM ⊥ y-axis means PM is perpendicular to y-axis, which is horizontal. So PM is horizontal line through P, which is parallel to x-axis. Or equivalently, perpendicular to y-axis.
+Actually, PM ⊥ y-axis: P to M, where M is on axis of symmetry. PM is horizontal (perpendicular to y-axis).
+N: PN ⊥ x-axis, N on BC. So PN is vertical line through P, N = intersection of x=m with BC.
+Let me redo:
+N = (m, -2m + 6) but let's use Intersect or parametric form.
+Actually N is intersection of vertical line x=m with BC.
+For M: axis of symmetry x = 1/2. PM horizontal means M has same y as P.
+axisSym = Line((1/2, 0), (1/2, 1))  -- vertical line x = 1/2
+Or use x = 1/2 directly... GeoGebra allows this as a line.
+Actually in GeoGebra, we can write line x = 1/2 as a line through two points.
+axisSym: x = 1/2
+Let me think of GeoGebra commands:
+- PerpendicularLine(P, xAxis) gives horizontal line through P
+- PerpendicularLine(P, yAxis) gives vertical line through P
+Wait, PerpendicularLine(P, line) creates a line through P perpendicular to the given line.
+xAxis = x-axis line.
+PerpendicularLine(P, xAxis) — perpendicular to x-axis through P = vertical line. That's PN.
+PerpendicularLine(P, yAxis) — perpendicular to y-axis through P = horizontal line. That's PM.
+Then:
+N = Intersect(linePN, lineBC)
+M = Intersect(linePM, axisSym)
+Let me finalize:
+SetAxesVisible(true, true)
+SetGridVisible(true)
+f(x) = -x² + x + 6
+A = (-2, 0)
+B = (3, 0)
+C = (0, 6)
+lineBC = Line(B, C)
+axisSym = Line((1/2, 0), (1/2, 1))
+m = Slider(0.5, 3, 0.01, 1)
+P = (m, f(m))
+linePN = PerpendicularLine(P, xAxis)
+N = Intersect(linePN, lineBC)
+linePM = PerpendicularLine(P, yAxis)
+M = Intersect(linePM, axisSym)
+I think this covers all objects. Let me check:
+- Parabola f ✓
+- A, B, C ✓
+- P (dynamic) ✓
+- m slider ✓
+- lineBC ✓
+- axis of symmetry ✓
+- N (intersection PN with BC) ✓
+- M (intersection PM with axis of symmetry) ✓
+- linePN ✓
+- linePM ✓
+All good.</think>
+SetAxesVisible(true, true)
+SetGridVisible(true)
+f(x) = -x^2 + x + 6
+A = (-2, 0)
+B = (3, 0)
+C = (0, 6)
+lineBC = Line(B, C)
+axisSym = Line((1/2, 0), (1/2, 1))
+m = Slider(0.5, 3, 0.01, 1)
+P = (m, f(m))
+linePN = PerpendicularLine(P, xAxis)
+N = Intersect(linePN, lineBC)
+linePM = PerpendicularLine(P, yAxis)
+M = Intersect(linePM, axisSym)
+SetColor(f, "Black")
+SetFixed(A, true)
+ShowLabel(A, true)
+SetLabelMode(A, 1)
+SetFixed(B, true)
+ShowLabel(B, true)
+SetLabelMode(B, 1)
+SetFixed(C, true)
+ShowLabel(C, true)
+SetLabelMode(C, 1)
+SetColor(lineBC, "Black")
+SetColor(P, "Red")
+ShowLabel(P, true)
+SetLabelMode(P, 1)
+SetColor(f, "Black")
+SetFixed(A, true)
+ShowLabel(A, true)
+SetLabelMode(A, 1)
+SetFixed(B, true)
+ShowLabel(B, true)
+SetLabelMode(B, 1)
+SetFixed(C, true)
+ShowLabel(C, true)
+SetLabelMode(C, 1)
+SetColor(lineBC, "Black")
+SetLineStyle(axisSym, 2)
+SetColor(P, "Red")
+ShowLabel(P, true)
+SetLabelMode(P, 1)
+SetLineStyle(linePN, 2)
+SetColor(N, "Blue")
+SetPointSize(N, 4)
+ShowLabel(N, true)
+SetLabelMode(N, 1)
+SetLineStyle(linePM, 2)
+SetColor(M, "Blue")
+SetPointSize(M, 4)
+ShowLabel(M, true)
+SetLabelMode(M, 1)
+SetColor(f, "Black")
+SetFixed(A, true)
+ShowLabel(A, true)
+SetLabelMode(A, 1)
+SetFixed(B, true)
+ShowLabel(B, true)
+SetLabelMode(B, 1)
+SetFixed(C, true)
+ShowLabel(C, true)
+SetLabelMode(C, 1)
+SetColor(lineBC, "Black")
+SetLineStyle(axisSym, 2)
+SetColor(P, "Red")
+ShowLabel(P, true)
+SetLabelMode(P, 1)
+SetLineStyle(linePN, 2)
+SetColor(N, "Blue")
+SetPointSize(N, 4)
+ShowLabel(N, true)
+SetLabelMode(N, 1)
+SetLineStyle(linePM, 2)
+SetColor(M, "Blue")
+SetPointSize(M, 4)
+ShowLabel(M, true)
+SetLabelMode(M, 1)

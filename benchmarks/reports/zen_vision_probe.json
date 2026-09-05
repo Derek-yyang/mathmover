@@ -1,0 +1,12 @@
+{
+  "gpt-5.6-luna": "FAIL(500) | Internal server error",
+  "grok-4.5": "FAIL(503) | Error from provider (Console Go): Upstream request failed: Endpoint is",
+  "grok-4.6": "FAIL(401) | Model grok-4.6 is not supported for format oa-compat",
+  "kimi-k3": "OK | 立体几何：鳖臑三棱锥的外接球表面积计算。",
+  "glm-5.3": "FAIL(400) | Error from provider (Console Go): Upstream request failed: [invalid_re",
+  "glm-5.2": "FAIL(400) | Error from provider (Console Go): Upstream request failed: [invalid_re",
+  "deepseek-v4-flash-vision-exp": "OK | 立体几何中关于三棱锥外接球表面积的计算题。",
+  "mimo-v2-omni": "FAIL(400) | Error from provider (Console Go): Upstream request failed: [400] Unsup",
+  "minimax-m3": "OK | <think>The user wants a brief description of what math content is shown in the i",
+  "qwen3.8-max": "OK | 立体几何：鳖臑（三棱锥）外接球表面积问题。"
+}

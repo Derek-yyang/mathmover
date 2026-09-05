@@ -1,0 +1,217 @@
+{
+  "label": "acc_minimax-m3_r1",
+  "backend": "http://127.0.0.1:5000",
+  "finished_at": "2026-09-05T21:32:26",
+  "total": 26,
+  "completed": 1,
+  "failed_requests": 25,
+  "pass": 1,
+  "pass_rate": 1.0,
+  "property_hit_rate": 1.0,
+  "unknown_commands": {},
+  "results": [
+    {
+      "case": "初中/A-二次函数1",
+      "skip": false,
+      "pass": true,
+      "total": 11,
+      "failed": [],
+      "results": [
+        {
+          "type": "syntax_clean",
+          "desc": "语法干净",
+          "pass": true,
+          "detail": "无效行 0"
+        },
+        {
+          "type": "no_text",
+          "desc": "无文字对象",
+          "pass": true,
+          "detail": "干净"
+        },
+        {
+          "type": "function_through",
+          "desc": "函数 f 采样等价",
+          "pass": true,
+          "detail": "函数 f 通过全部采样点"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 A",
+          "pass": true,
+          "detail": "命中: ['A']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 B",
+          "pass": true,
+          "detail": "命中: ['B']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 D",
+          "pass": true,
+          "detail": "命中: ['D']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 C",
+          "pass": true,
+          "detail": "命中: ['C']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 E",
+          "pass": true,
+          "detail": "命中: ['E']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 M",
+          "pass": true,
+          "detail": "命中: ['M']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 F",
+          "pass": true,
+          "detail": "同名引擎点（intersect，坐标由引擎保证）"
+        },
+        {
+          "type": "slider_range",
+          "desc": "滑块 t",
+          "pass": true,
+          "detail": "滑块 t 覆盖 [-0.5, 3.0]"
+        }
+      ],
+      "status": "completed",
+      "gen_validity": 1.0,
+      "gen_retried": false
+    },
+    {
+      "case": "初中/A-二次函数2",
+      "status": "error",
+      "error": "专家模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "初中/A-二次函数3",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "初中/A-二次函数4",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "初中/A-二次函数5",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "初中/B-三角形1",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "初中/B-三角形2",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "初中/B-四边形1",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "初中/B-四边形2",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "初中/B-四边形3",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/C-双曲线1",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/C-抛物线1",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/C-抛物线2",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/C-椭圆1",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/C-椭圆2",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/C-椭圆3",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/C-椭圆4",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/D-圆锥1",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/D-多面体1",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/D-多面体2",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/D-多面体3",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/D-正方体1",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/D-正方体2",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/D-正方体3",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/D-球1",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    },
+    {
+      "case": "高中/D-球2",
+      "status": "error",
+      "error": "分类模型调用失败: Error code: 401 - {'type': 'error', 'error': {'type': 'CreditsError', 'message': 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_01KW9DD8DMPXCFV2NV3ZX2ZF97/billing'}}"
+    }
+  ]
+}

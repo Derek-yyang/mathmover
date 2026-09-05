@@ -1,0 +1,333 @@
+{
+  "label": "acc_deepseek-v4-vision_r1",
+  "backend": "http://127.0.0.1:5000",
+  "finished_at": "2026-09-05T21:17:24",
+  "total": 26,
+  "completed": 6,
+  "failed_requests": 0,
+  "pass": 5,
+  "pass_rate": 0.8333,
+  "property_hit_rate": 0.975,
+  "unknown_commands": {
+    "text": 1
+  },
+  "results": [
+    {
+      "case": "初中/A-二次函数4",
+      "skip": false,
+      "pass": true,
+      "total": 4,
+      "failed": [],
+      "results": [
+        {
+          "type": "syntax_clean",
+          "desc": "语法干净",
+          "pass": true,
+          "detail": "无效行 0"
+        },
+        {
+          "type": "no_text",
+          "desc": "无文字对象",
+          "pass": true,
+          "detail": "干净"
+        },
+        {
+          "type": "function_through",
+          "desc": "函数 f 采样等价",
+          "pass": true,
+          "detail": "函数 f 通过全部采样点"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 B",
+          "pass": true,
+          "detail": "同名引擎点（intersect，坐标由引擎保证）"
+        }
+      ],
+      "status": "completed",
+      "gen_validity": 1.0,
+      "gen_retried": false
+    },
+    {
+      "case": "初中/B-四边形1",
+      "skip": false,
+      "pass": true,
+      "total": 8,
+      "failed": [],
+      "results": [
+        {
+          "type": "syntax_clean",
+          "desc": "语法干净",
+          "pass": true,
+          "detail": "无效行 0"
+        },
+        {
+          "type": "no_text",
+          "desc": "无文字对象",
+          "pass": true,
+          "detail": "干净"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 A",
+          "pass": true,
+          "detail": "命中: ['A']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 B",
+          "pass": true,
+          "detail": "命中: ['B']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 C",
+          "pass": true,
+          "detail": "命中: ['C']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 D",
+          "pass": true,
+          "detail": "命中: ['D']"
+        },
+        {
+          "type": "slider_range",
+          "desc": "滑块 t",
+          "pass": true,
+          "detail": "滑块 t 覆盖 [0.0, 1.0]"
+        },
+        {
+          "type": "moving_point",
+          "desc": "动点 F",
+          "pass": true,
+          "detail": "动点: ['F']"
+        }
+      ],
+      "status": "completed",
+      "gen_validity": 1.0,
+      "gen_retried": false
+    },
+    {
+      "case": "初中/B-四边形3",
+      "skip": false,
+      "pass": true,
+      "total": 9,
+      "failed": [],
+      "results": [
+        {
+          "type": "syntax_clean",
+          "desc": "语法干净",
+          "pass": true,
+          "detail": "无效行 0"
+        },
+        {
+          "type": "no_text",
+          "desc": "无文字对象",
+          "pass": true,
+          "detail": "干净"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 B",
+          "pass": true,
+          "detail": "命中: ['B']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 A",
+          "pass": true,
+          "detail": "命中: ['A']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 C",
+          "pass": true,
+          "detail": "命中: ['C']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 D",
+          "pass": true,
+          "detail": "命中: ['D']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 E",
+          "pass": true,
+          "detail": "命中: ['E']"
+        },
+        {
+          "type": "slider_range",
+          "desc": "滑块 t",
+          "pass": true,
+          "detail": "滑块 t 覆盖 [0.0, 1.0]"
+        },
+        {
+          "type": "moving_point",
+          "desc": "动点 F",
+          "pass": true,
+          "detail": "动点: ['F']"
+        }
+      ],
+      "status": "completed",
+      "gen_validity": 1.0,
+      "gen_retried": false
+    },
+    {
+      "case": "高中/C-抛物线1",
+      "skip": true,
+      "pass": true,
+      "skip_reason": "题目图（双曲线定值题）与金标准（抛物线焦点题）错位，待重新收录；矩阵中剔除",
+      "results": [],
+      "status": "completed",
+      "gen_validity": 1.0,
+      "gen_retried": false
+    },
+    {
+      "case": "高中/D-正方体3",
+      "skip": false,
+      "pass": true,
+      "total": 11,
+      "failed": [],
+      "results": [
+        {
+          "type": "syntax_clean",
+          "desc": "语法干净",
+          "pass": true,
+          "detail": "无效行 0"
+        },
+        {
+          "type": "no_text",
+          "desc": "无文字对象",
+          "pass": true,
+          "detail": "干净"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 D1",
+          "pass": true,
+          "detail": "命中: ['A1']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 A1",
+          "pass": true,
+          "detail": "命中: ['B1']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 B1",
+          "pass": true,
+          "detail": "命中: ['C1']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 C1",
+          "pass": true,
+          "detail": "命中: ['D1']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 D",
+          "pass": true,
+          "detail": "命中: ['A']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 A",
+          "pass": true,
+          "detail": "命中: ['B']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 B",
+          "pass": true,
+          "detail": "命中: ['C']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 C",
+          "pass": true,
+          "detail": "命中: ['D']"
+        },
+        {
+          "type": "moving_point",
+          "desc": "动点 M",
+          "pass": true,
+          "detail": "动点: ['M']"
+        }
+      ],
+      "status": "completed",
+      "gen_validity": 1.0,
+      "gen_retried": false
+    },
+    {
+      "case": "高中/D-球1",
+      "skip": false,
+      "pass": false,
+      "total": 8,
+      "failed": [
+        {
+          "type": "no_text",
+          "desc": "无文字对象",
+          "pass": false,
+          "detail": "文字对象: ['txt']"
+        }
+      ],
+      "results": [
+        {
+          "type": "syntax_clean",
+          "desc": "语法干净",
+          "pass": true,
+          "detail": "无效行 0"
+        },
+        {
+          "type": "no_text",
+          "desc": "无文字对象",
+          "pass": false,
+          "detail": "文字对象: ['txt']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 O",
+          "pass": true,
+          "detail": "同名引擎点（midpoint，坐标由引擎保证）"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 B",
+          "pass": true,
+          "detail": "命中: ['B']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 C",
+          "pass": true,
+          "detail": "命中: ['C']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 P",
+          "pass": true,
+          "detail": "命中: ['P']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 S",
+          "pass": true,
+          "detail": "同名引擎点（intersect，坐标由引擎保证）"
+        },
+        {
+          "type": "moving_point",
+          "desc": "动点 A",
+          "pass": true,
+          "detail": "动点: ['A']"
+        }
+      ],
+      "status": "completed",
+      "gen_validity": 1.0,
+      "gen_retried": false
+    }
+  ]
+}
