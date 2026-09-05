@@ -1,0 +1,5 @@
+[
+  {"name": "qwen38-flash", "provider": "dashscope",
+   "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+   "api_key": "FILL_ME", "model_name": "qwen3.8-flash", "timeout_seconds": 240}
+]
