@@ -1,10 +1,10 @@
 [
-  {"name": "deepseek-v4-vision", "provider": "opencode-zen",
-   "base_url": "https://opencode.ai/zen/go/v1",
-   "api_key": "sk-uJRYRb61clK6egqOscNfB03nQmFsJ8UFdINtbdNy6Lkewec7KofRf0CiSofL5dMF",
-   "model_name": "deepseek-v4-flash-vision-exp", "timeout_seconds": 240},
-  {"name": "minimax-m3", "provider": "opencode-zen",
-   "base_url": "https://opencode.ai/zen/go/v1",
-   "api_key": "sk-uJRYRb61clK6egqOscNfB03nQmFsJ8UFdINtbdNy6Lkewec7KofRf0CiSofL5dMF",
+  {"name": "deepseek-v4-vision", "provider": "b-ai",
+   "base_url": "https://api.b.ai/v1",
+   "api_key": "sk-2gvwqexgxj3b9c7up95j7qvj2uzxrptx",
+   "model_name": "deepseek-v4-vision", "timeout_seconds": 240},
+  {"name": "minimax-m3", "provider": "b-ai",
+   "base_url": "https://api.b.ai/v1",
+   "api_key": "sk-2gvwqexgxj3b9c7up95j7qvj2uzxrptx",
    "model_name": "minimax-m3", "timeout_seconds": 300}
 ]
