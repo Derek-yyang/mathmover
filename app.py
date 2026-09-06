@@ -239,12 +239,18 @@ class OpenAICompatibleAdapter(ModelAdapter):
             if image_bytes:
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
 
-            # 载荷降级序列：原图 -> 压缩图（部分上游对大请求体直接掐断连接）
-            attempts = [(base64_image, mime_type or 'image/png')]
-            if base64_image:
-                shrunk = self._shrink_image(image_bytes)
-                if shrunk is not image_bytes:
-                    attempts.append((base64.b64encode(shrunk).decode('utf-8'), 'image/jpeg'))
+            # 载荷降级序列：原图 -> 1400px -> 1000px（部分上游对大请求体直接掐断连接）
+            raw_attempts = []
+            if image_bytes:
+                raw_attempts.append((image_bytes, mime_type or 'image/png'))
+                for max_side, quality in ((1400, 85), (1000, 78)):
+                    shrunk = self._shrink_image(image_bytes, max_side, quality)
+                    if shrunk is not image_bytes and all(shrunk != r[0] for r in raw_attempts):
+                        raw_attempts.append((shrunk, 'image/jpeg'))
+                attempts = [(base64.b64encode(r[0]).decode('utf-8'), r[1])
+                            for r in raw_attempts]
+            else:
+                attempts = [(None, 'image/png')]
 
             def _build_messages(b64img, mime):
                 user_content = [

@@ -23,7 +23,9 @@ while ((Get-Date) -lt $Deadline) {
         break
     }
 
-    & $Python -u "$Root\scripts\probe_glm_gen.py" *> $null
+    # full-payload gate: only trigger a fill round when the upstream accepts a
+    # real specialist-shaped request (big prompt + image), matching the pipeline
+    & $Python -u "$Root\scripts\probe_glm_full.py" C "高中/C-抛物线1" *> $null
     if ($LASTEXITCODE -eq 0) {
         Add-Content $Log "WATCHDOG_GEN_OK -> fill pass $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         & $Python -u "$Root\scripts\bench_run.py" --label acc_glm-5.3-flash_r1_pass5 --skip-channel-check *>> $Log
