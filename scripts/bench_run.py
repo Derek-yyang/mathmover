@@ -29,6 +29,17 @@ from ggb_parser import parse_commands  # noqa: E402
 
 ENV_LOCAL = ROOT / "math-mover-next" / ".env.local"
 
+# 上游永久性错误特征（余额/鉴权/模型不存在），重试无意义
+PERMANENT_ERROR_MARKERS = (
+    "Insufficient balance", "insufficient balance", "Deposit required",
+    "CreditsError", "model_not_found", "does not exist", "鉴权", "access_denied",
+)
+
+
+def is_permanent_error(message: str) -> bool:
+    return any(k in message for k in PERMANENT_ERROR_MARKERS)
+
+
 
 
 def generate_once(backend: str, image: Path, channel_retries: int = 5):
@@ -127,6 +138,15 @@ def cmd_run(args):
             print(f"[{i:>2}/{len(cases)}] {name}: 已有候选，跳过（--fresh 重跑）")
             continue
         status, payload = generate_once(args.backend, case / "problem.png")
+        # 上游间歇性错误（分销商 5xx 抖动等）自动重试；余额/鉴权类永久错误不重试
+        err_retries = 0
+        while (status in ("error", "exception") and err_retries < 3
+               and not is_permanent_error(str(payload.get("message", "")))):
+            err_retries += 1
+            print(f"    ... 上游错误，等待 30s 重试（{err_retries}/3）: "
+                  f"{str(payload.get('message', ''))[:70]}")
+            time.sleep(30)
+            status, payload = generate_once(args.backend, case / "problem.png")
         if status != "completed":
             results.append({"case": name, "status": status, "error": payload.get("message", "")})
             print(f"[{i:>2}/{len(cases)}] {name}: ❌ {payload.get('message', '')[:80]}")
