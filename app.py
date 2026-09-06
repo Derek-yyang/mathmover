@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import io
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from google import genai
@@ -211,51 +212,87 @@ class OpenAICompatibleAdapter(ModelAdapter):
             )
         self.model_name = model_name
 
-    def generate(self, prompt, image_bytes=None, mime_type=None):
-        # Image to Base64 if exists
-        base64_image = None
-        if image_bytes:
-            base64_image = base64.b64encode(image_bytes).decode('utf-8')
-        
+    @staticmethod
+    def _shrink_image(image_bytes, max_side=1400, quality=85):
+        """压缩图片用于对大载荷敏感的上游：等比缩到 max_side 内并转 JPEG。
+
+        失败或压缩无收益时返回原 bytes。"""
         try:
-            # 区分 "System" (指令) 和 "User" (数据)
-            user_content = []
+            from PIL import Image
+            buf = io.BytesIO(image_bytes)
+            with Image.open(buf) as im:
+                im = im.convert('RGB')
+                im.thumbnail((max_side, max_side))
+                out = io.BytesIO()
+                im.save(out, format='JPEG', quality=quality)
+                data = out.getvalue()
+            if len(data) < len(image_bytes):
+                return data
+        except Exception:
+            pass
+        return image_bytes
+
+    def generate(self, prompt, image_bytes=None, mime_type=None):
+        try:
+            # Image to Base64 if exists
+            base64_image = None
+            if image_bytes:
+                base64_image = base64.b64encode(image_bytes).decode('utf-8')
+
+            # 载荷降级序列：原图 -> 压缩图（部分上游对大请求体直接掐断连接）
+            attempts = [(base64_image, mime_type or 'image/png')]
             if base64_image:
-                user_content.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{mime_type};base64,{base64_image}"
-                    }
-                })
-                user_content.append({"type": "text", "text": "请根据图片内容执行任务。"})
-            else:
-                user_content.append({"type": "text", "text": "请根据以上文字描述执行任务。"})
+                shrunk = self._shrink_image(image_bytes)
+                if shrunk is not image_bytes:
+                    attempts.append((base64.b64encode(shrunk).decode('utf-8'), 'image/jpeg'))
 
-            messages = [
-                {
-                    "role": "system",
-                    "content": prompt  # 专家指令作为 System Prompt
-                },
-                {
-                    "role": "user",
-                    "content": user_content
-                }
-            ]
+            def _build_messages(b64img, mime):
+                user_content = [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime};base64,{b64img}"
+                        }
+                    },
+                    {"type": "text", "text": "请根据图片内容执行任务。"},
+                ]
+                return [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": user_content},
+                ]
 
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=messages,
-                )
-            except Exception as primary_error:
-                if not self.fallback_client:
-                    raise primary_error
-                print(f"WARNING: Custom model primary endpoint failed, retrying DashScope mainland endpoint: {primary_error}")
+            response = None
+            last_primary_error = None
+            for idx, (b64img, mime) in enumerate(attempts):
+                if not b64img:
+                    continue
+                try:
+                    response = self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=_build_messages(b64img, mime),
+                    )
+                    break
+                except Exception as primary_error:
+                    last_primary_error = primary_error
+                    etext = str(primary_error).lower()
+                    transient = any(k in etext for k in (
+                        'timeout', 'connection', 'max retries', 'apiconnection', 'apitimeout'))
+                    if idx + 1 < len(attempts) and transient:
+                        print(f"WARNING: full-size payload rejected ({str(primary_error)[:80]}), "
+                              f"retrying with compressed image")
+                        continue
+                    raise
+
+            if response is None and self.fallback_client:
+                # DashScope 跨区回落（仅显式开启 ALLOW_DASHSCOPE_CROSS_REGION_FALLBACK 时存在）
+                print(f"WARNING: primary endpoint failed, retrying DashScope mainland endpoint: {last_primary_error}")
                 response = self.fallback_client.chat.completions.create(
                     model=self.model_name,
-                    messages=messages,
+                    messages=_build_messages(base64_image, mime_type or 'image/png'),
                 )
-            
+            if response is None:
+                raise last_primary_error
+
             # 检查停止原因
             finish_reason = response.choices[0].finish_reason
             if finish_reason == 'content_filter':
@@ -270,12 +307,13 @@ class OpenAICompatibleAdapter(ModelAdapter):
             if refusal:
                 print(f"DEBUG: Model Refusal: {refusal}")
                 return f"Error: Model Refused - {refusal}"
-            
+
             return content if content else ""
 
         except Exception as e:
             print(f"OpenAI Adapter Error: {e}")
             raise e
+
 
 def validate_custom_base_url(base_url: str) -> None:
     """BYOK 地址校验：仅允许 HTTPS 公网地址，阻断内网/本机/链路本地目标（SSRF 防护）。"""
