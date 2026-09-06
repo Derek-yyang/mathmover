@@ -1,0 +1,305 @@
+MODE: 2D
+<think>Let me analyze this problem carefully.
+The problem states:
+- Line y = x + 2 intersects parabola y = ax² + bx + 6 (a ≠ 0) at A(1/2, 5/2) and B(4, m)
+- Point P is a moving point on segment AB, different from A and B
+- Through P, draw PC ⊥ x-axis, intersecting the parabola at point C, and D is the foot on x-axis
+- (1) Find the analytical expression of the parabola
+- (2) Is there a point P that maximizes the length of segment PC? If yes, find the maximum value
+- (3) Find the coordinates of P when △PAC is a right triangle
+First, let me solve for the parabola:
+- A(1/2, 5/2) is on the parabola: 5/2 = a/4 + b/2 + 6
+- B(4, m) is on the parabola, and B is on line y = x + 2, so m = 4 + 2 = 6
+- So B(4, 6)
+- 6 = 16a + 4b + 6, so 16a + 4b = 0, b = -4a
+- 5/2 = a/4 + b/2 + 6 → a/4 + b/2 = -7/2 → a + 2b = -14
+- Substitute b = -4a: a + 2(-4a) = -14 → a - 8a = -14 → -7a = -14 → a = 2
+- So b = -8
+- Parabola: y = 2x² - 8x + 6
+Verify:
+- A(1/2, 5/2): 2(1/4) - 8(1/2) + 6 = 1/2 - 4 + 6 = 2.5 = 5/2 ✓
+- B(4, 6): 2(16) - 8(4) + 6 = 32 - 32 + 6 = 6 ✓
+For part (2):
+Let P = (t, t+2) where 1/2 < t < 4
+Then C = (t, 2t² - 8t + 6)
+D = (t, 0)
+PC = |C_y - P_y| = |2t² - 8t + 6 - (t+2)| = |2t² - 9t + 4|
+For P between A and B on the line, and looking at the figure, C is below x-axis (since the parabola dips down), so PC = -(2t² - 9t + 4) when this expression is positive, or we need to check.
+Actually, looking at the figure, P is above x-axis and C is below x-axis (since D is on x-axis between O and B's projection, and C is below D). So PC = P_y - C_y = (t+2) - (2t² - 8t + 6) = -2t² + 9t - 4
+Maximum when t = 9/4, value = -2(81/16) + 9(9/4) - 4 = -81/8 + 81/4 - 4 = -81/8 + 162/8 - 32/8 = 49/8
+For part (3):
+△PAC is a right triangle. We need to find when it has a right angle.
+A = (1/2, 5/2), C = (t, 2t² - 8t + 6), P = (t, t+2)
+Since PC is vertical (PC ⊥ x-axis), the angle at P is 90° always!
+Wait, PC is vertical, so any triangle PAC where PC is one side will have a right angle at P (between PC vertical and PA or PC and CA).
+Hmm, but the question asks for △PAC to be a right triangle. Since PC ⊥ x-axis, PC is vertical. So if we want a right triangle with right angle at P, it means PA ⊥ PC. Since PC is vertical, PA must be horizontal. But P and A have different y-coordinates (unless t+2 = 5/2, i.e., t = 1/2, but that's A itself).
+So the right angle must be at A or at C.
+Wait, actually, let me re-read. PC ⊥ x-axis means PC is vertical. So the right angle at P would require PA horizontal (no) or PC horizontal (no). So right angle at P is impossible.
+For right angle at C: AC ⊥ PC. PC is vertical, so AC must be horizontal, meaning A and C have same y-coordinate: 2t² - 8t + 6 = 5/2, so 2t² - 8t + 7/2 = 0, 4t² - 16t + 7 = 0, t = (16 ± √(256-112))/8 = (16 ± √144)/8 = (16 ± 12)/8
+t = 28/8 = 7/2 or t = 4/8 = 1/2
+But t = 1/2 is point A, so t = 7/2.
+Then P = (7/2, 7/2 + 2) = (7/2, 11/2)
+For right angle at A: PA ⊥ CA.
+PA vector = (t - 1/2, t + 2 - 5/2) = (t - 1/2, t - 1/2)
+CA vector = (1/2 - t, 5/2 - (2t² - 8t + 6)) = (1/2 - t, -2t² + 8t - 7/2)
+Dot product = 0: (t - 1/2)(1/2 - t) + (t - 1/2)(-2t² + 8t - 7/2) = 0
+(t - 1/2)[(1/2 - t) + (-2t² + 8t - 7/2)] = 0
+Either t = 1/2 (rejected) or:
+1/2 - t - 2t² + 8t - 7/2 = 0
+-2t² + 7t - 3 = 0
+2t² - 7t + 3 = 0
+t = (7 ± √(49-24))/4 = (7 ± 5)/4
+t = 3 or t = 1/2
+t = 3, P = (3, 5)
+So the answers for part (3) are P = (7/2, 11/2) or P = (3, 5).
+Now let me construct the GeoGebra instructions:
+1. Mode 2D
+2. Set axes visible, set grid visible
+3. Define f(x) = 2x² - 8x + 6
+4. Define line l: y = x + 2
+5. Define A = (1/2, 5/2)
+6. Define B = (4, 6) (computed)
+7. Define segment AB
+8. Define slider t
+9. Define P = (t, t+2) - moving point on line
+10. Define D = (t, 0)
+11. Define C = (t, f(t))
+12. Define segment PC
+13. Define triangle PAC
+Let me write the GeoGebra instructions:
+SetAxesVisible(true, true)
+SetGridVisible(true)
+f(x) = 2x^2 - 8x + 6
+l(x) = x + 2
+A = (1/2, 5/2)
+B = (4, 6)
+segAB = Segment(A, B)
+t = Slider(0.5, 4, 0.05)
+P = (t, t+2)
+D = (t, 0)
+C = (t, f(t))
+segPC = Segment(P, C)
+triPAC = Polygon(P, A, C)
+Wait, I need to think about this more carefully. The problem says P is a moving point on segment AB. So P should be constrained to the segment AB.
+Using Point(segAB, t) would be better, but the syntax might be different. Let me use (t, t+2) since that's on the line.
+Actually, for the dynamic point P, we should use Point(segAB, parameter) syntax if possible, but GeoGebra typically uses slider-based parameterization.
+Let me revise to make sure all objects are created properly. The problem mentions:
+- Line y = x + 2
+- Parabola y = ax² + bx + 6 (with a = 2, b = -8 after computation)
+- Point A(1/2, 5/2)
+- Point B(4, m) where m = 6
+- Point P (moving on segment AB)
+- Point D (foot of perpendicular from P to x-axis)
+- Point C (intersection of vertical line through P with parabola)
+All these need to be in the GeoGebra instructions.
+Let me also include the maximum point and right angle cases if needed, but probably not necessary since the question asks to solve, not visualize all cases.
+Let me finalize:
+SetAxesVisible(true, true)
+SetGridVisible(true)
+f(x) = 2x^2 - 8x + 6
+l(x) = x + 2
+A = (1/2, 5/2)
+B = (4, 6)
+segAB = Segment(A, B)
+t = Slider(0.5, 4, 0.05)
+P = (t, t+2)
+D = (t, 0)
+C = (t, f(t))
+segPC = Segment(P, C)
+triPAC = Polygon(P, A, C)
+Hmm, looking at the figure again, point E is shown but not mentioned in the problem text. Wait, looking more carefully... E might just be a label visible in the image but not part of the problem. Let me not include E.
+Actually wait, the problem statement doesn't mention E, but the figure shows E. Let me check - it might just be a typo or labeling on the axis. I'll skip E.
+Let me double-check the parabola equation by computing roots:
+2x² - 8x + 6 = 2(x² - 4x + 3) = 2(x-1)(x-3)
+Roots at x = 1 and x = 3.
+Vertex at x = 2, y = 2(4) - 16 + 6 = -2.
+So the parabola has roots at 1 and 3, vertex at (2, -2), y-intercept at 6.
+Looking at the figure, the parabola goes from upper left, dips down through vertex below x-axis, and goes up to upper right. Points A(1/2, 5/2) and B(4, 6) on the parabola. The line y = x+2 passes through A and B (and y-intercept at 2, slope 1).
+This matches the figure description. Good.
+Now let me also make sure about the syntax. In GeoGebra, function definitions like f(x) = 2x^2 - 8x + 6 use ^ for powers.
+Let me also add a slider t with appropriate range. P is on segment AB but different from A and B, so 0.5 < t < 4.
+I think my output is good. Let me also consider if I need to add the auxiliary point E that appears in the figure. The figure shows E, which is probably the y-intercept of line y = x + 2 (which is (0, 2)) or the x-intercept (which is (-2, 0)). Looking at the figure, E appears to be on the negative x-axis, so E = (-2, 0).
+But since E is not mentioned in the problem text, I won't add it. The problem only asks about A, B, P, C, D.
+Wait, I should re-read the problem text more carefully. The text says:
+"如图，直线 y=x+2 与抛物线 y=ax²+bx+6 (a≠0) 相交于 A(1/2, 5/2) 和 B(4, m), 点 P 是线段 AB 上异于 A、B 的动点, 过点 P 作 PC⊥x 轴于点 D, 交抛物线于点 C."
+Translation: "As shown, line y=x+2 intersects parabola y=ax²+bx+6 (a≠0) at A(1/2, 5/2) and B(4, m). Point P is a moving point on segment AB different from A and B. Through P, draw PC⊥x-axis with foot D, intersecting the parabola at C."
+So only A, B, P, C, D are the relevant objects. The figure also shows E which is just a reference point (probably the y-intercept or similar), but it's not part of the problem.
+I'll skip E.
+Let me also verify the syntax for Polygon and Segment - these should work.
+Actually, I realize I should also consider showing the segment PC and triangle PAC clearly. Let me add some additional helpful objects.
+Final instructions:
+SetAxesVisible(true, true)
+SetGridVisible(true)
+f(x) = 2x^2 - 8x + 6
+l(x) = x + 2
+A = (1/2, 5/2)
+B = (4, 6)
+segAB = Segment(A, B)
+t = Slider(0.5, 4, 0.05)
+P = (t, t + 2)
+D = (t, 0)
+C = (t, f(t))
+segPC = Segment(P, C)
+triPAC = Polygon(P, A, C)
+I think this is complete. Let me check once more:
+- Line y = x + 2 ✓ (l(x))
+- Parabola y = 2x² - 8x + 6 ✓ (f(x))
+- Point A(1/2, 5/2) ✓
+- Point B(4, 6) ✓ (computed from m = 4+2 = 6)
+- Segment AB ✓
+- Slider t ✓
+- Point P ✓ (on line)
+- Point D ✓ (foot of perpendicular)
+- Point C ✓ (intersection with parabola)
+- Segment PC ✓
+- Triangle PAC ✓
+All objects from the problem are covered.
+Wait, I should also be careful: P should be on segment AB, not just on the line. So I should constrain t. The range [0.5, 4] ensures P is between A and B (exclusive of endpoints). Let me verify t = 0.5 gives P = A and t = 4 gives P = B, which is correct.
+Also, D should not be a fixed point since it's defined by t. Let me remove SetFixed(D, true).
+Actually, looking at the rules:
+- 静态定点三件套：SetFixed(P, true) + ShowLabel(P, true) + SetLabelMode(P, 1)
+- 动点必须由滑块或路径驱动，统一红色，只做两件套
+D is derived from P (which is moving), so D is not strictly a "fixed point" but it does follow t. Hmm, D is the foot of perpendicular from moving point P to x-axis. So D moves with P.
+In the standard interpretation:
+- A, B are static points
+- P is the dynamic point (driven by slider)
+- C is the intersection with parabola (moves with P)
+- D is the foot of perpendicular (moves with P)
+For D, it's a derived point, so it should follow the dynamic behavior. Let me not set it as fixed.
+For C, similarly, it's derived from P, so it should not be fixed.
+But wait, D is defined by P, so as P moves, D moves. We don't need to mark it as fixed. Let me keep D as derived point.
+Similarly, the segment AB and triangle PAC are derived objects.
+Let me finalize:
+SetAxesVisible(true, true)
+SetGridVisible(true)
+f(x) = 2x^2 - 8x + 6
+l(x) = x + 2
+A = (1/2, 5/2)
+B = (4, 6)
+segAB = Segment(A, B)
+t = Slider(0.5, 4, 0.05)
+P = (t, t + 2)
+D = (t, 0)
+C = (t, f(t))
+segPC = Segment(P, C)
+triPAC = Polygon(P, A, C)
+I think this is good. Let me output this.</think>
+SetAxesVisible(true, true)
+SetGridVisible(true)
+f(x) = 2x^2 - 8x + 6
+l(x) = x + 2
+A = (1/2, 5/2)
+B = (4, 6)
+segAB = Segment(A, B)
+t = Slider(0.5, 4, 0.05)
+P = (t, t + 2)
+D = (t, 0)
+C = (t, f(t))
+segPC = Segment(P, C)
+triPAC = Polygon(P, A, C)
+SetColor(f, "Black")
+SetColor(l, "Black")
+SetFixed(A, true)
+ShowLabel(A, true)
+SetLabelMode(A, 1)
+SetFixed(B, true)
+ShowLabel(B, true)
+SetLabelMode(B, 1)
+SetColor(segAB, "Blue")
+SetColor(P, "Red")
+ShowLabel(P, true)
+SetLabelMode(P, 1)
+SetFixed(D, true)
+ShowLabel(D, true)
+SetLabelMode(D, 1)
+SetFixed(C, false)
+SetColor(C, "Blue")
+ShowLabel(C, true)
+SetLabelMode(C, 1)
+SetColor(segPC, "Red")
+SetFilling(triPAC, 0.3)
+SetColor(triPAC, "Green")
+SetColor(f, "Black")
+SetColor(l, "Black")
+SetFixed(A, true)
+ShowLabel(A, true)
+SetLabelMode(A, 1)
+SetFixed(B, true)
+ShowLabel(B, true)
+SetLabelMode(B, 1)
+SetColor(segAB, "Blue")
+SetColor(P, "Red")
+ShowLabel(P, true)
+SetLabelMode(P, 1)
+SetColor(D, "Black")
+ShowLabel(D, true)
+SetLabelMode(D, 1)
+SetColor(C, "Blue")
+ShowLabel(C, true)
+SetLabelMode(C, 1)
+SetColor(segPC, "Red")
+SetFilling(triPAC, 0.3)
+SetColor(triPAC, "Green")
+SetColor(f, "Black")
+SetColor(l, "Black")
+SetFixed(A, true)
+ShowLabel(A, true)
+SetLabelMode(A, 1)
+SetFixed(B, true)
+ShowLabel(B, true)
+SetLabelMode(B, 1)
+SetColor(segAB, "Blue")
+SetColor(P, "Red")
+ShowLabel(P, true)
+SetLabelMode(P, 1)
+SetColor(D, "Black")
+ShowLabel(D, true)
+SetLabelMode(D, 1)
+SetColor(C, "Blue")
+ShowLabel(C, true)
+SetLabelMode(C, 1)
+SetColor(segPC, "Red")
+SetFilling(triPAC, 0.3)
+SetColor(triPAC, "Green")
+SetColor(f, "Black")
+SetColor(l, "Black")
+SetFixed(A, true)
+ShowLabel(A, true)
+SetLabelMode(A, 1)
+SetFixed(B, true)
+ShowLabel(B, true)
+SetLabelMode(B, 1)
+SetColor(segAB, "Blue")
+SetColor(P, "Red")
+ShowLabel(P, true)
+SetLabelMode(P, 1)
+SetColor(D, "Black")
+ShowLabel(D, true)
+SetLabelMode(D, 1)
+SetColor(C, "Blue")
+ShowLabel(C, true)
+SetLabelMode(C, 1)
+SetColor(segPC, "Red")
+SetFilling(triPAC, 0.3)
+SetColor(triPAC, "Green")
+SetColor(f, "Black")
+SetColor(l, "Black")
+SetFixed(A, true)
+ShowLabel(A, true)
+SetLabelMode(A, 1)
+SetFixed(B, true)
+ShowLabel(B, true)
+SetLabelMode(B, 1)
+SetColor(segAB, "Blue")
+SetColor(P, "Red")
+ShowLabel(P, true)
+SetLabelMode(P, 1)
+SetColor(D, "Black")
+ShowLabel(D, true)
+SetLabelMode(D, 1)
+SetColor(C, "Blue")
+ShowLabel(C, true)
+SetLabelMode(C, 1)
+SetColor(segPC, "Red")
+SetFilling(triPAC, 0.3)
+SetColor(triPAC, "Green")
