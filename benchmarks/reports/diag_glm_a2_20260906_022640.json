@@ -1,0 +1,19 @@
+{
+  "label": "diag_glm_a2",
+  "backend": "http://127.0.0.1:5000",
+  "finished_at": "2026-09-06T02:26:40",
+  "total": 1,
+  "completed": 0,
+  "failed_requests": 1,
+  "pass": 0,
+  "pass_rate": 0,
+  "property_hit_rate": 0,
+  "unknown_commands": {},
+  "results": [
+    {
+      "case": "初中/A-二次函数2",
+      "status": "exception",
+      "error": "HTTPConnectionPool(host='127.0.0.1', port=5000): Max retries exceeded with url: /api/upload (Caused by NewConnectionError(\"HTTPConnection(host='127.0.0.1', port=5000): Failed to establish a new connection: [WinError 10061] 由于目标计算机积极拒绝，无法连接。\"))"
+    }
+  ]
+}

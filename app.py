@@ -269,6 +269,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
 
             response = None
             last_primary_error = None
+            win_attempt = (base64_image, mime_type or 'image/png')
             for idx, (b64img, mime) in enumerate(attempts):
                 if not b64img:
                     continue
@@ -276,7 +277,11 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     response = self.client.chat.completions.create(
                         model=self.model_name,
                         messages=_build_messages(b64img, mime),
+                        # 不带输出上限的请求会被部分上游网关直接掐断连接，
+                        # 先给 4096；推理模型思考吃满时由下方降级重试兜底
+                        max_tokens=4096,
                     )
+                    win_attempt = (b64img, mime)
                     break
                 except Exception as primary_error:
                     last_primary_error = primary_error
@@ -298,6 +303,23 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 )
             if response is None:
                 raise last_primary_error
+
+            # 推理模型思考吃满 max_tokens 时正文为空（finish=length）——
+            # 提额 + 降低思考力度重试一次（实测 glm-5.3-flash 16384+low 22s 出全文）
+            try:
+                _empty = not ((response.choices[0].message.content or '').strip())
+                _truncated = response.choices[0].finish_reason == 'length'
+                if _empty and _truncated:
+                    print("WARNING: empty content (thinking consumed the token budget), "
+                          "retrying with max_tokens=16384 + reasoning_effort=low")
+                    response = self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=_build_messages(*win_attempt),
+                        max_tokens=16384,
+                        reasoning_effort='low',
+                    )
+            except Exception as retry_error:
+                print(f"WARNING: elevated retry failed: {str(retry_error)[:80]}")
 
             # 检查停止原因
             finish_reason = response.choices[0].finish_reason

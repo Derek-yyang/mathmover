@@ -54,7 +54,7 @@ def generate_once(backend: str, image: Path, channel_retries: int = 5):
                     f"{backend}/api/upload",
                     files={"file": (image.name, f, "image/png")},
                     data={"text": "", "responseMode": "stream"},
-                    stream=True, timeout=(15, 900),
+                    stream=True, timeout=(15, 1800),
                 )
             if resp.status_code != 200:
                 return "error", {"message": f"HTTP {resp.status_code}: {resp.text[:200]}"}
