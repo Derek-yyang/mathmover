@@ -1,0 +1,3 @@
+MODE: 2D
+SetAxesVisible(true, true)
+SetGridVisible(true)
