@@ -58,7 +58,7 @@ DEFAULT_MODEL_TIMEOUT = int(os.getenv('MODEL_TIMEOUT_SECONDS', '75'))
 # 运行时模型配置存于本地 config.json（可经 /api/config 修改），替代原 Supabase profiles。
 # 优先级：config.json > .env SYSTEM_* > Gemini 默认。
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
-CONFIG_KEYS = ('provider', 'base_url', 'api_key', 'model_name', 'timeout_seconds')
+CONFIG_KEYS = ('provider', 'base_url', 'api_key', 'model_name', 'timeout_seconds', 'max_tokens')
 
 
 def load_local_model_config() -> dict:
@@ -187,7 +187,7 @@ class GeminiAdapter(ModelAdapter):
         return (text or "").strip()
 
 class OpenAICompatibleAdapter(ModelAdapter):
-    def __init__(self, api_key, base_url, model_name, timeout_seconds=None):
+    def __init__(self, api_key, base_url, model_name, timeout_seconds=None, max_tokens=None):
         api_key = (api_key or '').strip()
         base_url = (base_url or '').strip().rstrip('/')
         model_name = (model_name or '').strip()
@@ -196,6 +196,14 @@ class OpenAICompatibleAdapter(ModelAdapter):
             base_url=base_url,
             timeout=int(timeout_seconds or MODEL_TIMEOUT_SECONDS),
         )
+        # 输出上限可按模型在 config.json 配置；不设 max_tokens 的请求会被
+        # 部分网关（如 b.ai）直接掐断，故始终发送有限值。默认 4096 对
+        # 思考型模型够用（思考吃满时由 generate 内降级重试兜底），
+        # 长输出的非思考模型（如 deepseek 指令流）可配 16384。
+        try:
+            self.max_tokens = int(max_tokens) if max_tokens else 4096
+        except (TypeError, ValueError):
+            self.max_tokens = 4096
         # By default we do NOT cross-switch DashScope regions for BYOK.
         # A key can be region-scoped; automatic cross-region fallback can
         # turn transient timeout into deterministic invalid_api_key.
@@ -278,8 +286,9 @@ class OpenAICompatibleAdapter(ModelAdapter):
                         model=self.model_name,
                         messages=_build_messages(b64img, mime),
                         # 不带输出上限的请求会被部分上游网关直接掐断连接，
-                        # 先给 4096；推理模型思考吃满时由下方降级重试兜底
-                        max_tokens=4096,
+                        # 首选值可按模型在 config.json 配置（max_tokens 键）；
+                        # 思考型模型吃满预算时由下方降级重试兜底
+                        max_tokens=self.max_tokens,
                     )
                     win_attempt = (b64img, mime)
                     break
@@ -383,7 +392,8 @@ class ModelFactory:
                 raise ValueError('模型配置不完整：请在设置中填写 API Key、Base URL 和模型名称')
             validate_custom_base_url(base_url)
             print(f"DEBUG: Using model {model_name} @ {base_url} (timeout {cfg.get('timeout_seconds')}s)")
-            return OpenAICompatibleAdapter(api_key, base_url, model_name, cfg.get('timeout_seconds'))
+            return OpenAICompatibleAdapter(api_key, base_url, model_name, cfg.get('timeout_seconds'),
+                                           cfg.get('max_tokens'))
 
         if not api_key:
             raise ValueError('缺少 GOOGLE_API_KEY：请在设置中填写 API Key 或切换到 OpenAI 兼容端点')
