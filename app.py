@@ -191,10 +191,19 @@ class OpenAICompatibleAdapter(ModelAdapter):
         api_key = (api_key or '').strip()
         base_url = (base_url or '').strip().rstrip('/')
         model_name = (model_name or '').strip()
+        client_kwargs = {}
+        if 'opencode.ai' in base_url:
+            # opencode zen go 端点要求随请求携带稳定会话标识（路由/缓存优化），
+            # 缺失时网关直接 400 MissingSessionID
+            client_kwargs['default_headers'] = {
+                'x-opencode-session': 'mathmover-backend',
+                'User-Agent': 'mathmover-backend/1.0',
+            }
         self.client = openai.OpenAI(
             api_key=api_key,
             base_url=base_url,
             timeout=int(timeout_seconds or MODEL_TIMEOUT_SECONDS),
+            **client_kwargs,
         )
         # 输出上限可按模型在 config.json 配置；不设 max_tokens 的请求会被
         # 部分网关（如 b.ai）直接掐断，故始终发送有限值。默认 4096 对
