@@ -15,6 +15,7 @@ import sys
 
 # GGB 指令解析器（与基线判分工具 scripts/benchmark.py 共用同一实现）
 import ggb_parser
+import semantic_guard
 from expert_prompts import EXPERT_PROMPTS
 
 # 加载环境变量
@@ -677,6 +678,56 @@ def upload_file():
 
             print(f"DEBUG: 指令校验完成: 有效率 {validation['validity']}, "
                   f"无效行 {validation['invalid_lines']}, 重试 {retried}")
+
+            # --- 语义校验闭环：类别结构化自查 -> 失败明细回灌重试（最多 2 次）---
+            # 金标准判分只能离线用；此处按类别做通用结构检查（动点/滑块/圆锥曲线/
+            # 3D 模式/文字残留），失败原因作为修正要求回灌，与 P0 语法闭环同构。
+            semantic_state = semantic_guard.semantic_check(category, specialist_result_text)
+            semantic_retries = 0
+            while (not semantic_state['ok'] and semantic_retries < 2
+                    and not specialist_result_text.startswith("Error:")):
+                semantic_retries += 1
+                print(f"WARNING: 语义校验未通过（第 {semantic_retries} 次），回灌重试: "
+                      f"{semantic_state['summary']}")
+                yield json.dumps({'status': 'processing',
+                                  'message': f'图形结构自检未通过，正在自动修正（{semantic_retries}/2）...'}) + '\n'
+                failure_lines = '\n'.join(f"- {f['detail']}" for f in semantic_state['failures'])
+                sem_retry_prompt = (
+                    selected_prompt
+                    + "\n\n【结构自检修正要求】你上一次生成的指令通过了语法检查，但存在以下结构问题：\n"
+                    + failure_lines
+                    + "\n\n请重新输出完整指令列表（保留上一次正确的部分），修复上述全部问题。"
+                      "特别注意：动点必须由滑块驱动（点坐标引用滑块名，或 M=Point(路径, 滑块)），"
+                      "解析几何必须显式构造圆锥曲线对象，立体几何必须 MODE: 3D + 空间坐标，"
+                      "不要生成任何 Text 文字对象。"
+                )
+                try:
+                    sem_retry_text = None
+                    for status, val in run_with_heartbeats(model_adapter.generate, sem_retry_prompt,
+                                                           image_data, mime_type):
+                        if status == 'heartbeat':
+                            yield val
+                        elif status == 'error':
+                            raise val
+                        elif status == 'result':
+                            sem_retry_text = val
+                    if sem_retry_text:
+                        new_state = semantic_guard.semantic_check(category, sem_retry_text)
+                        print(f"DEBUG: 语义重试后 ok={new_state['ok']} (原 {semantic_state['ok']})")
+                        if new_state['ok'] or len(new_state['failures']) < len(semantic_state['failures']):
+                            specialist_result_text = sem_retry_text
+                            semantic_state = new_state
+                except Exception as sem_e:
+                    print(f"WARNING: 语义重试失败，沿用当前结果: {sem_e}")
+                    break
+
+            # --- D 规则过滤：删除残留的 Text 文字对象行（比 prompt 约束更可靠）---
+            filtered_text = semantic_guard.strip_text_objects(specialist_result_text)
+            if filtered_text != specialist_result_text:
+                print("DEBUG: 已过滤残留 Text 文字对象")
+                specialist_result_text = filtered_text
+                semantic_state = semantic_guard.semantic_check(category, specialist_result_text)
+
             commands = ggb_parser.extract_valid_commands(specialist_result_text)
 
             yield json.dumps({
@@ -686,6 +737,9 @@ def upload_file():
                 'validation': {
                     'validity': validation['validity'],
                     'retried': retried,
+                    'semantic_ok': semantic_state['ok'],
+                    'semantic_failures': [f['check'] for f in semantic_state['failures']],
+                    'semantic_retries': semantic_retries,
                 }
             }) + '\n'
 
