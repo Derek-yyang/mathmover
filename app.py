@@ -124,6 +124,19 @@ D：立体几何（正方体、四面体、空间动点、球、旋转体）
 
 PROMPT_MAP = EXPERT_PROMPTS
 
+# 两段式读题提示词：增强图单独读题（任务单一、注意力不被作图指令挤占），
+# 读错的系数会在这一步被修正，作图阶段只看文本不再看图
+READ_PROMPT = (
+    "你是数学题转录员。请把图片中的数学题完整转录为结构化文字，供后续作图程序使用。\n"
+    "要求：\n"
+    "1. 逐字转录题干文字，函数/方程必须写出完整具体系数（如 y=2x²-8x+6 而不是 y=ax²+bx+c；"
+    "若系数待定，必须说明由哪些已知点确定）；\n"
+    "2. 列出所有已知点的名称与坐标、所有几何对象（直线/抛物线/圆/多边形等）及其相互关系；\n"
+    "3. 描述图中坐标系内已画出的图形内容（哪条曲线、什么位置关系、标注了哪些点）；\n"
+    "4. 逐条列出每个小问的要求；\n"
+    "5. 不要解题，不要补充题目之外的任何内容。"
+)
+
 
 def build_allowed_commands_suffix(category: str) -> str:
     """从 ggb_commands.json（单一事实来源）生成 prompt 的允许命令集。
@@ -231,6 +244,41 @@ class OpenAICompatibleAdapter(ModelAdapter):
         self.model_name = model_name
 
     @staticmethod
+    def _enhance_image(image_bytes):
+        """读数增强：2x 放大 + 裁掉四周空白边。
+
+        实测（deepseek@AMD, A-二次函数2）裸图读错系数、2x 放大后读题全对；
+        截图类题目图多为低分辨率长条图，放大显著提升字号可读性。
+        失败或无收益时返回原 bytes。"""
+        try:
+            from PIL import Image, ImageChops
+            buf = io.BytesIO(image_bytes)
+            with Image.open(buf) as im:
+                im = im.convert('RGB')
+                # 裁掉纯色空白边（截图常见大量留白，裁掉等于相对放大内容）
+                bg = Image.new('RGB', im.size, im.getpixel((0, 0)))
+                diff = ImageChops.difference(im, bg)
+                bbox = diff.getbbox()
+                if bbox:
+                    pad = 12
+                    left = max(0, bbox[0] - pad)
+                    top = max(0, bbox[1] - pad)
+                    right = min(im.width, bbox[2] + pad)
+                    bottom = min(im.height, bbox[3] + pad)
+                    if (right - left) * (bottom - top) < im.width * im.height * 0.98:
+                        im = im.crop((left, top, right, bottom))
+                # 2x 放大（LANCZOS），但限制长边不超过 3400 防载荷爆炸
+                im = im.resize((min(im.width * 2, 3400), min(im.height * 2, 3400)),
+                               Image.LANCZOS)
+                out = io.BytesIO()
+                im.save(out, format='PNG', optimize=True)
+                data = out.getvalue()
+            return data
+        except Exception:
+            pass
+        return image_bytes
+
+    @staticmethod
     def _shrink_image(image_bytes, max_side=1400, quality=85):
         """压缩图片用于对大载荷敏感的上游：等比缩到 max_side 内并转 JPEG。
 
@@ -257,10 +305,15 @@ class OpenAICompatibleAdapter(ModelAdapter):
             if image_bytes:
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
 
-            # 载荷降级序列：原图 -> 1400px -> 1000px（部分上游对大请求体直接掐断连接）
+            # 载荷序列（可读性优先）：增强图（裁空白+2x）为首选读数版本，
+            # 退让序：原图 -> 1400px -> 1000px（保字号优先于压体积，
+            # 仅当网关拒收时逐级退让；部分上游对大请求体直接掐断连接）
             raw_attempts = []
             if image_bytes:
-                raw_attempts.append((image_bytes, mime_type or 'image/png'))
+                enhanced = self._enhance_image(image_bytes)
+                raw_attempts.append((enhanced, 'image/png'))
+                if enhanced is not image_bytes:
+                    raw_attempts.append((image_bytes, mime_type or 'image/png'))
                 for max_side, quality in ((1400, 85), (1000, 78)):
                     shrunk = self._shrink_image(image_bytes, max_side, quality)
                     if shrunk is not image_bytes and all(shrunk != r[0] for r in raw_attempts):
@@ -271,15 +324,20 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 attempts = [(None, 'image/png')]
 
             def _build_messages(b64img, mime):
-                user_content = [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime};base64,{b64img}"
-                        }
-                    },
-                    {"type": "text", "text": "请根据图片内容执行任务。"},
-                ]
+                if b64img:
+                    user_content = [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime};base64,{b64img}"
+                            }
+                        },
+                        {"type": "text", "text": "请根据图片内容执行任务。"},
+                    ]
+                else:
+                    # 纯文本模式（两段式：读题阶段已把题意放入 system prompt）
+                    user_content = [{"type": "text",
+                                     "text": "请根据系统指令中给出的题目内容执行任务。"}]
                 return [
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": user_content},
@@ -289,7 +347,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             last_primary_error = None
             win_attempt = (base64_image, mime_type or 'image/png')
             for idx, (b64img, mime) in enumerate(attempts):
-                if not b64img:
+                if attempts == [(None, 'image/png')] and idx > 0:
                     continue
                 try:
                     response = self.client.chat.completions.create(
@@ -600,14 +658,51 @@ def upload_file():
                 category = 'B' # Default to Geometry
                 
             print(f"DEBUG: Classified as: {category}, Reason: {reason}")
-            
+
             # Send classification status with reason
             yield json.dumps({'status': 'classified', 'category': category, 'reason': reason}) + '\n'
-            
+
+            # --- Step 1.5: 两段式读题（增强图单独读题 -> 结构化题意文本）---
+            # 读数是当前最大失败源（point_at/function_through 占残余失败的大头）：
+            # 专家 prompt 与读题任务同发会挤占注意力，故先单独读题，
+            # 专家阶段按题意文本作图（不再传图）。读题失败自动回退传图旧路径。
+            problem_statement = None
+            try:
+                yield json.dumps({'status': 'processing', 'message': '正在精读题目...'}) + '\n'
+                enhanced_data = model_adapter._enhance_image(image_data) if image_data else None
+                read_text = None
+                for status, val in run_with_heartbeats(model_adapter.generate, READ_PROMPT,
+                                                       enhanced_data, 'image/png'):
+                    if status == 'heartbeat':
+                        yield val
+                    elif status == 'error':
+                        raise val
+                    elif status == 'result':
+                        read_text = val
+                if read_text and len(read_text.strip()) > 50 \
+                        and not read_text.startswith("Error:"):
+                    problem_statement = read_text.strip()
+                    print(f"DEBUG: 读题完成，题意 {len(problem_statement)} 字符")
+                    yield json.dumps({'status': 'processing', 'message': '题目精读完成，开始作图...'}) + '\n'
+            except Exception as read_e:
+                print(f"WARNING: 读题失败，回退为传图模式: {read_e}")
+
             # --- Step 2: Specialist ---
             selected_prompt = PROMPT_MAP[category] + build_allowed_commands_suffix(category)
             if text_prompt:
                 selected_prompt = f"用户补充说明：{text_prompt}\n\n" + selected_prompt
+            if problem_statement:
+                # 两段式：专家只看题意文本，不再看图（读数已由读题阶段完成）
+                selected_prompt = (
+                    "【题目内容（已由读题模块转录，以此为唯一事实来源）】\n"
+                    + problem_statement
+                    + "\n\n【你的任务】根据以上题目内容按后述规则生成 GeoGebra 指令。\n\n"
+                    + selected_prompt
+                )
+                specialist_image, specialist_mime = None, None
+            else:
+                # 回退：读题失败时沿用传图旧路径
+                specialist_image, specialist_mime = image_data, mime_type
             
             print(f"DEBUG: Calling Specialist {category}...")
             try:
@@ -615,7 +710,8 @@ def upload_file():
                 
                 # Use run_with_heartbeats to avoid proxy timeout during blocking API call
                 specialist_result_text = None
-                for status, val in run_with_heartbeats(model_adapter.generate, selected_prompt, image_data, mime_type):
+                for status, val in run_with_heartbeats(model_adapter.generate, selected_prompt,
+                                                       specialist_image, specialist_mime):
                     if status == 'heartbeat':
                         yield val
                     elif status == 'error':
@@ -658,7 +754,7 @@ def upload_file():
                 )
                 try:
                     retry_result_text = None
-                    for status, val in run_with_heartbeats(model_adapter.generate, retry_prompt, image_data, mime_type):
+                    for status, val in run_with_heartbeats(model_adapter.generate, retry_prompt, specialist_image, specialist_mime):
                         if status == 'heartbeat':
                             yield val
                         elif status == 'error':
@@ -704,7 +800,7 @@ def upload_file():
                 try:
                     sem_retry_text = None
                     for status, val in run_with_heartbeats(model_adapter.generate, sem_retry_prompt,
-                                                           image_data, mime_type):
+                                                           specialist_image, specialist_mime):
                         if status == 'heartbeat':
                             yield val
                         elif status == 'error':
