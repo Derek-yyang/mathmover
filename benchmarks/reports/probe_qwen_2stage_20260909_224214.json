@@ -1,0 +1,68 @@
+{
+  "label": "probe_qwen_2stage",
+  "backend": "http://127.0.0.1:5000",
+  "finished_at": "2026-09-09T22:42:14",
+  "total": 1,
+  "completed": 1,
+  "failed_requests": 0,
+  "pass": 1,
+  "pass_rate": 1.0,
+  "property_hit_rate": 1.0,
+  "unknown_commands": {},
+  "results": [
+    {
+      "case": "初中/A-二次函数2",
+      "skip": false,
+      "pass": true,
+      "total": 7,
+      "failed": [],
+      "results": [
+        {
+          "type": "syntax_clean",
+          "desc": "语法干净",
+          "pass": true,
+          "detail": "无效行 0"
+        },
+        {
+          "type": "no_text",
+          "desc": "无文字对象",
+          "pass": true,
+          "detail": "干净"
+        },
+        {
+          "type": "function_through",
+          "desc": "函数 f_line 采样等价",
+          "pass": true,
+          "detail": "函数 g 通过全部采样点"
+        },
+        {
+          "type": "function_through",
+          "desc": "函数 f_parab 采样等价",
+          "pass": true,
+          "detail": "函数 f 通过全部采样点"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 A",
+          "pass": true,
+          "detail": "命中: ['A']"
+        },
+        {
+          "type": "point_at",
+          "desc": "点 B",
+          "pass": true,
+          "detail": "命中: ['B']"
+        },
+        {
+          "type": "slider_range",
+          "desc": "滑块 t",
+          "pass": true,
+          "detail": "滑块 t 覆盖 [0.5, 4.0]"
+        }
+      ],
+      "status": "completed",
+      "gen_validity": 1.0,
+      "gen_retried": false
+    }
+  ]
+}
