@@ -134,7 +134,9 @@ def cmd_run(args):
     for i, case in enumerate(cases, 1):
         name = str(case.relative_to(CASES_DIR)).replace("\\", "/")
         cand_path = case / "candidate_commands.txt"
-        if cand_path.exists() and not args.fresh:
+        if args.fresh and cand_path.exists():
+            cand_path.unlink()
+        if cand_path.exists():
             print(f"[{i:>2}/{len(cases)}] {name}: 已有候选，跳过（--fresh 重跑）")
             continue
         status, payload = generate_once(args.backend, case / "problem.png")
