@@ -7,6 +7,7 @@ exit 0 on HTTP 200 within timeout; exit 1 otherwise.
 """
 import base64
 import io
+import json
 import sys
 import warnings
 from pathlib import Path
@@ -20,15 +21,15 @@ img_path = ROOT / "benchmarks" / "cases" / "初中" / "A-二次函数1" / "probl
 img = img_path.read_bytes()
 b64 = base64.b64encode(img).decode()
 
-BASE = "https://api.b.ai/v1"
-KEY = "sk-2gvwqexgxj3b9c7up95j7qvj2uzxrptx"
-H = {"Authorization": f"Bearer {KEY}"}
+cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+BASE = cfg["base_url"].rstrip("/")
+H = {"Authorization": f"Bearer {cfg['api_key']}"}
 
 try:
     r = requests.post(
         f"{BASE}/chat/completions", headers=H, timeout=240,
         json={
-            "model": "glm-5.3-flash", "max_tokens": 4000,
+            "model": sys.argv[1] if len(sys.argv) > 1 else cfg["model_name"], "max_tokens": 4000,
             "messages": [{"role": "user", "content": [
                 {"type": "image_url",
                  "image_url": {"url": f"data:image/png;base64,{b64}"}},
