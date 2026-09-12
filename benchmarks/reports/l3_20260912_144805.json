@@ -1,0 +1,27 @@
+{
+  "finished_at": "2026-09-12T14:48:05",
+  "judge_model": "mimo-v2.5",
+  "archive": "candidate_qwen_2stage.txt",
+  "total": 1,
+  "l3_pass": 1,
+  "l3_partial": 0,
+  "l3_pass_rate": 1.0,
+  "disagreements": [],
+  "results": [
+    {
+      "case": "初中/A-二次函数3",
+      "verdict": "pass",
+      "reason": "抛物线、关键点、动点及辅助线位置正确，动点随滑块移动，数学关系一致。",
+      "frames": [],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "一致"
+    }
+  ]
+}

@@ -222,6 +222,8 @@ def main():
     ap = argparse.ArgumentParser(description="L3 视觉判官")
     ap.add_argument("--limit", type=int, default=0, help="只跑前 N 题")
     ap.add_argument("--case", help="只跑指定案例（如 初中/A-二次函数1）")
+    ap.add_argument("--archive", default="candidate_commands.txt",
+                    help="候选文件名（如 candidate_mimo_2stage.txt，按模型归档分别判）")
     ap.add_argument("--show", action="store_true", help="保留全部截图（默认仅保留不一致案例）")
     args = ap.parse_args()
 
@@ -229,13 +231,19 @@ def main():
     if cfg.get("provider") != "openai_compatible" or not cfg.get("api_key"):
         raise SystemExit("L3 判题需要 OpenAI 兼容视觉模型，请先在模型设置中配置")
 
-    cases = sorted(p.parent for p in CASES_DIR.rglob("candidate_commands.txt"))
+    cases = []
+    for p in sorted(CASES_DIR.rglob(args.archive)):
+        case = p.parent
+        ep = case / "expected_properties.json"
+        if ep.exists() and json.loads(ep.read_text(encoding="utf-8")).get("skip"):
+            continue  # L2 无效样本（如 C-抛物线1）不进视觉判
+        cases.append(case)
     if args.case:
         cases = [c for c in cases if args.case.replace("\\", "/") in str(c.relative_to(CASES_DIR)).replace("\\", "/")]
     if args.limit:
         cases = cases[:args.limit]
     SHOTS_DIR.mkdir(exist_ok=True)
-    print(f"L3 视觉判官：{len(cases)} 题，判题模型 {cfg.get('model_name')} @ {cfg.get('base_url')}\n")
+    print(f"L3 视觉判官：{len(cases)} 题，候选={args.archive}，判题模型 {cfg.get('model_name')} @ {cfg.get('base_url')}\n")
 
     results = []
     with sync_playwright() as pw:
@@ -246,7 +254,7 @@ def main():
 
         for i, case in enumerate(cases, 1):
             name = str(case.relative_to(CASES_DIR)).replace("\\", "/")
-            cand = (case / "candidate_commands.txt").read_text(encoding="utf-8")
+            cand = (case / args.archive).read_text(encoding="utf-8")
             # 与产品端同源：清洗 + 定义先行重排 + MODE 组装（extract_valid_commands）
             from ggb_parser import extract_valid_commands
             commands = extract_valid_commands(cand)
@@ -325,6 +333,7 @@ def main():
     summary = {
         "finished_at": datetime.now().isoformat(timespec="seconds"),
         "judge_model": cfg.get("model_name"),
+        "archive": args.archive,
         "total": n,
         "l3_pass": passed,
         "l3_partial": partial,

@@ -1,0 +1,981 @@
+{
+  "finished_at": "2026-09-12T14:08:31",
+  "judge_model": "mimo-v2.5",
+  "archive": "candidate_ds_2stage.txt",
+  "total": 25,
+  "l3_pass": 2,
+  "l3_partial": 2,
+  "l3_pass_rate": 0.08,
+  "disagreements": [
+    {
+      "case": "初中/A-二次函数1",
+      "verdict": "partial",
+      "reason": "缺失直线l和点F，点P在直线上方约束未体现。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数1_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数2",
+      "verdict": "pass",
+      "reason": "图形正确展示直线、抛物线、交点A、B，动点P在线段AB上移动，PC垂直x轴且C在抛物线上，符合题意。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数2_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数2_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "P",
+          "D"
+        ],
+        "moved": false,
+        "detail": "坐标读取失败: ['t@0.5', 't@2.25']",
+        "coords_by_frame": {
+          "t@0.5": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t@2.25": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t@4.0": "{\"err\":\"TypeError: g.getX is not a function\"}"
+        },
+        "frame_value": 4.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "function_through"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数3",
+      "verdict": "error",
+      "reason": "HTTPSConnectionPool(host='api.b.ai', port=443): Read timed out. (read timeout=150)",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数3_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数3_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "N"
+        ],
+        "moved": false,
+        "detail": "坐标读取失败: ['m@0.5', 'm@1.75']",
+        "coords_by_frame": {
+          "m@0.5": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "m@1.75": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "m@3.0": "{\"err\":\"TypeError: g.getX is not a function\"}"
+        },
+        "frame_value": 3.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数4",
+      "verdict": "error",
+      "reason": "HTTPSConnectionPool(host='api.b.ai', port=443): Read timed out. (read timeout=150)",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数4_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数5",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120542134306964208268d9d6h4ihjLSh)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数5_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数5_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数5_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-三角形1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120543446749742248268d9d6Xj4KaA0w)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\初中_B-三角形1_f1.png",
+        "benchmarks\\shots\\初中_B-三角形1_f2.png",
+        "benchmarks\\shots\\初中_B-三角形1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-三角形2",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120544257133937128268d9d6Fj43F2M9)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\初中_B-三角形2_f1.png",
+        "benchmarks\\shots\\初中_B-三角形2_f2.png",
+        "benchmarks\\shots\\初中_B-三角形2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-四边形1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 20260912054503664647228268d9d6lf7agyC4)\",\"type\"",
+      "frames": [
+        "benchmarks\\shots\\初中_B-四边形1_f1.png",
+        "benchmarks\\shots\\初中_B-四边形1_f2.png",
+        "benchmarks\\shots\\初中_B-四边形1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-四边形2",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120546022784341078268d9d6Nx5VBAYn)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\初中_B-四边形2_f1.png",
+        "benchmarks\\shots\\初中_B-四边形2_f2.png",
+        "benchmarks\\shots\\初中_B-四边形2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-四边形3",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120546363902778768268d9d6qB0jncfB)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\初中_B-四边形3_f1.png",
+        "benchmarks\\shots\\初中_B-四边形3_f2.png",
+        "benchmarks\\shots\\初中_B-四边形3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-双曲线1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120547205144235048268d9d6w9qUECSt)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-双曲线1_f1.png",
+        "benchmarks\\shots\\高中_C-双曲线1_f2.png",
+        "benchmarks\\shots\\高中_C-双曲线1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-抛物线2",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120547516526304918268d9d6d5WfY4X1)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-抛物线2_f1.png",
+        "benchmarks\\shots\\高中_C-抛物线2_f2.png",
+        "benchmarks\\shots\\高中_C-抛物线2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120548356998947678268d9d6Aro5tIOJ)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆1_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆1_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆2",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120549088102875708268d9d6u7CBuHee)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆2_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆2_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆3",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120549561237555478268d9d6WUm4wQGC)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆3_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆3_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆4",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120550248117543228268d9d6yODjGcxG)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆4_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆4_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆4_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-圆锥1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 2026091205505167697668268d9d6O7T5hyFD)\",\"type\":",
+      "frames": [
+        "benchmarks\\shots\\高中_D-圆锥1_f1.png",
+        "benchmarks\\shots\\高中_D-圆锥1_f2.png",
+        "benchmarks\\shots\\高中_D-圆锥1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-多面体1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120551211204430608268d9d6gefx2QyS)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体1_f1.png",
+        "benchmarks\\shots\\高中_D-多面体1_f2.png",
+        "benchmarks\\shots\\高中_D-多面体1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-多面体2",
+      "verdict": "fail",
+      "reason": "侧顶点z坐标错误（应为4√3），底面点位置不当，且动点无移动。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体2_f1.png",
+        "benchmarks\\shots\\高中_D-多面体2_f2.png",
+        "benchmarks\\shots\\高中_D-多面体2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "P"
+        ],
+        "moved": false,
+        "detail": "坐标读取失败: ['t1@0.0', 't1@4.0']",
+        "coords_by_frame": {
+          "t1@0.0": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t1@4.0": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t1@8.0": "{\"err\":\"TypeError: g.getX is not a function\"}"
+        },
+        "frame_value": 8.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-多面体3",
+      "verdict": "fail",
+      "reason": "模型未满足A1C⊥平面ABC及∠ACB=90°，且无动点移动",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体3_f1.png",
+        "benchmarks\\shots\\高中_D-多面体3_f2.png",
+        "benchmarks\\shots\\高中_D-多面体3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-正方体2",
+      "verdict": "partial",
+      "reason": "动点可动，但未体现D1O⊥OP的约束，点P可能移动到不满足垂直条件的位置。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-正方体2_f1.png",
+        "benchmarks\\shots\\高中_D-正方体2_f2.png",
+        "benchmarks\\shots\\高中_D-正方体2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-正方体3",
+      "verdict": "error",
+      "reason": "HTTPSConnectionPool(host='api.b.ai', port=443): Read timed out. (read timeout=150)",
+      "frames": [
+        "benchmarks\\shots\\高中_D-正方体3_f1.png",
+        "benchmarks\\shots\\高中_D-正方体3_f2.png",
+        "benchmarks\\shots\\高中_D-正方体3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    }
+  ],
+  "results": [
+    {
+      "case": "初中/A-二次函数1",
+      "verdict": "partial",
+      "reason": "缺失直线l和点F，点P在直线上方约束未体现。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数1_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数2",
+      "verdict": "pass",
+      "reason": "图形正确展示直线、抛物线、交点A、B，动点P在线段AB上移动，PC垂直x轴且C在抛物线上，符合题意。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数2_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数2_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "P",
+          "D"
+        ],
+        "moved": false,
+        "detail": "坐标读取失败: ['t@0.5', 't@2.25']",
+        "coords_by_frame": {
+          "t@0.5": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t@2.25": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t@4.0": "{\"err\":\"TypeError: g.getX is not a function\"}"
+        },
+        "frame_value": 4.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "function_through"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数3",
+      "verdict": "error",
+      "reason": "HTTPSConnectionPool(host='api.b.ai', port=443): Read timed out. (read timeout=150)",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数3_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数3_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "N"
+        ],
+        "moved": false,
+        "detail": "坐标读取失败: ['m@0.5', 'm@1.75']",
+        "coords_by_frame": {
+          "m@0.5": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "m@1.75": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "m@3.0": "{\"err\":\"TypeError: g.getX is not a function\"}"
+        },
+        "frame_value": 3.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数4",
+      "verdict": "error",
+      "reason": "HTTPSConnectionPool(host='api.b.ai', port=443): Read timed out. (read timeout=150)",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数4_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/A-二次函数5",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120542134306964208268d9d6h4ihjLSh)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数5_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数5_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数5_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-三角形1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120543446749742248268d9d6Xj4KaA0w)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\初中_B-三角形1_f1.png",
+        "benchmarks\\shots\\初中_B-三角形1_f2.png",
+        "benchmarks\\shots\\初中_B-三角形1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-三角形2",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120544257133937128268d9d6Fj43F2M9)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\初中_B-三角形2_f1.png",
+        "benchmarks\\shots\\初中_B-三角形2_f2.png",
+        "benchmarks\\shots\\初中_B-三角形2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-四边形1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 20260912054503664647228268d9d6lf7agyC4)\",\"type\"",
+      "frames": [
+        "benchmarks\\shots\\初中_B-四边形1_f1.png",
+        "benchmarks\\shots\\初中_B-四边形1_f2.png",
+        "benchmarks\\shots\\初中_B-四边形1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-四边形2",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120546022784341078268d9d6Nx5VBAYn)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\初中_B-四边形2_f1.png",
+        "benchmarks\\shots\\初中_B-四边形2_f2.png",
+        "benchmarks\\shots\\初中_B-四边形2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "初中/B-四边形3",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120546363902778768268d9d6qB0jncfB)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\初中_B-四边形3_f1.png",
+        "benchmarks\\shots\\初中_B-四边形3_f2.png",
+        "benchmarks\\shots\\初中_B-四边形3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-双曲线1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120547205144235048268d9d6w9qUECSt)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-双曲线1_f1.png",
+        "benchmarks\\shots\\高中_C-双曲线1_f2.png",
+        "benchmarks\\shots\\高中_C-双曲线1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-抛物线2",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120547516526304918268d9d6d5WfY4X1)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-抛物线2_f1.png",
+        "benchmarks\\shots\\高中_C-抛物线2_f2.png",
+        "benchmarks\\shots\\高中_C-抛物线2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120548356998947678268d9d6Aro5tIOJ)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆1_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆1_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆2",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120549088102875708268d9d6u7CBuHee)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆2_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆2_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆3",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120549561237555478268d9d6WUm4wQGC)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆3_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆3_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/C-椭圆4",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120550248117543228268d9d6yODjGcxG)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_C-椭圆4_f1.png",
+        "benchmarks\\shots\\高中_C-椭圆4_f2.png",
+        "benchmarks\\shots\\高中_C-椭圆4_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-圆锥1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 2026091205505167697668268d9d6O7T5hyFD)\",\"type\":",
+      "frames": [
+        "benchmarks\\shots\\高中_D-圆锥1_f1.png",
+        "benchmarks\\shots\\高中_D-圆锥1_f2.png",
+        "benchmarks\\shots\\高中_D-圆锥1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-多面体1",
+      "verdict": "error",
+      "reason": "HTTP 503: {\"error\":{\"message\":\"分组 mi 下模型 mimo-v2.5 无可用渠道（distributor） (request id: 202609120551211204430608268d9d6gefx2QyS)\",\"type",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体1_f1.png",
+        "benchmarks\\shots\\高中_D-多面体1_f2.png",
+        "benchmarks\\shots\\高中_D-多面体1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-多面体2",
+      "verdict": "fail",
+      "reason": "侧顶点z坐标错误（应为4√3），底面点位置不当，且动点无移动。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体2_f1.png",
+        "benchmarks\\shots\\高中_D-多面体2_f2.png",
+        "benchmarks\\shots\\高中_D-多面体2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "P"
+        ],
+        "moved": false,
+        "detail": "坐标读取失败: ['t1@0.0', 't1@4.0']",
+        "coords_by_frame": {
+          "t1@0.0": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t1@4.0": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t1@8.0": "{\"err\":\"TypeError: g.getX is not a function\"}"
+        },
+        "frame_value": 8.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-多面体3",
+      "verdict": "fail",
+      "reason": "模型未满足A1C⊥平面ABC及∠ACB=90°，且无动点移动",
+      "frames": [
+        "benchmarks\\shots\\高中_D-多面体3_f1.png",
+        "benchmarks\\shots\\高中_D-多面体3_f2.png",
+        "benchmarks\\shots\\高中_D-多面体3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-正方体1",
+      "verdict": "pass",
+      "reason": "正方体、点E及动点F均正确呈现，F在指定侧面移动且满足几何约束，轨迹可视，核心内容表达无误。",
+      "frames": [],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "一致"
+    },
+    {
+      "case": "高中/D-正方体2",
+      "verdict": "partial",
+      "reason": "动点可动，但未体现D1O⊥OP的约束，点P可能移动到不满足垂直条件的位置。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-正方体2_f1.png",
+        "benchmarks\\shots\\高中_D-正方体2_f2.png",
+        "benchmarks\\shots\\高中_D-正方体2_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-正方体3",
+      "verdict": "error",
+      "reason": "HTTPSConnectionPool(host='api.b.ai', port=443): Read timed out. (read timeout=150)",
+      "frames": [
+        "benchmarks\\shots\\高中_D-正方体3_f1.png",
+        "benchmarks\\shots\\高中_D-正方体3_f2.png",
+        "benchmarks\\shots\\高中_D-正方体3_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    },
+    {
+      "case": "高中/D-球1",
+      "verdict": "fail",
+      "reason": "三帧完全相同，动点A纹丝不动；且缺少圆O、三棱锥P-ABC、垂直平面等关键对象。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-球1_f1.png",
+        "benchmarks\\shots\\高中_D-球1_f2.png",
+        "benchmarks\\shots\\高中_D-球1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at",
+        "point_at",
+        "point_at",
+        "point_at"
+      ],
+      "agreement": "一致"
+    },
+    {
+      "case": "高中/D-球2",
+      "verdict": "fail",
+      "reason": "点C坐标(2,4,0)使AC=2√5≠4，脱离题设约束，且球心坐标与点位置不一致。",
+      "frames": [
+        "benchmarks\\shots\\高中_D-球2_f1.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": false,
+      "l2_failed": [
+        "point_at"
+      ],
+      "agreement": "一致"
+    }
+  ]
+}

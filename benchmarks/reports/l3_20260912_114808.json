@@ -1,0 +1,51 @@
+{
+  "finished_at": "2026-09-12T11:48:08",
+  "judge_model": "mimo-v2.5",
+  "archive": "candidate_mimo_2stage.txt",
+  "total": 1,
+  "l3_pass": 0,
+  "l3_partial": 0,
+  "l3_pass_rate": 0.0,
+  "disagreements": [
+    {
+      "case": "初中/A-二次函数1",
+      "verdict": "fail",
+      "reason": "点P在t=-1时位置在直线下方，脱离约束，且未显示直线l。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数1_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    }
+  ],
+  "results": [
+    {
+      "case": "初中/A-二次函数1",
+      "verdict": "fail",
+      "reason": "点P在t=-1时位置在直线下方，脱离约束，且未显示直线l。",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数1_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数1_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [],
+        "moved": null,
+        "detail": "",
+        "coords_by_frame": {}
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    }
+  ]
+}
