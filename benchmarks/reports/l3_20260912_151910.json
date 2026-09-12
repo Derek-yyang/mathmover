@@ -1,0 +1,67 @@
+{
+  "finished_at": "2026-09-12T15:19:10",
+  "judge_model": "mimo-v2.5",
+  "archive": "candidate_ds_2stage.txt",
+  "total": 1,
+  "l3_pass": 0,
+  "l3_partial": 0,
+  "l3_pass_rate": 0.0,
+  "disagreements": [
+    {
+      "case": "初中/A-二次函数4",
+      "verdict": "error",
+      "reason": "HTTPSConnectionPool(host='api.b.ai', port=443): Read timed out. (read timeout=150)",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数4_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "P"
+        ],
+        "moved": false,
+        "detail": "坐标读取失败: ['t@-1.0', 't@1.5']",
+        "coords_by_frame": {
+          "t@-1.0": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t@1.5": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t@4.0": "{\"err\":\"TypeError: g.getX is not a function\"}"
+        },
+        "frame_value": 4.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    }
+  ],
+  "results": [
+    {
+      "case": "初中/A-二次函数4",
+      "verdict": "error",
+      "reason": "HTTPSConnectionPool(host='api.b.ai', port=443): Read timed out. (read timeout=150)",
+      "frames": [
+        "benchmarks\\shots\\初中_A-二次函数4_f1.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f2.png",
+        "benchmarks\\shots\\初中_A-二次函数4_f3.png"
+      ],
+      "numeric_check": {
+        "driven_points": [
+          "P"
+        ],
+        "moved": false,
+        "detail": "坐标读取失败: ['t@-1.0', 't@1.5']",
+        "coords_by_frame": {
+          "t@-1.0": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t@1.5": "{\"err\":\"TypeError: g.getX is not a function\"}",
+          "t@4.0": "{\"err\":\"TypeError: g.getX is not a function\"}"
+        },
+        "frame_value": 4.0,
+        "coords_raw": "{\"err\":\"TypeError: g.getX is not a function\"}"
+      },
+      "l2_pass": true,
+      "l2_failed": [],
+      "agreement": "❌不一致"
+    }
+  ]
+}
