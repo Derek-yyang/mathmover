@@ -44,14 +44,30 @@ def render_multiframe(browser_page_factory, commands, case_stem, max_frames=3):
     from ggb_parser import parse_commands
     ir = parse_commands("\n".join(commands))
     sliders = [o for o in ir["objects"] if o["kind"] == "slider" and o.get("numeric")]
-    # 由滑块驱动的点（坐标引用滑块名）
     slider_names = {o["name"] for o in sliders}
+    # coords 后处理会把滑块名替换为其 numeric 列表，两种形态都要认
+    num_alias = {tuple(o["numeric"]): o["name"] for o in sliders}
+
+    def _coord_slider(c):
+        if isinstance(c, list):
+            return num_alias.get(tuple(c))
+        s = str(c).strip()
+        return s if s in slider_names else None
+
+    # 由滑块驱动的点（坐标引用滑块名）
     driven_points = []
+    drive_slider = None
     for o in ir["objects"]:
         if o["kind"] == "point":
-            coords = o.get("coords") or []
-            if any(str(c).strip() in slider_names for c in coords):
+            hit = None
+            for c in (o.get("coords") or []):
+                hit = _coord_slider(c)
+                if hit:
+                    break
+            if hit:
                 driven_points.append(o["name"])
+                if drive_slider is None:
+                    drive_slider = hit
 
     page = browser_page_factory()
     frames = []
@@ -116,13 +132,19 @@ def render_multiframe(browser_page_factory, commands, case_stem, max_frames=3):
         time.sleep(2.0)
 
         # 取帧：无滑块 1 帧；有滑块取首/中/末三帧（限制 max_frames）
-        if not sliders:
+        # 关键：优先扫"驱动动点的滑块"——扫错滑块会让动点三帧不动，
+        # 判官据此误判"未体现动态"（曾致大批假 partial）
+        sweep = None
+        if drive_slider:
+            sweep = next((s for s in sliders if s["name"] == drive_slider), None)
+        if sweep is None and sliders:
+            sweep = sliders[0]
+        if sweep is None:
             plans = [(None, None)]
         else:
-            s = sliders[0]
-            lo, hi = s["numeric"][0], s["numeric"][1]
+            lo, hi = sweep["numeric"][0], sweep["numeric"][1]
             mid = round((lo + hi) / 2, 4)
-            plans = [(s["name"], v) for v in (lo, mid, hi)][:max_frames]
+            plans = [(sweep["name"], v) for v in (lo, mid, hi)][:max_frames]
 
         for fi, (sname, val) in enumerate(plans, 1):
             moved_check = ""
@@ -133,12 +155,20 @@ def render_multiframe(browser_page_factory, commands, case_stem, max_frames=3):
                 )
                 if driven_points and sname is not None:
                     # 每帧都读第一个被驱动点的坐标；帧间坐标全部相同 = 死点（联动断言失败）
+                    # JS 版 applet 无 getX/getY（那是 Java API）：用 getValueX/Y，
+                    # 再退回 getValueString 解析 "(x, y)"
                     moved_check = page.evaluate(
                         """([pname, sname, val]) => {
                             const g = window.ggbApplet;
                             g.setValue(sname, val); g.refreshViews();
                             try {
-                                return JSON.stringify({x: g.getX(pname), y: g.getY(pname)});
+                                if (typeof g.getValueX === "function") {
+                                    return JSON.stringify({x: g.getValueX(pname), y: g.getValueY(pname)});
+                                }
+                                const s = String(g.getValueString(pname));
+                                const m = s.match(/\\(?([^,()]+),([^()]+)\\)?/);
+                                if (m) return JSON.stringify({x: parseFloat(m[1]), y: parseFloat(m[2])});
+                                return JSON.stringify({err: "no coord api; str=" + s});
                             } catch (e) { return JSON.stringify({err: String(e)}); }
                         }""",
                         [driven_points[0], sname, val],
@@ -274,6 +304,8 @@ def main():
                     coords = json.loads(raw)
                     if "err" in coords:
                         read_errs.append(key)
+                    elif coords.get("x") is None or coords.get("y") is None:
+                        read_errs.append(key)  # 点在该帧无定义（NaN 序列化为 null）
                     else:
                         moved_coords.append((coords["x"], coords["y"]))
                 except json.JSONDecodeError:
