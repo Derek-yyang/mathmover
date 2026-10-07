@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from flask_cors import CORS
 import openai
 import requests
+import re
 from urllib.parse import urlparse
 import sys
 
@@ -17,6 +18,7 @@ import sys
 import ggb_parser
 import semantic_guard
 from expert_prompts import EXPERT_PROMPTS
+import decision_router
 
 # 加载环境变量
 load_dotenv()
@@ -59,7 +61,8 @@ DEFAULT_MODEL_TIMEOUT = int(os.getenv('MODEL_TIMEOUT_SECONDS', '75'))
 # 运行时模型配置存于本地 config.json（可经 /api/config 修改），替代原 Supabase profiles。
 # 优先级：config.json > .env SYSTEM_* > Gemini 默认。
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
-CONFIG_KEYS = ('provider', 'base_url', 'api_key', 'model_name', 'timeout_seconds', 'max_tokens')
+CONFIG_KEYS = ('provider', 'api_protocol', 'base_url', 'api_key', 'model_name', 'timeout_seconds', 'max_tokens',
+               'router_mode', 'perplexity_api_key', 'decisions_threshold')
 
 
 def load_local_model_config() -> dict:
@@ -88,17 +91,24 @@ def save_local_model_config(cfg: dict) -> dict:
 def apply_env_defaults(cfg: dict) -> dict:
     """config.json 缺项时回落到 .env SYSTEM_* / Gemini。"""
     cfg['timeout_seconds'] = cfg.get('timeout_seconds') or str(DEFAULT_MODEL_TIMEOUT)
+    cfg['router_mode'] = cfg.get('router_mode') or 'llm'
+    cfg['decisions_threshold'] = cfg.get('decisions_threshold') or '0.8'
+    cfg['perplexity_api_key'] = cfg.get('perplexity_api_key') or (os.getenv('PERPLEXITY_API_KEY') or '')
     if not cfg.get('provider'):
-        env_provider = (os.getenv('SYSTEM_MODEL_PROVIDER') or '').strip().lower()
-        cfg['provider'] = 'openai_compatible' if env_provider in ('openai', 'openai_compatible', 'openai-compatible') else 'gemini'
-    if cfg['provider'] == 'openai_compatible':
-        cfg['base_url'] = cfg.get('base_url') or (os.getenv('SYSTEM_BASE_URL') or '')
-        cfg['api_key'] = cfg.get('api_key') or (os.getenv('SYSTEM_API_KEY') or '')
-        cfg['model_name'] = cfg.get('model_name') or (os.getenv('SYSTEM_MODEL_NAME') or '')
-    else:
+        cfg['provider'] = 'openai_compatible'
+    # api_protocol 是 wire 协议的唯一事实来源；旧 config 只有 provider=gemini 时映射到 gemini
+    if not cfg.get('api_protocol'):
+        cfg['api_protocol'] = 'gemini' if cfg.get('provider') == 'gemini' else 'openai_chat'
+    if cfg['api_protocol'] == 'gemini':
+        cfg['provider'] = 'gemini'
         cfg['base_url'] = ''
         cfg['api_key'] = cfg.get('api_key') or (os.getenv('GOOGLE_API_KEY') or '')
         cfg['model_name'] = cfg.get('model_name') or DEFAULT_GEMINI_MODEL
+    else:
+        cfg['provider'] = 'openai_compatible'
+        cfg['base_url'] = cfg.get('base_url') or (os.getenv('SYSTEM_BASE_URL') or '')
+        cfg['api_key'] = cfg.get('api_key') or (os.getenv('SYSTEM_API_KEY') or '')
+        cfg['model_name'] = cfg.get('model_name') or (os.getenv('SYSTEM_MODEL_NAME') or '')
     return cfg
 
 
@@ -123,19 +133,6 @@ D：立体几何（正方体、四面体、空间动点、球、旋转体）
 """
 
 PROMPT_MAP = EXPERT_PROMPTS
-
-# 两段式读题提示词：增强图单独读题（任务单一、注意力不被作图指令挤占），
-# 读错的系数会在这一步被修正，作图阶段只看文本不再看图
-READ_PROMPT = (
-    "你是数学题转录员。请把图片中的数学题完整转录为结构化文字，供后续作图程序使用。\n"
-    "要求：\n"
-    "1. 逐字转录题干文字，函数/方程必须写出完整具体系数（如 y=2x²-8x+6 而不是 y=ax²+bx+c；"
-    "若系数待定，必须说明由哪些已知点确定）；\n"
-    "2. 列出所有已知点的名称与坐标、所有几何对象（直线/抛物线/圆/多边形等）及其相互关系；\n"
-    "3. 描述图中坐标系内已画出的图形内容（哪条曲线、什么位置关系、标注了哪些点）；\n"
-    "4. 逐条列出每个小问的要求；\n"
-    "5. 不要解题，不要补充题目之外的任何内容。"
-)
 
 
 def build_allowed_commands_suffix(category: str) -> str:
@@ -175,7 +172,7 @@ class GeminiAdapter(ModelAdapter):
 
         self.client = genai.Client(
             api_key=api_key,
-            http_options=types.HttpOptions(timeout=int(timeout_seconds or MODEL_TIMEOUT_SECONDS) * 1000),
+            http_options=types.HttpOptions(timeout=int(timeout_seconds or DEFAULT_MODEL_TIMEOUT) * 1000),
         )
         self.model_name = model_name
 
@@ -216,7 +213,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         self.client = openai.OpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=int(timeout_seconds or MODEL_TIMEOUT_SECONDS),
+            timeout=int(timeout_seconds or DEFAULT_MODEL_TIMEOUT),
             **client_kwargs,
         )
         # 输出上限可按模型在 config.json 配置；不设 max_tokens 的请求会被
@@ -239,34 +236,23 @@ class OpenAICompatibleAdapter(ModelAdapter):
             self.fallback_client = openai.OpenAI(
                 api_key=api_key,
                 base_url=fallback_url,
-                timeout=MODEL_TIMEOUT_SECONDS,
+                timeout=DEFAULT_MODEL_TIMEOUT,
             )
         self.model_name = model_name
 
     @staticmethod
     def _enhance_image(image_bytes):
-        """读数增强：2x 放大 + 裁掉四周空白边。
+        """读数增强：2x 放大，提升小字号系数/指数的可读性。
 
         实测（deepseek@AMD, A-二次函数2）裸图读错系数、2x 放大后读题全对；
         截图类题目图多为低分辨率长条图，放大显著提升字号可读性。
+        不做裁边（裁边收益小、有误伤边界内容的理论风险，已移除）。
         失败或无收益时返回原 bytes。"""
         try:
-            from PIL import Image, ImageChops
+            from PIL import Image
             buf = io.BytesIO(image_bytes)
             with Image.open(buf) as im:
                 im = im.convert('RGB')
-                # 裁掉纯色空白边（截图常见大量留白，裁掉等于相对放大内容）
-                bg = Image.new('RGB', im.size, im.getpixel((0, 0)))
-                diff = ImageChops.difference(im, bg)
-                bbox = diff.getbbox()
-                if bbox:
-                    pad = 12
-                    left = max(0, bbox[0] - pad)
-                    top = max(0, bbox[1] - pad)
-                    right = min(im.width, bbox[2] + pad)
-                    bottom = min(im.height, bbox[3] + pad)
-                    if (right - left) * (bottom - top) < im.width * im.height * 0.98:
-                        im = im.crop((left, top, right, bottom))
                 # 2x 放大（LANCZOS），但限制长边不超过 3400 防载荷爆炸
                 im = im.resize((min(im.width * 2, 3400), min(im.height * 2, 3400)),
                                Image.LANCZOS)
@@ -305,7 +291,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             if image_bytes:
                 base64_image = base64.b64encode(image_bytes).decode('utf-8')
 
-            # 载荷序列（可读性优先）：增强图（裁空白+2x）为首选读数版本，
+            # 载荷序列（可读性优先）：增强图（2x 放大）为首选读数版本，
             # 退让序：原图 -> 1400px -> 1000px（保字号优先于压体积，
             # 仅当网关拒收时逐级退让；部分上游对大请求体直接掐断连接）
             raw_attempts = []
@@ -335,7 +321,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
                         {"type": "text", "text": "请根据图片内容执行任务。"},
                     ]
                 else:
-                    # 纯文本模式（两段式：读题阶段已把题意放入 system prompt）
+                    # 纯文本模式（无图请求：题目内容/任务都在 system prompt 里）
                     user_content = [{"type": "text",
                                      "text": "请根据系统指令中给出的题目内容执行任务。"}]
                 return [
@@ -420,6 +406,184 @@ class OpenAICompatibleAdapter(ModelAdapter):
             raise e
 
 
+# --- 通用 HTTP 小工具（Responses / Anthropic 两个协议适配器共用）---
+
+def _http_error_text(resp):
+    """从错误响应体提取可读 message（兼容 OpenAI/Anthropic 两种 error 结构）。"""
+    try:
+        err = resp.json().get('error')
+        if isinstance(err, dict):
+            return err.get('message') or str(err)[:200]
+        return (str(err) if err else resp.text)[:200]
+    except Exception:
+        return resp.text[:200]
+
+
+def _payload_ladder(image_bytes, mime_type):
+    """多协议共用的图像载荷退让序列：增强图(2x) -> 原图 -> 1400px -> 1000px。
+
+    返回 [(base64_str, mime), ...]；无图时 [(None, 'image/png')]。
+    """
+    if not image_bytes:
+        return [(None, 'image/png')]
+    raw = [(OpenAICompatibleAdapter._enhance_image(image_bytes), 'image/png')]
+    if raw[0][0] is not image_bytes:
+        raw.append((image_bytes, mime_type or 'image/png'))
+    for max_side, quality in ((1400, 85), (1000, 78)):
+        shrunk = OpenAICompatibleAdapter._shrink_image(image_bytes, max_side, quality)
+        if shrunk is not image_bytes and all(shrunk != r[0] for r in raw):
+            raw.append((shrunk, 'image/jpeg'))
+    return [(base64.b64encode(r[0]).decode('utf-8'), r[1]) for r in raw]
+
+
+def _request_with_ladder(url, headers, build_body, attempts, timeout):
+    """按载荷退让序列 POST；网络级失败/413 退让下一档，401/403 归一为 invalid_api_key，其余错误直抛。
+
+    返回 (响应 JSON, 胜出的 (b64img, mime))。
+    """
+    last_error = None
+    for idx, (b64img, mime) in enumerate(attempts):
+        try:
+            resp = requests.post(url, headers=headers, json=build_body(b64img, mime), timeout=timeout)
+        except requests.RequestException as e:
+            last_error = e
+            if idx + 1 < len(attempts):
+                print(f"WARNING: payload rejected ({str(e)[:80]}), retrying with compressed image")
+                continue
+            raise
+        if resp.status_code == 413 and idx + 1 < len(attempts):
+            print("WARNING: payload too large (413), retrying with compressed image")
+            continue
+        if resp.status_code in (401, 403):
+            raise RuntimeError(f"invalid_api_key: {_http_error_text(resp)}")
+        if resp.status_code != 200:
+            raise RuntimeError(f"HTTP {resp.status_code}: {_http_error_text(resp)}")
+        return resp.json(), (b64img, mime)
+    raise last_error if last_error else RuntimeError('请求失败：无可用载荷')
+
+
+class OpenAIResponsesAdapter(ModelAdapter):
+    """OpenAI Responses 协议：POST {base_url}/responses，Bearer 鉴权。
+
+    与 Chat Completions 的差别只在 wire 格式：system prompt 走 instructions 字段，
+    图片走 input_image（data URL），输出从 output[].content[].text 聚合。
+    """
+
+    def __init__(self, api_key, base_url, model_name, timeout_seconds=None, max_tokens=None):
+        self.api_key = (api_key or '').strip()
+        self.base_url = (base_url or '').strip().rstrip('/')
+        self.model_name = (model_name or '').strip()
+        self.timeout = int(timeout_seconds or DEFAULT_MODEL_TIMEOUT)
+        try:
+            self.max_tokens = int(max_tokens) if max_tokens else 4096
+        except (TypeError, ValueError):
+            self.max_tokens = 4096
+
+    @staticmethod
+    def _extract_text(data):
+        parts = []
+        for item in data.get('output', []) or []:
+            if item.get('type') == 'message':
+                for c in item.get('content', []) or []:
+                    if c.get('type') in ('output_text', 'text') and c.get('text'):
+                        parts.append(c['text'])
+        return "\n".join(parts) or (data.get('output_text') or '')
+
+    def generate(self, prompt, image_bytes=None, mime_type=None):
+        def _build_body(b64img, mime, max_tokens):
+            if b64img:
+                user_content = [
+                    {"type": "input_image", "image_url": f"data:{mime};base64,{b64img}"},
+                    {"type": "input_text", "text": "请根据图片内容执行任务。"},
+                ]
+            else:
+                user_content = [{"type": "input_text",
+                                 "text": "请根据系统指令中给出的题目内容执行任务。"}]
+            return {
+                "model": self.model_name,
+                "instructions": prompt,
+                "input": [{"role": "user", "content": user_content}],
+                "max_output_tokens": max_tokens,
+            }
+
+        headers = {'Authorization': f'Bearer {self.api_key}', 'content-type': 'application/json'}
+        attempts = _payload_ladder(image_bytes, mime_type)
+        data, win = _request_with_ladder(f'{self.base_url}/responses', headers,
+                                        lambda b, m: _build_body(b, m, self.max_tokens),
+                                        attempts, self.timeout)
+        text = self._extract_text(data)
+        if not text.strip() and data.get('status') == 'incomplete':
+            # 输出预算被思考吃光致正文为空——提额重试一次（与 Chat 适配器同策略）
+            print("WARNING: empty content (status=incomplete), retrying with max_output_tokens=16384")
+            try:
+                data, _ = _request_with_ladder(f'{self.base_url}/responses', headers,
+                                              lambda b, m: _build_body(b, m, 16384),
+                                              [win], self.timeout)
+                text = self._extract_text(data)
+            except Exception as retry_error:
+                print(f"WARNING: elevated retry failed: {str(retry_error)[:80]}")
+        return text
+
+
+class AnthropicMessagesAdapter(ModelAdapter):
+    """Anthropic Messages 协议：POST {base_url}/messages，x-api-key + anthropic-version 鉴权。
+
+    base_url 约定与 OpenAI 相同（含 /v1 前缀），官方地址 https://api.anthropic.com/v1。
+    图片走 image source（base64 + media_type），system prompt 走 system 字段，
+    max_tokens 为 Anthropic 必填项。
+    """
+
+    def __init__(self, api_key, base_url, model_name, timeout_seconds=None, max_tokens=None):
+        self.api_key = (api_key or '').strip()
+        self.base_url = (base_url or '').strip().rstrip('/')
+        self.model_name = (model_name or '').strip()
+        self.timeout = int(timeout_seconds or DEFAULT_MODEL_TIMEOUT)
+        try:
+            self.max_tokens = int(max_tokens) if max_tokens else 4096
+        except (TypeError, ValueError):
+            self.max_tokens = 4096
+
+    @staticmethod
+    def _extract_text(data):
+        return "\n".join(bl.get('text', '') for bl in data.get('content', []) or []
+                        if bl.get('type') == 'text')
+
+    def generate(self, prompt, image_bytes=None, mime_type=None):
+        headers = {'x-api-key': self.api_key, 'anthropic-version': '2023-06-01',
+                   'content-type': 'application/json'}
+
+        def _build_body(b64img, mime, max_tokens):
+            if b64img:
+                content = [
+                    {"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64img}},
+                    {"type": "text", "text": "请根据图片内容执行任务。"},
+                ]
+            else:
+                content = [{"type": "text", "text": "请根据系统指令中给出的题目内容执行任务。"}]
+            return {
+                "model": self.model_name,
+                "max_tokens": max_tokens,
+                "system": prompt,
+                "messages": [{"role": "user", "content": content}],
+            }
+
+        attempts = _payload_ladder(image_bytes, mime_type)
+        data, win = _request_with_ladder(f'{self.base_url}/messages', headers,
+                                        lambda b, m: _build_body(b, m, self.max_tokens),
+                                        attempts, self.timeout)
+        text = self._extract_text(data)
+        if not text.strip() and data.get('stop_reason') == 'max_tokens':
+            print("WARNING: empty content (stop_reason=max_tokens), retrying with max_tokens=16384")
+            try:
+                data, _ = _request_with_ladder(f'{self.base_url}/messages', headers,
+                                              lambda b, m: _build_body(b, m, 16384),
+                                              [win], self.timeout)
+                text = self._extract_text(data)
+            except Exception as retry_error:
+                print(f"WARNING: elevated retry failed: {str(retry_error)[:80]}")
+        return text
+
+
 def validate_custom_base_url(base_url: str) -> None:
     """BYOK 地址校验：仅允许 HTTPS 公网地址，阻断内网/本机/链路本地目标（SSRF 防护）。"""
     import ipaddress
@@ -450,23 +614,105 @@ class ModelFactory:
         provider: openai_compatible | gemini
         """
         cfg = apply_env_defaults(dict(local_cfg or {}))
-        provider = cfg.get('provider')
+        protocol = cfg.get('api_protocol') or 'openai_chat'
         api_key = (cfg.get('api_key') or '').strip()
         base_url = (cfg.get('base_url') or '').strip().rstrip('/')
         model_name = (cfg.get('model_name') or '').strip()
 
-        if provider == 'openai_compatible':
-            if not (api_key and base_url and model_name):
-                raise ValueError('模型配置不完整：请在设置中填写 API Key、Base URL 和模型名称')
-            validate_custom_base_url(base_url)
-            print(f"DEBUG: Using model {model_name} @ {base_url} (timeout {cfg.get('timeout_seconds')}s)")
-            return OpenAICompatibleAdapter(api_key, base_url, model_name, cfg.get('timeout_seconds'),
-                                           cfg.get('max_tokens'))
+        if protocol == 'gemini':
+            if not api_key:
+                raise ValueError('缺少 GOOGLE_API_KEY：请在设置中填写 API Key 或切换到自定义模型 API')
+            print(f"DEBUG: Using Gemini model {model_name or DEFAULT_GEMINI_MODEL}")
+            return GeminiAdapter(api_key=api_key, timeout_seconds=cfg.get('timeout_seconds'))
 
-        if not api_key:
-            raise ValueError('缺少 GOOGLE_API_KEY：请在设置中填写 API Key 或切换到 OpenAI 兼容端点')
-        print(f"DEBUG: Using Gemini model {model_name or DEFAULT_GEMINI_MODEL}")
-        return GeminiAdapter(api_key=api_key, timeout_seconds=cfg.get('timeout_seconds'))
+        if not (api_key and base_url and model_name):
+            raise ValueError('模型配置不完整：请在设置中填写 API 密钥、API 地址和模型 ID')
+        validate_custom_base_url(base_url)
+        print(f"DEBUG: Using model {model_name} @ {base_url} [{protocol}] (timeout {cfg.get('timeout_seconds')}s)")
+        if protocol == 'anthropic':
+            return AnthropicMessagesAdapter(api_key, base_url, model_name,
+                                           cfg.get('timeout_seconds'), cfg.get('max_tokens'))
+        if protocol == 'openai_responses':
+            return OpenAIResponsesAdapter(api_key, base_url, model_name,
+                                          cfg.get('timeout_seconds'), cfg.get('max_tokens'))
+        return OpenAICompatibleAdapter(api_key, base_url, model_name, cfg.get('timeout_seconds'),
+                                       cfg.get('max_tokens'))
+
+
+def llm_classify(model_adapter, image_data, mime_type, text_prompt):
+    """LLM 路由分类：组装 ROUTER_PROMPT 调对话模型，返回其原始输出文本。"""
+    router_prompt_to_use = ROUTER_PROMPT
+    if not image_data:
+        router_prompt_to_use = router_prompt_to_use.replace("根据图片内容", "根据题目文字内容")
+    final_router_prompt = router_prompt_to_use
+    if text_prompt:
+        final_router_prompt = f"待分类的题目内容/补充说明如下：\n{text_prompt}\n\n" + router_prompt_to_use
+    return model_adapter.generate(final_router_prompt, image_data, mime_type)
+
+
+def route_classify(router_cfg, model_adapter, image_data, mime_type, text_prompt, meta_out):
+    """路由分发（设置里可切换）：decisions=Perplexity 决策模型（概率+置信度）；llm=对话模型分类。
+
+    decisions 调用失败或置信度低于阈值时自动回退 llm，回退事实记入 meta_out 透出给前端。
+    两种后端统一返回 router JSON 文本（{"category","reason"}），下游解析逻辑通用。
+    """
+    mode = (router_cfg.get('router_mode') or 'llm')
+    meta = {'mode': mode}
+    meta_out.append(meta)
+    if mode == 'decisions':
+        try:
+            res = decision_router.classify(router_cfg.get('perplexity_api_key', ''),
+                                           image_data, mime_type, text_prompt)
+            meta['confidence'] = res['confidence']
+            meta['probabilities'] = res['probabilities']
+            threshold = float(router_cfg.get('decisions_threshold') or 0.8)
+            if res['confidence'] >= threshold:
+                meta['effective'] = 'decisions'
+                return json.dumps({
+                    'category': res['category'],
+                    'reason': f"决策模型 {decision_router.DECISIONS_MODEL}，confidence={res['confidence']:.2f}",
+                    'router': meta,
+                }, ensure_ascii=False)
+            meta['fallback_to_llm'] = True
+            meta['fallback_reason'] = f"置信度 {res['confidence']:.2f} 低于阈值 {threshold:.2f}"
+        except decision_router.DecisionRouterError as e:
+            meta['fallback_to_llm'] = True
+            meta['fallback_reason'] = str(e)
+            print(f"ERROR: decisions router failed, falling back to llm: {e}")
+    meta['effective'] = 'llm'
+    return llm_classify(model_adapter, image_data, mime_type, text_prompt)
+
+
+def parse_router_result(raw):
+    """解析路由模型输出为 (category, reason)；完全失败返回 (None, None)。
+
+    三层兜底：
+      1. 严格 JSON（剥掉 markdown 围栏后解析，category 必须 ∈ {A,B,C,D}）
+      2. 键值对形态："category": "D" / 'category'：D（键值引号可省、容忍全角冒号）
+      3. 独立字母：仅认两侧都不是 ASCII 字母的 A/B/C/D，
+         排除 AI / API / OK 等单词内字母的误判（旧正则 r'([ABCD])' 的缺陷）
+    """
+    clean = raw.strip()
+    if clean.startswith('```json'):
+        clean = clean[7:]
+    if clean.startswith('```'):
+        clean = clean[3:]
+    if clean.endswith('```'):
+        clean = clean[:-3]
+    try:
+        data = json.loads(clean.strip())
+        cat = str(data.get('category') or '').strip().upper()
+        if cat in ('A', 'B', 'C', 'D'):
+            return cat, str(data.get('reason') or '')
+    except (json.JSONDecodeError, AttributeError, ValueError):
+        pass
+    m = re.search(r"['\"]?category['\"]?\s*[:：]\s*['\"]?([ABCD])['\"]?", raw)
+    if m:
+        return m.group(1), ''
+    m = re.search(r'(?<![A-Za-z])([ABCD])(?![A-Za-z])', raw)
+    if m:
+        return m.group(1), ''
+    return None, None
 
 # --- Routes ---
 
@@ -476,10 +722,11 @@ def api_config():
     if request.method == 'GET':
         cfg = apply_env_defaults(load_local_model_config())
         masked = dict(cfg)
-        if masked.get('api_key'):
-            k = masked['api_key']
-            masked['api_key_masked'] = (k[:6] + '***' + k[-4:]) if len(k) > 12 else '***'
-        masked.pop('api_key', None)
+        for secret_key in ('api_key', 'perplexity_api_key'):
+            k = (masked.get(secret_key) or '').strip()
+            if k:
+                masked[secret_key + '_masked'] = (k[:6] + '***' + k[-4:]) if len(k) > 12 else '***'
+            masked.pop(secret_key, None)
         masked['configured'] = True
         return jsonify(masked)
 
@@ -488,6 +735,26 @@ def api_config():
     # 未提供 api_key 时保留旧值，避免设置页回显掩码后误存
     if not (body.get('api_key') or '').strip():
         body['api_key'] = current.get('api_key', '')
+    if not (body.get('perplexity_api_key') or '').strip():
+        body['perplexity_api_key'] = current.get('perplexity_api_key', '')
+    # 路由后端与置信度阈值校验
+    router_mode = (str(body.get('router_mode') or '').strip() or current.get('router_mode') or 'llm')
+    if router_mode not in ('llm', 'decisions'):
+        return jsonify({'error': 'router_mode 必须是 llm 或 decisions'}), 400
+    body['router_mode'] = router_mode
+    threshold_raw = str(body.get('decisions_threshold') or '').strip() or current.get('decisions_threshold') or '0.8'
+    try:
+        threshold = float(threshold_raw)
+        if not (0 < threshold <= 1):
+            raise ValueError
+    except ValueError:
+        return jsonify({'error': 'decisions_threshold 必须是 (0, 1] 内的数字'}), 400
+    body['decisions_threshold'] = threshold_raw
+    # API 协议校验（gemini 为旧配置兼容保留；设置页下拉只展示三种主流协议）
+    protocol = (str(body.get('api_protocol') or '').strip() or current.get('api_protocol') or '')
+    if protocol and protocol not in ('openai_chat', 'openai_responses', 'anthropic', 'gemini'):
+        return jsonify({'error': f'未知 API 协议: {protocol}'}), 400
+    body['api_protocol'] = protocol
     if 'provider' in body and body['provider'] not in ('openai_compatible', 'gemini'):
         return jsonify({'error': 'provider 必须是 openai_compatible 或 gemini'}), 400
     saved = save_local_model_config({**current, **body})
@@ -499,6 +766,46 @@ def api_config():
             return jsonify({'error': str(e)}), 400
     print(f"DEBUG: 模型配置已更新 -> provider={saved.get('provider')}, model={saved.get('model_name')}")
     return jsonify({'ok': True})
+
+
+@app.route('/api/config/models', methods=['POST'])
+def api_config_models():
+    """拉取 OpenAI 兼容端点的模型目录（GET {base_url}/models）。
+
+    base_url/api_key 未传时回落到已保存配置——设置页「获取可用模型」按钮用。
+    走同一套 validate_custom_base_url SSRF 防护。
+    """
+    body = request.get_json(silent=True) or {}
+    current = apply_env_defaults(load_local_model_config())
+    base_url = (body.get('base_url') or current.get('base_url') or '').strip().rstrip('/')
+    api_key = (body.get('api_key') or '').strip() or current.get('api_key', '')
+    if not base_url:
+        return jsonify({'error': '请先填写 API 地址'}), 400
+    try:
+        validate_custom_base_url(base_url)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    protocol = (str(body.get('api_protocol') or '').strip() or current.get('api_protocol') or 'openai_chat')
+    if protocol == 'anthropic':
+        headers = {'x-api-key': api_key, 'anthropic-version': '2023-06-01'}
+    else:
+        headers = {'Authorization': f'Bearer {api_key}'} if api_key else {}
+    try:
+        resp = requests.get(f'{base_url}/models', headers=headers, timeout=15)
+    except requests.RequestException as e:
+        return jsonify({'error': f'连接失败: {e}'}), 502
+    if resp.status_code != 200:
+        try:
+            msg = resp.json().get('error', {}).get('message', resp.text[:200])
+        except Exception:
+            msg = resp.text[:200]
+        return jsonify({'error': f'HTTP {resp.status_code}: {msg}'}), 502
+    try:
+        items = resp.json().get('data', [])
+        ids = sorted({m['id'] for m in items if isinstance(m, dict) and m.get('id')})
+    except (ValueError, TypeError, AttributeError):
+        return jsonify({'error': '模型目录响应结构异常'}), 502
+    return jsonify({'models': ids})
 
 @app.errorhandler(500)
 def internal_error(error):
@@ -574,11 +881,10 @@ def upload_file():
     if not image_data and not text_prompt.strip():
         return jsonify({'error': '请先上传图片或输入题目文字内容'}), 400
 
+    runtime_cfg = apply_env_defaults(load_local_model_config())
+    router_cfg = runtime_cfg  # 路由后端配置（router_mode / perplexity_api_key / decisions_threshold）
     try:
-        model_adapter = ModelFactory.create(load_local_model_config())
-    except Exception as e:
-        return jsonify({'error': f'Model configuration error: {str(e)}'}), 500
-        model_adapter = ModelFactory.create(user_profile)
+        model_adapter = ModelFactory.create(runtime_cfg)
     except Exception as e:
         return jsonify({'error': f'Model configuration error: {str(e)}'}), 500
 
@@ -590,19 +896,16 @@ def upload_file():
             # --- Step 1: Router ---
             print("DEBUG: Calling Router...")
             try:
-                # 如果没有图片，修改 router prompt 描述
-                router_prompt_to_use = ROUTER_PROMPT
-                if not image_data:
-                    router_prompt_to_use = router_prompt_to_use.replace("根据图片内容", "根据题目文字内容")
+                # 路由后端由 route_classify 按 router_cfg 分发（decisions 决策模型 / llm 对话模型），
+                # 统一返回 {"category","reason"} JSON 文本，下方解析逻辑两种后端通用。
+                router_side = []
                 
-                # 确保将用户输入的文本也发给分类器
-                final_router_prompt = router_prompt_to_use
-                if text_prompt:
-                    final_router_prompt = f"待分类的题目内容/补充说明如下：\n{text_prompt}\n\n" + router_prompt_to_use
+                # （router prompt 组装与用户文本拼接已并入 route_classify / llm_classify）
                 
                 # Use run_with_heartbeats to avoid proxy timeout during blocking API call
                 router_result_text = None
-                for status, val in run_with_heartbeats(model_adapter.generate, final_router_prompt, image_data, mime_type):
+                for status, val in run_with_heartbeats(route_classify, router_cfg, model_adapter,
+                                                       image_data, mime_type, text_prompt, router_side):
                     if status == 'heartbeat':
                         yield val
                     elif status == 'error':
@@ -623,86 +926,58 @@ def upload_file():
                  yield json.dumps({'status': 'error', 'message': 'Router returned no content.'}) + '\n'
                  return
 
-            # Parse JSON Router Result
-            category = 'A' # Default
-            reason = ''
-            
-            try:
-                # 尝试清理可能存在的 markdown 标记
-                clean_json = router_result_text.strip()
-                if clean_json.startswith('```json'):
-                    clean_json = clean_json[7:]
-                if clean_json.startswith('```'):
-                    clean_json = clean_json[3:]
-                if clean_json.endswith('```'):
-                    clean_json = clean_json[:-3]
-                
-                router_data = json.loads(clean_json.strip())
-                category = router_data.get('category', 'A').upper()
-                reason = router_data.get('reason', '')
-                
-                # Double check category validity
-                if category not in ['A', 'B', 'C', 'D']:
+            # --- 路由结果解析：三层兜底，失败回灌重试一次，仍失败默认 A 并显式标记 ---
+            category, reason = parse_router_result(router_result_text)
+            router_parse_failed = False
+            if category is None:
+                # 解析失败不静默吞掉：回灌要求严格 JSON 重试一次
+                print("WARNING: 路由输出无法解析，回灌重试一次（要求严格 JSON）")
+                yield json.dumps({'status': 'processing',
+                                  'message': '分类结果无法解析，正在要求模型重试...'}) + '\n'
+                corrective = ("你上一次的输出无法被解析。请只输出一行严格 JSON，不要 markdown、不要任何其他文字："
+                              '{"category": "A/B/C/D 之一", "reason": "简要理由"}')
+                retry_input = f"{text_prompt}\n\n{corrective}" if text_prompt else corrective
+                try:
+                    router_retry_text = None
+                    for status, val in run_with_heartbeats(route_classify, router_cfg, model_adapter,
+                                                           image_data, mime_type, retry_input, router_side):
+                        if status == 'heartbeat':
+                            yield val
+                        elif status == 'error':
+                            raise val
+                        elif status == 'result':
+                            router_retry_text = val
+                    if router_retry_text:
+                        category, reason = parse_router_result(router_retry_text)
+                except Exception as router_retry_e:
+                    print(f"WARNING: 路由解析重试失败: {router_retry_e}")
+                if category is None:
                     category = 'A'
-                    
-            except json.JSONDecodeError:
-                print("DEBUG: JSON decode failed, falling back to regex")
-                # Fallback to regex if JSON fails
-                import re
-                match = re.search(r'"category":\s*"([ABCD])"', router_result_text)
-                if not match:
-                    match = re.search(r'([ABCD])', router_result_text)
-                category = match.group(1) if match else 'A'
+                    reason = '路由输出两次均无法解析，默认按 A 类（函数与图像）处理'
+                    router_parse_failed = True
 
             if category not in PROMPT_MAP:
                 category = 'B' # Default to Geometry
                 
-            print(f"DEBUG: Classified as: {category}, Reason: {reason}")
+            router_meta = router_side[-1] if router_side else {'mode': 'llm'}  # 取最近一次（含解析重试）
+            if router_meta.get('fallback_to_llm'):
+                reason = (reason + ' ' if reason else '') + f"（决策模型回退 LLM：{router_meta.get('fallback_reason', '')}）"
+            print(f"DEBUG: Classified as: {category}, Reason: {reason}, Router: {router_meta}")
 
-            # Send classification status with reason
-            yield json.dumps({'status': 'classified', 'category': category, 'reason': reason}) + '\n'
-
-            # --- Step 1.5: 两段式读题（增强图单独读题 -> 结构化题意文本）---
-            # 读数是当前最大失败源（point_at/function_through 占残余失败的大头）：
-            # 专家 prompt 与读题任务同发会挤占注意力，故先单独读题，
-            # 专家阶段按题意文本作图（不再传图）。读题失败自动回退传图旧路径。
-            problem_statement = None
-            try:
-                yield json.dumps({'status': 'processing', 'message': '正在精读题目...'}) + '\n'
-                enhanced_data = model_adapter._enhance_image(image_data) if image_data else None
-                read_text = None
-                for status, val in run_with_heartbeats(model_adapter.generate, READ_PROMPT,
-                                                       enhanced_data, 'image/png'):
-                    if status == 'heartbeat':
-                        yield val
-                    elif status == 'error':
-                        raise val
-                    elif status == 'result':
-                        read_text = val
-                if read_text and len(read_text.strip()) > 50 \
-                        and not read_text.startswith("Error:"):
-                    problem_statement = read_text.strip()
-                    print(f"DEBUG: 读题完成，题意 {len(problem_statement)} 字符")
-                    yield json.dumps({'status': 'processing', 'message': '题目精读完成，开始作图...'}) + '\n'
-            except Exception as read_e:
-                print(f"WARNING: 读题失败，回退为传图模式: {read_e}")
+            # Send classification status with reason（解析兜底失败时显式标记，前端可提示）
+            classified_event = {'status': 'classified', 'category': category,
+                                'reason': reason, 'router': router_meta}
+            if router_parse_failed:
+                classified_event['router_parse_failed'] = True
+            yield json.dumps(classified_event) + '\n'
 
             # --- Step 2: Specialist ---
+            # 单段式：专家直接看图作图（模型内部先试 2x 增强图、失败回退原图）。
+            # 不做两段式转录：转接多一层就多一次信息损耗，且第二段不回看图时读错无从纠正。
             selected_prompt = PROMPT_MAP[category] + build_allowed_commands_suffix(category)
             if text_prompt:
                 selected_prompt = f"用户补充说明：{text_prompt}\n\n" + selected_prompt
-            if problem_statement:
-                # 两段式：专家只看题意文本，不再看图（读数已由读题阶段完成）
-                selected_prompt = (
-                    "【题目内容（已由读题模块转录，以此为唯一事实来源）】\n"
-                    + problem_statement
-                    + "\n\n【你的任务】根据以上题目内容按后述规则生成 GeoGebra 指令。\n\n"
-                    + selected_prompt
-                )
-                specialist_image, specialist_mime = None, None
-            else:
-                # 回退：读题失败时沿用传图旧路径
-                specialist_image, specialist_mime = image_data, mime_type
+            specialist_image, specialist_mime = image_data, mime_type
             
             print(f"DEBUG: Calling Specialist {category}...")
             try:
