@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* 显式注册源文件目录：自动源检测曾单独漏掉 components/SettingsModal.tsx，
+   导致其中的工具类（w-52 / w-[860px] 等）未编译进产物，布局宽度塌缩。 */
+@source "../app";
+@source "../components";
+@source "../lib";
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

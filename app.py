@@ -14,7 +14,7 @@ import re
 from urllib.parse import urlparse
 import sys
 
-# GGB 指令解析器（与基线判分工具 scripts/benchmark.py 共用同一实现）
+# GGB 指令解析器（P0 指令校验层：specialist 输出的合法性检查与清洗）
 import ggb_parser
 import semantic_guard
 from expert_prompts import EXPERT_PROMPTS

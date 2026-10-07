@@ -14,7 +14,7 @@ import {
 import SettingsModal from "./SettingsModal";
 import {
   Plus,
-  Settings,
+  Settings2,
   Clock,
   MoreHorizontal,
   Edit2,
@@ -424,18 +424,17 @@ export default function DashboardSidebar() {
           ) : null}
         </div>
 
-        {/* 底部：模型设置 */}
-        <div className="p-4 border-t border-stone-200 bg-stone-50/50 flex-shrink-0">
+        {/* 底部：设置 */}
+        <div className="px-4 pt-4 pb-2 flex-shrink-0">
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="flex items-center gap-3 w-full p-2 rounded-xl hover:bg-white transition-all text-left group border border-transparent hover:border-stone-200 hover:shadow-sm active:scale-95 duration-75"
+            className="flex items-center gap-3 w-full p-2 rounded-xl text-left hover:bg-stone-100 active:scale-[0.99] transition-all duration-200 ease-out"
           >
-            <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0 shadow-sm">
-              <Settings className="w-5 h-5 stroke-[2.5]" />
+            <div className="w-10 h-10 flex items-center justify-center flex-shrink-0 text-emerald-500">
+              <Settings2 className="w-[22px] h-[22px] stroke-[1.5]" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-bold text-stone-700 group-hover:text-stone-900">模型设置</div>
-              <div className="text-xs text-stone-400 group-hover:text-emerald-500 font-bold">配置自己的 API Key</div>
+              <div className="text-sm font-bold text-stone-700">设置</div>
             </div>
           </button>
         </div>

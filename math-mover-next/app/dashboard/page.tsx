@@ -30,6 +30,7 @@ import {
   makeThumbnail,
   onGenerationsChanged,
 } from '@/lib/local-store';
+import { auditConstruction } from '@/lib/ggb-audit';
 
 const MAX_UPLOAD_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -50,6 +51,7 @@ interface GeoGebraApi {
   recalcDisplay?: () => void;
   getAllObjectNames: () => string[];
   getObjectType: (name: string) => string;
+  getValueString?: (name: string) => string;
   isIndependent: (name: string) => boolean;
 }
 
@@ -78,6 +80,8 @@ function DashboardContent() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [progress, setProgress] = useState(0); 
   const [problemType, setProblemType] = useState<string | null>(null); 
+  const [routerInfo, setRouterInfo] = useState<Record<string, unknown> | null>(null);
+  const routerInfoRef = useRef<Record<string, unknown> | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false); 
   const [isPreviewImageOpen, setIsPreviewImageOpen] = useState(false); 
   const [sliders, setSliders] = useState<{name: string, value: number | string, min: number, max: number}[]>([]); 
@@ -243,6 +247,7 @@ function DashboardContent() {
 
       // 2. 恢复题型
       setProblemType(item.problem_type || null);
+      setRouterInfo((item.router_meta as Record<string, unknown>) || null);
 
       // 3. 更新标题
       setCurrentProjectTitle(formatGenerationTitle(item.title, item.problem_type));
@@ -495,20 +500,27 @@ function DashboardContent() {
                 if (failed.length > 0) {
                     setTimeout(() => {
                         if (execSessionRef.current !== session) return; // 已切题，旧执行流自毁
-                        const stillFailed = execList(failed);
-                        // 真失败判定：定义行执行后目标对象仍不存在（返回值不可信，
-                        // 属性命令成功也返回 false，故只对"对象缺失"告警）
-                        const names = new Set(ggbApplet.getAllObjectNames() as string[]);
-                        const trulyMissing = stillFailed.filter((cmd) => {
-                            const m = cmd.match(/^([A-Za-z]\w*)\s*=/);
-                            return m && !names.has(m[1]);
-                        });
-                        if (trulyMissing.length > 0) {
-                            console.warn(`[MathMover] ${trulyMissing.length}/${commandsToRun.length} 条对象指令重放后仍未建立`, trulyMissing);
-                            showToast(`有 ${trulyMissing.length} 个对象未能创建，图形可能不完整`, 'error');
-                        }
+                        execList(failed);
                     }, 500);
                 }
+
+                // 全量体检：缺失 + 未定义（假成功）都计为破损。
+                // 不能只查失败行——case-01 的未定义点 evalCommand 返回 true 却是 (?,?)，
+                // 连坐下游静默失败；等两遍重放落定再体检。
+                setTimeout(() => {
+                    if (execSessionRef.current !== session) return; // 已切题，旧执行流自毁
+                    const audit = auditConstruction(ggbApplet, commandsToRun);
+                    if (audit.degraded) {
+                        console.warn('[MathMover] getValueString 不可用，未定义对象检测已降级为仅缺失检测');
+                    }
+                    if (audit.findings.length > 0) {
+                        console.warn(`[MathMover] ${audit.findings.length}/${commandsToRun.length} 个对象破损`, audit.findings);
+                        const parts: string[] = [];
+                        if (audit.missing.length > 0) parts.push(`${audit.missing.length} 个缺失`);
+                        if (audit.undefinedObjs.length > 0) parts.push(`${audit.undefinedObjs.length} 个未定义`);
+                        showToast(`有 ${parts.join('、')}对象，图形可能不完整`, 'error');
+                    }
+                }, 800);
                 
                 ggbApplet.evalCommand('SetFontSize(10)');
 
@@ -668,6 +680,8 @@ function DashboardContent() {
 
                   if (data.status === 'classified') {
                       setProblemType(data.category);
+                      setRouterInfo(data.router || null);
+                      routerInfoRef.current = data.router || null;
                       setLoadingText("正在调用专家模型生成指令...");
                   } else if (data.status === 'processing') {
                       setLoadingText(data.message || "正在调用专家模型生成指令...");
@@ -714,13 +728,15 @@ function DashboardContent() {
 
                       // 保存到本地历史（localStorage）
                       try {
-                          const thumbnail = await makeThumbnail(file as File);
+                          // 纯文本生成无图：跳过缩略图，但记录必须照常落盘（否则 router_meta 等审验信息丢失）
+                          const thumbnail = file ? await makeThumbnail(file) : undefined;
                           const saved = saveGeneration({
                               id: activeProjectId || undefined,
                               title: currentProjectTitle === '未命名课件' ? '' : currentProjectTitle,
                               commands: validCommands,
                               problem_type: data.category,
                               category: data.category,
+                              router_meta: routerInfoRef.current,
                               thumbnail,
                           });
                           setActiveProjectId(saved.id);
@@ -1194,6 +1210,13 @@ function DashboardContent() {
                        <h3 className="font-bold text-stone-700 text-sm tracking-wide">
                            {previewUrl ? "📸 题目图片已就绪" : "📤 上传题目图片或在此输入补充数学题目信息"}
                        </h3>
+                       {problemType && (
+                         <div className="flex items-center gap-1.5">
+                           <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                             题型识别：{TYPE_MAP[problemType] || problemType}
+                           </span>
+                         </div>
+                       )}
                      </div>
                  )}
              </div>
@@ -1370,7 +1393,7 @@ function DashboardContent() {
             <button className="text-stone-300 hover:text-stone-500"><MoreHorizontal className="w-5 h-5"/></button>
          </div>
 
-         <div className="p-5 space-y-6">
+         <div className="p-5 space-y-6 flex-1 min-h-0 overflow-y-auto">
             {/* Reference Image */}
             {previewUrl && (
                 <div className="space-y-2">
@@ -1465,35 +1488,31 @@ function DashboardContent() {
                 </div>
             )}
 
-            {/* Actions */}
-            {isGenerated && (
-                <div className="space-y-2 pt-4 border-t border-stone-100">
-                   <label className="text-[10px] font-black text-stone-400 uppercase tracking-wider">快捷操作</label>
-                   <div className="grid grid-cols-1 gap-3">
-                      
-                      <div className="relative">
-                          <button 
-                             onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                             className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full text-sm font-bold shadow-md hover:shadow-lg hover:-translate-y-[1px] transition-all"
-                          >
-                             <FileDown className="w-4 h-4 stroke-[2.5]" /> 导出项目
-                          </button>
-                          
-                          {isExportMenuOpen && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-stone-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                                <button onClick={() => handleExport('html')} className="w-full text-left px-4 py-3 hover:bg-stone-50 text-stone-700 font-bold text-sm flex items-center gap-2 border-b border-stone-50">
-                                    <span className="bg-orange-100 text-orange-600 text-[10px] px-1.5 py-0.5 rounded font-black">HTML</span> 交互网页
-                                </button>
-                                <button onClick={() => handleExport('ggb')} className="w-full text-left px-4 py-3 hover:bg-stone-50 text-stone-700 font-bold text-sm flex items-center gap-2">
-                                    <span className="bg-blue-100 text-blue-600 text-[10px] px-1.5 py-0.5 rounded font-black">GGB</span> GeoGebra 文件
-                                </button>
-                            </div>
-                          )}
-                      </div>
-                   </div>
-                </div>
-            )}
          </div>
+
+         {/* 底部固定：导出项目 */}
+         {isGenerated && (
+           <div className="p-5 border-t border-stone-100 flex-shrink-0">
+             <div className="relative">
+               <button 
+                  onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full text-sm font-bold shadow-md hover:shadow-lg hover:-translate-y-[1px] transition-all"
+               >
+                  <FileDown className="w-4 h-4 stroke-[2.5]" /> 导出项目
+               </button>
+               {isExportMenuOpen && (
+                 <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-xl border border-stone-100 overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                     <button onClick={() => handleExport('html')} className="w-full text-left px-4 py-3 hover:bg-stone-50 text-stone-700 font-bold text-sm flex items-center gap-2 border-b border-stone-50">
+                         <span className="bg-orange-100 text-orange-600 text-[10px] px-1.5 py-0.5 rounded font-black">HTML</span> 交互网页
+                     </button>
+                     <button onClick={() => handleExport('ggb')} className="w-full text-left px-4 py-3 hover:bg-stone-50 text-stone-700 font-bold text-sm flex items-center gap-2">
+                         <span className="bg-blue-100 text-blue-600 text-[10px] px-1.5 py-0.5 rounded font-black">GGB</span> GeoGebra 文件
+                     </button>
+                 </div>
+               )}
+             </div>
+           </div>
+         )}
       </aside>
 
       {/* Image Preview Modal (Lightbox) */}

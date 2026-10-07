@@ -31,15 +31,21 @@ def load(path):
 
 
 def write_config(provider_key, model, entry):
-    cfg = {
+    try:
+        cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        cfg = {}
+    # 只覆盖模型通道键，保留 router_mode / perplexity_api_key 等路由设置
+    cfg.update({
         "provider": "openai_compatible",
+        "api_protocol": "openai_chat",
         "base_url": entry["base_url"].rstrip("/"),
         "api_key": entry["api_key"],
         "model_name": model,
         "timeout_seconds": str(entry.get("timeout_seconds", 240)),
         "max_tokens": str(entry.get("max_tokens", 16384)),
-    }
-    CONFIG.write_text(json.dumps(cfg, indent=2), encoding="ascii")
+    })
+    CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=True), encoding="utf-8")
     return cfg
 
 

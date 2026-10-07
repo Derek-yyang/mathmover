@@ -15,6 +15,7 @@ export interface GenerationRecord {
   commands: string[];
   created_at: string;
   thumbnail?: string; // 小尺寸 dataURL，可为空
+  router_meta?: Record<string, unknown> | null; // 路由后端元数据（llm/decisions、置信度、回退原因）
 }
 
 const KEY = "mathmover_generations_v1";

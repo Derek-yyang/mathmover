@@ -1,24 +1,69 @@
 # -*- coding: utf-8 -*-
 """语义校验闭环（L2 精神的生产化）。
 
-金标准判分（scripts/properties.py）绑定每题的 expected_properties.json，只能离线用；
-本模块按"路由类别 -> 结构要求"做**免金标准的通用语义检查**，供线上生成链路在
+按"路由类别 -> 结构要求"做**免金标准的通用语义检查**，供线上生成链路在
 下发前自查，失败明细回灌给模型重试。
 
 检查项（按类别）：
-  通用：语法有效率、无残留文字对象（Text）、有动点（滑块驱动的点）
+  通用：语法有效率、无残留文字对象（Text）、动点自由度自洽
   A 函数：至少一个函数/显式方程对象
   B 几何：至少一个多边形或圆
   C 解析几何：至少一个圆锥曲线（conic/parabola/ellipse/hyperbola）
   D 立体几何：MODE: 3D 且有空间点/多边形
+
+动点判据（自由度自洽，按题意）：没有固定坐标的点即动点（依赖滑块/参数的点，
+含 Intersect/Midpoint 等隐含派生点），轨迹与驱动机制看题意——滑块参数
+（t = Slider + P=(t, f(t))）与路径自由点（Point(路径[, t])）都算"已设置"。
+有动点才要求可动机制；全为固定坐标的静态构造不要求滑块/路径。
+真正要抓的两种残缺：
+  free_param    —— 坐标依赖自由参数 t，但 t 无滑块也无路径（动点没设置）
+  orphan_slider —— 滑块孤立，没有驱动任何对象（动点被写成死坐标/滑块多余）
 """
+import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ggb_parser import parse_commands  # noqa: E402
+from ggb_parser import parse_commands, whitelist_command_names  # noqa: E402
 
 CONIC_KINDS = {"conic", "parabola", "ellipse", "hyperbola"}
+
+# 表达式里的合法名字：数学内置/常量 + 命令白名单（Root 等构造器可当表达式用）
+_MATH_FUNCS = {
+    "sqrt", "cbrt", "abs", "exp", "log", "ln", "log10", "log2",
+    "sin", "cos", "tan", "cot", "sec", "csc", "cosec",
+    "asin", "acos", "atan", "acot", "arcsin", "arccos", "arctan", "arccot",
+    "sinh", "cosh", "tanh", "asinh", "acosh", "atanh",
+    "floor", "ceil", "round", "trunc", "sgn", "sign",
+    "min", "max", "mod", "gcd", "lcm", "fact", "factorial", "ncr", "npr",
+    "binomial", "random", "shuffle", "if", "ifundefined", "sort", "keepif",
+    "zip", "element", "length", "dimension", "count", "unique", "product",
+    "sum", "mean", "median", "x", "y", "z",
+    "pi", "e", "phi", "i", "undefined", "true", "false",
+}
+_COMMAND_NAMES = {n.lower()
+                  for names in whitelist_command_names().values() for n in names}
+
+_DEF_RE = re.compile(r"^\s*([A-Za-z][A-Za-z0-9_]*)\s*(?:\(([^)]*)\))?\s*:?=")
+# 单遍分词：字符串 | 数字 | 标识符——标识符自带尾随数字（n_1 不会被数字规则吃成 n_）
+_TOKEN_RE = re.compile(r'"[^"]*"|\d+\.?\d*(?:[eE][+-]?\d+)?|[A-Za-z_][A-Za-z0-9_]*')
+
+
+def _idents(rhs: str):
+    """右端里的裸标识符引用（字符串/数字字面量不算）。
+
+    调用头（名字紧跟括号，如 Root(、f(、Polygon(）不算引用——构造器合法性归 P0 白名单管，
+    自由参数检查看的是坐标/表达式里的裸名字（如 P=(t, f(t)) 的 t）。
+    """
+    out = []
+    for m in _TOKEN_RE.finditer(rhs):
+        tok = m.group(0)
+        if tok[0] == '"' or tok[0].isdigit():
+            continue  # 字符串/数字字面量
+        if rhs[m.end():].lstrip().startswith("("):
+            continue  # 调用头
+        out.append(tok)
+    return out
 
 
 def semantic_check(category: str, candidate_text: str) -> dict:
@@ -46,37 +91,51 @@ def semantic_check(category: str, candidate_text: str) -> dict:
         failures.append({"check": "no_text",
                          "detail": f"存在文字对象 {text_objs}，题目文字不应生成 Text 对象，请删除这些行"})
 
-    # 3) 动点：存在滑块，且至少一个点由它驱动（坐标引用滑块，或 Point(路径, 滑块) 形态）
-    sliders = [o["name"] for o in objs if o["kind"] == "slider"]
-    if not sliders:
-        failures.append({"check": "moving_point",
-                         "detail": "缺少滑块 Slider；题目需要可拖动的动点，请增加滑块及由滑块坐标驱动的动点"})
-    else:
-        slider_names = set(sliders)
-        # a) 解析器已识别的路径参数化动点（Point(路径, 滑块)）
-        if any(o["kind"] == "moving_point" for o in objs):
-            has_moving = True
-        else:
-            # b) 点坐标表达式引用滑块名
-            has_moving = False
-            for o in objs:
-                if o["kind"] != "point":
-                    continue
-                for c in o.get("coords") or []:
-                    c_str = str(c)
-                    if any(s.lower() in c_str.lower() for s in slider_names):
-                        has_moving = True
-                        break
-                # c) 表达式点（expression kind）同样查引用
-                if not has_moving and o.get("kind") == "expression" and o.get("expr"):
-                    if any(s.lower() in str(o["expr"]).lower() for s in slider_names):
-                        has_moving = True
-                if has_moving:
-                    break
-        if not has_moving:
-            failures.append({"check": "moving_point",
-                             "detail": f"存在滑块 {sliders} 但没有点由它驱动；"
-                                       f"动点坐标应引用滑块（如 P=({sliders[0]}, f({sliders[0]})) 或 M=Point(路径, {sliders[0]})）"})
+    # 3) 动点自由度自洽（判据见模块 docstring）：
+    #    有动点 -> 可动机制必须已设置（滑块或路径动点）；全固定坐标的静态构造 -> 不要求
+    obj_names = {o["name"] for o in objs}
+    slider_names = {o["name"] for o in objs if o["kind"] == "slider"}
+    # 定义行解析：(名字, 绑定参数, 右端文本)
+    defs = []
+    for line in candidate_text.splitlines():
+        m = _DEF_RE.match(line)
+        if not m:
+            continue
+        name, params = m.group(1), (m.group(2) or "")
+        bound = {p.strip() for p in params.split(",") if p.strip()}
+        # 右端= def 等号之后（不用 split("=")：字符串字面量里的 = 会切错）
+        defs.append((name, bound, line[m.end():]))
+    bound_all = set().union(*(b for _, b, _ in defs)) if defs else set()
+    variants = {f"{n}_{i}" for n in obj_names for i in (1, 2, 3)}
+
+    def is_known(ident: str) -> bool:
+        low = ident.lower()
+        return (ident in obj_names or ident in bound_all or ident in variants
+                or low in _MATH_FUNCS or low in _COMMAND_NAMES)
+
+    # a) 自由参数未声明：定义引用了既非对象/滑块/路径、也非内置的名字（动点没设置可动机制）
+    free_params = {}
+    for name, _bound, rhs in defs:
+        for ident in _idents(rhs):
+            if not is_known(ident):
+                free_params.setdefault(ident, name)
+    if free_params:
+        first = next(iter(free_params))
+        pairs = "；".join(f"{p}（被 {owner} 引用）" for p, owner in free_params.items())
+        failures.append({"check": "free_param",
+                         "detail": f"引用了未定义的名字 {pairs}。若这是动点参数，动点未设置可动机制："
+                                   f"请加 {first} = Slider(...) 并让点坐标引用它（如 P=({first}, f({first}))），"
+                                   f"或改为路径动点 Point(路径[, 参数])；若是笔误请修正对象名"})
+
+    # b) 孤立滑块：滑块没有驱动任何对象（动点被写成死坐标，或滑块多余）
+    referenced = set()
+    for _n, _b, rhs in defs:
+        referenced.update(_idents(rhs))
+    orphan = sorted(slider_names - referenced)
+    if orphan:
+        failures.append({"check": "orphan_slider",
+                         "detail": f"滑块 {orphan} 未驱动任何对象。若题目有动点，动点坐标应引用滑块"
+                                   f"（如 P=({orphan[0]}, f({orphan[0]}))）；若题目无动点，应删除多余滑块"})
 
     # 4) 类别结构要求
     ks = kinds()
