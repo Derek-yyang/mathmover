@@ -1,8 +1,7 @@
-# SOP: curve-definition — 圆锥曲线与局部坐标
+# SOP: curve-definition — 圆锥曲线定义写法
 
-适用：由方程或几何参数构造椭圆、双曲线、抛物线。前置：确定中心/顶点、主轴方向及精确参数。
+输入：中心 O、单位主轴向量 uAxis、有效半轴；抛物线分支输入焦点 F 和直线 d。
 
-片段：椭圆的中心 O、单位主轴向量 uAxis 和半轴 lenA>lenB>0；示例常量需按题意替换。
 <!-- example: conic-ellipse -->
 ```ggb
 lenA = 3
@@ -14,7 +13,6 @@ conicC = Ellipse(Fleft, Fright, lenA)
 SetColor(conicC, "Black")
 ```
 
-片段：双曲线半实轴/半虚轴均为正。
 <!-- example: conic-hyperbola -->
 ```ggb
 lenA = 2
@@ -25,17 +23,10 @@ Fright = O + focusDist*uAxis
 conicC = Hyperbola(Fleft, Fright, lenA)
 ```
 
-片段：已有焦点 F 和准线 d。
 <!-- example: conic-parabola -->
 ```ggb
 conicC = Parabola(F, d)
 SetColor(conicC, "Black")
 ```
 
-边界：
-- uAxis 必须是单位向量；中心平移、轴转向均通过 O/uAxis 表达。别把“横半轴”永远当长半轴。
-- lenA=lenB 的椭圆退化为圆，使用 circle-tangent；双曲线的实轴和虚轴不要交换。
-- 抛物线焦点不能在准线上；准线先定义为直线对象，不用未说明类型的字符串。
-- 保持根式精确；允许引擎计算参数，不能因坐标含根号而改几何比例。
-- 曲线名称不与题目点名冲突；需要区域限制/分支运动时转到相应动点卡。
-检查：输入参数有效，曲线满足题给方程/条件；焦点间距、中心和轴向一致。
+写法注意：Ellipse(Fleft,Fright,lenA) 的末参是长半轴；lenA>lenB>0。Hyperbola 的 lenA 是半实轴，焦距 sqrt(lenA^2+lenB^2)。抛物线写 Parabola(F,d)，F 不在 d 上。椭圆 lenA=lenB 时改用圆写法。方程可直接命名，如 conicC: x^2/9+y^2/4=1，系数按本题替换；不写成单值函数代替整个曲线。

@@ -28,7 +28,7 @@ def collect_cases():
     cases = []
     for card in sorted(prompts._SOPS_DIR.glob("*.md")):
         text = card.read_text(encoding="utf-8")
-        for required in ("适用", "前置", "边界", "检查"):
+        for required in ("输入：", "写法注意："):
             if required not in text:
                 raise ValueError(f"{card.name}: missing {required}")
         examples = EXAMPLE.findall(text)
@@ -80,21 +80,22 @@ def validate_imports():
     all_cards = {p.stem for p in prompts._SOPS_DIR.glob("*.md")}
     used = set()
     results = []
+    index = prompts.load_sop_index()
     for category, expert in prompts.CATEGORY_TO_SKILL.items():
         text = prompts._strip_frontmatter(prompts._read(prompts._SKILLS_DIR / expert / "SKILL.md"))
-        names = prompts._sop_names(text, category)
+        names = prompts.resolve_sops(category, index['categories'][category], index)
         if len(names) != len(set(names)):
             raise ValueError(f"{expert}: duplicate references")
         assembled = prompts.EXPERT_PROMPTS[category]
         if "{{SOP" in assembled or not assembled.endswith(prompts._read(prompts._PITFALLS_PATH)):
             raise ValueError(f"{expert}: incomplete assembly")
-        # Natural-language references are dependencies too: avoid importing a card
-        # that tells the model to consult an absent card.
-        for name in names:
+        locations = prompts._sop_names(text, category)
+        if set(locations) != set(names):
+            raise ValueError(f'{expert}: inline locations must cover the category reference set')
+        for name in locations:
             card = prompts._read(prompts._sop_card_path(name, category))
-            for dependency in all_cards:
-                if re.search(rf"(?<![\w-]){re.escape(dependency)}(?![\w-])", card) and dependency not in names:
-                    raise ValueError(f"{expert}/{name}: missing referenced card {dependency}")
+            if '{{SOP' in card:
+                raise ValueError(f'{expert}/{name}: nested reference')
         used.update(names)
         results.append({"category": category, "cards": len(names), "characters": len(assembled)})
     if all_cards != used:

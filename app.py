@@ -15,7 +15,7 @@ import sys
 # GGB 指令解析器（P0 指令校验层：specialist 输出的合法性检查与清洗）
 import ggb_parser
 import semantic_guard
-from expert_prompts import EXPERT_PROMPTS
+from expert_prompts import EXPERT_PROMPTS, assemble_expert_prompt, router_sop_catalog, load_sop_index
 import decision_router
 
 # 加载环境变量
@@ -61,7 +61,7 @@ SUPPORTED_PROTOCOLS = ('openai_chat', 'openai_responses', 'anthropic')
 # 优先级：config.json > .env SYSTEM_*。
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
 CONFIG_KEYS = ('provider', 'api_protocol', 'base_url', 'api_key', 'model_name', 'timeout_seconds', 'max_tokens',
-               'router_mode', 'perplexity_api_key', 'decisions_threshold')
+               'router_mode', 'perplexity_api_key', 'decisions_threshold', 'decisions_model')
 
 
 def load_local_model_config() -> dict:
@@ -94,6 +94,7 @@ def apply_env_defaults(cfg: dict) -> dict:
     """config.json 缺项时回落到 .env SYSTEM_*。"""
     cfg['timeout_seconds'] = cfg.get('timeout_seconds') or str(DEFAULT_MODEL_TIMEOUT)
     cfg['router_mode'] = cfg.get('router_mode') or (os.getenv('ROUTER_MODE') or 'llm')
+    cfg['decisions_model'] = (cfg.get('decisions_model') or '').strip() or decision_router.DECISIONS_MODEL
     cfg['decisions_threshold'] = cfg.get('decisions_threshold') or (os.getenv('DECISIONS_THRESHOLD') or '0.8')
     cfg['perplexity_api_key'] = cfg.get('perplexity_api_key') or (os.getenv('PERPLEXITY_API_KEY') or '')
     cfg['provider'] = 'openai_compatible'
@@ -120,8 +121,15 @@ D：立体几何（正方体、四面体、空间动点、球、旋转体）
 要求：
 - 请严格以 JSON 格式返回，不要包含任何 markdown 格式化（如 ```json ... ```）。
 - 格式如下：
-{"category": "A", "reason": "这里写你的解释..."}
+{"category": "A", "reason": "简要理由", "sops": ["function-object"], "sop_uncertain": false}
 - category 只能是 A、B、C 或 D。
+- sops 从下列索引选择；覆盖各小问需要的操作与支撑构造，允许多个类别的二维能力组合，不因题干未出现命令名而漏选。不需要的操作不选。
+- 动点的既定路径与派生点轨迹不同，只有需要轨迹才选 locus；区域内运动选 moving-point-region。空间专用卡只在 D 类选择。
+- 视图、点样式、隐藏计算对象由程序常驻加载，卡片依赖由程序补齐，不必重复选。
+- 读图不清、复合构造无法确定完整参考集时设 sop_uncertain=true，程序会加载该类别完整卡片集；不要猜测后声称确定。
+
+可选参考卡片：
+{sop_catalog}
 """
 
 PROMPT_MAP = EXPERT_PROMPTS
@@ -596,7 +604,7 @@ class ModelFactory:
 
 def llm_classify(model_adapter, image_data, mime_type, text_prompt):
     """LLM 路由分类：组装 ROUTER_PROMPT 调对话模型，返回其原始输出文本。"""
-    router_prompt_to_use = ROUTER_PROMPT
+    router_prompt_to_use = ROUTER_PROMPT.replace('{sop_catalog}', router_sop_catalog())
     if not image_data:
         router_prompt_to_use = router_prompt_to_use.replace("根据图片内容", "根据题目文字内容")
     final_router_prompt = router_prompt_to_use
@@ -616,8 +624,11 @@ def route_classify(router_cfg, model_adapter, image_data, mime_type, text_prompt
     meta_out.append(meta)
     if mode == 'decisions':
         try:
+            decisions_model = (router_cfg.get('decisions_model') or '').strip()
             res = decision_router.classify(router_cfg.get('perplexity_api_key', ''),
-                                           image_data, mime_type, text_prompt)
+                                           image_data, mime_type, text_prompt,
+                                           model=decisions_model)
+            meta['model'] = decisions_model or decision_router.DECISIONS_MODEL
             meta['confidence'] = res['confidence']
             meta['probabilities'] = res['probabilities']
             threshold = float(router_cfg.get('decisions_threshold') or 0.8)
@@ -625,7 +636,7 @@ def route_classify(router_cfg, model_adapter, image_data, mime_type, text_prompt
                 meta['effective'] = 'decisions'
                 return json.dumps({
                     'category': res['category'],
-                    'reason': f"决策模型 {decision_router.DECISIONS_MODEL}，confidence={res['confidence']:.2f}",
+                    'reason': f"决策模型 {meta['model']}，confidence={res['confidence']:.2f}",
                     'router': meta,
                 }, ensure_ascii=False)
             meta['fallback_to_llm'] = True
@@ -705,6 +716,9 @@ def api_config():
     except ValueError:
         return jsonify({'error': 'decisions_threshold 必须是 (0, 1] 内的数字'}), 400
     body['decisions_threshold'] = threshold_raw
+    # 决策模型 ID：留空回落默认模型；router_mode=decisions 时保存前实测图片支持
+    decisions_model = (str(body.get('decisions_model') or '').strip() or decision_router.DECISIONS_MODEL)
+    body['decisions_model'] = decisions_model
     # API 协议校验（与设置页下拉、apply_env_defaults 共用 SUPPORTED_PROTOCOLS）
     protocol = (str(body.get('api_protocol') or '').strip() or current.get('api_protocol') or '')
     if protocol and protocol not in SUPPORTED_PROTOCOLS:
@@ -712,6 +726,15 @@ def api_config():
     body['api_protocol'] = protocol
     if 'provider' in body and body['provider'] != 'openai_compatible':
         return jsonify({'error': 'provider 必须是 openai_compatible'}), 400
+    # 决策模型保存校验：用 64x64 测试图实测该模型是否接受图片输入。
+    # 纯文本决策模型、无效 key、不存在的模型名在此直接拒绝，不落盘坏配置。
+    if router_mode == 'decisions':
+        probe_key = (body.get('perplexity_api_key') or '').strip() or (current.get('perplexity_api_key') or '').strip()
+        if not probe_key:
+            return jsonify({'error': '决策模型路由需要先配置 Perplexity API Key'}), 400
+        probe_error = decision_router.probe_image_support(probe_key, decisions_model)
+        if probe_error:
+            return jsonify({'error': probe_error}), 400
     saved = save_local_model_config({**current, **body})
     if saved.get('provider') == 'openai_compatible' and saved.get('base_url'):
         try:
@@ -890,7 +913,8 @@ def upload_file():
                 yield json.dumps({'status': 'processing',
                                   'message': '分类结果无法解析，正在要求模型重试...'}) + '\n'
                 corrective = ("你上一次的输出无法被解析。请只输出一行严格 JSON，不要 markdown、不要任何其他文字："
-                              '{"category": "A/B/C/D 之一", "reason": "简要理由"}')
+                              '{"category": "A/B/C/D 之一", "reason": "简要理由", '
+                              '"sops": ["索引中的卡片名"], "sop_uncertain": false}')
                 retry_input = f"{text_prompt}\n\n{corrective}" if text_prompt else corrective
                 try:
                     router_retry_text = None
@@ -904,6 +928,7 @@ def upload_file():
                             router_retry_text = val
                     if router_retry_text:
                         category, reason = parse_router_result(router_retry_text)
+                        router_result_text = router_retry_text
                 except Exception as router_retry_e:
                     print(f"WARNING: 路由解析重试失败: {router_retry_e}")
                 if category is None:
@@ -918,10 +943,14 @@ def upload_file():
             if router_meta.get('fallback_to_llm'):
                 reason = (reason + ' ' if reason else '') + f"（决策模型回退 LLM：{router_meta.get('fallback_reason', '')}）"
             print(f"DEBUG: Classified as: {category}, Reason: {reason}, Router: {router_meta}")
+            # 每题始终加载完整 skill；仅指令参考按路由结果选择。旧/无效输出回退完整集。
+            prompt_assembly = assemble_expert_prompt(
+                category, '' if router_parse_failed else router_result_text)
+            prompt_meta = dict(prompt_assembly.metadata)
 
             # Send classification status with reason（解析兜底失败时显式标记，前端可提示）
             classified_event = {'status': 'classified', 'category': category,
-                                'reason': reason, 'router': router_meta}
+                                'reason': reason, 'router': router_meta, 'prompt': prompt_meta}
             if router_parse_failed:
                 classified_event['router_parse_failed'] = True
             yield json.dumps(classified_event) + '\n'
@@ -929,9 +958,30 @@ def upload_file():
             # --- Step 2: Specialist ---
             # 单段式：专家直接看图作图（模型内部先试 2x 增强图、失败回退原图）。
             # 不做两段式转录：转接多一层就多一次信息损耗，且第二段不回看图时读错无从纠正。
-            selected_prompt = PROMPT_MAP[category] + build_allowed_commands_suffix(category)
+            command_suffix = build_allowed_commands_suffix(category)
+            selected_prompt = prompt_assembly.text + command_suffix
+            prompt_meta['system_characters'] = len(selected_prompt)
             if text_prompt:
                 selected_prompt = f"用户补充说明：{text_prompt}\n\n" + selected_prompt
+            prompt_meta['input_characters'] = len(selected_prompt)
+            prompt_meta['retry_reference_mode'] = None
+
+            def correction_base_prompt():
+                # 发生已有校验错误时扩大参考范围，不额外增加模型调用。
+                # 纠错不能被首次路由漏选限制；完整 skill、图片和题意始终保留。
+                prompt_meta['retry_reference_mode'] = 'full'
+                # 复合题可能首次选择了类别默认集以外的合法能力，纠错也须保留。
+                retry_cards = list(dict.fromkeys(
+                    load_sop_index()['categories'][category] + prompt_meta['cards']))
+                expanded = assemble_expert_prompt(category, json.dumps({
+                    'category': category, 'sops': retry_cards, 'sop_uncertain': False}))
+                full = expanded.text + command_suffix
+                prompt_meta['retry_cards'] = expanded.metadata['cards']
+                if text_prompt:
+                    full = f"用户补充说明：{text_prompt}\n\n" + full
+                return full
+
+            print(f"DEBUG: Prompt references: {prompt_meta}")
             specialist_image, specialist_mime = image_data, mime_type
             
             print(f"DEBUG: Calling Specialist {category}...")
@@ -980,7 +1030,7 @@ def upload_file():
                       f"无效行: {validation['invalid_lines'][:5]}")
                 yield json.dumps({'status': 'processing', 'message': '发现无效指令，正在自动修正...'}) + '\n'
                 retry_prompt = (
-                    selected_prompt
+                    correction_base_prompt()
                     + "\n\n【修正要求】你上一次输出的以下行不是合法的 GeoGebra 命令，"
                       "请重新输出完整指令列表，确保每一行都是可被 GeoGebra evalCommand 执行的命令，"
                       "不要输出任何注释、说明文字或无法解析的内容：\n"
@@ -1023,11 +1073,11 @@ def upload_file():
                                   'message': f'图形结构自检未通过，正在自动修正（{semantic_retries}/2）...'}) + '\n'
                 failure_lines = '\n'.join(f"- {f['detail']}" for f in semantic_state['failures'])
                 sem_retry_prompt = (
-                    selected_prompt
+                    correction_base_prompt()
                     + "\n\n【结构自检修正要求】你上一次生成的指令通过了语法检查，但存在以下结构问题：\n"
                     + failure_lines
                     + "\n\n请重新输出完整指令列表（保留上一次正确的部分），修复上述全部问题。"
-                      "特别注意：动点必须由滑块驱动（点坐标引用滑块名，或 M=Point(路径, 滑块)），"
+                      "特别注意：动点按题意保留自由度，可直接拖动路径/区域点或由参数驱动，"
                       "解析几何必须显式构造圆锥曲线对象，立体几何必须 MODE: 3D + 空间坐标，"
                       "不要生成任何 Text 文字对象。"
                 )
@@ -1068,6 +1118,7 @@ def upload_file():
                 'status': 'completed',
                 'commands': commands,
                 'category': category,
+                'prompt': prompt_meta,
                 'validation': {
                     'validity': validation['validity'],
                     'retried': retried,

@@ -1,7 +1,6 @@
-# SOP: view-setup — 视图开场
+# SOP: view-setup — 模式与视图命令
 
-适用：所有指令流；本卡只在开头使用一次。
-前置：根据题目对象所在空间选择 2D / 3D；卡片中的 MODE 是应用标记，不是 GeoGebra 命令。
+输入：目标模式 2D/3D；坐轴布尔值按展示需要替换。2D 主视图网格默认 true，只有用户明确要求隐藏网格时才替换为 false。
 
 <!-- example: view-2d -->
 ```ggb
@@ -15,9 +14,4 @@ ShowGrid(1, true)
 MODE: 3D
 ```
 
-边界：
-- 其他卡片不得重复 MODE 或重新开场。3D 模式由应用切换视图，不能用二维视图命令代替。
-- 是否显示坐轴和网格按题目用途调整；隐藏坐轴不能删除构造依赖。
-- ShowAxes/ShowGrid 是输入栏命令，视图 1/2/3 分别为两个二维视图和三维视图。
-  JavaScript API setAxesVisible/setGridVisible 不能作为 evalCommand 输入；这里的视图 3 不等于 SetVisibleInView 使用的 -1。
-检查：只有一个 MODE，且在第一行；对象维数与模式一致。
+写法注意：MODE 是应用标记，第一行只写一次。ShowAxes/ShowGrid 的视图 1/2/3 对应两个二维视图/三维视图；JavaScript API setAxesVisible/setGridVisible 不能写入指令流。视图 3 与 SetVisibleInView 的 -1 不同。

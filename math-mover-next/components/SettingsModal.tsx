@@ -11,6 +11,7 @@ interface ConfigResponse {
   router_mode?: "llm" | "decisions";
   perplexity_api_key_masked?: string;
   decisions_threshold?: string;
+  decisions_model?: string;
 }
 
 type ApiProtocol = "openai_chat" | "openai_responses" | "anthropic";
@@ -47,6 +48,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const [pplxKey, setPplxKey] = useState("");
   const [pplxKeyMasked, setPplxKeyMasked] = useState("");
   const [threshold, setThreshold] = useState("0.8");
+  const [decisionsModel, setDecisionsModel] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -62,6 +64,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         setRouterMode(cfg.router_mode === "decisions" ? "decisions" : "llm");
         setPplxKeyMasked(cfg.perplexity_api_key_masked || "");
         setThreshold(cfg.decisions_threshold || "0.8");
+        setDecisionsModel(cfg.decisions_model || "");
       })
       .catch(() => setMessage({ ok: false, text: "无法读取后端配置，请确认后端已启动" }))
       .finally(() => setLoading(false));
@@ -77,6 +80,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         model_name: modelName,
         router_mode: routerMode,
         decisions_threshold: threshold,
+        decisions_model: decisionsModel,
       };
       // key 留空 = 保留后端现有 key
       if (apiKey.trim()) body.api_key = apiKey.trim();
@@ -383,6 +387,16 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                             />
                           </div>
                           <div className="space-y-2">
+                            <label className={labelCls}>决策模型 ID</label>
+                            <input
+                              type="text"
+                              value={decisionsModel}
+                              onChange={(e) => setDecisionsModel(e.target.value)}
+                              placeholder="pplx-decider-v1-27b"
+                              className={inputCls}
+                            />
+                          </div>
+                          <div className="space-y-2">
                             <label className={labelCls}>置信度阈值（低于则回退 LLM 分类）</label>
                             <input
                               type="text"
@@ -393,7 +407,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
                             />
                           </div>
                           <p className="text-[11px] text-stone-400 font-medium">
-                            决策模型（pplx-decider-v1-27b）直接返回分类概率与置信度；调用失败或置信度低于阈值时自动回退 LLM 分类。
+                            决策模型直接返回分类概率与置信度，必须支持图片输入：保存时自动用测试图实测，纯文本模型会被拒绝并提示。
+                            调用失败或置信度低于阈值时自动回退 LLM 分类。
                           </p>
                         </>
                       ) : (

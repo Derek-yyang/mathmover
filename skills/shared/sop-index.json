@@ -1,0 +1,32 @@
+{
+  "always": ["view-setup", "fixed-point", "hidden-helper"],
+  "categories": {
+    "A": ["view-setup", "fixed-point", "function-object", "geometric-relations", "intersection", "projection-foot", "circle-tangent", "moving-point-function", "moving-point-path", "moving-point-region", "locus", "closed-region", "aux-line", "hidden-helper"],
+    "B": ["view-setup", "fixed-point", "circle-tangent", "closed-region", "geometric-relations", "projection-foot", "intersection", "moving-point-path", "moving-point-region", "locus", "aux-line", "hidden-helper"],
+    "C": ["view-setup", "fixed-point", "curve-definition", "conic-features", "geometric-relations", "intersection", "projection-foot", "circle-tangent", "moving-point-path", "moving-point-region", "moving-point-function", "locus", "closed-region", "aux-line", "hidden-helper"],
+    "D": ["view-setup", "fixed-point", "3d-frame", "3d-edges", "rotation-solid", "closed-region", "geometric-relations", "plane-helper", "polyhedron-section", "projection-foot", "intersection", "moving-point-path", "moving-point-region", "locus", "aux-line", "hidden-helper"]
+  },
+  "cards": {
+    "view-setup": {"summary": "模式、坐轴、网格", "views": ["2D", "3D"]},
+    "fixed-point": {"summary": "定点与派生点的标签和锁定写法", "views": ["2D", "3D"]},
+    "function-object": {"summary": "函数、分段/定义域、零点、极值、导数与函数切线", "views": ["2D"]},
+    "curve-definition": {"summary": "椭圆、双曲线、抛物线的定义", "views": ["2D"]},
+    "conic-features": {"summary": "圆锥曲线焦点、准线、焦半径", "views": ["2D"]},
+    "3d-frame": {"summary": "空间顶点的向量坐标写法", "views": ["3D"]},
+    "3d-edges": {"summary": "多面体逐棱线框", "views": ["3D"]},
+    "rotation-solid": {"summary": "球、有限圆锥/圆柱及曲面截面", "views": ["3D"]},
+    "geometric-relations": {"summary": "中点、定比、平行、垂直、对称/变换、角平分线", "views": ["2D", "3D"]},
+    "intersection": {"summary": "线/曲线/平面求交和多结果承接", "views": ["2D", "3D"]},
+    "projection-foot": {"summary": "垂足、投影、距离线段", "views": ["2D", "3D"]},
+    "circle-tangent": {"summary": "圆、圆弧、圆/圆锥曲线切线与切点", "views": ["2D", "3D"]},
+    "plane-helper": {"summary": "三点/法向/平行定面和面面交线", "views": ["3D"]},
+    "polyhedron-section": {"summary": "有限棱与平面求交形成截面", "views": ["3D"], "requires": ["3d-edges", "plane-helper", "closed-region"]},
+    "moving-point-function": {"summary": "横坐标/坐标参数驱动动点", "views": ["2D", "3D"]},
+    "moving-point-path": {"summary": "路径/指定弧上的拖动点或滑块驱动点", "views": ["2D", "3D"]},
+    "moving-point-region": {"summary": "区域内/有限面内自由点或双参数点", "views": ["2D", "3D"]},
+    "locus": {"summary": "派生点轨迹及驱动兼容写法", "views": ["2D", "3D"]},
+    "closed-region": {"summary": "多边形/有限面的边界和填充", "views": ["2D", "3D"]},
+    "aux-line": {"summary": "线段/直线/射线与辅助线样式", "views": ["2D", "3D"]},
+    "hidden-helper": {"summary": "按视图隐藏计算对象", "views": ["2D", "3D"]}
+  }
+}
