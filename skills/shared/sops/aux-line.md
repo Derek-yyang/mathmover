@@ -1,36 +1,24 @@
-# SOP: aux-line —— 辅助线样式规范（虚线 + 弱色 + 先定义后属性）
+# SOP: aux-line — 按用途设置线样式
 
-触发：中位线、高线、角平分线、对称轴、路径线、任何非题目主角的线。
+适用：辅助高线、对称轴、连接线及主角直线。前置：先区分题目主体、解释性辅助、纯计算辅助。
 
-片段：
-```
+<!-- example: auxiliary-line -->
+```ggb
 segAD = Segment(A, D)
 SetLineStyle(segAD, 2)
 SetColor(segAD, "Gray")
 ```
 
-片段（角平分线 / 垂线 / 中垂线）：
-```
-bis = AngleBisector(B, A, C)
-SetLineStyle(bis, 2)
-SetColor(bis, "Gray")
-perp = PerpendicularLine(D, lineBC)
-SetLineStyle(perp, 2)
-SetColor(perp, "Gray")
+<!-- example: auxiliary-perpendicular -->
+```ggb
+perpD = PerpendicularLine(D, lineAB)
+SetLineStyle(perpD, 2)
+SetColor(perpD, "Gray")
 ```
 
-片段（构造性辅助直线，纯计算用）：
-```
-xAxis_line = Line((0, 0), (1, 0))
-```
-
-变体：
-- 主角线（题目明确研究的直线 l、线段 AB）：实线 + 显著色（Black/Blue），不虚化。
-- 动点连线（如 A1F）：红虚线。
-- 坐标轴的替身线：建出后立刻隐藏（hidden-helper 卡），不设样式。
-
-注意：
-- 辅助线一律虚线（SetLineStyle 2）+ 弱色（Gray），与主角区分——判分里"辅助线/标注缺口"
-  是 partial 的主因，画出来比画漂亮重要。
-- 属性行紧跟定义行（坑手册 §7）。
-- PerpendicularLine 参数顺序：点在前、直线在后（坑手册 §6）。
+边界：
+- 主角线用实线及 Black/Blue；解释性辅助用灰虚线；纯计算对象隐藏，见 hidden-helper。
+- 高线、角平分线或路径也可能是题目主体，不按对象类型一律虚化。
+- 判断 Line/Segment/Ray 的无限、有限、单向范围，不能为了好看改对象类型。
+- 三维“被遮挡的棱”与“辅助线”不是同一类；不要未经视角判断静态指定所有背面棱。
+检查：属性紧随定义；线的范围及可见性符合题意，样式能区分用途。

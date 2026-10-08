@@ -1,45 +1,42 @@
-# SOP: moving-point-path —— 路径动点（路径对象 + 滑块 + Point(路径, t)）
+# SOP: moving-point-path — 路径约束与两种驱动
 
-触发：动点在已知轨迹上运动（圆/弧/线段/多边形边上/椭圆弧）。
+适用：点在线段、圆、椭圆弧等一维路径上运动。前置：pathObj 已构造；范围必须与题意一致。
 
-片段（圆上动点）：
+片段：用户直接拖动路径上的点，不必另加滑块。
+<!-- example: motion-path-free -->
+```ggb
+P = Point(pathObj)
+SetColor(P, "Red")
+ShowLabel(P, true)
+SetLabelMode(P, 1)
 ```
-pathC = Circle(A, 2)
-SetLineStyle(pathC, 2)
-SetColor(pathC, "Gray")
+
+片段：需要滑块演示的有限路径。
+<!-- example: motion-path-slider -->
+```ggb
 t = Slider(0, 1, 0.01)
-C = Point(pathC, t)
-SetColor(C, "Red")
-ShowLabel(C, true)
-SetLabelMode(C, 1)
+SetValue(t, 0.5)
+P = Point(pathObj, t)
+SetColor(P, "Red")
+ShowLabel(P, true)
+SetLabelMode(P, 1)
 ```
 
-片段（椭圆弧上动点：先取弧端点再构 Arc）：
-```
-V_right = (2, 0)
-V_top = (0, 1)
-SetVisibleInView(V_right, 1, false)
-SetVisibleInView(V_top, 1, false)
-arcM = Arc(C_curve, V_right, V_top)
-t_m = Slider(0.01, 0.99, 0.01)
-M = Point(arcM, t_m)
-SetColor(M, "Red")
+片段：圆/椭圆上题给合法端点 U、V 的逆时针弧。
+<!-- example: motion-arc -->
+```ggb
+arcUV = Arc(conicC, U, V)
+SetLineStyle(arcUV, 2)
+SetColor(arcUV, "Gray")
+P = Point(arcUV)
+SetColor(P, "Red")
 ```
 
-片段（线段轨迹，端点已推导）：
-```
-pathF = Segment(M, N)
-SetLineStyle(pathF, 2)
-SetColor(pathF, "Red")
-F = Point(pathF)
-```
-
-变体：
-- 多边形边上动点：`Point(poly1, t)` 或 `Point(Segment(A, B), t)`。
-- 轨迹本身是题目要观察的答案时，另加 locus 卡画轨迹对象。
-- 端点/中间推导点若只是结构性的：建出来后 SetVisibleInView 隐藏（hidden-helper 卡）。
-
-注意：
-- 动点必须由滑块驱动（判官校准铁律：动点必须真实可拖才可 pass）。
-- 路径对象一律灰色或红色虚线（SetLineStyle 2）——它是舞台不是主角。
-- 滑块范围 0..1 步长 0.01 是通用默认；弧上取 0.01..0.99 避免端点退化。
+边界：
+- U、V 必须由题给条件或引擎构造，并在该曲线上；不照搬某椭圆的 (2,0)/(0,1)。核对弧方向、长短与经过区域。
+- 0..1 是路径参数，不是角度、横坐标或匀速时间。用于无界路径时要确认实际覆盖，不能承诺有限参数覆盖全曲线。
+- 路径可跨二维/三维；曲面或区域内运动用 moving-point-region，不降成一条线。
+- 只为导航的路径灰虚线；题目主体曲线保留主图样式，不因被用作路径而弱化。
+- 直接拖动点与滑块驱动点是两种合法机制。Point(path,t) 的点由 t 驱动；若要直接拖点，选无第二参数分支。
+- 若要构造该点/派生点的 Locus，另看 locus 的兼容限制。
+检查：点在目标路径与允许部分上；通过对应驱动方式可动；端点包含性符合题意。

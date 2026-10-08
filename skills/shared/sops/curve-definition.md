@@ -1,38 +1,41 @@
-# SOP: curve-definition —— 圆锥曲线精确参数定义
+# SOP: curve-definition — 圆锥曲线与局部坐标
 
-触发：题目给出椭圆/双曲线/抛物线的方程或几何参数（焦点、顶点、离心率等）。
+适用：由方程或几何参数构造椭圆、双曲线、抛物线。前置：确定中心/顶点、主轴方向及精确参数。
 
-片段（椭圆，中心+顶点式）：
-```
-C_curve = Ellipse((-sqrt(3), 0), (sqrt(3), 0), 2)
-SetColor(C_curve, "Black")
-```
-
-片段（双曲线）：
-```
-C_curve = Hyperbola((-sqrt(5), 0), (sqrt(5), 0), 2)
-SetColor(C_curve, "Black")
-```
-
-片段（抛物线，焦点+准线）：
-```
-d = Line((0, -2), (1, -2))
-C_curve = Parabola((0, 2), d)
-SetColor(C_curve, "Black")
+片段：椭圆的中心 O、单位主轴向量 uAxis 和半轴 lenA>lenB>0；示例常量需按题意替换。
+<!-- example: conic-ellipse -->
+```ggb
+lenA = 3
+lenB = 2
+focusDist = sqrt(lenA^2 - lenB^2)
+Fleft = O - focusDist*uAxis
+Fright = O + focusDist*uAxis
+conicC = Ellipse(Fleft, Fright, lenA)
+SetColor(conicC, "Black")
 ```
 
-片段（圆）：
-```
-C_circle = Circle((0, 0), 2)
-SetColor(C_circle, "Black")
+片段：双曲线半实轴/半虚轴均为正。
+<!-- example: conic-hyperbola -->
+```ggb
+lenA = 2
+lenB = 1
+focusDist = sqrt(lenA^2 + lenB^2)
+Fleft = O - focusDist*uAxis
+Fright = O + focusDist*uAxis
+conicC = Hyperbola(Fleft, Fright, lenA)
 ```
 
-变体：
-- 由标准方程反推参数：x^2/4 + y^2 = 1 ⟹ a=2, b=1, c=sqrt(a^2-b^2)=sqrt(3)，
-  焦点写 `(-sqrt(3), 0)` 让引擎自己求值。
-- 开口向左/右的抛物线：焦点与准线相应旋转（焦点 (2,0)、准线 x = -2 即 Line((-2,0),(-2,1))）。
+片段：已有焦点 F 和准线 d。
+<!-- example: conic-parabola -->
+```ggb
+conicC = Parabola(F, d)
+SetColor(conicC, "Black")
+```
 
-注意：
-- 焦点/半轴长度含根号时写精确表达式（sqrt、分数），绝不能写 1.732 这类小数近似。
-- 曲线命名避免与点名冲突（C_curve、C_circle 加后缀是安全做法）。
-- 抛物线的准线必须先建直线对象再传入 Parabola，不能内联写方程字符串。
+边界：
+- uAxis 必须是单位向量；中心平移、轴转向均通过 O/uAxis 表达。别把“横半轴”永远当长半轴。
+- lenA=lenB 的椭圆退化为圆，使用 circle-tangent；双曲线的实轴和虚轴不要交换。
+- 抛物线焦点不能在准线上；准线先定义为直线对象，不用未说明类型的字符串。
+- 保持根式精确；允许引擎计算参数，不能因坐标含根号而改几何比例。
+- 曲线名称不与题目点名冲突；需要区域限制/分支运动时转到相应动点卡。
+检查：输入参数有效，曲线满足题给方程/条件；焦点间距、中心和轴向一致。

@@ -49,3 +49,10 @@ PerpendicularLine(点, 直线)——点在前、直线在后。写反建出来�
 
 `Intersect(曲线, 直线, 2)` 取第二个交点。只有一个交点时不写索引；
 交点个数不确定时先确认（联立次数/几何位置），不要盲写索引 2。
+
+## 9. 对象存在、isDefined 为真仍不足以证明点有效
+
+在 SOP 回归中，平行线的 Intersect 返回了名为 X 的 point；isDefined(X) 为真，
+但 getValueString(X) 显示 `X = ?`，getXcoord/getYcoord 为非有限值。
+有效性应综合对象存在、显示值不含未定义标记，以及点坐标为有限数。
+属性命令返回值和对象名称均不能代替这项检查。

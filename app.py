@@ -69,7 +69,10 @@ def load_local_model_config() -> dict:
     try:
         with open(CONFIG_PATH, encoding='utf-8') as f:
             raw = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError):
+        # OSError 覆盖 FileNotFoundError 与 IsADirectoryError——后者是 Docker
+        # bind mount 的已知坑：宿主机缺 config.json 时 Docker 会建出同名目录。
+        # 配置缺失一律视为未配置，回落 env，不阻断启动。
         raw = {}
     out = {}
     for k in CONFIG_KEYS:
@@ -91,8 +94,8 @@ def save_local_model_config(cfg: dict) -> dict:
 def apply_env_defaults(cfg: dict) -> dict:
     """config.json 缺项时回落到 .env SYSTEM_* / Gemini。"""
     cfg['timeout_seconds'] = cfg.get('timeout_seconds') or str(DEFAULT_MODEL_TIMEOUT)
-    cfg['router_mode'] = cfg.get('router_mode') or 'llm'
-    cfg['decisions_threshold'] = cfg.get('decisions_threshold') or '0.8'
+    cfg['router_mode'] = cfg.get('router_mode') or (os.getenv('ROUTER_MODE') or 'llm')
+    cfg['decisions_threshold'] = cfg.get('decisions_threshold') or (os.getenv('DECISIONS_THRESHOLD') or '0.8')
     cfg['perplexity_api_key'] = cfg.get('perplexity_api_key') or (os.getenv('PERPLEXITY_API_KEY') or '')
     if not cfg.get('provider'):
         cfg['provider'] = 'openai_compatible'

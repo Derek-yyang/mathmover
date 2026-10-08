@@ -1,36 +1,30 @@
-# SOP: conic-features —— 圆锥曲线特征件（Focus/Directrix/准线/焦半径）
+# SOP: conic-features — 焦点、准线与焦半径
 
-触发：题目涉及焦点、准线、离心率位置、焦半径/焦距。
+适用：题目涉及圆锥曲线的焦点、准线、焦半径。前置：conicC 是圆锥曲线对象而不是函数 f(x)。
 
-片段（焦点，引擎给）：
-```
-F1 = Focus(C_curve)
-SetPointSize(F1, 4)
-SetColor(F1, "DarkGreen")
-SetLabelMode(F1, 1)
-ShowLabel(F1, true)
-```
-
-片段（准线）：
-```
-d_line = Directrix(C_curve)
-SetLineStyle(d_line, 2)
-SetColor(d_line, "Gray")
+片段：抛物线单焦点/单准线。
+<!-- example: conic-single-features -->
+```ggb
+F = Focus(conicC)
+directrixD = Directrix(conicC)
+ShowLabel(F, true)
+SetLabelMode(F, 1)
+SetColor(F, "Blue")
 ```
 
-片段（焦半径连线，动点 M 到焦点）：
-```
+片段：椭圆/双曲线两焦点，用列表显式承接多结果。
+<!-- example: conic-double-features -->
+```ggb
+focusPts = {Focus(conicC)}
+F1 = Element(focusPts, 1)
+F2 = Element(focusPts, 2)
 segMF1 = Segment(M, F1)
-SetLineStyle(segMF1, 2)
-SetColor(segMF1, "Gray")
+segMF2 = Segment(M, F2)
 ```
 
-变体：
-- 双曲线两焦点：`Focus(C_curve)` 返回列表时取 `F1 = Focus(C_curve, 1)`、`F2 = Focus(C_curve, 2)`；
-  或按精确坐标直接建点（curve-definition 卡的 sqrt 表达式）。
-- 第二准线同理 Directrix(C_curve, 1/2)。
-
-注意：
-- 焦点坐标永远由引擎给（Focus 命令或 sqrt 精确表达式），绝不手算小数（curve-definition 卡同源纪律）。
-- 题目提到焦点/准线就画出来——这是圆锥曲线题的"地标"，漏画即视觉完整度缺口。
-- 焦点用小点 + 显著色（DarkGreen/Blue），不要与动点红色混淆。
+边界：
+- Focus(conic,索引)、Directrix(conic,索引) 不是本库采用的写法；多结果以 {命令(...)} 收集，再 Element。
+- F1/F2 的索引与题意的左/右焦点未必一致，核对位置后命名；若曲线由题给焦点定义，优先复用这些点，不另造重叠点。
+- 椭圆/双曲线多准线按同样收集原则，仅展示题意相关对象；圆无有限焦点对/准线，不套此卡。
+- 派生焦点随曲线参数更新，不写死当前坐标；收集列表和冗余点按 hidden-helper 处理。
+检查：焦点/准线数量和类型正确，命名与题意对应；焦半径端点引用实际具名焦点。

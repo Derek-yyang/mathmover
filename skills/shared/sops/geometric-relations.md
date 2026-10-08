@@ -1,34 +1,29 @@
-# SOP: geometric-relations —— 几何关系表达式化（中点/向量/比例/垂直/对称）
+# SOP: geometric-relations — 中点、定比、平行、垂直与变换
 
-触发：题目用文字描述的几何关系（中点、定比、垂直、平行、对称、平行四边形第四顶点等）。
+适用：题目通过关系而非独立坐标定义对象。前置：输入点/线已定义且满足非退化条件。
 
-片段（中点）：
+片段：已有互异点 A、B 和直线 lineAB。
+<!-- example: relations-basic -->
+```ggb
+M = Midpoint(A, B)
+Q = A + (2/5) * (B - A)
+parallelP = Line(P, lineAB)
+perpP = PerpendicularLine(P, lineAB)
 ```
-M = Midpoint(B, C)
-```
+这里 2/5 仅演示 AP:PB=2:3 的内分，不能照搬。
 
-片段（向量关系 / 平行四边形第四顶点）：
-```
+片段：A、B、D 是平行四边形相邻顶点，C 为对角顶点；关于点/直线对称。
+<!-- example: relations-transform -->
+```ggb
 C = B + D - A
-P = 2 * D - A
+R = Reflect(P, lineAB)
+S = Reflect(P, M)
 ```
 
-片段（垂直偏移，用于"过 M 作 BC 的垂线方向上一点"）：
-```
-D = M + 0.5 * (-(y(B) - y(C)), x(B) - x(C))
-```
-
-片段（线段定比分点）：
-```
-Q = A + (B - A) * (m / n)
-```
-
-变体：
-- 对称点：`A' = Reflect(A, l)`（关于直线）或 `Reflect(A, M)`（关于点）。
-- 平行线：`Line(A, B) + v` 形式或 `PerpendicularLine(A, l)`（注意点在前、线在后，见坑手册 §6）。
-- 立体几何同构：向量表达式在三维同样成立（`P = A1 + k*(F - A1)` 等）。
-
-注意：
-- 所有几何关系交给引擎计算，绝不手算坐标落小数。
-- 表达式里引用的对象必须已定义（坑手册 §2：未定义连坐）。
-- 关系点也按 fixed-point 卡加属性行（三件套 + 设色）。
+边界：
+- AQ:QB=m:n 的内分点为 A+m/(m+n)*(B-A)。AQ/AB=k 才用 A+k*(B-A)；外分须按有向比例另推，分母不能为零。
+- 平行用 Line(P,l)，垂直用 PerpendicularLine(P,l)，不能混写。向量方向线用 Line(P,Vector(A,B))。
+- 中点、比例和向量关系适用于三维；三维垂直必须说明上下文。空间垂足见 projection-foot，不套二维旋转向量。
+- 角平分线用 AngleBisector(B,A,C)，角顶点为 A；中心/轴反射、平移、旋转分别用 Reflect/Translate/Rotate，按题意给中心与角度。
+- 派生点保留表达式，属性参考 fixed-point 的派生分支。
+检查：比例方向、平行/垂直、顶点对应均成立；驱动变化后关系仍成立。

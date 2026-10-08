@@ -1,41 +1,35 @@
-# SOP: function-object —— 函数定义 + 地标（顶点/零点/极值/对称轴）
+# SOP: function-object — 函数、定义域、零点、极值与切线
 
-触发：题目出现函数表达式（一次/二次/三角/一般函数），需要画函数图像。
+适用：一次/二次/一般函数及导数题。前置：确定解析式和数学定义域；题给常量与讨论参数分开。
 
-片段（定义 + 设色）：
-```
-f(x) = -x^2 + 2x + 3
+片段：二次函数的一个示例，f 的系数按题意替换。
+<!-- example: function-quadratic -->
+```ggb
+f(x) = -x^2 + 2*x + 3
 SetColor(f, "Black")
-```
-
-片段（顶点 + 对称轴，二次函数默认画）：
-```
-V = Vertex(f)
-SetFixed(V, true)
+V = Extremum(f)
 ShowLabel(V, true)
 SetLabelMode(V, 1)
-SetColor(V, "Blue")
 axisV = Line(V, V + (0, 1))
 SetLineStyle(axisV, 2)
-SetColor(axisV, "Gray")
-```
-
-片段（零点，见坑手册 §1）：
-```
 E = Root(f, 2, 4)
 ```
+区间 [2,4] 只隔离此示例的零点 3；本题必须重新选区间。
 
-片段（极值点）：
+片段：已定义可微函数 f 时，按题意选切点横坐标。
+<!-- example: function-calculus -->
+```ggb
+df = Derivative(f)
+K = (1, f(1))
+tangentK = Tangent(1, f)
 ```
-Ex = Extremum(f, 1)
-```
 
-变体：
-- 区间限制的函数：`f(x) = If(-1 <= x <= 3, -x^2 + 2x + 3)` 或 `Function(f, -1, 3)`。
-- 多个函数对象：命名 f、g、h，各配设色。
-- 三角函数直接写 `sin(x)`、`cos(x)`，GeoGebra 原生支持。
-
-注意：
-- 抛物线默认画顶点和对称轴（虚线弱色），除非题目明确不需要——顶点是函数题的"地标"。
-- `Root(f, a, b)` 返回的是点不是数值（坑手册 §1 最高危），直接赋值使用，不要包坐标。
-- 需要 x 轴截距的横坐标数值时：`x0 = x(Root(f, 2, 4))`。
+边界：
+- 函数 f(x) 的二次顶点用 Extremum(f)；Vertex 用于圆锥曲线等对象，不用 Vertex(f)。
+- 多项式 Extremum(f) 可产生多个极值点；一般连续函数用 Extremum(f,xMin,xMax)。没有 Extremum(f,索引) 写法。
+- Root(f) 的多项式多结果须收集/命名；Root(f,a,b) 返回一个零点对象，横坐标用 x(E)，不能包成 (Root(...),0)。
+- 区间限制可 fPart=Function(f,xMin,xMax)。分段用 If；间断、分母零点、不可导点要分段处理，不能跨间断数值找极值。
+- 区间最值还需比较允许的端点，不把局部极值当全局最值。
+- 已知条件足以确定系数时先求精确系数；条件不足或题目讨论参数时保留参数。讨论参数才设滑块。
+- 顶点/对称轴、导函数与切线仅在题意相关时展示，不给一次/三角函数强加二次地标。
+检查：函数满足所有已知条件；零点/极值有定义；切线与函数在切点相切；定义域未被展示范围替代。
