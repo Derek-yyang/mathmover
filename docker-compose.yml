@@ -9,7 +9,6 @@ services:
   # env 变量名：
   #   通用      SYSTEM_BASE_URL / SYSTEM_API_KEY / SYSTEM_MODEL_NAME
   #   决策路由  ROUTER_MODE(llm|decisions) / PERPLEXITY_API_KEY / DECISIONS_THRESHOLD
-  #   Gemini    GOOGLE_API_KEY / GEMINI_MODEL_NAME
   #   其它      MODEL_TIMEOUT_SECONDS
   backend:
     build: .
@@ -23,8 +22,6 @@ services:
       - ROUTER_MODE=${ROUTER_MODE:-}
       - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-}
       - DECISIONS_THRESHOLD=${DECISIONS_THRESHOLD:-}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
-      - GEMINI_MODEL_NAME=${GEMINI_MODEL_NAME:-}
       - MODEL_TIMEOUT_SECONDS=${MODEL_TIMEOUT_SECONDS:-}
     volumes:
       - ./config.json:/app/config.json

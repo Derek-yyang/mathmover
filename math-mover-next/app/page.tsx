@@ -654,7 +654,7 @@ SetColor(sF, "Black")
                       <Cpu className="w-6 h-6" />
                   </div>
                   <h3 className="font-bold text-stone-800 text-lg">自带 Key</h3>
-                  <p className="text-sm text-stone-500 font-medium leading-relaxed">支持任意 OpenAI 兼容端点与 Gemini，在工作台设置中一分钟完成配置。</p>
+                  <p className="text-sm text-stone-500 font-medium leading-relaxed">支持 OpenAI 与 Anthropic 协议的任意兼容端点，在工作台设置中一分钟完成配置。</p>
               </div>
               <div className="bg-white rounded-3xl border border-stone-200 p-8 text-center space-y-3">
                   <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">

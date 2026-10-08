@@ -3,9 +3,7 @@ import json
 import base64
 import io
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, Response, stream_with_context
-from google import genai
-from google.genai import types
+from flask import Flask, request, jsonify, Response, stream_with_context
 from dotenv import load_dotenv
 from flask_cors import CORS
 import openai
@@ -53,13 +51,14 @@ def get_cors_origins() -> list[str]:
 
 CORS(app, origins=get_cors_origins())
 
-MAX_REMOTE_IMAGE_BYTES = 5 * 1024 * 1024
-DEFAULT_GEMINI_MODEL = os.getenv('GEMINI_MODEL_NAME', 'gemini-3-flash-preview')
+MAX_UPLOAD_IMAGE_BYTES = 5 * 1024 * 1024
 DEFAULT_MODEL_TIMEOUT = int(os.getenv('MODEL_TIMEOUT_SECONDS', '75'))
+# 支持的 wire 协议白名单：配置归一与 /api/config 校验共用此单一来源
+SUPPORTED_PROTOCOLS = ('openai_chat', 'openai_responses', 'anthropic')
 
 # --- 本地模型配置层（去 SaaS 化）---
 # 运行时模型配置存于本地 config.json（可经 /api/config 修改），替代原 Supabase profiles。
-# 优先级：config.json > .env SYSTEM_* > Gemini 默认。
+# 优先级：config.json > .env SYSTEM_*。
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
 CONFIG_KEYS = ('provider', 'api_protocol', 'base_url', 'api_key', 'model_name', 'timeout_seconds', 'max_tokens',
                'router_mode', 'perplexity_api_key', 'decisions_threshold')
@@ -92,35 +91,25 @@ def save_local_model_config(cfg: dict) -> dict:
 
 
 def apply_env_defaults(cfg: dict) -> dict:
-    """config.json 缺项时回落到 .env SYSTEM_* / Gemini。"""
+    """config.json 缺项时回落到 .env SYSTEM_*。"""
     cfg['timeout_seconds'] = cfg.get('timeout_seconds') or str(DEFAULT_MODEL_TIMEOUT)
     cfg['router_mode'] = cfg.get('router_mode') or (os.getenv('ROUTER_MODE') or 'llm')
     cfg['decisions_threshold'] = cfg.get('decisions_threshold') or (os.getenv('DECISIONS_THRESHOLD') or '0.8')
     cfg['perplexity_api_key'] = cfg.get('perplexity_api_key') or (os.getenv('PERPLEXITY_API_KEY') or '')
-    if not cfg.get('provider'):
-        cfg['provider'] = 'openai_compatible'
-    # api_protocol 是 wire 协议的唯一事实来源；旧 config 只有 provider=gemini 时映射到 gemini
-    if not cfg.get('api_protocol'):
-        cfg['api_protocol'] = 'gemini' if cfg.get('provider') == 'gemini' else 'openai_chat'
-    if cfg['api_protocol'] == 'gemini':
-        cfg['provider'] = 'gemini'
-        cfg['base_url'] = ''
-        cfg['api_key'] = cfg.get('api_key') or (os.getenv('GOOGLE_API_KEY') or '')
-        cfg['model_name'] = cfg.get('model_name') or DEFAULT_GEMINI_MODEL
-    else:
-        cfg['provider'] = 'openai_compatible'
-        cfg['base_url'] = cfg.get('base_url') or (os.getenv('SYSTEM_BASE_URL') or '')
-        cfg['api_key'] = cfg.get('api_key') or (os.getenv('SYSTEM_API_KEY') or '')
-        cfg['model_name'] = cfg.get('model_name') or (os.getenv('SYSTEM_MODEL_NAME') or '')
+    cfg['provider'] = 'openai_compatible'
+    # api_protocol 是 wire 协议的唯一事实来源；历史配置里的 gemini 已随
+    # GeminiAdapter 一并退役，此处归一到 openai_chat，避免老配置直接报错
+    protocol = (cfg.get('api_protocol') or '').strip()
+    cfg['api_protocol'] = protocol if protocol in SUPPORTED_PROTOCOLS else 'openai_chat'
+    cfg['base_url'] = cfg.get('base_url') or (os.getenv('SYSTEM_BASE_URL') or '')
+    cfg['api_key'] = cfg.get('api_key') or (os.getenv('SYSTEM_API_KEY') or '')
+    cfg['model_name'] = cfg.get('model_name') or (os.getenv('SYSTEM_MODEL_NAME') or '')
     return cfg
 
 
-# 默认 Gemini 配置
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-
 # --- Prompt Definitions (保留原有的 Prompt) ---
 ROUTER_PROMPT = """
-你是一个数学题目分类器。请根据图片内容，判断题目属于以下哪一类，并仅返回对应的字母类别代码（A/B/C/D）。
+你是数学题目分类器。请根据图片内容及补充文字，通读题干与各小问，选择专家类别和生成图形需要的指令参考。
 
 分类标准：
 A：函数与图像（一次函数、开口向上/向下的二次函数（抛物线）、三角函数、导数、一般函数）
@@ -168,40 +157,6 @@ def build_allowed_commands_suffix(category: str) -> str:
 class ModelAdapter:
     def generate(self, prompt, image_bytes=None, mime_type=None):
         raise NotImplementedError
-
-class GeminiAdapter(ModelAdapter):
-    def __init__(self, api_key=None, model_name=DEFAULT_GEMINI_MODEL, timeout_seconds=None):
-        api_key = (api_key or '').strip()
-        model_name = (model_name or DEFAULT_GEMINI_MODEL).strip()
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY is missing")
-
-        self.client = genai.Client(
-            api_key=api_key,
-            http_options=types.HttpOptions(timeout=int(timeout_seconds or DEFAULT_MODEL_TIMEOUT) * 1000),
-        )
-        self.model_name = model_name
-
-    def generate(self, prompt, image_bytes=None, mime_type=None):
-        content = [prompt]
-        if image_bytes:
-            content.append(
-                types.Part.from_bytes(
-                    data=image_bytes,
-                    mime_type=mime_type or 'image/jpeg',
-                )
-            )
-
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=content,
-        )
-
-        try:
-            text = response.text
-        except Exception:
-            text = ""
-        return (text or "").strip()
 
 class OpenAICompatibleAdapter(ModelAdapter):
     def __init__(self, api_key, base_url, model_name, timeout_seconds=None, max_tokens=None):
@@ -617,19 +572,13 @@ class ModelFactory:
         """按本地配置创建模型适配器。
 
         local_cfg 来自 config.json（经 apply_env_defaults 补齐默认值）。
-        provider: openai_compatible | gemini
+        api_protocol: openai_chat | openai_responses | anthropic
         """
         cfg = apply_env_defaults(dict(local_cfg or {}))
         protocol = cfg.get('api_protocol') or 'openai_chat'
         api_key = (cfg.get('api_key') or '').strip()
         base_url = (cfg.get('base_url') or '').strip().rstrip('/')
         model_name = (cfg.get('model_name') or '').strip()
-
-        if protocol == 'gemini':
-            if not api_key:
-                raise ValueError('缺少 GOOGLE_API_KEY：请在设置中填写 API Key 或切换到自定义模型 API')
-            print(f"DEBUG: Using Gemini model {model_name or DEFAULT_GEMINI_MODEL}")
-            return GeminiAdapter(api_key=api_key, timeout_seconds=cfg.get('timeout_seconds'))
 
         if not (api_key and base_url and model_name):
             raise ValueError('模型配置不完整：请在设置中填写 API 密钥、API 地址和模型 ID')
@@ -756,13 +705,13 @@ def api_config():
     except ValueError:
         return jsonify({'error': 'decisions_threshold 必须是 (0, 1] 内的数字'}), 400
     body['decisions_threshold'] = threshold_raw
-    # API 协议校验（gemini 为旧配置兼容保留；设置页下拉只展示三种主流协议）
+    # API 协议校验（与设置页下拉、apply_env_defaults 共用 SUPPORTED_PROTOCOLS）
     protocol = (str(body.get('api_protocol') or '').strip() or current.get('api_protocol') or '')
-    if protocol and protocol not in ('openai_chat', 'openai_responses', 'anthropic', 'gemini'):
+    if protocol and protocol not in SUPPORTED_PROTOCOLS:
         return jsonify({'error': f'未知 API 协议: {protocol}'}), 400
     body['api_protocol'] = protocol
-    if 'provider' in body and body['provider'] not in ('openai_compatible', 'gemini'):
-        return jsonify({'error': 'provider 必须是 openai_compatible 或 gemini'}), 400
+    if 'provider' in body and body['provider'] != 'openai_compatible':
+        return jsonify({'error': 'provider 必须是 openai_compatible'}), 400
     saved = save_local_model_config({**current, **body})
     if saved.get('provider') == 'openai_compatible' and saved.get('base_url'):
         try:
@@ -873,11 +822,11 @@ def upload_file():
     if 'file' in request.files:
         file = request.files['file']
         if file.filename != '':
-            # 限制文件大小为 5MB (5 * 1024 * 1024 bytes)
+            # 限制文件大小为 5MB
             file.seek(0, os.SEEK_END)
             file_size = file.tell()
             file.seek(0)
-            if file_size > 5 * 1024 * 1024:
+            if file_size > MAX_UPLOAD_IMAGE_BYTES:
                 return jsonify({'error': '上传的图片不能超过 5MB'}), 400
 
             image_data = file.read()

@@ -1,10 +1,18 @@
 @echo off
 chcp 65001 >nul
 set "ROOT=%~dp0.."
-set "NODE=C:\Users\Derek\AppData\Local\Programs\kimi-desktop\resources\resources\runtime\node.exe"
+
+rem 用 PATH 里的 node，不再依赖个人机器上的固定路径
+set "NODE=node"
+where node >nul 2>nul
+if errorlevel 1 (
+  echo [错误] 未找到 node，请先安装 Node.js 并加入 PATH。
+  pause
+  exit /b 1
+)
 
 echo ============================================
-echo  MathMover 本地测试环境（Agnes 模型）
+echo  MathMover 本地测试环境
 echo ============================================
 echo.
 

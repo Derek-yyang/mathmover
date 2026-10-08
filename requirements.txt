@@ -1,6 +1,6 @@
 Flask
-google-genai
-python-dotenv
-openai
-supabase
 flask-cors
+openai
+Pillow
+python-dotenv
+requests

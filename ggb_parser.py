@@ -173,7 +173,6 @@ def clean_lines(text: str):
     return mode, cmds
 
 
-ARITH_RE = re.compile(r"^[\d\s+\-*/().%^]+$")
 # 数学函数/常量白名单（sqrt(3) 等精确表达式坐标）
 MATH_FUNCS = {"sin": "sin", "cos": "cos", "tan": "tan", "sqrt": "sqrt",
               "exp": "exp", "log": "log10", "ln": "log"}
