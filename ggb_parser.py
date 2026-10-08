@@ -7,56 +7,29 @@ GGB 指令解析器（共享模块）。
 判分/校验口径在对象语义层（kind + 坐标/参数/引用序列），不比对指令顺序。
 `MODE:` 行、`#` 注释、空行在清洗阶段剔除；同名重复定义以最后一次为准。
 
-白名单策略（P1.5 反转）：
+命令目录策略：
   - 权威命令表来自 ggb_commands.json（单一事实来源，prompt 允许集同源）
   - "形式像命令但白名单外"的行：放行下发 + 标记 unknown_command（GGB 自己
     静默失败一条的伤害 < 我们丢掉一条合法指令的伤害）
-  - 只有完全不像命令的行（纯文字）才剔除
+  - 已确认的非法命令/API 混用、常用签名的参数数目/类型/视图错误剔除并反馈修正
+  - 未收录签名或无法静态确定类型的表达式交给 GeoGebra，不声称静态检查等于可执行
 """
-import json
-import os
 import re
+import ggb_catalog
 
 _FLOAT_RE = re.compile(r"^-?\d+(?:\.\d+)?$")
 FUNC_DEF_RE = re.compile(r"^([A-Za-z]\w*)\s*\(([^)]*)\)\s*=\s*(.+)$")
 DEF_RE = re.compile(r"^([A-Za-z]\w*)\s*=\s*(.+)$")
-CMD_RE = re.compile(r"^([A-Za-z]\w*)\s*\((.*)\)\s*$")
+CMD_RE = re.compile(r"^([A-Za-z]\w*)\s*[([](.*)[)\]]\s*$")
 COLON_DEF_RE = re.compile(r"^([A-Za-z]\w*)\s*:\s*(.+)$")
 MODE_RE = re.compile(r"^MODE\s*:\s*(\w+)$", re.I)
-
-_COMMANDS_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ggb_commands.json")
-_whitelist_cache = None
 
 
 def load_whitelist(refresh=False) -> dict:
     """加载权威命令表（低写字母 key）。结构:
     {constructors: {name: {"views": ["2d"/"3d"]}}, attributes: set, globals: set}
     """
-    global _whitelist_cache
-    if _whitelist_cache is not None and not refresh:
-        return _whitelist_cache
-    wl = {"constructors": {}, "attributes": set(), "globals": set()}
-    try:
-        with open(_COMMANDS_JSON, encoding="utf-8") as f:
-            raw = json.load(f)
-        for view, names in raw.get("constructors", {}).items():
-            for n in names:
-                wl["constructors"].setdefault(n.lower(), {"views": []})["views"].append(view)
-        wl["attributes"] = {n.lower() for n in raw.get("attributes", [])}
-        wl["globals"] = {n.lower() for n in raw.get("globals", [])}
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"WARNING: ggb_commands.json 加载失败({e})，回退到内置归纳清单")
-        # 回退清单：原归纳版白名单，保证解析器在缺文件时仍可用
-        fallback_2d = ("point", "slider", "function", "intersect", "segment", "line",
-                       "polygon", "circle", "ellipse", "hyperbola", "parabola", "arc",
-                       "midpoint", "angle", "anglebisector", "text", "root", "derivative")
-        for n in fallback_2d:
-            wl["constructors"].setdefault(n, {"views": ["2d"]})
-        wl["attributes"] = {"setcolor", "setfilling", "setlinestyle", "setfixed",
-                            "showlabel", "setlabelmode", "setpointsize"}
-        wl["globals"] = {"setaxesvisible", "setgridvisible"}
-    _whitelist_cache = wl
-    return wl
+    return ggb_catalog.load_catalog(refresh=refresh)
 
 
 def whitelist_command_names() -> dict:
@@ -72,16 +45,12 @@ def whitelist_command_names() -> dict:
     by_view["2d"] = sorted(n for n in by_view.get("2d", []) if n not in only_3d)
     by_view["3d"] = sorted(set(by_view.get("3d", [])) | only_3d)
     return {
-        "2d": by_view["2d"],
-        "3d": by_view["3d"],
-        "attributes": sorted(wl["attributes"]),
-        "globals": sorted(wl["globals"]),
+        "2d": [wl["canonical"][n] for n in by_view["2d"]],
+        "3d": [wl["canonical"][n] for n in by_view["3d"]],
+        "attributes": [wl["canonical"][n] for n in sorted(wl["attributes"])],
+        "globals": [wl["canonical"][n] for n in sorted(wl["globals"])],
     }
 
-
-CONSTRUCTORS = {n for n in load_whitelist()["constructors"]}
-ATTR_COMMANDS = load_whitelist()["attributes"] | {"setvalue"}
-GLOBAL_COMMANDS = load_whitelist()["globals"]
 
 
 def norm(s: str) -> str:
@@ -91,25 +60,7 @@ def norm(s: str) -> str:
 
 def split_top_level(s: str) -> list:
     """按顶层逗号拆分参数（忽略括号/花括号/引号内的逗号）。"""
-    parts, depth, cur, in_str = [], 0, "", False
-    for ch in s:
-        if ch == '"':
-            in_str = not in_str
-            cur += ch
-        elif not in_str and ch in "([{":
-            depth += 1
-            cur += ch
-        elif not in_str and ch in ")]}":
-            depth -= 1
-            cur += ch
-        elif not in_str and ch == "," and depth == 0:
-            parts.append(cur.strip())
-            cur = ""
-        else:
-            cur += ch
-    if cur.strip():
-        parts.append(cur.strip())
-    return parts
+    return ggb_catalog.split_args(s)
 
 
 def try_float(s: str):
@@ -127,15 +78,23 @@ def parse_rhs(rhs: str) -> dict:
     """把定义右端解析为对象字段（kind + 关键字段）。"""
     rhs_s = rhs.strip()
     if rhs_s.startswith("(") and rhs_s.endswith(")"):
-        parts = split_top_level(rhs_s[1:-1])
+        try:
+            parts = split_top_level(rhs_s[1:-1])
+        except ValueError:
+            parts = []  # e.g. (A-B) + (C-D) is not one coordinate tuple
         if len(parts) in (2, 3):
             raw, numeric = _parse_coords(parts)
             return {"kind": "point", "coords": raw,
                     "numeric": numeric, "raw": norm(rhs_s)}
     m = CMD_RE.match(rhs_s)
     if m:
-        head = m.group(1).lower()
-        args = split_top_level(m.group(2))
+        try:
+            args = split_top_level(m.group(2))
+        except ValueError:
+            m = None  # e.g. Midpoint(A,B)+Vector(A,B), a valid compound expression
+    if m:
+        raw_head = m.group(1).lower()
+        head = load_whitelist()["aliases"].get(raw_head, raw_head)
         if head == "point":
             inner = m.group(2).strip()
             if inner.startswith("{") and inner.endswith("}"):
@@ -156,7 +115,7 @@ def parse_rhs(rhs: str) -> dict:
         if head == "polygon":
             return {"kind": "polygon", "args": [norm(a) for a in args],
                     "raw": norm(rhs_s)}
-        if head in CONSTRUCTORS:
+        if head in load_whitelist()["constructors"]:
             return {"kind": head, "args": [norm(a) for a in args],
                     "raw": norm(rhs_s)}
         # 白名单外的构造器：仍按对象定义保留（策略反转：宁可放过）
@@ -169,17 +128,21 @@ def parse_rhs(rhs: str) -> dict:
 
 def strip_inline_comment(line: str) -> str:
     """剔除引号外的 // 行内注释（GGB evalCommand 不接受注释，属真实失效噪声）。"""
-    out, in_str = [], False
+    out, in_str, escaped = [], False, False
     i = 0
     while i < len(line):
         ch = line[i]
-        if ch == '"':
+        if in_str and ch == "\\" and not escaped:
+            escaped = True
+            out.append(ch)
+        elif ch == '"' and not escaped:
             in_str = not in_str
             out.append(ch)
         elif not in_str and ch == "/" and line[i:i + 2] == "//":
             break
         else:
             out.append(ch)
+            escaped = False
         i += 1
     return "".join(out).strip()
 
@@ -561,13 +524,34 @@ def parse_commands(text: str) -> dict:
       stats:   {cleaned_lines, valid_lines, invalid_lines, validity}
     """
     mode, cmds = clean_lines(text)
+    catalog = load_whitelist()
+    attr_commands = catalog["attributes"]
+    global_commands = catalog["globals"]
+    local_functions = {m.group(1) for line in cmds
+                       if (m := FUNC_DEF_RE.match(line))}
     objects, order = {}, []
     scene_attrs = {}
     records = []
+    types = {}
+    command_errors = []
+    unknown_found = set()
 
     for line in cmds:
+        errors, unknown, result_type = ggb_catalog.inspect_line(line, types, local_functions, mode)
+        unknown_found.update(unknown)
+        if errors:
+            command_errors.append({"line": line, "errors": errors})
+            records.append({"text": line, "type": "invalid_command", "errors": errors})
+            continue
+        definition = re.match(r"^([A-Za-z]\w*)(?:\([^)]*\))?\s*[:]?=", line)
+        if definition:
+            if result_type is not None:
+                types[definition.group(1)] = result_type
+            else:
+                types.pop(definition.group(1), None)
         m = FUNC_DEF_RE.match(line)
-        if m and m.group(2).strip() in ("x", "t", "a"):
+        if m and all(re.fullmatch(r"[A-Za-z]\w*", part)
+                     for part in split_top_level(m.group(2))):
             name = m.group(1)
             _register(objects, order, name, {
                 "kind": "function", "param": m.group(2).strip(),
@@ -592,13 +576,22 @@ def parse_commands(text: str) -> dict:
             continue
         m = CMD_RE.match(line)
         if m:
-            head = m.group(1).lower()
-            args = split_top_level(m.group(2))
-            if head in GLOBAL_COMMANDS:
+            raw_head = m.group(1).lower()
+            head = catalog["aliases"].get(raw_head, raw_head)
+            try:
+                args = split_top_level(m.group(2))
+            except ValueError:
+                records.append({"text": line, "type": "command"})
+                continue  # balanced compound expression, calls already inspected
+            if head in global_commands:
                 scene_attrs[head] = [norm(a) for a in args]
                 records.append({"text": line, "type": "global"})
                 continue
-            if head in ATTR_COMMANDS and args:
+            if head == "setbackgroundcolor" and len(args) in (1, 3):
+                scene_attrs[head] = [norm(a) for a in args]
+                records.append({"text": line, "type": "global"})
+                continue
+            if head in attr_commands and args:
                 target = args[0].strip().strip('"')
                 value = [norm(a) for a in args[1:]]
                 obj = objects.get(target)
@@ -610,6 +603,9 @@ def parse_commands(text: str) -> dict:
                     obj["attrs"][head] = value
                 records.append({"text": line, "type": "attr", "name": target})
                 continue
+            if head in catalog["constructors"]:
+                records.append({"text": line, "type": "command"})
+                continue
             if head.startswith(("set", "show", "hide")) and args:
                 # 形如属性命令但白名单外（如 SetOptions）：放行 + 标记（P1.5 策略反转）
                 records.append({"text": line, "type": "unknown_command", "name": head})
@@ -619,12 +615,11 @@ def parse_commands(text: str) -> dict:
             continue
         records.append({"text": line, "type": "unparsed"})
 
-    valid = sum(1 for r in records if r["type"] != "unparsed")
+    valid = sum(1 for r in records if r["type"] not in {"unparsed", "invalid_command"})
     total = len(records)
     resolve_point_coords(objects)
     redefinitions = sorted({n for n, o in objects.items() if o.get("_redefined")})
-    unknown_commands = sorted({r.get("name", "") for r in records
-                               if r["type"] == "unknown_command"} - {""})
+    unknown_commands = sorted(unknown_found)
     return {
         "mode": mode,
         "scene_attrs": scene_attrs,
@@ -632,13 +627,14 @@ def parse_commands(text: str) -> dict:
         "redefinitions": redefinitions,
         "records": records,
         "unknown_commands": unknown_commands,
+        "command_errors": command_errors,
         "stats": {
             "cleaned_lines": total,
             "valid_lines": valid,
             "invalid_lines": total - valid,
             "validity": round(valid / total, 4) if total else 1.0,
         },
-        "unparsed": [r["text"] for r in records if r["type"] == "unparsed"],
+        "unparsed": [r["text"] for r in records if r["type"] in {"unparsed", "invalid_command"}],
     }
 
 
@@ -653,6 +649,8 @@ def reorder_commands(lines: list) -> list:
     for r in lines:
         # r 可能是纯字符串；此处输入为已清洗的 records
         t = r.get("type")
+        if t in {"unparsed", "invalid_command"}:
+            continue
         if t in ("attr",):
             second_pass.append(r["text"])
         else:
@@ -676,7 +674,7 @@ def extract_valid_commands(text: str) -> list:
 def validate_text(text: str) -> dict:
     """P0 校验层用的摘要：有效率 + 无效行明细 + 未知命令遥测 + 建议动作。
 
-    无效（触发重试）= 纯文字/残缺行（unparsed）；
+    无效 = 纯文字/残缺行，或已核实的非法调用；
     未知命令（白名单外）= 放行下发，仅记录遥测，不触发重试。
     """
     ir = parse_commands(text)
@@ -686,6 +684,8 @@ def validate_text(text: str) -> dict:
         "validity": stats["validity"],
         "invalid_lines": ir["unparsed"],
         "unknown_commands": ir["unknown_commands"],
+        "command_errors": ir["command_errors"],
+        "has_command_errors": bool(ir["command_errors"]),
         "has_text_object": any(o["kind"] == "text" for o in ir["objects"]),
         "ok": stats["invalid_lines"] == 0,
     }

@@ -26,7 +26,7 @@ export default function LandingPage() {
           mode: '2D',
           commands: `
 MODE: 2D
-SetAxesVisible(true, true)
+ShowAxes(1, true)
 O = (0, 0)
 SetFixed(O, true)
 ShowLabel(O, true)
@@ -95,8 +95,8 @@ ShowLabel(triOCD, true)
           mode: '2D',
           commands: `
 MODE: 2D
-SetAxesVisible(true, true)
-SetGridVisible(true)
+ShowAxes(1, true)
+ShowGrid(1, true)
 A = (0, 3)
 SetFixed(A, true)
 ShowLabel(A, true)

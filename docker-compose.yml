@@ -2,12 +2,30 @@ version: '3.8'
 
 services:
   # 后端服务 (Python Flask)
-  # 模型配置来自根目录 config.json（随代码 COPY 进镜像，或用 volumes 挂载热更新）
+  # 模型配置不打进镜像（config.json / providers.json 已列入 .dockerignore）。
+  # 运行时两条路，config.json 优先级高于 env：
+  #   1) env 注入 —— 密钥写进根目录 .env，docker compose 启动时自动读取做变量替换
+  #   2) volume 挂载 config.json —— 可热更新，便于本地调试换模型
+  # env 变量名：
+  #   通用      SYSTEM_BASE_URL / SYSTEM_API_KEY / SYSTEM_MODEL_NAME
+  #   决策路由  ROUTER_MODE(llm|decisions) / PERPLEXITY_API_KEY / DECISIONS_THRESHOLD
+  #   Gemini    GOOGLE_API_KEY / GEMINI_MODEL_NAME
+  #   其它      MODEL_TIMEOUT_SECONDS
   backend:
     build: .
     restart: always
     expose:
       - "5000"
+    environment:
+      - SYSTEM_BASE_URL=${SYSTEM_BASE_URL:-}
+      - SYSTEM_API_KEY=${SYSTEM_API_KEY:-}
+      - SYSTEM_MODEL_NAME=${SYSTEM_MODEL_NAME:-}
+      - ROUTER_MODE=${ROUTER_MODE:-}
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-}
+      - DECISIONS_THRESHOLD=${DECISIONS_THRESHOLD:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GEMINI_MODEL_NAME=${GEMINI_MODEL_NAME:-}
+      - MODEL_TIMEOUT_SECONDS=${MODEL_TIMEOUT_SECONDS:-}
     volumes:
       - ./config.json:/app/config.json
 
@@ -24,20 +42,6 @@ services:
     depends_on:
       - backend
 
-  # 反向代理服务 (Caddy)
-  caddy:
-    image: caddy:latest
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - frontend
+# 反向代理（Caddy）已随线上服务器停服退役（2026-10-08）。
+# 本地调试需要访问前端时，给 frontend 加 ports: ["3000:3000"] 即可。
 
-volumes:
-  caddy_data:
-  caddy_config:

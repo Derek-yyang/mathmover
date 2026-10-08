@@ -141,7 +141,7 @@ PROMPT_MAP = EXPERT_PROMPTS
 def build_allowed_commands_suffix(category: str) -> str:
     """从 ggb_commands.json（单一事实来源）生成 prompt 的允许命令集。
 
-    与校验白名单同源：这里列出什么，解析器就放行什么。
+    与解析器同源；名称许可不代表参数/对象类型正确，未知命令另行记录。
     """
     names = ggb_parser.whitelist_command_names()
     views = ["2d", "3d"] if category == 'D' else ["2d"]
@@ -157,6 +157,9 @@ def build_allowed_commands_suffix(category: str) -> str:
         + f"\n- 属性命令: {', '.join(names['attributes'])}"
         + f"\n- 视图命令: {', '.join(names['globals'])}"
         + "\n- 仅可使用以上命令，不要使用任何其他命令，不要输出注释或说明文字。\n"
+        + "- 上述为输入栏命令，不是 JavaScript API。坐轴/网格用 ShowAxes/ShowGrid；"
+          "标签模式用 SetLabelMode，平行平面用 Plane(点,平面)。"
+          "命令重载按对象类型选择，不能把函数当圆锥曲线或把点当数值。\n"
     )
 
 
@@ -1017,9 +1020,13 @@ def upload_file():
             # --- P0 指令校验层：解析 -> 白名单校验 -> 低合格率自动重试一次 -> 清洗下发 ---
             validation = ggb_parser.validate_text(specialist_result_text)
             retried = False
-            if (not validation['ok'] and validation['validity'] < 0.95
+            if (not validation['ok'] and (validation['validity'] < 0.95 or validation['has_command_errors'])
                     and not specialist_result_text.startswith("Error:")):
                 invalid_preview = '\n'.join(validation['invalid_lines'][:10])
+                if validation['command_errors']:
+                    invalid_preview += '\n' + '\n'.join(
+                        f"{item['line']}: {'; '.join(item['errors'])}"
+                        for item in validation['command_errors'][:10])
                 print(f"WARNING: 指令校验未通过 (有效率 {validation['validity']})，自动重试一次。"
                       f"无效行: {validation['invalid_lines'][:5]}")
                 yield json.dumps({'status': 'processing', 'message': '发现无效指令，正在自动修正...'}) + '\n'
@@ -1088,7 +1095,9 @@ def upload_file():
                     if sem_retry_text:
                         new_state = semantic_guard.semantic_check(category, sem_retry_text)
                         print(f"DEBUG: 语义重试后 ok={new_state['ok']} (原 {semantic_state['ok']})")
-                        if new_state['ok'] or len(new_state['failures']) < len(semantic_state['failures']):
+                        new_validation = ggb_parser.validate_text(sem_retry_text)
+                        if (not new_validation['has_command_errors']
+                                and (new_state['ok'] or len(new_state['failures']) < len(semantic_state['failures']))):
                             specialist_result_text = sem_retry_text
                             semantic_state = new_state
                 except Exception as sem_e:
@@ -1103,6 +1112,8 @@ def upload_file():
                 semantic_state = semantic_guard.semantic_check(category, specialist_result_text)
 
             commands = ggb_parser.extract_valid_commands(specialist_result_text)
+            # 语义修正和 Text 过滤可能更换最终文本；返回最终结果的校验与遥测。
+            validation = ggb_parser.validate_text(specialist_result_text)
 
             yield json.dumps({
                 'status': 'completed',
@@ -1111,6 +1122,8 @@ def upload_file():
                 'validation': {
                     'validity': validation['validity'],
                     'retried': retried,
+                    'unknown_commands': validation['unknown_commands'],
+                    'command_errors': validation['command_errors'],
                     'semantic_ok': semantic_state['ok'],
                     'semantic_failures': [f['check'] for f in semantic_state['failures']],
                     'semantic_retries': semantic_retries,

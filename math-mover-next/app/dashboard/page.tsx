@@ -522,7 +522,6 @@ function DashboardContent() {
                     }
                 }, 800);
                 
-                ggbApplet.evalCommand('SetFontSize(10)');
 
                 if (currentMode === '2D') {
                     // 视窗自适应：按题目坐标的尺度与质心定视野。

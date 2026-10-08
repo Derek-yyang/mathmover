@@ -1,3 +1,17 @@
+# 敏感配置：含明文 API key，绝不进镜像（运行时走 env 注入或 volume 挂载）
+config.json
+providers.json
+.env
+.env.*
+*.pem
+*.key
+
+# 真题图集：版权受限，仅本地测试用
+测试题目图片/
+
+# 开发工具配置
+.claude
+
 .git
 .secrets
 .agents
@@ -9,6 +23,7 @@ __pycache__
 *.pyc
 *.pyo
 *.log
+*.pid
 deploy*.tar
 math-mover-next/.next
 math-mover-next/node_modules

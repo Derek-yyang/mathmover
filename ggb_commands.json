@@ -1,40 +1,445 @@
 {
-  "version": "2026-08-28",
-  "note": "MathMover 校验白名单与 prompt 允许集的单一事实来源。constructors 按 view 分组；attributes 为对象属性命令；globals 为视图/全局命令。未知命令策略：放行下发 + 标记 unknown_command（见 ggb_parser.py）。",
+  "version": "2026-10-08",
+  "note": "GeoGebra 输入栏命令目录；2d 为二维可用构造，3d 为额外空间构造（空间模式也可使用 2d 中的通用命令）。signatures 只覆盖已核实的常用签名，不是完整语义引擎。未知命令保留并记录；已确认非法的调用剔除并反馈修正。JavaScript API 不属于本目录。",
   "constructors": {
     "2d": [
-      "Point", "PointIn", "Intersect", "Midpoint", "Center", "Vertex",
-      "Root", "Roots", "Extremum", "InflectionPoint", "Focus", "Directrix",
-      "Segment", "Line", "Ray", "Vector", "PerpendicularLine",
-      "PerpendicularBisector", "AngleBisector", "Tangent", "BestFitLine",
-      "Circle", "CircleArc", "CircleSector", "CircumcircleArc", "CircumcircleSector",
-      "Ellipse", "Hyperbola", "Parabola", "Conic", "Arc", "Sector", "Invert",
-      "Polygon", "Polyline", "RigidPolygon", "Locus",
-      "Slider", "Function", "Derivative", "Integral", "NIntegral",
-      "If", "Distance", "Angle", "Area", "Perimeter", "Circumference",
-      "Slope", "Radius", "Length", "Spline", "Text",
-      "Translate", "Rotate", "Dilate", "Reflect",
-      "Sequence", "Element", "FitPoly", "FitLine", "TaylorPolynomial"
+      "Point",
+      "PointIn",
+      "Intersect",
+      "Midpoint",
+      "Center",
+      "Vertex",
+      "Root",
+      "Roots",
+      "Extremum",
+      "InflectionPoint",
+      "Focus",
+      "Directrix",
+      "Segment",
+      "Line",
+      "Ray",
+      "Vector",
+      "PerpendicularLine",
+      "PerpendicularBisector",
+      "AngleBisector",
+      "Tangent",
+      "Circle",
+      "CircularArc",
+      "CircularSector",
+      "CircumcircularArc",
+      "CircumcircularSector",
+      "Ellipse",
+      "Hyperbola",
+      "Parabola",
+      "Conic",
+      "Arc",
+      "Sector",
+      "Invert",
+      "Polygon",
+      "Polyline",
+      "RigidPolygon",
+      "Locus",
+      "Slider",
+      "Function",
+      "Derivative",
+      "Integral",
+      "NIntegral",
+      "If",
+      "Distance",
+      "Angle",
+      "Area",
+      "Perimeter",
+      "Circumference",
+      "Slope",
+      "Radius",
+      "Length",
+      "Spline",
+      "Text",
+      "Translate",
+      "Rotate",
+      "Dilate",
+      "Reflect",
+      "Sequence",
+      "Element",
+      "FitPoly",
+      "FitLine",
+      "TaylorPolynomial",
+      "Curve",
+      "IntersectPath",
+      "Asymptote",
+      "Incircle",
+      "IsDefined",
+      "IsInRegion",
+      "Min",
+      "Max"
     ],
     "3d": [
-      "Sphere", "Cone", "Cylinder", "Plane", "PerpendicularPlane",
-      "ParallelPlane", "PlaneBisector", "LineBisector", "IntersectPath",
-      "IntersectConic", "Pyramid", "Prism", "Tetrahedron", "Net",
-      "Extrusion", "Surface", "Curve"
+      "Sphere",
+      "Cone",
+      "Cylinder",
+      "Plane",
+      "PerpendicularPlane",
+      "PlaneBisector",
+      "IntersectConic",
+      "Pyramid",
+      "Prism",
+      "Tetrahedron",
+      "Net",
+      "Surface",
+      "Volume"
     ]
   },
   "attributes": [
-    "SetColor", "SetDynamicColor", "SetBackgroundColor",
-    "SetFilling", "SetLineStyle", "SetLineThickness", "SetThickness",
-    "SetPointSize", "SetPointStyle", "SetFixed", "SetTrace",
-    "ShowLabel", "SetLabelMode", "SetLabelStyle", "SetCaption",
-    "SetVisibleInView", "SetValue", "SetConditionToShowObject",
-    "SetTooltipMode", "SetLayer", "SetSeed"
+    "SetColor",
+    "SetDynamicColor",
+    "SetBackgroundColor",
+    "SetFilling",
+    "SetLineStyle",
+    "SetLineThickness",
+    "SetPointSize",
+    "SetPointStyle",
+    "SetFixed",
+    "SetTrace",
+    "ShowLabel",
+    "SetLabelMode",
+    "SetCaption",
+    "SetVisibleInView",
+    "SetValue",
+    "SetConditionToShowObject",
+    "SetTooltipMode",
+    "SetLayer"
   ],
   "globals": [
-    "SetPerspective", "SetAxesVisible", "SetGridVisible",
-    "ShowAxes", "ShowGrid", "CenterView", "SetActiveView",
-    "ZoomIn", "ZoomOut", "ZoomPadding", "SetViewDirection",
-    "SetFontSize", "Execute", "UpdateConstruction", "Delete"
-  ]
+    "SetPerspective",
+    "ShowAxes",
+    "ShowGrid",
+    "CenterView",
+    "SetActiveView",
+    "ZoomIn",
+    "ZoomOut",
+    "SetViewDirection",
+    "Execute",
+    "UpdateConstruction",
+    "Delete",
+    "SetSeed"
+  ],
+  "aliases": {
+    "CircleArc": "CircularArc",
+    "CircleSector": "CircularSector",
+    "CircumcircleArc": "CircumcircularArc",
+    "CircumcircleSector": "CircumcircularSector",
+    "LineBisector": "PerpendicularBisector"
+  },
+  "rejected_commands": {
+    "BestFitLine": "Use FitLine(list) for a regression line.",
+    "ParallelPlane": "Use Plane(point, plane).",
+    "Extrusion": "Use Prism, Cylinder, Pyramid or Cone with the appropriate objects.",
+    "SetThickness": "Use SetLineThickness(object, thickness).",
+    "SetLabelStyle": "JavaScript API setLabelStyle; input command is SetLabelMode(object, mode).",
+    "SetAxesVisible": "JavaScript API setAxesVisible; input command is ShowAxes(view, boolean).",
+    "SetGridVisible": "JavaScript API setGridVisible; input command is ShowGrid(view, boolean).",
+    "ZoomPadding": "Not an input command; choose a documented ZoomIn overload.",
+    "SetFontSize": "Not an input command; font size belongs to app configuration."
+  },
+  "expression_functions": [
+    "sqrt",
+    "cbrt",
+    "abs",
+    "exp",
+    "ln",
+    "log",
+    "log10",
+    "log2",
+    "sin",
+    "cos",
+    "tan",
+    "cot",
+    "sec",
+    "csc",
+    "cosec",
+    "asin",
+    "acos",
+    "atan",
+    "acot",
+    "arcsin",
+    "arccos",
+    "arctan",
+    "arccot",
+    "sinh",
+    "cosh",
+    "tanh",
+    "asinh",
+    "acosh",
+    "atanh",
+    "floor",
+    "ceil",
+    "round",
+    "trunc",
+    "sgn",
+    "sign",
+    "x",
+    "y",
+    "z",
+    "random"
+  ],
+  "signatures": {
+    "ShowAxes": [
+      {"args": [], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/ShowAxes/"},
+      {"args": ["boolean"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/ShowAxes/"},
+      {"args": ["number", "boolean"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/ShowAxes/"}
+    ],
+    "ShowGrid": [
+      {"args": [], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/ShowGrid/"},
+      {"args": ["boolean"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/ShowGrid/"},
+      {"args": ["number", "boolean"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/ShowGrid/"}
+    ],
+    "SetColor": [
+      {"args": ["object", "string"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetColor/"},
+      {"args": ["object", "number", "number", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetColor/"}
+    ],
+    "SetBackgroundColor": [
+      {"args": ["object", "string"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetBackgroundColor/"},
+      {"args": ["object", "number", "number", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetBackgroundColor/"},
+      {"args": ["string"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetBackgroundColor/"},
+      {"args": ["number", "number", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetBackgroundColor/"}
+    ],
+    "SetFilling": [
+      {"args": ["object", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetFilling/"}
+    ],
+    "SetLineStyle": [
+      {"args": ["object", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetLineStyle/"}
+    ],
+    "SetLineThickness": [
+      {"args": ["object", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetLineThickness/"}
+    ],
+    "SetPointSize": [
+      {"args": ["object", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetPointSize/"}
+    ],
+    "SetPointStyle": [
+      {"args": ["object", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetPointStyle/"}
+    ],
+    "SetLabelMode": [
+      {"args": ["object", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetLabelMode/"}
+    ],
+    "SetTooltipMode": [
+      {"args": ["object", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetTooltipMode/"}
+    ],
+    "SetLayer": [
+      {"args": ["object", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetLayer/"}
+    ],
+    "ShowLabel": [
+      {"args": ["object", "boolean"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/ShowLabel/"}
+    ],
+    "SetTrace": [
+      {"args": ["object", "boolean"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetTrace/"}
+    ],
+    "SetConditionToShowObject": [
+      {"args": ["object", "boolean"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetConditionToShowObject/"}
+    ],
+    "SetFixed": [
+      {"args": ["object", "boolean"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetFixed/"},
+      {"args": ["object", "boolean", "boolean"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetFixed/"}
+    ],
+    "SetCaption": [
+      {"args": ["object", "string"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetCaption/"}
+    ],
+    "SetVisibleInView": [
+      {"args": ["object", "number", "boolean"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetVisibleInView/"}
+    ],
+    "SetValue": [
+      {"args": ["object", "any"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetValue/"},
+      {"args": ["list", "number", "any"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetValue/"}
+    ],
+    "SetDynamicColor": [
+      {"args": ["object", "number", "number", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetDynamicColor/"},
+      {"args": ["object", "number", "number", "number", "number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetDynamicColor/"}
+    ],
+    "SetSeed": [
+      {"args": ["number"], "result": "void", "source": "https://geogebra.github.io/docs/manual/en/commands/SetSeed/"}
+    ],
+    "Slider": [
+      {"args": ["number", "number", "number", "number", "number", "boolean", "boolean", "boolean", "boolean"], "result": "number", "min_args": 2, "source": "https://geogebra.github.io/docs/manual/en/commands/Slider/"}
+    ],
+    "Segment": [
+      {"args": ["point", "point"], "result": "segment", "source": "https://geogebra.github.io/docs/manual/en/commands/Segment/"},
+      {"args": ["point", "number"], "result": "segment", "source": "https://geogebra.github.io/docs/manual/en/commands/Segment/"}
+    ],
+    "Line": [
+      {"args": ["point", "point"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/Line/"},
+      {"args": ["point", "line|vector"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/Line/"}
+    ],
+    "Ray": [
+      {"args": ["point", "point"], "result": "ray", "source": "https://geogebra.github.io/docs/manual/en/commands/Ray/"},
+      {"args": ["point", "vector"], "result": "ray", "source": "https://geogebra.github.io/docs/manual/en/commands/Ray/"}
+    ],
+    "Vector": [
+      {"args": ["point", "point"], "result": "vector", "source": "https://geogebra.github.io/docs/manual/en/commands/Vector/"},
+      {"args": ["point"], "result": "vector", "source": "https://geogebra.github.io/docs/manual/en/commands/Vector/"}
+    ],
+    "Point": [
+      {"args": ["path|list"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Point/"},
+      {"args": ["path", "number"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Point/"},
+      {"args": ["point", "vector"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Point/"}
+    ],
+    "PointIn": [
+      {"args": ["region"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/PointIn/"}
+    ],
+    "Midpoint": [
+      {"args": ["point", "point"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Midpoint/"},
+      {"args": ["segment|conic|quadric|interval"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Midpoint/"}
+    ],
+    "Center": [
+      {"args": ["conic|quadric"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Center/"}
+    ],
+    "Vertex": [
+      {"args": ["conic|polygon|region"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Vertex/"},
+      {"args": ["polygon|segment", "number"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Vertex/"}
+    ],
+    "Focus": [
+      {"args": ["conic"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Focus/"}
+    ],
+    "Directrix": [
+      {"args": ["conic"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/Directrix/"}
+    ],
+    "Root": [
+      {"args": ["function"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Root/"},
+      {"args": ["function", "number"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Root/"},
+      {"args": ["function", "number", "number"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Root/"}
+    ],
+    "Extremum": [
+      {"args": ["function"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Extremum/"},
+      {"args": ["function", "number", "number"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Extremum/"}
+    ],
+    "Intersect": [
+      {"args": ["geometry", "geometry"], "result": "geometry", "source": "https://geogebra.github.io/docs/manual/en/commands/Intersect/"},
+      {"args": ["geometry", "geometry", "number|point"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Intersect/"},
+      {"args": ["function|curve", "function|curve", "number", "number"], "result": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Intersect/"}
+    ],
+    "IntersectPath": [
+      {"args": ["geometry", "geometry"], "result": "geometry", "source": "https://geogebra.github.io/docs/manual/en/commands/IntersectPath/"}
+    ],
+    "IntersectConic": [
+      {"args": ["geometry", "geometry"], "result": "geometry", "source": "https://geogebra.github.io/docs/manual/en/commands/IntersectConic/"}
+    ],
+    "Circle": [
+      {"args": ["point", "number|point|segment"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/Circle/"},
+      {"args": ["point", "point", "point"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/Circle/"},
+      {"args": ["point", "number|point", "direction"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/Circle/"},
+      {"args": ["line", "point"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/Circle/"}
+    ],
+    "CircularArc": [
+      {"args": ["point", "point", "point"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/CircularArc/"}
+    ],
+    "CircularSector": [
+      {"args": ["point", "point", "point"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/CircularSector/"}
+    ],
+    "CircumcircularArc": [
+      {"args": ["point", "point", "point"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/CircumcircularArc/"}
+    ],
+    "CircumcircularSector": [
+      {"args": ["point", "point", "point"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/CircumcircularSector/"}
+    ],
+    "Ellipse": [
+      {"args": ["point", "point", "number|point|segment"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/Ellipse/"}
+    ],
+    "Hyperbola": [
+      {"args": ["point", "point", "number|point|segment"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/Hyperbola/"}
+    ],
+    "Parabola": [
+      {"args": ["point", "line"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/Parabola/"}
+    ],
+    "Polygon": [
+      {"args": ["point", "point", "point"], "result": "polygon", "variadic": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Polygon/"},
+      {"args": ["list"], "result": "polygon", "source": "https://geogebra.github.io/docs/manual/en/commands/Polygon/"},
+      {"args": ["point", "point", "number"], "result": "polygon", "source": "https://geogebra.github.io/docs/manual/en/commands/Polygon/"},
+      {"args": ["point", "point", "number", "direction"], "result": "polygon", "source": "https://geogebra.github.io/docs/manual/en/commands/Polygon/"}
+    ],
+    "Polyline": [
+      {"args": ["point", "point"], "result": "curve", "variadic": "point", "source": "https://geogebra.github.io/docs/manual/en/commands/Polyline/"},
+      {"args": ["list"], "result": "curve", "source": "https://geogebra.github.io/docs/manual/en/commands/Polyline/"}
+    ],
+    "Locus": [
+      {"args": ["point", "point|number"], "result": "curve", "source": "https://geogebra.github.io/docs/manual/en/commands/Locus/"},
+      {"args": ["any", "point"], "result": "curve", "source": "https://geogebra.github.io/docs/manual/en/commands/Locus/"}
+    ],
+    "Function": [
+      {"args": ["function", "number", "number"], "result": "function", "source": "https://geogebra.github.io/docs/manual/en/commands/Function/"},
+      {"args": ["list"], "result": "function", "source": "https://geogebra.github.io/docs/manual/en/commands/Function/"},
+      {"args": ["any", "any", "number", "number", "any", "number", "number"], "result": "function", "source": "https://geogebra.github.io/docs/manual/en/commands/Function/"}
+    ],
+    "Derivative": [
+      {"args": ["function"], "result": "function", "source": "https://geogebra.github.io/docs/manual/en/commands/Derivative/"},
+      {"args": ["curve"], "result": "curve", "source": "https://geogebra.github.io/docs/manual/en/commands/Derivative/"},
+      {"args": ["function", "any"], "result": "function", "source": "https://geogebra.github.io/docs/manual/en/commands/Derivative/"},
+      {"args": ["curve", "any"], "result": "curve", "source": "https://geogebra.github.io/docs/manual/en/commands/Derivative/"},
+      {"args": ["function", "any", "number"], "result": "function", "source": "https://geogebra.github.io/docs/manual/en/commands/Derivative/"},
+      {"args": ["curve", "any", "number"], "result": "curve", "source": "https://geogebra.github.io/docs/manual/en/commands/Derivative/"}
+    ],
+    "If": [
+      {"args": ["boolean", "any"], "result": "any", "source": "https://geogebra.github.io/docs/manual/en/commands/If/"},
+      {"args": ["boolean", "any", "any"], "result": "any", "variadic": "any", "source": "https://geogebra.github.io/docs/manual/en/commands/If/"}
+    ],
+    "Element": [
+      {"args": ["list", "number"], "result": "any", "variadic": "number", "source": "https://geogebra.github.io/docs/manual/en/commands/Element/"}
+    ],
+    "Plane": [
+      {"args": ["polygon|conic"], "result": "plane", "source": "https://geogebra.github.io/docs/manual/en/commands/Plane/"},
+      {"args": ["point", "plane|line"], "result": "plane", "source": "https://geogebra.github.io/docs/manual/en/commands/Plane/"},
+      {"args": ["line", "line"], "result": "plane", "source": "https://geogebra.github.io/docs/manual/en/commands/Plane/"},
+      {"args": ["point", "point", "point"], "result": "plane", "source": "https://geogebra.github.io/docs/manual/en/commands/Plane/"},
+      {"args": ["point", "vector", "vector"], "result": "plane", "source": "https://geogebra.github.io/docs/manual/en/commands/Plane/"}
+    ],
+    "PerpendicularPlane": [
+      {"args": ["point", "line|vector"], "result": "plane", "source": "https://geogebra.github.io/docs/manual/en/commands/PerpendicularPlane/"}
+    ],
+    "PerpendicularLine": [
+      {"args": ["point", "line|segment|vector|plane"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/PerpendicularLine/"},
+      {"args": ["line", "line"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/PerpendicularLine/"},
+      {"args": ["point", "direction", "direction|plane|space"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/PerpendicularLine/"}
+    ],
+    "PerpendicularBisector": [
+      {"args": ["point", "point"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/PerpendicularBisector/"},
+      {"args": ["segment"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/PerpendicularBisector/"},
+      {"args": ["point", "point", "direction"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/PerpendicularBisector/"}
+    ],
+    "AngleBisector": [
+      {"args": ["point", "point", "point"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/AngleBisector/"},
+      {"args": ["line", "line"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/AngleBisector/"}
+    ],
+    "Sphere": [
+      {"args": ["point", "number|point"], "result": "quadric", "source": "https://geogebra.github.io/docs/manual/en/commands/Sphere/"}
+    ],
+    "Cone": [
+      {"args": ["point", "point", "number"], "result": "quadric", "source": "https://geogebra.github.io/docs/manual/en/commands/Cone/"},
+      {"args": ["conic", "number"], "result": "quadric", "source": "https://geogebra.github.io/docs/manual/en/commands/Cone/"},
+      {"args": ["point", "vector", "number"], "result": "quadric", "source": "https://geogebra.github.io/docs/manual/en/commands/Cone/"}
+    ],
+    "Cylinder": [
+      {"args": ["point", "point", "number"], "result": "quadric", "source": "https://geogebra.github.io/docs/manual/en/commands/Cylinder/"},
+      {"args": ["conic", "number"], "result": "quadric", "source": "https://geogebra.github.io/docs/manual/en/commands/Cylinder/"}
+    ],
+    "Curve": [
+      {"args": ["any", "any", "any", "number", "number"], "result": "curve", "views": ["2d", "3d"], "source": "https://geogebra.github.io/docs/manual/en/commands/Curve/"},
+      {"args": ["any", "any", "any", "any", "number", "number"], "result": "curve", "views": ["3d"], "source": "https://geogebra.github.io/docs/manual/en/commands/Curve/"}
+    ],
+    "Asymptote": [
+      {"args": ["conic"], "result": "line", "source": "https://geogebra.github.io/docs/manual/en/commands/Asymptote/"},
+      {"args": ["function|curve"], "result": "list", "source": "https://geogebra.github.io/docs/manual/en/commands/Asymptote/"}
+    ],
+    "Incircle": [
+      {"args": ["point", "point", "point"], "result": "conic", "source": "https://geogebra.github.io/docs/manual/en/commands/Incircle/"}
+    ],
+    "IsDefined": [
+      {"args": ["any"], "result": "boolean", "source": "https://geogebra.github.io/docs/manual/en/commands/IsDefined/"}
+    ],
+    "IsInRegion": [
+      {"args": ["point", "region"], "result": "boolean", "source": "https://geogebra.github.io/docs/manual/en/commands/IsInRegion/"}
+    ]
+  },
+  "signature_note": "A signature describes a supported overload and a conservative result family. Multi-result commands may create multiple objects; geometry/any are intentionally unresolved. Unknown expression/reference types are deferred to GeoGebra; only proven mismatches are rejected. Commands absent from signatures are name-only checked.",
+  "sources": {
+    "manual": "https://geogebra.github.io/docs/manual/en/commands/",
+    "commands": "https://github.com/geogebra/geogebra/blob/main/source/shared/common/src/main/java/org/geogebra/common/kernel/commands/Commands.java",
+    "api": "https://geogebra.github.io/docs/reference/en/GeoGebra_Apps_API/"
+  }
 }

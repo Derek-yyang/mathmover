@@ -28,3 +28,20 @@
 命令库是在线加载的；引擎更新或卡片改动后须重新执行，结果不作为永久保证。
 
 复现步骤见 [README.md](README.md#验证)，案例前提/数学断言见 `scripts/sop_examples.json`。
+
+## 命令目录修订后的复验（2026-10-08）
+
+此前 57 项通过没有单独验证坐轴与网格设置；Set/Show 前缀的 false 被一概容忍，
+因此原记录不能证明旧 SetAxesVisible/SetGridVisible 字符串有效。
+本轮替换为官方 ShowAxes/ShowGrid 输入命令，且从隐藏状态开始，检查真实二维坐轴与网格状态。
+
+- 当前 112 个命令名及 5 个兼容别名均与当前官方 Commands.java 对照，无未识别名称。
+- 66 个常用命令族的签名对照官方手册；未声称完整覆盖所有命令重载。
+- 生产解析器 18 项命令目录回归及 5 项 SOP 加载回归通过。
+- 更新后的 57 个 SOP 引擎用例、14 个命令引擎用例，共 71/71 通过。
+- 新案例覆盖二维/三维视图显隐、二维/三维 Curve、Asymptote、Incircle、规范/旧名称、
+  平行平面、焦点复用、随机种子、三参数 SetFixed、标签模式/显隐、颜色和线宽。
+- TypeScript 检查通过（`npx tsc --noEmit --incremental false`）。未调用生成模型或账户服务。
+
+命令引擎案例位于 `scripts/command_examples.json`。来源链接记录于 `ggb_commands.json`；
+源码名单一致只证明名称依据，71 个运行案例只证明这些用法，不能替代任意题目的完整生成回归。

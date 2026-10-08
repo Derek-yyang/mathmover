@@ -1,0 +1,190 @@
+[
+  {
+    "id": "command-hide-view",
+    "card": "command-catalog",
+    "mode": "2D",
+    "prelude": [
+      "ShowAxes(1,true)",
+      "ShowGrid(1,true)"
+    ],
+    "code": "ShowAxes(1,false)\nShowGrid(1,false)",
+    "checks": [],
+    "samples": [],
+    "views": {
+      "1": {
+        "axes": false,
+        "grid": false
+      }
+    }
+  },
+  {
+    "id": "command-show-3d-axes",
+    "card": "command-catalog",
+    "mode": "3D",
+    "prelude": [
+      "ShowAxes(3,false)"
+    ],
+    "code": "ShowAxes(3,true)",
+    "checks": [],
+    "samples": [],
+    "views": {
+      "3": {
+        "axes": true
+      }
+    }
+  },
+  {
+    "id": "command-hide-3d-axes",
+    "card": "command-catalog",
+    "mode": "3D",
+    "prelude": [
+      "ShowAxes(3,true)"
+    ],
+    "code": "ShowAxes(3,false)",
+    "checks": [],
+    "samples": [],
+    "views": {
+      "3": {
+        "axes": false
+      }
+    }
+  },
+  {
+    "id": "command-curve-2d",
+    "card": "command-catalog",
+    "mode": "2D",
+    "prelude": [],
+    "code": "c=Curve(2*cos(t),sin(t),t,0,2*pi)\nP=Point(c,0.25)",
+    "checks": [
+      "abs(x(P)^2/4+y(P)^2-1)<0.000001"
+    ],
+    "samples": []
+  },
+  {
+    "id": "command-curve-3d",
+    "card": "command-catalog",
+    "mode": "3D",
+    "prelude": [],
+    "code": "c=Curve(cos(t),sin(t),t,t,0,2*pi)\nP=Point(c,0.25)",
+    "checks": [
+      "abs(x(P)^2+y(P)^2-1)<0.000001",
+      "abs(z(P)-pi/2)<0.000001"
+    ],
+    "samples": []
+  },
+  {
+    "id": "command-asymptote",
+    "card": "command-catalog",
+    "mode": "2D",
+    "prelude": [],
+    "code": "c:x^2/4-y^2=1\nas={Asymptote(c)}\na1=Element(as,1)\na2=Element(as,2)",
+    "checks": [
+      "Length(as)=2",
+      "abs(abs(Slope(a1))-0.5)<0.000001",
+      "abs(abs(Slope(a2))-0.5)<0.000001"
+    ],
+    "samples": []
+  },
+  {
+    "id": "command-incircle",
+    "card": "command-catalog",
+    "mode": "2D",
+    "prelude": [],
+    "code": "A=(0,0)\nB=(4,0)\nC=(0,3)\nc=Incircle(A,B,C)\nO=Center(c)",
+    "checks": [
+      "Distance(O,(1,1))<0.000001",
+      "abs(Radius(c)-1)<0.000001"
+    ],
+    "samples": []
+  },
+  {
+    "id": "command-alias-arc",
+    "card": "command-catalog",
+    "mode": "2D",
+    "prelude": [],
+    "code": "O=(0,0)\nA=(1,0)\nB=(0,1)\noldArc=CircleArc(O,A,B)\nnewArc=CircularArc(O,A,B)",
+    "checks": [
+      "abs(Length(oldArc)-Length(newArc))<0.000001"
+    ],
+    "samples": []
+  },
+  {
+    "id": "command-parallel-plane",
+    "card": "command-catalog",
+    "mode": "3D",
+    "prelude": [],
+    "code": "A=(0,0,0)\nB=(1,0,0)\nC=(0,1,0)\np=Plane(A,B,C)\nP=(0,0,2)\nq=Plane(P,p)",
+    "checks": [
+      "Distance(P,q)=0",
+      "Distance(A,q)=2"
+    ],
+    "samples": []
+  },
+  {
+    "id": "command-focus-reuse",
+    "card": "command-catalog",
+    "mode": "2D",
+    "prelude": [],
+    "code": "F=(0,1)\nd:y=-1\nc=Parabola(F,d)\nfound=Focus(c)",
+    "checks": [
+      "Distance(F,found)=0",
+      "Distance(F,(0,1))=0"
+    ],
+    "samples": []
+  },
+  {
+    "id": "command-seed",
+    "card": "command-catalog",
+    "mode": "2D",
+    "prelude": [],
+    "code": "SetSeed(33)\nr1=random()\nSetSeed(33)\nr2=random()",
+    "checks": [
+      "r1=r2"
+    ],
+    "samples": []
+  },
+  {
+    "id": "command-three-arg-fixed",
+    "card": "command-catalog",
+    "mode": "2D",
+    "prelude": [],
+    "code": "A=(0,0)\nSetFixed(A,true,false)",
+    "checks": [],
+    "samples": [],
+    "appearance": {
+      "A": {
+        "fixed": true
+      }
+    }
+  },
+  {
+    "id": "command-label-mode",
+    "card": "command-catalog",
+    "mode": "2D",
+    "prelude": [],
+    "code": "A=(0,0)\nSetLabelMode(A,0)\nShowLabel(A,true)",
+    "checks": [],
+    "samples": [],
+    "appearance": {
+      "A": {
+        "labelStyle": 0,
+        "labelVisible": true
+      }
+    }
+  },
+  {
+    "id": "command-color-thickness",
+    "card": "command-catalog",
+    "mode": "2D",
+    "prelude": [],
+    "code": "A=(0,0)\nB=(1,0)\ns=Segment(A,B)\nSetColor(s,\"Red\")\nSetLineThickness(s,7)",
+    "checks": [],
+    "samples": [],
+    "appearance": {
+      "s": {
+        "color": "#ff0000",
+        "lineThickness": 7
+      }
+    }
+  }
+]

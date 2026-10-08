@@ -1,0 +1,1014 @@
+{
+  "view-2d": {
+    "mode": "2D",
+    "prelude": [
+      "ShowAxes(1,false)",
+      "ShowGrid(1,false)"
+    ],
+    "checks": [],
+    "samples": [],
+    "views": {
+      "1": {
+        "axes": true,
+        "grid": true
+      }
+    }
+  },
+  "view-3d": {
+    "mode": "3D",
+    "prelude": [],
+    "checks": [],
+    "samples": []
+  },
+  "fixed-independent": {
+    "mode": "2D",
+    "prelude": [],
+    "checks": [
+      "x(A)=sqrt(3)",
+      "y(A)=-1/2"
+    ],
+    "samples": []
+  },
+  "fixed-derived": {
+    "mode": "2D",
+    "prelude": [
+      "B=(0,0)",
+      "C=(4,2)"
+    ],
+    "checks": [
+      "Distance(M,(2,1))=0"
+    ],
+    "samples": []
+  },
+  "relations-basic": {
+    "mode": "2D",
+    "prelude": [
+      "A=(1,2)",
+      "B=(6,2)",
+      "P=(3,5)",
+      "lineAB=Line(A,B)"
+    ],
+    "checks": [
+      "Distance(M,(3.5,2))=0",
+      "Distance(Q,(3,2))=0",
+      "Distance(P,parallelP)=0",
+      "Distance((4,5),parallelP)=0",
+      "Distance((3,2),perpP)=0"
+    ],
+    "samples": []
+  },
+  "relations-transform": {
+    "mode": "2D",
+    "prelude": [
+      "A=(1,2)",
+      "B=(4,2)",
+      "D=(1,4)",
+      "P=(2,5)",
+      "M=Midpoint(A,B)",
+      "lineAB=Line(A,B)"
+    ],
+    "checks": [
+      "Distance(C,(4,4))=0",
+      "Distance(R,(2,-1))=0",
+      "Distance(S,(3,-1))=0"
+    ],
+    "samples": []
+  },
+  "intersect-single": {
+    "mode": "2D",
+    "prelude": [
+      "lineAB=Line((0,0),(2,2))",
+      "lineCD=Line((0,2),(2,0))"
+    ],
+    "checks": [
+      "Distance(X,(1,1))=0"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "parallel-boundary",
+        "prelude": [
+          "lineAB=Line((0,0),(1,0))",
+          "lineCD=Line((0,1),(1,1))"
+        ],
+        "checks": [],
+        "expectInvalid": [
+          "X"
+        ]
+      }
+    ]
+  },
+  "intersect-multiple": {
+    "mode": "2D",
+    "prelude": [
+      "lineAB=Line((-3,0),(3,0))",
+      "circleC=Circle((0,0),2)"
+    ],
+    "checks": [
+      "Length(crossPts)=2",
+      "Distance(X1,(0,0))=2",
+      "Distance(X2,(0,0))=2",
+      "Distance(X1,X2)=4"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "tangent-boundary",
+        "prelude": [
+          "lineAB=Line((-3,2),(3,2))",
+          "circleC=Circle((0,0),2)"
+        ],
+        "checks": [
+          "Length(crossPts)=1",
+          "Distance(X1,(0,2))=0"
+        ],
+        "expectInvalid": [
+          "X2"
+        ]
+      }
+    ]
+  },
+  "function-quadratic": {
+    "mode": "2D",
+    "prelude": [],
+    "checks": [
+      "Distance(V,(1,4))=0",
+      "Distance(E,(3,0))=0",
+      "Distance((1,0),axisV)=0"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "changed-coefficients",
+        "prelude": [],
+        "checks": [
+          "Distance(V,(2,-2))=0",
+          "Distance(E,(3,0))=0"
+        ],
+        "replace": {
+          "f(x) = -x^2 + 2*x + 3": "f(x) = 2*x^2 - 8*x + 6"
+        }
+      }
+    ]
+  },
+  "function-calculus": {
+    "mode": "2D",
+    "prelude": [
+      "f(x)=x^3-2*x"
+    ],
+    "checks": [
+      "Distance(K,(1,-1))=0",
+      "df(1)=1",
+      "Distance(K,tangentK)=0",
+      "Distance((2,0),tangentK)=0"
+    ],
+    "samples": []
+  },
+  "motion-function": {
+    "mode": "2D",
+    "prelude": [
+      "f(x)=x^2+1"
+    ],
+    "checks": [
+      "y(P)=f(x(P))",
+      "x(Q)=x(P)",
+      "y(Q)=0"
+    ],
+    "samples": [
+      {
+        "set": {
+          "t": -1
+        },
+        "checks": [
+          "x(P)=t",
+          "y(P)=f(t)",
+          "x(Q)=t"
+        ]
+      },
+      {
+        "set": {
+          "t": 0.5
+        },
+        "checks": [
+          "x(P)=t",
+          "y(P)=f(t)",
+          "x(Q)=t"
+        ]
+      },
+      {
+        "set": {
+          "t": 2
+        },
+        "checks": [
+          "x(P)=t",
+          "y(P)=f(t)",
+          "x(Q)=t"
+        ]
+      }
+    ]
+  },
+  "motion-path-free": {
+    "mode": "2D",
+    "prelude": [
+      "pathObj=Segment((1,2),(4,2))"
+    ],
+    "checks": [
+      "Distance(P,pathObj)=0"
+    ],
+    "samples": [
+      {
+        "coords": {
+          "P": [
+            2,
+            2
+          ]
+        },
+        "checks": [
+          "Distance(P,(2,2))=0"
+        ]
+      }
+    ]
+  },
+  "motion-path-slider": {
+    "mode": "2D",
+    "prelude": [
+      "pathObj=Segment((1,2),(4,2))"
+    ],
+    "checks": [
+      "Distance(P,pathObj)=0"
+    ],
+    "samples": [
+      {
+        "set": {
+          "t": 0
+        },
+        "checks": [
+          "x(P)=1",
+          "y(P)=2"
+        ]
+      },
+      {
+        "set": {
+          "t": 0.5
+        },
+        "checks": [
+          "x(P)=2.5",
+          "y(P)=2"
+        ]
+      },
+      {
+        "set": {
+          "t": 1
+        },
+        "checks": [
+          "x(P)=4",
+          "y(P)=2"
+        ]
+      }
+    ]
+  },
+  "motion-arc": {
+    "mode": "2D",
+    "prelude": [
+      "conicC=Ellipse((-sqrt(5)+1,2),(sqrt(5)+1,2),3)",
+      "U=(4,2)",
+      "V=(1,4)"
+    ],
+    "checks": [
+      "Distance(P,arcUV)=0"
+    ],
+    "samples": []
+  },
+  "locus-driver-point": {
+    "mode": "2D",
+    "prelude": [
+      "A=(0,0)",
+      "pathObj=Circle((0,0),2)",
+      "P=Point(pathObj)"
+    ],
+    "checks": [
+      "Distance(Q,A)=1"
+    ],
+    "samples": [
+      {
+        "coords": {
+          "P": [
+            0,
+            2
+          ]
+        },
+        "checks": [
+          "Distance(Q,(0,1))=0"
+        ]
+      }
+    ]
+  },
+  "locus-driver-slider": {
+    "mode": "2D",
+    "prelude": [],
+    "checks": [
+      "y(Q)=x(Q)^2"
+    ],
+    "samples": [
+      {
+        "set": {
+          "t": -2
+        },
+        "checks": [
+          "x(Q)=-2",
+          "y(Q)=4"
+        ]
+      },
+      {
+        "set": {
+          "t": 0
+        },
+        "checks": [
+          "x(Q)=0",
+          "y(Q)=0"
+        ]
+      },
+      {
+        "set": {
+          "t": 2
+        },
+        "checks": [
+          "x(Q)=2",
+          "y(Q)=4"
+        ]
+      }
+    ]
+  },
+  "polygon-region": {
+    "mode": "2D",
+    "prelude": [
+      "A=(0,0)",
+      "B=(3,0)",
+      "C=(3,2)",
+      "D=(0,2)"
+    ],
+    "checks": [
+      "Area(polyABCD)=6"
+    ],
+    "samples": []
+  },
+  "auxiliary-line": {
+    "mode": "2D",
+    "prelude": [
+      "A=(0,0)",
+      "B=(3,0)",
+      "C=(3,2)",
+      "D=(0,2)"
+    ],
+    "checks": [
+      "Length(segAD)=2"
+    ],
+    "samples": []
+  },
+  "auxiliary-perpendicular": {
+    "mode": "2D",
+    "prelude": [
+      "A=(0,0)",
+      "B=(3,0)",
+      "C=(3,2)",
+      "D=(0,2)",
+      "lineAB=Line(A,B)"
+    ],
+    "checks": [
+      "Distance(D,perpD)=0",
+      "Distance((0,0),perpD)=0"
+    ],
+    "samples": []
+  },
+  "hidden-2d": {
+    "mode": "2D",
+    "prelude": [],
+    "checks": [],
+    "samples": []
+  },
+  "hidden-3d": {
+    "mode": "3D",
+    "prelude": [
+      "A=(1,2,0)",
+      "B=(4,2,0)",
+      "C=(4,4,0)",
+      "D=(1,4,0)",
+      "A1=(1,2,3)",
+      "B1=(4,2,3)",
+      "C1=(4,4,3)",
+      "D1=(1,4,3)"
+    ],
+    "checks": [],
+    "samples": []
+  },
+  "conic-ellipse": {
+    "mode": "2D",
+    "prelude": [
+      "O=(1,2)",
+      "uAxis=Vector((0,0),(1,0))"
+    ],
+    "checks": [
+      "Distance(Fleft,Fright)=2*sqrt(5)",
+      "Distance(O,Midpoint(Fleft,Fright))=0"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "rotated-scaled",
+        "prelude": [
+          "O=(-4,5)",
+          "uAxis=Vector((0,0),(3/5,4/5))"
+        ],
+        "checks": [
+          "Distance(Fleft,Fright)=2*sqrt(21)",
+          "Distance(O,Midpoint(Fleft,Fright))=0"
+        ],
+        "replace": {
+          "lenA = 3": "lenA = 5"
+        }
+      }
+    ]
+  },
+  "conic-hyperbola": {
+    "mode": "2D",
+    "prelude": [
+      "O=(-2,3)",
+      "uAxis=Vector((0,0),(0,1))"
+    ],
+    "checks": [
+      "Distance(Fleft,Fright)=2*sqrt(5)",
+      "x(Fleft)=-2",
+      "x(Fright)=-2"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "diagonal-axis",
+        "prelude": [
+          "O=(4,-3)",
+          "uAxis=Vector((0,0),(3/5,4/5))"
+        ],
+        "checks": [
+          "Distance(Fleft,Fright)=2*sqrt(10)",
+          "Distance(O,Midpoint(Fleft,Fright))=0"
+        ],
+        "replace": {
+          "lenA = 2": "lenA = 3"
+        }
+      }
+    ]
+  },
+  "conic-parabola": {
+    "mode": "2D",
+    "prelude": [
+      "F=(1,2)",
+      "d=Line((0,-2),(1,-2))"
+    ],
+    "checks": [
+      "Distance(F,Focus(conicC))=0"
+    ],
+    "samples": []
+  },
+  "conic-single-features": {
+    "mode": "2D",
+    "prelude": [
+      "conicC=Parabola((1,2),Line((0,-2),(1,-2)))"
+    ],
+    "checks": [
+      "Distance(F,(1,2))=0",
+      "Distance((0,-2),directrixD)=0"
+    ],
+    "samples": []
+  },
+  "conic-double-features": {
+    "mode": "2D",
+    "prelude": [
+      "conicC=Ellipse((-sqrt(5),0),(sqrt(5),0),3)",
+      "M=Point(conicC)"
+    ],
+    "checks": [
+      "Length(focusPts)=2",
+      "Distance(F1,F2)=2*sqrt(5)",
+      "Length(segMF1)+Length(segMF2)=6"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "hyperbola",
+        "prelude": [
+          "conicC=Hyperbola((4,-sqrt(5)),(4,sqrt(5)),2)",
+          "M=Point(conicC)"
+        ],
+        "checks": [
+          "Length(focusPts)=2",
+          "Distance(F1,F2)=2*sqrt(5)",
+          "abs(Length(segMF1)-Length(segMF2))=4"
+        ]
+      }
+    ]
+  },
+  "frame-prism": {
+    "mode": "3D",
+    "prelude": [
+      "A=(1,2,3)",
+      "vx=Vector((0,0,0),(3,0,0))",
+      "vy=Vector((0,0,0),(0,2,0))",
+      "vz=Vector((0,0,0),(0,0,4))"
+    ],
+    "checks": [
+      "Distance(A,B)=3",
+      "Distance(A,D)=2",
+      "Distance(A,A1)=4",
+      "Distance(C1,(4,4,7))=0"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "rotated-frame",
+        "prelude": [
+          "A=(5,-2,1)",
+          "vx=Vector((0,0,0),(0,3,0))",
+          "vy=Vector((0,0,0),(-2,0,0))",
+          "vz=Vector((0,0,0),(0,0,4))"
+        ],
+        "checks": [
+          "Distance(A,B)=3",
+          "Distance(A,D)=2",
+          "Distance(A,A1)=4",
+          "Distance(C1,(3,1,5))=0"
+        ]
+      }
+    ]
+  },
+  "frame-pyramid": {
+    "mode": "3D",
+    "prelude": [
+      "H=(1,1,0)",
+      "ht=sqrt(3)",
+      "nAxis=Vector((0,0,0),(0,0,1))"
+    ],
+    "checks": [
+      "Distance(S,H)=sqrt(3)",
+      "z(S)=sqrt(3)"
+    ],
+    "samples": []
+  },
+  "edges-prism": {
+    "mode": "3D",
+    "prelude": [
+      "A=(1,2,0)",
+      "B=(4,2,0)",
+      "C=(4,4,0)",
+      "D=(1,4,0)",
+      "A1=(1,2,3)",
+      "B1=(4,2,3)",
+      "C1=(4,4,3)",
+      "D1=(1,4,3)"
+    ],
+    "checks": [
+      "Length(eAB)=3",
+      "Length(eAA1)=3"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "oblique-prism",
+        "prelude": [
+          "A=(0,0,0)",
+          "B=(4,0,0)",
+          "C=(4,2,0)",
+          "D=(0,2,0)",
+          "A1=(1,0,3)",
+          "B1=(5,0,3)",
+          "C1=(5,2,3)",
+          "D1=(1,2,3)"
+        ],
+        "checks": [
+          "Length(eAB)=4",
+          "Length(eAA1)=sqrt(10)"
+        ]
+      }
+    ],
+    "appearance": {
+      "eAB": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eBC": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eCD": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eDA": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eA1B1": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eB1C1": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eC1D1": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eD1A1": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eAA1": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eBB1": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eCC1": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eDD1": {
+        "color": "#000000",
+        "lineStyle": 0
+      }
+    }
+  },
+  "edges-tetrahedron": {
+    "mode": "3D",
+    "prelude": [
+      "A=(0,0,0)",
+      "B=(2,0,0)",
+      "C=(0,2,0)",
+      "S=(0,0,3)"
+    ],
+    "checks": [
+      "Length(eAB)=2",
+      "Length(eSA)=3"
+    ],
+    "samples": [],
+    "appearance": {
+      "eAB": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eBC": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eCA": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eSA": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eSB": {
+        "color": "#000000",
+        "lineStyle": 0
+      },
+      "eSC": {
+        "color": "#000000",
+        "lineStyle": 0
+      }
+    }
+  },
+  "plane-three-points": {
+    "mode": "3D",
+    "prelude": [
+      "A=(1,2,0)",
+      "B=(4,2,0)",
+      "C=(4,4,0)",
+      "D=(1,4,0)",
+      "A1=(1,2,3)",
+      "B1=(4,2,3)",
+      "C1=(4,4,3)",
+      "D1=(1,4,3)"
+    ],
+    "checks": [
+      "Distance(A,planeABC)=0",
+      "Distance(B,planeABC)=0",
+      "Distance(C,planeABC)=0"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "collinear-boundary",
+        "prelude": [
+          "A=(0,0,0)",
+          "B=(1,0,0)",
+          "C=(2,0,0)"
+        ],
+        "checks": [],
+        "expectInvalid": [
+          "planeABC"
+        ]
+      }
+    ]
+  },
+  "plane-normal": {
+    "mode": "3D",
+    "prelude": [
+      "P=(0,0,2)",
+      "Q=(0,0,4)",
+      "nAxis=Vector((0,0,0),(0,0,1))"
+    ],
+    "checks": [
+      "Distance(P,planeP)=0",
+      "Distance(Q,planeParallel)=0",
+      "Distance((3,4,2),planeP)=0"
+    ],
+    "samples": []
+  },
+  "plane-cross": {
+    "mode": "3D",
+    "prelude": [
+      "planeABC=Plane((0,0,0),(1,0,0),(0,1,0))",
+      "planeP=Plane((0,0,0),(0,1,0),(0,0,1))"
+    ],
+    "checks": [
+      "Distance((0,2,0),crossLine)=0"
+    ],
+    "samples": []
+  },
+  "solid-sphere": {
+    "mode": "3D",
+    "prelude": [
+      "O=(1,2,3)",
+      "radiusR=2"
+    ],
+    "checks": [
+      "Radius(sphereC)=2"
+    ],
+    "samples": []
+  },
+  "solid-cone-cylinder": {
+    "mode": "3D",
+    "prelude": [
+      "O=(1,2,3)",
+      "T=(1,2,7)",
+      "radiusR=2"
+    ],
+    "checks": [],
+    "samples": [],
+    "variants": [
+      {
+        "name": "tilted-axis",
+        "prelude": [
+          "O=(1,2,3)",
+          "T=(4,6,3)",
+          "radiusR=1"
+        ],
+        "checks": [
+          "Distance(O,T)=5"
+        ]
+      }
+    ]
+  },
+  "solid-sphere-section": {
+    "mode": "3D",
+    "prelude": [
+      "sphereC=Sphere((1,2,3),2)",
+      "planeP=Plane((0,0,3),(1,0,3),(0,1,3))"
+    ],
+    "checks": [
+      "Distance(sectionO,(1,2,3))=0",
+      "Radius(sectionC)=2"
+    ],
+    "samples": []
+  },
+  "circle-center-radius": {
+    "mode": "2D",
+    "prelude": [
+      "O=(1,2)",
+      "radiusR=3"
+    ],
+    "checks": [
+      "Radius(circleC)=3"
+    ],
+    "samples": []
+  },
+  "circle-three-points": {
+    "mode": "2D",
+    "prelude": [
+      "A=(1,0)",
+      "B=(0,1)",
+      "C=(-1,0)"
+    ],
+    "checks": [
+      "Radius(circleC)=1",
+      "Distance(O,(0,0))=0"
+    ],
+    "samples": []
+  },
+  "circle-external-tangents": {
+    "mode": "2D",
+    "prelude": [
+      "O=(0,0)",
+      "circleC=Circle(O,2)",
+      "P=(4,0)"
+    ],
+    "checks": [
+      "Length(tangentLines)=2",
+      "Distance(T1,O)=2",
+      "Distance(T2,O)=2",
+      "Distance(P,tangent1)=0",
+      "Distance(P,tangent2)=0"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "shifted-scaled",
+        "prelude": [
+          "O=(2,-1)",
+          "circleC=Circle(O,3)",
+          "P=(8,-1)"
+        ],
+        "checks": [
+          "Length(tangentLines)=2",
+          "Distance(T1,O)=3",
+          "Distance(T2,O)=3",
+          "Distance(P,tangent1)=0"
+        ]
+      }
+    ]
+  },
+  "motion-region-free": {
+    "mode": "2D",
+    "prelude": [
+      "regionR=Polygon((0,0),(3,0),(0,2))"
+    ],
+    "checks": [],
+    "samples": [
+      {
+        "coords": {
+          "P": [
+            1,
+            0.5
+          ]
+        },
+        "checks": [
+          "Distance(P,(1,0.5))=0"
+        ]
+      }
+    ]
+  },
+  "motion-region-triangle": {
+    "mode": "3D",
+    "prelude": [
+      "A=(1,2,0)",
+      "B=(4,2,0)",
+      "C=(1,4,0)"
+    ],
+    "checks": [
+      "z(P)=0"
+    ],
+    "samples": [
+      {
+        "set": {
+          "u": 0,
+          "v": 0
+        },
+        "checks": [
+          "x(P)>=1",
+          "y(P)>=2",
+          "(x(P)-1)/3+(y(P)-2)/2<=1",
+          "z(P)=0"
+        ]
+      },
+      {
+        "set": {
+          "u": 0,
+          "v": 1
+        },
+        "checks": [
+          "x(P)>=1",
+          "y(P)>=2",
+          "(x(P)-1)/3+(y(P)-2)/2<=1",
+          "z(P)=0"
+        ]
+      },
+      {
+        "set": {
+          "u": 1,
+          "v": 1
+        },
+        "checks": [
+          "x(P)>=1",
+          "y(P)>=2",
+          "(x(P)-1)/3+(y(P)-2)/2<=1",
+          "z(P)=0"
+        ]
+      },
+      {
+        "set": {
+          "u": 0.5,
+          "v": 0.5
+        },
+        "checks": [
+          "x(P)>=1",
+          "y(P)>=2",
+          "(x(P)-1)/3+(y(P)-2)/2<=1",
+          "z(P)=0"
+        ]
+      }
+    ]
+  },
+  "projection-line-2d": {
+    "mode": "2D",
+    "prelude": [
+      "P=(1,3)",
+      "lineAB=Line((0,0),(2,0))"
+    ],
+    "checks": [
+      "Distance(H,(1,0))=0",
+      "Length(segPH)=3"
+    ],
+    "samples": []
+  },
+  "projection-plane-3d": {
+    "mode": "3D",
+    "prelude": [
+      "P=(1,2,3)",
+      "planeABC=Plane((0,0,0),(1,0,0),(0,1,0))"
+    ],
+    "checks": [
+      "Distance(H,(1,2,0))=0",
+      "Length(segPH)=3"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "tilted-plane",
+        "prelude": [
+          "P=(1,2,4)",
+          "planeABC=Plane((0,0,0),(1,0,1),(0,1,0))"
+        ],
+        "checks": [
+          "Distance(H,(2.5,2,2.5))=0",
+          "Length(segPH)=3/sqrt(2)"
+        ]
+      }
+    ]
+  },
+  "section-prism": {
+    "mode": "3D",
+    "prelude": [
+      "A=(1,2,0)",
+      "B=(4,2,0)",
+      "C=(4,4,0)",
+      "D=(1,4,0)",
+      "A1=(1,2,3)",
+      "B1=(4,2,3)",
+      "C1=(4,4,3)",
+      "D1=(1,4,3)",
+      "eAA1=Segment(A,A1)",
+      "eBB1=Segment(B,B1)",
+      "eCC1=Segment(C,C1)",
+      "eDD1=Segment(D,D1)",
+      "cutPlane=Plane((0,0,1),(1,0,1),(0,1,1))"
+    ],
+    "checks": [
+      "z(U)=1",
+      "z(V)=1",
+      "z(W)=1",
+      "z(X)=1",
+      "Area(sectionPoly)=6"
+    ],
+    "samples": [],
+    "variants": [
+      {
+        "name": "oblique-cut",
+        "prelude": [
+          "A=(1,2,0)",
+          "B=(4,2,0)",
+          "C=(4,4,0)",
+          "D=(1,4,0)",
+          "A1=(1,2,3)",
+          "B1=(4,2,3)",
+          "C1=(4,4,3)",
+          "D1=(1,4,3)",
+          "eAA1=Segment(A,A1)",
+          "eBB1=Segment(B,B1)",
+          "eCC1=Segment(C,C1)",
+          "eDD1=Segment(D,D1)",
+          "cutPlane=Plane((0,0,0),(2,0,1),(0,1,0))"
+        ],
+        "checks": [
+          "z(U)=x(U)/2",
+          "z(V)=x(V)/2",
+          "z(W)=x(W)/2",
+          "z(X)=x(X)/2",
+          "Area(sectionPoly)=3*sqrt(5)"
+        ]
+      }
+    ]
+  }
+}

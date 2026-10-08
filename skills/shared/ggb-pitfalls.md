@@ -56,3 +56,12 @@ PerpendicularLine(点, 直线)——点在前、直线在后。写反建出来�
 但 getValueString(X) 显示 `X = ?`，getXcoord/getYcoord 为非有限值。
 有效性应综合对象存在、显示值不含未定义标记，以及点坐标为有限数。
 属性命令返回值和对象名称均不能代替这项检查。
+
+## 10. 输入栏命令与 JavaScript API 不是同一套接口
+
+`setAxesVisible`、`setGridVisible`、`setLabelStyle` 是 JavaScript API，不能首字母大写后作为输入命令。
+输入栏分别用 `ShowAxes(1,true)`、`ShowGrid(1,true)`、`SetLabelMode(A,0)`。
+平行平面用 `Plane(P,planeP)`，不使用 `ParallelPlane`；线宽用 `SetLineThickness`。
+ShowAxes/ShowGrid 的三维视图编号为 3；SetVisibleInView 的三维视图编号为 -1，不能混用。
+
+不能仅因为命令以 Set/Show 开头就忽略失败；视图、标签和样式须检查实际状态。
