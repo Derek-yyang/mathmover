@@ -186,7 +186,7 @@ P0、P1 做完，与同类竞品会拉开肉眼可见的差距。
 ### 商业模式定调（2026-08-27，想法阶段确认）
 
 - **开源即全免费**：代码开源，无付费托管版
-- **分发载体 = 桌面端**：用户下载 Tauri 桌面应用，各自接入自己的 API key（BYOK）
+- **分发载体 = 桌面端**：用户下载 Electron 桌面应用，各自接入自己的 API key（BYOK）
 - **mathmover 线上站点转为 demo**：供试用，接入若干免费档 API key，作为转化入口
 - 连带影响：GeoGebra 非商用条款风险基本消除；原会员/订阅收入归零，
   demo 站成本需自担并设硬上限
@@ -206,9 +206,27 @@ P0、P1 做完，与同类竞品会拉开肉眼可见的差距。
    手机号验证拦批量注册；免费 key 仅存服务端；设硬性日调用上限，
    触顶降级为"下载桌面端体验完整版"
 3. **桌面端 BYOK 架构**：key 不再过服务器 → 模型调用需本地直连。
-   两条路线待选：prompt 管线移植为 TS 跑在 Tauri 内（长期正解）vs
+   两条路线待选：prompt 管线移植为 TS 跑在桌面壳内（长期正解）vs
    Python 后端打包 sidecar（重但省移植）。此决策反向抬高 P0 校验层价值
    （校验在用户本地执行，节省用户自己的 token）
+
+   > 2026-10-08 更新：**桌面壳由 Tauri 改为 Electron**（作者决策），
+   > `src-tauri/` 的 424 行 Rust 已删除。Electron 主进程即 Node，
+   > 「prompt 管线移植为 TS」这条路线的可行性显著高于 Tauri（Tauri 侧只能用
+   > Rust 重写或走 sidecar），C-3 的天平因此偏向 TS 路线。
+   > 连带影响：`next.config.ts` 的 `output: 'standalone'` 与 Electron 天然兼容
+   > （壳内起 Node 服务加载它），此前与 Tauri `frontendDist: '../out'`
+   > 期望静态导出的冲突自然消解。
+   >
+   > **可移植设计已从 Rust 侧抢救出来**（Electron 版可照此实现，不必重新设计）：
+   > - SQLite 三表：
+   >   - `users(id, email, created_at)` + BYOK 字段 `api_key` / `api_base_url` /
+   >     `api_model_name`（**这三列就是"key 存本地"的设计意图**）
+   >   - `generations(id, user_id, image_path, ggb_commands, problem_type, description, created_at)`
+   >   - `images(id, user_id, filename, filepath, created_at)`
+   > - 本地命令面：用户与设置读写、生成历史 CRUD、图片存取（save/load/delete/path）
+   > - **已剔除的 SaaS 残留**：`credits`、`subscription_tier`、`decrement_credits`
+   >   —— 与 web 侧会员/积分清理同源，产品已定调开源全免费
 4. **域名确认**：线上现为 mathmover.top，demo 是否启用 .com 新域名待定
 5. **品牌确认**：MathMover 名称与 com.mathmover.desktop 标识是否延续到开源仓库
 
