@@ -44,4 +44,7 @@ services:
 
 # 反向代理（Caddy）已随线上服务器停服退役（2026-10-08）。
 # 本地调试需要访问前端时，给 frontend 加 ports: ["3000:3000"] 即可。
+# 以后上反代时注意：/api/* 必须关闭响应缓冲，否则 /api/upload 的 NDJSON
+# 流式进度会被攒到一起才吐出，前端的渐进式生成体验会失效
+# （Caddy: flush_interval -1；nginx: proxy_buffering off）。
 
