@@ -23,6 +23,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { libraryToken } from '../../../../packages/daemon/src/data-directory.ts';
 import { RUNTIMES, resolveSpawnTarget, withClaudeSettingsEnv, buildTranscript, validateImages, materializeImages, toImagePlaceholder, type AgentEvent, type RuntimeDefinition, type TranscriptTurn, type ImageInput } from '@mathmover/agent-runtime';
 
 /**
@@ -60,14 +61,18 @@ const SYSTEM_BRIEF = `你在 MathMover 工作台里当几何构造助手。用�
 - **ggb_apply**：用**完整**的 GeoGebra 指令清单替换画布（不是增量补丁）。返回体检结果与"改了什么"的说明。
 - **ggb_diff**：比较两份清单的差异，不触动画布。
 - **ggb_reset**：清空画布。
+- **ggb_route**：登记题目类别（A 函数与图像 / B 平面几何 / C 解析几何 / D 立体几何）。SOP 流程第一步。
+- **get_expert_prompt**：取该类别的**专家卡**——建模套路、骨架、示例、常见坑，外加严格语法约束。建模前必读。
+- **submit_construction**：**建模的收卷方式**。提交完整清单，自动做行级剔除（无效/未知命令行不下发并列明细）与语义自查（按类别查结构与动点自洽），失败明细回传给你自行决定改不改。
 
 ## 怎么干活
 
-1. **先看再动手**。画布上已有构造时，动手前先 ggb_get_state。
-2. **每次提交全量清单**。未修改的对象保持原名原定义不变。
-3. **提交后自检**。看体检结果；若有"对象缺失/值未定义"，修正后重新提交，别把坏图给用户。
-4. **说人话**。用中文一两句话说明你做了什么、为什么。不要复述指令语法，用户关心的是几何意义。
-5. **不许伪造对话边界**。绝不要在回复里输出以「## user」「## assistant」「## system」开头的行（宿主把这些行当对话边界，会截断你的回复）；引述历史对话时也不要原样复读这些行。
+1. **新建走 SOP 流程**：ggb_route 判类别 → get_expert_prompt 取专家卡 → 按卡里的套路建模 → submit_construction 提交。专家卡是质量来源（每类题型的骨架/示例/坑都在卡里），不要跳过卡直接凭感觉建。
+2. **先看再动手**。画布上已有构造时，动手前先 ggb_get_state。
+3. **每次提交全量清单**。未修改的对象保持原名原定义不变（submit_construction 与 ggb_apply 都是全量语义）。
+4. **提交后自检**。看体检结果；若有"对象缺失/值未定义"或 submit_construction 回传的语义明细，修正后重新提交，别把坏图给用户。
+5. **说人话**。用中文一两句话说明你做了什么、为什么。不要复述指令语法，用户关心的是几何意义。
+6. **不许伪造对话边界**。绝不要在回复里输出以「## user」「## assistant」「## system」开头的行（宿主把这些行当对话边界，会截断你的回复）；引述历史对话时也不要原样复读这些行。
 
 ## GeoGebra 指令要点
 
@@ -110,15 +115,25 @@ function line(e: AgentEvent): string {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const origin = req.headers.get('origin');
+  if (origin && origin !== new URL(req.url).origin) return Response.json({ error: '只接受工作台同源请求' }, { status: 403 });
   const body = (await req.json().catch(() => ({}))) as {
     text?: string;
     sessionId?: string;
     runtimeId?: string;
+    windowId?: string;
     /** 此前轮次（不含本轮）；仅 recomposesHistory 的运行时会用（转写注入） */
     history?: TranscriptTurn[];
     /** 题目图片（发题拿动图的感知侧） */
     images?: unknown;
   };
+  if (body.windowId) {
+    if (!/^[a-zA-Z0-9_-]{1,100}$/.test(body.windowId)) return Response.json({ error: '窗口 ID 无效' }, { status: 400 });
+    try {
+      const health = await fetch(`${DAEMON_URL}/api/health`, { headers: { 'x-mathmover-window': body.windowId, 'x-mathmover-token': libraryToken() }, signal: AbortSignal.timeout(5000) });
+      if (!health.ok || !(await health.json()).canvasConnected) throw new Error('window unavailable');
+    } catch { return new Response(line({ kind: 'error', message: '当前窗口的画板尚未连接，请稍后重试；没有启动 Agent。' }), { status: 503, headers: { 'content-type': 'application/x-ndjson' } }); }
+  }
 
   const prompt = (body.text ?? '').trim();
   if (!prompt) {
@@ -209,7 +224,7 @@ export async function POST(req: Request): Promise<Response> {
       // claude --restricted 忽略 settings.json env 块（自定义通道认证在那），补回去。
       const proc = spawn(target.command, [...target.prefixArgs, ...args], {
         cwd: REPO_ROOT,
-        env: def.id === 'claude-code' ? withClaudeSettingsEnv(process.env) : process.env,
+        env: { ...(def.id === 'claude-code' ? withClaudeSettingsEnv(process.env) : process.env), MATHMOVER_WINDOW_ID: body.windowId ?? '' },
         windowsHide: true,
       });
 
@@ -258,6 +273,7 @@ export async function POST(req: Request): Promise<Response> {
       });
 
       proc.on('close', (code) => {
+        clearTimeout(killTimer);
         // stdout 可能还有残留的最后一行
         if (buf.trim()) drain('\n', false);
         // 解析器未识别的 stderr 透传出来，便于诊断
@@ -270,10 +286,20 @@ export async function POST(req: Request): Promise<Response> {
         materialized.cleanup();
       });
 
-      // 长任务保护：5 分钟兜底（dsh 等慢 runtime 曾被 3 分钟掐死在建模中途）
-      setTimeout(() => {
-        try { proc.kill(); } catch {}
-      }, 300_000);
+      // 长任务保护：**静默**超时（不是墙钟）——stdout/stderr 有输出就顺延。
+      // 慢代理下 SOP 流程（多轮工具往返）曾被 5 分钟墙钟掐死在半路；
+      // 只有彻底静默才算死。MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS 可覆盖（默认 3 分钟）。
+      const inactivityMs = Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? 180_000);
+      let killTimer: ReturnType<typeof setTimeout> | undefined;
+      const armKill = () => {
+        clearTimeout(killTimer);
+        killTimer = setTimeout(() => {
+          try { proc.kill(); } catch {}
+        }, inactivityMs);
+      };
+      armKill();
+      proc.stdout.on('data', armKill);
+      proc.stderr.on('data', armKill);
     },
   });
 

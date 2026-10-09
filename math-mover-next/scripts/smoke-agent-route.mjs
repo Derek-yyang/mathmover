@@ -138,5 +138,33 @@ console.log(`\n── [${runtimeId}] 第三轮：发题目图 ──`);
   check('无 error 事件', errors3.length === 0, errors3.map((e) => e.message).join(' | ').slice(0, 100));
 }
 
+// ── 第四轮：SOP 三工具（P1：专家卡进智力侧）──────────────────
+console.log(`\n── [${runtimeId}] 第四轮：SOP 流程 ──`);
+{
+  await fetch('http://127.0.0.1:8788/api/reset', { method: 'POST' }).catch(() => {});
+  const ev4 = await send(
+    '请走 SOP 流程建一个最简单的函数构造：ggb_route 判类别为 A，get_expert_prompt 取卡，' +
+    '然后用 submit_construction 提交两行：MODE:2D 和 f = Function(x^2/4, -3, 3)。',
+  );
+  const names4 = ev4.filter((e) => e.kind === 'tool-call').map((e) => e.name);
+  const joined4 = ev4.filter((e) => e.kind === 'text').map((e) => e.text ?? '').join('');
+  if (EXPECT_TOOL_EVENTS) {
+    check('调用了 ggb_route', names4.includes('ggb_route'), names4.join(','));
+    check('调用了 get_expert_prompt', names4.includes('get_expert_prompt'), '');
+    check('调用了 submit_construction', names4.includes('submit_construction'), '');
+  }
+  const health = await fetch('http://127.0.0.1:8788/api/health').then((r) => r.json()).catch(() => ({}));
+  const st = await fetch('http://127.0.0.1:8788/api/state?png=0').then((r) => r.json()).catch(() => ({}));
+  if (health.canvasConnected) {
+    check('画布建出 f（submit 真下发）', (st.objects ?? []).some((o) => o.name === 'f'),
+      (st.objects ?? []).map((o) => o.name).join(','));
+  } else {
+    // 无画布环境（没有页面连 daemon）：收卷应止于画布门并如实报障
+    check('无画布时如实报障', /GGB_SESSION_DEAD|画布/.test(joined4), joined4.slice(0, 80).replace(/\n/g, ' '));
+  }
+  check('无 error 事件', ev4.filter((e) => e.kind === 'error').length === 0,
+    joined4.slice(0, 60).replace(/\n/g, ' '));
+}
+
 console.log(failed === 0 ? `\n[${runtimeId}] 路由冒烟通过` : `\n[${runtimeId}] 路由冒烟失败（${failed} 项）`);
 process.exit(failed === 0 ? 0 : 1);

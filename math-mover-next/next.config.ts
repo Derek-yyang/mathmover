@@ -5,6 +5,7 @@ const backendInternalUrl = process.env.BACKEND_INTERNAL_URL || 'http://127.0.0.1
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  distDir: process.env.MATHMOVER_NEXT_DIST_DIR || '.next',
 
   // Turbopack 默认只解析项目根内的模块。我们的共享包在仓库根的 packages/ 下
   // （@mathmover/agent-runtime 等，经 file: 依赖软链进来），必须把根提到仓库级，
@@ -22,12 +23,13 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    return [
+    // Local route handlers (including dynamic courseware routes) take precedence.
+    return { fallback: [
       {
         source: '/api/:path*',
         destination: `${backendInternalUrl}/api/:path*`,
       },
-    ];
+    ] };
   },
 };
 

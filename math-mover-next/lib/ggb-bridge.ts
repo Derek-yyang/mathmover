@@ -9,7 +9,7 @@
  *   ① window.__mmGgb  —— 同进程/无头浏览器可直接调（Playwright、Electron 隐藏窗口）
  *   ② WebSocket      —— 本地 daemon 反向调用（agent 那一侧）
  *
- * 只绑 127.0.0.1 的 daemon；本模块不做鉴权，因为通道只在本机回环。
+ * 只绑 127.0.0.1 的 daemon；工作台通过同源接口获取一次性窗口绑定票据。
  */
 
 import type { GeoGebraApi } from '@/components/dashboard/types';
@@ -182,6 +182,7 @@ export function attachGgbBridge(
       failedFirstPass: string[];
     }>;
     wsUrl?: string;
+    windowId?: string;
   },
 ): () => void {
   let generation = 0;
@@ -278,18 +279,26 @@ export function attachGgbBridge(
   let ws: WebSocket | null = null;
   let closed = false;
 
-  const connect = () => {
+  const connect = async () => {
     if (closed) return;
+    let bindingToken: string | undefined;
     try {
+      if (opts.windowId) {
+        const response = await fetch('/api/coursewares/windows', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ windowId: opts.windowId }) });
+        if (!response.ok) throw new Error('窗口绑定失败');
+        bindingToken = (await response.json()).bindingToken;
+        if (closed) return;
+      }
       ws = new WebSocket(opts.wsUrl ?? 'ws://127.0.0.1:8787');
     } catch {
       setTimeout(connect, 2000);
       return;
     }
-    ws.onopen = () => {
-      ws?.send(JSON.stringify({ type: 'hello', version: 1 }));
+    const socket = ws;
+    socket.onopen = () => {
+      socket.send(JSON.stringify({ type: 'hello', version: 1, windowId: opts.windowId, bindingToken }));
     };
-    ws.onmessage = async (ev) => {
+    socket.onmessage = async (ev) => {
       let msg: { id?: string; op?: string; args?: unknown } = {};
       try {
         msg = JSON.parse(String(ev.data));
@@ -298,8 +307,8 @@ export function attachGgbBridge(
       }
       if (!msg.id || !msg.op) return;
 
-      const reply = (payload: unknown) => ws?.send(JSON.stringify({ id: msg.id, payload }));
-      const fail = (error: string) => ws?.send(JSON.stringify({ id: msg.id, error }));
+      const reply = (payload: unknown) => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ id: msg.id, payload })); };
+      const fail = (error: string) => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ id: msg.id, error })); };
 
       try {
         switch (msg.op) {
@@ -323,11 +332,11 @@ export function attachGgbBridge(
         fail(String(e instanceof Error ? e.message : e));
       }
     };
-    ws.onclose = () => {
-      ws = null;
+    socket.onclose = () => {
+      if (ws === socket) ws = null;
       if (!closed) setTimeout(connect, 2000); // 自动重连
     };
-    ws.onerror = () => ws?.close();
+    socket.onerror = () => socket.close();
   };
   connect();
 

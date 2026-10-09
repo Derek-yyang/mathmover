@@ -136,11 +136,11 @@ export function writeConstructionFile(cfg: ToolsConfig, commands: string[]): str
 }
 
 export class GgbTools {
-  private readonly bridge: GgbBridgeClient;
+  private readonly bridge: Pick<GgbBridgeClient, 'connected' | 'snapshot' | 'call'>;
   private readonly cfg: ToolsConfig;
 
   // 不用构造函数参数属性：Node 的 TS 类型剥离不支持该语法。
-  constructor(bridge: GgbBridgeClient, cfg: ToolsConfig = DEFAULT_TOOLS_CONFIG) {
+  constructor(bridge: Pick<GgbBridgeClient, 'connected' | 'snapshot' | 'call'>, cfg: ToolsConfig = DEFAULT_TOOLS_CONFIG) {
     this.bridge = bridge;
     this.cfg = cfg;
   }

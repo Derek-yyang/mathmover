@@ -15,6 +15,8 @@ import { GgbBridgeClient } from './bridge-client.ts';
 import { GgbTools, DEFAULT_TOOLS_CONFIG, type ToolsConfig } from './tools.ts';
 import { serveStdio } from './mcp-server.ts';
 import { listenHttp } from './http-api.ts';
+import { CoursewareStore } from './courseware-store.ts';
+import { dataDirectory, libraryToken } from './data-directory.ts';
 
 const VERSION = '0.1.0';
 
@@ -27,6 +29,7 @@ function parseArgs(argv: string[]) {
     wsPort: Number(process.env.MATHMOVER_WS_PORT ?? 8787),
     httpPort: Number(process.env.MATHMOVER_HTTP_PORT ?? 8788),
     workdir: process.env.MATHMOVER_WORKDIR ?? process.cwd(),
+    dataDir: dataDirectory(),
     includePng: process.env.MATHMOVER_NO_PNG !== '1',
     transport: 'stdio' as 'stdio' | 'none',
   };
@@ -35,6 +38,7 @@ function parseArgs(argv: string[]) {
     if (a === '--ws-port') out.wsPort = Number(argv[++i]);
     else if (a === '--http-port') out.httpPort = Number(argv[++i]);
     else if (a === '--workdir') out.workdir = path.resolve(argv[++i]);
+    else if (a === '--data-dir') out.dataDir = path.resolve(argv[++i]);
     else if (a === '--no-png') out.includePng = false;
     else if (a === '--no-mcp') out.transport = 'none';
     else if (a === '--help' || a === '-h') {
@@ -43,6 +47,7 @@ function parseArgs(argv: string[]) {
         '用法: mathmover-daemon [选项]\n\n' +
         '  --ws-port <n>     WebSocket 端口（默认 8787，只绑 127.0.0.1）\n' +
         '  --workdir <dir>   受管工作目录，construction.ggb.txt 写这里（默认 cwd）\n' +
+        '  --data-dir <dir>  用户课件库目录（默认用户 AppData，Next 需同设 MATHMOVER_DATA_DIR）\n' +
         '  --no-png          不在工具返回里附带画布截图\n' +
         '  --no-mcp          不启动 MCP stdio（只跑 WebSocket 桥，便于调试）\n' +
         '  -h, --help        显示本帮助\n\n' +
@@ -74,8 +79,12 @@ async function main(): Promise<void> {
   log(`受管工作目录: ${cfg.workdir}`);
 
   const tools = new GgbTools(bridge, cfg);
+  const store = new CoursewareStore(args.dataDir);
+  const token = libraryToken(store.root, true);
 
-  await listenHttp(tools, { port: args.httpPort, host: '127.0.0.1' });
+  await listenHttp(tools, { port: args.httpPort, host: '127.0.0.1', library: { store, token, bridge },
+    toolsForWindow: id => new GgbTools(bridge.forWindow(id), { ...cfg, workdir: path.join(store.root, 'windows', id) }) });
+  log(`本地课件库: ${store.root}（与安装目录分离）`);
   log(`HTTP 工具面已监听 http://127.0.0.1:${args.httpPort}（/api/health|state|apply|diff|reset）`);
 
   if (args.transport === 'stdio') {

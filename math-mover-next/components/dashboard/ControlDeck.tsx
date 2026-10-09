@@ -18,6 +18,7 @@ import { CoursewareExportFormat, SliderItem } from './types';
 
 interface ControlDeckProps {
   title: string;
+  saveStatusText?: string;
   sliders: SliderItem[];
   showAxes: boolean;
   showGrid: boolean;
@@ -33,6 +34,7 @@ interface ControlDeckProps {
 
 export default function ControlDeck({
   title,
+  saveStatusText,
   sliders,
   showAxes,
   showGrid,
@@ -67,6 +69,7 @@ export default function ControlDeck({
           <span className="font-semibold text-stone-800 text-sm truncate max-w-[200px]" title={title}>
             {title || '未命名课件'}
           </span>
+          {saveStatusText && <span role="status" aria-label="课件保存状态" className="hidden shrink-0 text-xs text-stone-600 sm:inline">{saveStatusText}</span>}
         </div>
       </div>
 

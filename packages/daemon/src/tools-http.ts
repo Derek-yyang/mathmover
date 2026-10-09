@@ -10,6 +10,7 @@
  */
 
 import type { BoardState, DiffResult } from '@mathmover/ggb-core';
+import { libraryToken } from './data-directory.ts';
 
 export interface ToolsLike {
   getState(opts?: { png?: boolean }): Promise<BoardState>;
@@ -29,7 +30,9 @@ export function createHttpBackedTools(daemonUrl: string): ToolsLike {
   const call = async (path: string, init?: RequestInit): Promise<any> => {
     const res = await fetch(`${daemonUrl}${path}`, {
       ...init,
-      headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+      headers: { 'content-type': 'application/json', ...(process.env.MATHMOVER_WINDOW_ID ? {
+        'x-mathmover-window': process.env.MATHMOVER_WINDOW_ID, 'x-mathmover-token': libraryToken(),
+      } : {}), ...(init?.headers ?? {}) },
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {

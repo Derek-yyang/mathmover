@@ -479,6 +479,8 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
     sliders,
     currentMode,
     lastExecutedCommands,
+    restoreCommandLedger: setLastExecutedCommands,
+    refreshSliders: detectSliders,
     handleAppletReady,
     executeCommands,
     setSliderValue,

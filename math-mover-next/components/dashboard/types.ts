@@ -15,7 +15,13 @@ export interface GeoGebraApi {
   unregisterUpdateListener: (fn: (name: string) => void) => void;
   getBase64: (cb: (b64: string) => void) => void;
   getPNGBase64?: (exportScale: number, transparent: boolean, dpi?: number) => string;
-  setBase64?: (b64: string) => void;
+  setBase64?: (b64: string, callback?: () => void) => void;
+  registerAddListener?: (fn: (name: string) => void) => void;
+  unregisterAddListener?: (fn: (name: string) => void) => void;
+  registerRemoveListener?: (fn: (name: string) => void) => void;
+  unregisterRemoveListener?: (fn: (name: string) => void) => void;
+  registerClientListener?: (fn: (event: unknown) => void) => void;
+  unregisterClientListener?: (fn: (event: unknown) => void) => void;
   getViewProperties?: (view: number) => unknown;
   setCoordSystem?: (xMin: number, xMax: number, yMin: number, yMax: number) => void;
   refreshViews: () => void;
@@ -58,6 +64,7 @@ export interface ChatAttachment {
   name?: string;
   contentType?: string;
   file?: File;
+  unavailable?: boolean;
 }
 
 export interface AgentMeta {

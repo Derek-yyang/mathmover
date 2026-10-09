@@ -7,16 +7,40 @@
  *  - 结构化数据用 `text` block 承载 JSON，附一个纯文本摘要便于 agent 快速理解。
  *  - 工具签名不含 sessionId（签名寿命是第一资产）：会话 = 一个 daemon 进程。
  *    页面断开时如实报 GGB_SESSION_DEAD，不假装画布还在。
- *  - **不做 submit_construction 一类的"收卷"工具**——那要先定 category 归属与
- *    语义校验语义（已裁定：category 由会话账本自动记、校验失败剔除后下发）。
- *    属下一步，等 TS 移植完 expert_prompts / semantic_guard 再开。
+ *  - SOP 三工具（P1）：ggb_route 定类别、get_expert_prompt 取专家卡、
+ *    submit_construction 收卷（校验剔除后下发 + 明细回传）。
+ *    category 由会话账本自动记（ggb_route / get_expert_prompt 写入，
+ *    submit_construction 取用）——已裁定的语义，勿改。
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import type { BoardState, DiffResult } from '@mathmover/ggb-core';
+import {
+  assembleExpertPrompt,
+  buildAllowedCommandsSuffix,
+  checkLines,
+  classifyLine,
+  CATEGORY_TO_SKILL,
+  loadWhitelist,
+  semanticCheck,
+  type BoardState,
+  type DiffResult,
+} from '@mathmover/ggb-core';
 import type { GgbTools } from './tools.ts';
+
+/** MCP CallToolResult.content 的实用别名（text + image 两种块）。 */
+type ToolContent = Array<
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string; mimeType: string }
+>;
+
+/** 题目分类学（ggb_route 的判定标准；与旧 ROUTER_PROMPT 同源）。 */
+const CATEGORY_TAXONOMY =
+  'A：函数与图像（一次函数、开口向上/向下的二次函数（抛物线）、三角函数、导数、一般函数）\n' +
+  'B：平面几何（圆、多边形、角平分线、平面向量）\n' +
+  'C：解析几何（椭圆、双曲线、开口向左/向右的抛物线、圆锥曲线）\n' +
+  'D：立体几何（正方体、四面体、空间动点、球、旋转体）';
 
 /** 模型友好：把 BoardState 压成一段可直接读的文本摘要。 */
 function describeState(s: BoardState): string {
@@ -79,7 +103,7 @@ function describeDiff(d: DiffResult): string {
 }
 
 function stateContent(s: BoardState) {
-  const content: Array<Record<string, unknown>> = [
+  const content: ToolContent = [
     { type: 'text', text: describeState(s) },
     { type: 'text', text: JSON.stringify({ objects: s.objects, sliders: s.sliders, audit: s.audit, mode: s.mode, generation: s.generation, degraded: s.degraded, degradedReasons: s.degradedReasons }, null, 2) },
   ];
@@ -91,14 +115,21 @@ function stateContent(s: BoardState) {
 }
 
 function errContent(e: unknown) {
-  return {
-    content: [{ type: 'text', text: String(e instanceof Error ? e.message : e) }],
-    isError: true as const,
-  };
+  const content: ToolContent = [{ type: 'text', text: String(e instanceof Error ? e.message : e) }];
+  return { content, isError: true as const };
 }
 
-export function createMcpServer(tools: GgbTools, info: { name: string; version: string }): McpServer {
+export function createMcpServer(
+  tools: GgbTools,
+  info: { name: string; version: string },
+  opts: { rootDir?: string } = {},
+): McpServer {
   const server = new McpServer({ name: info.name, version: info.version });
+  const rootDir = opts.rootDir ?? process.cwd();
+
+  // 会话账本：category 归属（ggb_route / get_expert_prompt 写，submit_construction 读）。
+  // 会话 = 一个 daemon 进程（签名不带 sessionId），进程级单份即"会话账本"。
+  const ledger: { category?: string; reason?: string; at?: number } = {};
 
   server.registerTool('ggb_get_state', {
     title: '读取 GeoGebra 画布当前状态',
@@ -133,7 +164,7 @@ export function createMcpServer(tools: GgbTools, info: { name: string; version: 
   }, async (args) => {
     try {
       const r = await tools.apply(args?.commands ?? [], { png: args?.png ?? true });
-      const content: Array<Record<string, unknown>> = [
+      const content: ToolContent = [
         { type: 'text', text: describeDiff(r.diff) },
         { type: 'text', text: describeState(r.state) },
       ];
@@ -199,7 +230,163 @@ export function createMcpServer(tools: GgbTools, info: { name: string; version: 
   }, async () => {
     try {
       await tools.reset();
+      ledger.category = undefined;
+      ledger.reason = undefined;
       return { content: [{ type: 'text', text: '画布已清空。' }], isError: false };
+    } catch (e) {
+      return errContent(e);
+    }
+  });
+
+  // ── SOP 三工具（P1）：把 21 张专家卡接进 agent 的智力侧 ──────────────
+
+  server.registerTool('ggb_route', {
+    title: '登记题目类别（选专家）',
+    description:
+      '通读题干与各小问（图看不清就结合 ggb_get_state 或用户文字），判定题目类别并登记到账本。' +
+      '这是 SOP 流程的第一步；类别决定后续取哪张专家卡、校验按哪类结构要求。\n\n' +
+      '分类标准：\n' + CATEGORY_TAXONOMY,
+    inputSchema: {
+      category: z.enum(['A', 'B', 'C', 'D']).describe('题目类别：A 函数与图像 / B 平面几何 / C 解析几何 / D 立体几何'),
+      reason: z.string().optional().describe('一句话判定理由（便于用户复核分诊）'),
+    },
+  }, async (args) => {
+    try {
+      const category = args?.category;
+      if (!category) return errContent(new Error('必须给出 category（A/B/C/D）'));
+      ledger.category = category;
+      ledger.reason = args?.reason;
+      ledger.at = Date.now();
+      const { metadata } = assembleExpertPrompt(category, rootDir);
+      return {
+        content: [{
+          type: 'text',
+          text:
+            `已登记类别 ${category}（${CATEGORY_TO_SKILL[category]}）` +
+            (args?.reason ? `，理由：${args.reason}` : '') + '。\n' +
+            `该类 SOP 卡（共 ${metadata.cards.length} 张）：${metadata.cards.join('、')}。\n` +
+            '下一步：调 get_expert_prompt 取完整专家卡（含语法约束），按卡建模后用 submit_construction 提交。',
+        }],
+        isError: false,
+      };
+    } catch (e) {
+      return errContent(e);
+    }
+  });
+
+  server.registerTool('get_expert_prompt', {
+    title: '取专家卡（SOP 建模秘籍）',
+    description:
+      '取当前题目类别的完整专家提示：领域 SOP 卡（建模套路/骨架/示例）+ 生成规则 + 严格语法约束。' +
+      '建模前必读；不给 category 则用账本里已登记的类别（未登记会报错，请先 ggb_route）。' +
+      '给出 category 时也会写入账本（与 ggb_route 等效）。',
+    inputSchema: {
+      category: z.enum(['A', 'B', 'C', 'D']).optional().describe('缺省用账本类别'),
+    },
+  }, async (args) => {
+    try {
+      const category = args?.category ?? ledger.category;
+      if (!category) {
+        return errContent(new Error('账本无类别：请先调 ggb_route 判定题目类别，或直接给出 category'));
+      }
+      ledger.category = category;
+      ledger.at = Date.now();
+      const { text, metadata } = assembleExpertPrompt(category, rootDir);
+      const suffix = buildAllowedCommandsSuffix(category, loadWhitelist(rootDir).names);
+      return {
+        content: [
+          { type: 'text', text: text + suffix },
+          {
+            type: 'text',
+            text: JSON.stringify({
+              category, skill: CATEGORY_TO_SKILL[category], cards: metadata.cards,
+              characters: metadata.characters + suffix.length,
+            }),
+          },
+        ],
+        isError: false,
+      };
+    } catch (e) {
+      return errContent(e);
+    }
+  });
+
+  server.registerTool('submit_construction', {
+    title: '提交构造（收卷：校验剔除后下发）',
+    description:
+      'SOP 流程的收卷动作：提交**完整** GeoGebra 指令清单。自动做两层检查并把失败明细回传给你自行决定改不改' +
+      '（不会替你重生成）：① 行级——语法/未知命令的行剔除后下发，明细列出；' +
+      '② 语义级——按账本类别查结构（A 要函数/方程、B 要多边形/圆、C 要圆锥曲线、D 要 3D）' +
+      '与动点自洽（free_param / orphan_slider）。类别从账本取（ggb_route 或 get_expert_prompt 已登记）。',
+    inputSchema: {
+      commands: z.array(z.string()).min(1).describe('完整 GeoGebra 指令清单，每行一条（含 MODE: 首行可选、// 注释可选）'),
+      category: z.enum(['A', 'B', 'C', 'D']).optional().describe(
+        '题目类别兜底：同轮内用账本的即可；跨轮续接时（工具进程已换）请把上一轮登记的类别传进来',
+      ),
+      png: z.boolean().optional().describe('返回结果是否附带画布截图，默认 true'),
+    },
+  }, async (args) => {
+    try {
+      const category = args?.category ?? ledger.category;
+      if (!category) {
+        return errContent(new Error(
+          '账本无类别：先调 ggb_route / get_expert_prompt 登记；若是跨轮续接，把上一轮的类别直接传给本工具的 category 参数',
+        ));
+      }
+      if (args?.category) ledger.category = args.category;
+      const rawLines = (args?.commands ?? []).flatMap((c) => String(c).split('\n'));
+      const { knownLower } = loadWhitelist(rootDir);
+
+      // ① 行级：剔除语法无效行 + 未知命令行（宁可放过的是可解析行；这类行下发必败）
+      const lineCheck = checkLines(rawLines.join('\n'), knownLower);
+      const dropped = new Set<string>();
+      for (const raw of rawLines) {
+        const t = raw.trim();
+        if (!t || t.startsWith('//')) continue;
+        // 与 checkLines 同判据：整行不可解析 -> 剔
+        if (classifyLine(raw).kind === 'unknown') dropped.add(raw);
+      }
+      for (const u of lineCheck.unknownCommands) dropped.add(u.line);
+      const cleaned = rawLines.filter((l) => !dropped.has(l));
+
+      // ② 语义级：明细回传（不拦下发——验证闭环不进生成链路）
+      const semantic = semanticCheck(category, cleaned.join('\n'), {
+        knownCommandLower: knownLower,
+      });
+
+      const r = await tools.apply(cleaned, { png: args?.png ?? true });
+      const content: ToolContent = [
+        { type: 'text', text: `已按类别 ${category} 校验并下发 ${cleaned.length} 行（剔除 ${dropped.size} 行）。` },
+      ];
+      if (dropped.size) {
+        content.push({
+          type: 'text',
+          text: `剔除的行（无效/未知命令，未下发）：\n${[...dropped].map((x) => `  ${x}`).join('\n')}`,
+        });
+      }
+      if (!semantic.ok) {
+        content.push({
+          type: 'text',
+          text: '语义自查未全过（不影响已下发内容，请自行决定是否修正）：\n' +
+            semantic.failures.map((f) => `  [${f.check}] ${f.detail}`).join('\n'),
+        });
+      }
+      content.push({ type: 'text', text: describeDiff(r.diff) });
+      content.push({ type: 'text', text: describeState(r.state) });
+      content.push({
+        type: 'text',
+        text: JSON.stringify({
+          category,
+          applied: r.applied.length,
+          droppedLines: [...dropped],
+          lineCheck: { validity: lineCheck.validity, unknownCommands: lineCheck.unknownCommands },
+          semantic,
+        }, null, 2),
+      });
+      if (r.state.png.base64) {
+        content.push({ type: 'image', data: r.state.png.base64, mimeType: 'image/png' });
+      }
+      return { content, isError: false };
     } catch (e) {
       return errContent(e);
     }
@@ -209,8 +396,12 @@ export function createMcpServer(tools: GgbTools, info: { name: string; version: 
 }
 
 /** 以 stdio 方式启动 MCP 服务（agent 通过 stdio 与之通信）。 */
-export async function serveStdio(tools: GgbTools, info: { name: string; version: string }): Promise<void> {
-  const server = createMcpServer(tools, info);
+export async function serveStdio(
+  tools: GgbTools,
+  info: { name: string; version: string },
+  opts: { rootDir?: string } = {},
+): Promise<void> {
+  const server = createMcpServer(tools, info, opts);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

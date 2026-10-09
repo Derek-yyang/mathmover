@@ -141,7 +141,10 @@ export const claudeCode: RuntimeDefinition = {
   formatStdinInput: (prompt, images) => formatClaudeStreamJsonInput(prompt, images),
   authProbe: { args: ['auth', 'status'], timeoutMs: 5000 },
   buildArgs({ prompt, mcpConfigPath, sessionId, resumeSessionId, extraArgs = [] }) {
-    // prompt 不进 argv：经 stdin 传 JSONL（input-format 必须与 output-format 配对）
+    // prompt 不进 argv：经 stdin 传 JSONL（input-format 必须与 output-format 配对）。
+    // --allowedTools=mcp__mathmover__* 让自家 MCP 工具免权限分类直通：
+    // auto 模式下每次工具调用要过 LLM 安全分类器，分类器抖动会拒工具（实测踩过），
+    // 白名单既稳又快。= 形式避免变长旗标吞后续参数。
     const args = [
       '-p',
       '--input-format', 'stream-json',
@@ -150,6 +153,7 @@ export const claudeCode: RuntimeDefinition = {
       '--include-partial-messages',
       '--mcp-config', mcpConfigPath,
       '--restricted',
+      '--allowedTools=mcp__mathmover__*',
     ];
     if (sessionId) args.push('--session-id', sessionId);
     if (resumeSessionId) args.push('--resume', resumeSessionId);

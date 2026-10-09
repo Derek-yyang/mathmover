@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, Suspense, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { X } from 'lucide-react';
 import ControlDeck from '@/components/dashboard/ControlDeck';
 import AgentChatPanel from '@/components/dashboard/AgentChatPanel';
@@ -15,17 +14,11 @@ import { finishExecution, updateToolProgress, toolStepLabel } from '@/lib/agent-
 import {
   AgentChatMessage,
   ChatAttachment,
-  AuditResult,
   GeoGebraApi,
   CoursewareExportFormat,
 } from '@/components/dashboard/types';
-import {
-  GenerationRecord,
-  getGeneration,
-  saveGeneration,
-  makeThumbnail
-} from '@/lib/local-store';
-import { TYPE_MAP, formatGenerationTitle } from '@/lib/constants';
+import { useCoursewareLibrary } from '@/hooks/useCoursewareLibrary';
+import type { CoursewareRecord } from '@/lib/courseware-client';
 
 export default function Dashboard() {
   return (
@@ -42,13 +35,9 @@ export default function Dashboard() {
 }
 
 function DashboardContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
 
   // 当前课件状态
   const [currentTitle, setCurrentTitle] = useState('未命名课件');
-  const [currentCategory, setCurrentCategory] = useState<string | null>(null);
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
   // 对话流状态
   // messages / isLoading 由 handleSendMessage 流式维护
@@ -100,6 +89,8 @@ function DashboardContent() {
     ggbApplet,
     sliders,
     lastExecutedCommands,
+    restoreCommandLedger,
+    refreshSliders,
     handleAppletReady,
     executeCommands,
     setSliderValue,
@@ -142,14 +133,49 @@ function DashboardContent() {
     executeCommandsRef.current = executeCommands;
   }, [executeCommands]);
 
+  const restoreCourseware = useCallback(async (record: CoursewareRecord | null) => {
+    if (!ggbApplet) return;
+    sessionIdRef.current = record && record.runtimeId === activeRuntimeId ? record.sessionId : undefined;
+    setCurrentTitle(record?.title || '未命名课件');
+    ledgerRef.current = record?.commands ?? [];
+    setMessages(record?.messages ?? []);
+    if (record?.ggbBase64) {
+      if (!ggbApplet.setBase64) throw new Error('当前画板不支持完整快照恢复');
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('画板恢复超时，未覆盖已保存的课件')), 15000);
+        try { ggbApplet.setBase64!(record.ggbBase64!, () => { clearTimeout(timeout); resolve(); }); }
+        catch (error) { clearTimeout(timeout); reject(error); }
+      });
+      refreshSliders(ggbApplet);
+    } else if (record?.commands.length) await executeCommands(record.commands);
+    else clearConstruction();
+    if (record?.view) {
+      setShowAxes(record.view.showAxes); setShowGrid(record.view.showGrid);
+      setAxesVisible(record.view.showAxes); setGridVisible(record.view.showGrid);
+      const b = record.view.bounds; if (b) ggbApplet.setCoordSystem?.(...b);
+    } else { setShowAxes(true); setShowGrid(true); setAxesVisible(true); setGridVisible(true); }
+    // Hook state may update its old command ledger during snapshot loading; the persisted one wins.
+    ledgerRef.current = record?.commands ?? [];
+    restoreCommandLedger(record?.commands ?? []);
+  }, [ggbApplet, activeRuntimeId, refreshSliders, restoreCommandLedger, executeCommands, clearConstruction, setAxesVisible, setGridVisible]);
+  const courseware = useCoursewareLibrary({ api: ggbApplet, messages, commands: ledgerRef, busy: isLoading,
+    runtimeId: activeRuntimeId, sessionId: sessionIdRef, showAxes, showGrid, onRestore: restoreCourseware });
+  const displayedTitle = courseware.summary?.title ?? currentTitle;
+  const { windowId, markDirty, flush, canSend } = courseware;
+  const bridgeCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => bridgeCleanup.current?.(), []);
+
   // applet 就绪：挂桥，让 agent 够得着这块画布
   const handleAppletReadyWithBridge = useCallback(
     (api: GeoGebraApi) => {
       handleAppletReady(api);
-      attachGgbBridge(api, {
+      bridgeCleanup.current?.();
+      bridgeCleanup.current = attachGgbBridge(api, {
+        windowId,
         getLedger: () => ledgerRef.current,
         onLedgerChange: (commands) => {
           ledgerRef.current = commands;
+          markDirty();
         },
         // 执行委托给 useGgbSession，避免两条执行路径导致状态不同步
         applyCommands: async (commands) => {
@@ -157,10 +183,10 @@ function DashboardContent() {
           ledgerRef.current = commands;
           return { applied: commands, failedFirstPass: [] };
         },
-        wsUrl: 'ws://127.0.0.1:8787',
+        wsUrl: process.env.NEXT_PUBLIC_MATHMOVER_WS_URL || 'ws://127.0.0.1:8787',
       });
     },
-    [handleAppletReady],
+    [handleAppletReady, windowId, markDirty],
   );
 
   // 切换坐标轴显示
@@ -180,9 +206,9 @@ function DashboardContent() {
   // 导出处理
   const handleExport = (type: CoursewareExportFormat) => {
     setExportError(null);
-    const safeTitle = currentTitle.replace(/[\\/:*?"<>|]/g, '_');
+    const safeTitle = displayedTitle.replace(/[\\/:*?"<>|]/g, '_');
     if (type === 'html') {
-      void exportHTML(`${safeTitle}.html`, currentTitle).catch(error => {
+      void exportHTML(`${safeTitle}.html`, displayedTitle).catch(error => {
         setExportError(error instanceof Error ? error.message : 'HTML 导出失败，请重试。');
       });
     } else if (type === 'ggb') {
@@ -204,62 +230,6 @@ function DashboardContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen, previewImageUrl]);
 
-  const newActionHandledRef = useRef(false);
-  // 监听 URL 参数变化 (响应 Sidebar 的新建与历史项点击)
-  useEffect(() => {
-    const action = searchParams.get('action');
-    const historyId = searchParams.get('history_id');
-
-    if (action === 'new') {
-      // URL replace 是异步的：清空画板会更新 Hook 依赖，不能在旧 URL 上重复处理。
-      if (newActionHandledRef.current || !ggbApplet) return;
-      newActionHandledRef.current = true;
-      setActiveProjectId(null);
-      setCurrentTitle('未命名课件');
-      setCurrentCategory(null);
-      setMessages([]);
-      clearConstruction();
-      router.replace('/dashboard');
-      return;
-    }
-
-    newActionHandledRef.current = false;
-
-    if (historyId && historyId !== activeProjectId) {
-      setActiveProjectId(historyId);
-      const record = getGeneration(historyId);
-      if (record) {
-        setCurrentTitle(record.title || '未命名课件');
-        setCurrentCategory(record.category || record.problem_type || null);
-        // 执行历史记录中的 GGB 指令
-        if (record.commands && record.commands.length > 0) {
-          executeCommands(record.commands);
-        }
-        // 恢复对话记录
-        const recordAny = record as any;
-        if (recordAny.messages && Array.isArray(recordAny.messages) && recordAny.messages.length > 0) {
-          setMessages(recordAny.messages);
-        } else {
-          // 兼容旧历史记录：包装成一条默认的 Agent 生成气泡
-          const categoryLabel = record.category ? TYPE_MAP[record.category] || record.category : '数学几何';
-          setMessages([
-            {
-              id: `hist_${record.id}`,
-              role: 'assistant',
-              content: `已加载历史课件「${record.title}」，共包含 ${record.commands?.length || 0} 条构建指令。`,
-              createdAt: new Date(record.created_at).getTime(),
-              meta: {
-                category: record.category || undefined,
-                categoryLabel,
-                commands: record.commands,
-              },
-            },
-          ]);
-        }
-      }
-    }
-  }, [searchParams, router, activeProjectId, executeCommands, clearConstruction, ggbApplet]);
-
   // 发送消息并触发 Agent 生成流程（支持多轮对话微调）
   /**
    * 发消息给本机 agent CLI，流式收它的回答。
@@ -269,7 +239,7 @@ function DashboardContent() {
    */
   const handleSendMessage = useCallback(
     async (text: string, attachments: ChatAttachment[]) => {
-      if (isLoading) return;
+      if (isLoading || !canSend) return;
       clearFailure(activeRuntimeId);
 
       const userMsg: AgentChatMessage = {
@@ -281,12 +251,13 @@ function DashboardContent() {
       };
       const assistantId = `msg_agent_${Date.now()}`;
 
-      setMessages((prev) => [
-        ...prev,
+      const nextMessages: AgentChatMessage[] = [
+        ...messages,
         userMsg,
         { id: assistantId, role: 'assistant', content: '', createdAt: Date.now(),
           meta: { status: 'generating', execution: { status: 'running', startedAt: Date.now(), steps: [] } } },
-      ]);
+      ];
+      setMessages(nextMessages);
       setIsLoading(true);
       setLoadingStatusText('等待 Agent 回复…');
 
@@ -305,6 +276,8 @@ function DashboardContent() {
       };
 
       try {
+        // Do not spend a model call until the user's question has reached local storage.
+        await flush(nextMessages);
         // 题目图片：File → base64（blob: URL 路由读不了，必须在这里转）
         const imagePayloads: { mediaType: string; base64: string; name?: string }[] = [];
         for (const a of attachments ?? []) {
@@ -330,6 +303,7 @@ function DashboardContent() {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             text,
+            windowId,
             sessionId: sessionIdRef.current,
             runtimeId: activeRuntimeId,
             images: imagePayloads.length ? imagePayloads : undefined,
@@ -420,7 +394,7 @@ function DashboardContent() {
         setLoadingStatusText('准备就绪');
       }
     },
-    [isLoading, activeRuntimeId, setIsLoading, recordFailure, clearFailure],
+    [isLoading, activeRuntimeId, setIsLoading, recordFailure, clearFailure, messages, canSend, flush, windowId],
   );
 
   return (
@@ -431,7 +405,8 @@ function DashboardContent() {
         className={`flex min-h-0 min-w-0 flex-1 flex-col bg-white ${isFullscreen ? 'fixed inset-0 z-40 h-dvh w-screen' : 'relative h-full'}`}
       >
         <ControlDeck
-          title={currentTitle}
+          title={displayedTitle}
+          saveStatusText={{ idle: '', dirty: '尚未保存', saving: '保存中…', saved: '已保存到本地', error: '保存／恢复失败', restoring: '恢复中…' }[courseware.status]}
           sliders={sliders}
           showAxes={showAxes}
           showGrid={showGrid}
@@ -444,6 +419,9 @@ function DashboardContent() {
           onToggleFullscreen={handleToggleFullscreen}
           onExport={handleExport}
         />
+        {courseware.error && <div role="alert" className="flex shrink-0 items-center justify-between gap-3 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          <span>{courseware.error}</span><button type="button" className="shrink-0 rounded px-2 py-1 underline focus-visible:outline-2 focus-visible:outline-amber-800" onClick={courseware.retry}>{courseware.retryLabel}</button>
+        </div>}
         {exportError && (
           <div role="alert" className="flex shrink-0 items-center justify-between gap-3 bg-red-50 px-4 py-2 text-sm text-red-800">
             <span>{exportError}</span>
@@ -459,7 +437,7 @@ function DashboardContent() {
       <ResizableChatRegion disabled={isFullscreen}>
         <AgentChatPanel
           messages={messages}
-          isLoading={isLoading}
+          isLoading={isLoading || !courseware.canSend}
           loadingStatusText={loadingStatusText}
           onSendMessage={handleSendMessage}
           onPreviewImage={(url) => setPreviewImageUrl(url)}

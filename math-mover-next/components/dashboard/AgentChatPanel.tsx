@@ -241,7 +241,7 @@ export default function AgentChatPanel({
                   {/* 图片附件展示 */}
                   {msg.attachments && msg.attachments.length > 0 && (
                     <div className="mb-2 space-y-1.5">
-                      {msg.attachments.map((att) => (
+                      {msg.attachments.map((att, index) => att.unavailable || !att.url ? <p key={att.id || index} className="text-xs leading-5">旧图片无法恢复，请重新上传：{att.name || '题目图片'}</p> : (
                         <div
                           key={att.id || att.url}
                           className="relative rounded-lg overflow-hidden border border-stone-200/50 group cursor-pointer"

@@ -3,8 +3,4 @@
 # 修改请调 ggb_apply 工具，直接改本文件无效。
 
 MODE:2D
-A = (0, 0)
-B = (3, 4)
-g = Function(x^2/4, -3, 3)
-f = Line(A, B)
-SetColor(f, "#FF0000")
+f = Function(x^2/4, -3, 3)
