@@ -305,6 +305,26 @@ function DashboardContent() {
       };
 
       try {
+        // 题目图片：File → base64（blob: URL 路由读不了，必须在这里转）
+        const imagePayloads: { mediaType: string; base64: string; name?: string }[] = [];
+        for (const a of attachments ?? []) {
+          try {
+            let dataUrl = a.url;
+            if (a.file) {
+              dataUrl = await new Promise<string>((res, rej) => {
+                const r = new FileReader();
+                r.onload = () => res(String(r.result));
+                r.onerror = () => rej(r.error);
+                r.readAsDataURL(a.file as File);
+              });
+            }
+            const m = /^data:([^;,]+);base64,([\s\S]+)$/.exec(dataUrl);
+            if (m && m[1].startsWith('image/')) {
+              imagePayloads.push({ mediaType: m[1], base64: m[2], name: a.name });
+            }
+          } catch { /* 单张转码失败不拦发送 */ }
+        }
+
         const res = await fetch('/api/agent', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -312,10 +332,15 @@ function DashboardContent() {
             text,
             sessionId: sessionIdRef.current,
             runtimeId: activeRuntimeId,
-            // 此前轮次（闭包里是本轮发送前的列表）；dsh 等无会话运行时靠它做转写注入
+            images: imagePayloads.length ? imagePayloads : undefined,
+            // 此前轮次（闭包里是本轮发送前的列表）；dsh 等无会话运行时靠它做转写注入。
+            // 带图轮次在转写里只留占位（转写注入是纯文本通道）。
             history: messages
               .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content)
-              .map((m) => ({ role: m.role, content: m.content })),
+              .map((m) => ({
+                role: m.role,
+                content: m.content + (m.attachments?.length ? ` [附题目图 ${m.attachments.length} 张]` : ''),
+              })),
           }),
         });
 

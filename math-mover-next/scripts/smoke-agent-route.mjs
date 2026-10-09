@@ -8,19 +8,26 @@
  */
 
 import { POST } from '../app/api/agent/route.ts';
+import fs from 'node:fs';
 
 const runtimeId = process.argv[2] ?? 'claude-code';
 const HAS_SESSION = runtimeId !== 'dsh'; // dsh headless 无会话（README 明示 one-shot）
 const EXPECT_TOOL_EVENTS = runtimeId !== 'dsh'; // dsh 只吐最终纯文本，无工具事件
 
+// 验收素材：真题图（椭圆动点三角形面积题）
+const caseImage = (() => {
+  const p = new URL('../public/cases/case1.png', import.meta.url);
+  return { mediaType: 'image/png', base64: fs.readFileSync(p).toString('base64'), name: 'case1.png' };
+})();
+
 const history = [];
 
-async function send(text, sessionId) {
+async function send(text, sessionId, images) {
   const res = await POST(
     new Request('http://local/api/agent', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text, runtimeId, sessionId, history: [...history] }),
+      body: JSON.stringify({ text, runtimeId, sessionId, history: [...history], images }),
     }),
   );
   const events = [];
@@ -115,6 +122,20 @@ if (!HAS_SESSION) {
       results2.map((r) => (r.isError ? '✗' : '✓')).join(''));
   }
   check('续接后 sessionId 保持', done2?.sessionId === session.sessionId, done2?.sessionId ?? '(无)');
+}
+
+// ── 第三轮：题目图片（视觉识题 / dsh 降级）────────────────────
+console.log(`\n── [${runtimeId}] 第三轮：发题目图 ──`);
+{
+  const ev3 = await send('用一句话说这道题的图画了什么、求什么。', undefined, [caseImage]);
+  const joined = ev3.filter((e) => e.kind === 'text').map((e) => e.text ?? '').join('');
+  const errors3 = ev3.filter((e) => e.kind === 'error');
+  if (HAS_SESSION) {
+    check('识图说出题意', /椭圆|面积|三角形|动点/.test(joined), joined.slice(0, 80).replace(/\n/g, ' '));
+  } else {
+    check('看不了图时如实降级', /看不到|文字|描述/.test(joined), joined.slice(0, 80).replace(/\n/g, ' '));
+  }
+  check('无 error 事件', errors3.length === 0, errors3.map((e) => e.message).join(' | ').slice(0, 100));
 }
 
 console.log(failed === 0 ? `\n[${runtimeId}] 路由冒烟通过` : `\n[${runtimeId}] 路由冒烟失败（${failed} 项）`);

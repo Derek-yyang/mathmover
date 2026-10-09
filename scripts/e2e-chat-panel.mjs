@@ -142,6 +142,25 @@ async function main() {
 
   const panelText2 = await p.locator('body').innerText();
   check('第二轮有说明', /3[,，]\s*4/.test(panelText2), panelText2.match(/[^\n]{0,60}3[,，]\s*4[^\n]{0,40}/)?.[0] ?? '(未见 (3,4) 相关说明)');
+  // ── 第三轮：题目图片（能力门控 / 识图）──────────────────────
+  console.log(`\n── 第三轮：发题目图 ──`);
+  const imageBtn = p.locator('button[title*="上传题目图片"], button[title*="看不了图片"]').first();
+  if (runtimeId === 'dsh') {
+    const disabled = await imageBtn.isDisabled().catch(() => true);
+    check('dsh 图片按钮置灰（能力门控）', disabled);
+  } else {
+    const caseImg = fileURLToPath(new URL('../math-mover-next/public/cases/case1.png', import.meta.url));
+    await p.setInputFiles('input[type="file"]', caseImg);
+    await p.waitForTimeout(500);
+    const before3 = await p.locator('body').innerText();
+    const ms3 = await sendAndWait(p, '用一句话说这道题求什么。', stats);
+    console.log(`  耗时 ${Math.round(ms3 / 1000)}s`);
+    const panelText3 = await p.locator('body').innerText();
+    check('识图说出题意', /椭圆|面积|三角形|动点/.test(panelText3),
+      (panelText3.match(/[^\n]{0,50}(椭圆|面积|三角形)[^\n]{0,50}/) ?? ['(未见题意描述)'])[0]);
+    check('无错误标记 ⚠', !panelText3.includes('⚠'), '');
+  }
+
   await p.screenshot({ path: `${OUT}/chat-panel-final.png`, fullPage: false });
 
   await b.close();

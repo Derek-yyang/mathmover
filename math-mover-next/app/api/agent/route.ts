@@ -23,7 +23,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { RUNTIMES, resolveSpawnTarget, withClaudeSettingsEnv, buildTranscript, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { RUNTIMES, resolveSpawnTarget, withClaudeSettingsEnv, buildTranscript, validateImages, materializeImages, toImagePlaceholder, type AgentEvent, type RuntimeDefinition, type TranscriptTurn, type ImageInput } from '@mathmover/agent-runtime';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -116,6 +116,8 @@ export async function POST(req: Request): Promise<Response> {
     runtimeId?: string;
     /** 此前轮次（不含本轮）；仅 recomposesHistory 的运行时会用（转写注入） */
     history?: TranscriptTurn[];
+    /** 题目图片（发题拿动图的感知侧） */
+    images?: unknown;
   };
 
   const prompt = (body.text ?? '').trim();
@@ -140,6 +142,17 @@ export async function POST(req: Request): Promise<Response> {
   }
   const { def, target } = picked;
 
+  // 题目图片：校验载荷，按运行时能力递送（claude stdin 图片块 / codex -i 文件）或降级占位
+  const checked = validateImages(body.images);
+  if (checked.error) {
+    return new Response(
+      line({ kind: 'error', message: `图片不合规：${checked.error}` }),
+      { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
+    );
+  }
+  const images: ImageInput[] = checked.images;
+  const imageNote = images.length && !def.supportsImages ? `\n\n${toImagePlaceholder(images.length)}` : '';
+
   // 转写注入：仅无原生会话的运行时（dsh）带历史语境；claude/codex 有自己的会话，
   // 注入会造成双重上下文（模型会复读历史，OpenDesign 的 agy -c 教训）。
   const priorTurns = def.recomposesHistory && Array.isArray(body.history)
@@ -147,9 +160,9 @@ export async function POST(req: Request): Promise<Response> {
         Boolean(t) && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string' && t.content.trim().length > 0)
     : [];
   const transcript = priorTurns.length ? buildTranscript(priorTurns) : '';
-  const composedPrompt = transcript
+  const composedPrompt = (transcript
     ? `${SYSTEM_BRIEF}\n\n---\n\n## 此前的对话（供延续语境，不要复述）\n${transcript}\n\n---\n\n用户现在说：\n${prompt}`
-    : `${SYSTEM_BRIEF}\n\n---\n\n用户现在说：\n${prompt}`;
+    : `${SYSTEM_BRIEF}\n\n---\n\n用户现在说：\n${prompt}`) + imageNote;
 
   // argv 传 prompt 的预算守卫：明着拒绝，不要 ENAMETOOLONG 崩 spawn
   if (!def.promptViaStdin) {
@@ -162,6 +175,12 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
 
+  // 图片递送：有 formatStdinInput 的走 stdin JSONL（claude）；否则落临时文件走 argv（codex -i）
+  const effectiveImages = def.supportsImages ? images : [];
+  const materialized = effectiveImages.length > 0 && !def.formatStdinInput
+    ? materializeImages(effectiveImages)
+    : { paths: [] as string[], cleanup: () => {} };
+
   const args = def.buildArgs({
     prompt: composedPrompt,
     mcpConfigPath: MCP_CONFIG_PATH,
@@ -169,6 +188,7 @@ export async function POST(req: Request): Promise<Response> {
     // 不要传 sessionId —— 那是"新建指定 id"语义，与续接冲突。
     sessionId: undefined,
     resumeSessionId: body.sessionId || undefined,
+    imagePaths: materialized.paths,
   });
 
   const encoder = new TextEncoder();
@@ -224,7 +244,12 @@ export async function POST(req: Request): Promise<Response> {
       proc.stderr.on('data', (d) => drain(d.toString(), true));
       // prompt 通道：stdin 优先（绕 Windows 32k 命令行上限）；
       // argv 模式也要立刻关 stdin，否则 claude/codex 会空等 stdin 3 秒
-      if (def.promptViaStdin) proc.stdin.write(composedPrompt);
+      if (def.promptViaStdin) {
+        const payload = def.formatStdinInput
+          ? def.formatStdinInput(composedPrompt, effectiveImages)
+          : composedPrompt;
+        proc.stdin.write(payload);
+      }
       proc.stdin.end();
 
       proc.on('error', (e) => {
@@ -242,6 +267,7 @@ export async function POST(req: Request): Promise<Response> {
         }
         send({ kind: 'done', sessionId, resultText: undefined });
         controller.close();
+        materialized.cleanup();
       });
 
       // 长任务保护：5 分钟兜底（dsh 等慢 runtime 曾被 3 分钟掐死在建模中途）
@@ -270,6 +296,7 @@ export async function GET(): Promise<Response> {
     usable: d.usable,
     authStatus: d.authStatus,
     authMessage: d.authMessage,
+    supportsImages: d.def.supportsImages === true,
   }));
 
   let canvasConnected = false;

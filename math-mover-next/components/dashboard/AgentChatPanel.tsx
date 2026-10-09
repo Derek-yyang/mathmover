@@ -32,6 +32,8 @@ export interface RuntimeOption {
   /** 登录预检结论（声明了 authProbe 的运行时才有） */
   authStatus?: 'ok' | 'missing' | 'unknown';
   authMessage?: string;
+  /** 能不能接收题目图片（dsh 看不了图） */
+  supportsImages?: boolean;
 }
 
 interface AgentChatPanelProps {
@@ -58,6 +60,9 @@ export default function AgentChatPanel({
   onSelectRuntime,
 }: AgentChatPanelProps) {
   const { detecting, detectionError, refreshRuntimes } = useAgentRuntimeState();
+  // 当前 agent 能不能看图（dsh 不行）；未知时默认允许，避免误伤
+  const activeSupportsImages =
+    runtimes.find((r) => r.id === activeRuntimeId)?.supportsImages !== false;
   const [inputText, setInputText] = useState('');
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -69,6 +74,7 @@ export default function AgentChatPanel({
 
   // 处理文件选择
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!activeSupportsImages) return;
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -92,6 +98,7 @@ export default function AgentChatPanel({
 
   // 监听 Ctrl+V 粘贴截图
   const handlePaste = (e: React.ClipboardEvent) => {
+    if (!activeSupportsImages) return;
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -399,14 +406,22 @@ export default function AgentChatPanel({
                 type="file"
                 accept="image/*"
                 multiple
+                disabled={!activeSupportsImages}
                 className="hidden"
                 onChange={handleFileChange}
               />
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                title="上传题目图片 (或直接在输入框 Ctrl+V 粘贴)"
-                className="p-1.5 text-stone-500 hover:text-emerald-600 hover:bg-stone-100 rounded-lg transition-colors"
+                disabled={!activeSupportsImages}
+                title={activeSupportsImages
+                  ? '上传题目图片 (或直接在输入框 Ctrl+V 粘贴)'
+                  : '当前 agent 看不了图片，请用文字描述题意，或换一个 agent'}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  activeSupportsImages
+                    ? 'text-stone-500 hover:text-emerald-600 hover:bg-stone-100'
+                    : 'text-stone-300 cursor-not-allowed'
+                }`}
               >
                 <ImageIcon className="w-4 h-4" />
               </button>

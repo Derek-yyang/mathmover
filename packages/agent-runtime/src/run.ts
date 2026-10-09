@@ -16,6 +16,7 @@ import { createInterface } from 'node:readline';
 import type { AgentEvent, RuntimeDefinition } from './defs.ts';
 import { resolveExecutable } from './resolve.ts';
 import { withClaudeSettingsEnv } from './claude-env.ts';
+import { materializeImages, type ImageInput } from './images.ts';
 
 export interface RunOptions {
   def: RuntimeDefinition;
@@ -25,6 +26,8 @@ export interface RunOptions {
   sessionId?: string;
   /** 多轮续接的会话 id（各家语法由 RuntimeDefinition 自己翻译） */
   resumeSessionId?: string;
+  /** 题目图片（supportsImages 的运行时才递送） */
+  images?: ImageInput[];
   extraArgs?: string[];
   env?: Record<string, string>;
   /** 单次运行的硬超时（毫秒）；超时杀进程并发 error 事件 */
@@ -56,12 +59,19 @@ export function runAgent(opts: RunOptions): RunHandle {
     };
   }
 
+  // 图片递送：有 formatStdinInput 的走 stdin JSONL；否则落临时文件走 argv（codex -i）
+  const images = opts.def.supportsImages ? (opts.images ?? []) : [];
+  const materialized = images.length > 0 && !opts.def.formatStdinInput
+    ? materializeImages(images)
+    : { paths: [] as string[], cleanup: () => {} };
+
   const args = opts.def.buildArgs({
     prompt: opts.prompt,
     mcpConfigPath: opts.mcpConfigPath,
     sessionId: opts.sessionId,
     resumeSessionId: opts.resumeSessionId,
     extraArgs: opts.extraArgs,
+    imagePaths: materialized.paths,
   });
 
   // Windows 下 npm 全局装的是 .cmd 包装，必须走 shell 才能解析到
@@ -79,7 +89,10 @@ export function runAgent(opts: RunOptions): RunHandle {
 
   // prompt 通道：stdin 优先（绕 argv 长度上限），argv 模式直接关 stdin 防空等
   if (opts.def.promptViaStdin) {
-    proc.stdin.write(opts.prompt);
+    const payload = opts.def.formatStdinInput
+      ? opts.def.formatStdinInput(opts.prompt, images)
+      : opts.prompt;
+    proc.stdin.write(payload);
   }
   proc.stdin.end();
 
@@ -128,6 +141,7 @@ export function runAgent(opts: RunOptions): RunHandle {
       if (cancelTimer) clearTimeout(cancelTimer);
       out.close();
       err.close();
+      materialized.cleanup();
       resolve({ exitCode: code, sessionId });
     });
   });

@@ -16,6 +16,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { formatClaudeStreamJsonInput, type ImageInput } from './images.ts';
 
 /** 归一后的事件——前端 useChat 与上层编排都只认这个。 */
 export type AgentEvent =
@@ -52,6 +53,8 @@ export interface RuntimeDefinition {
     sessionId?: string;
     resumeSessionId?: string;
     extraArgs?: string[];
+    /** 已落盘的图片文件路径（codex `-i` 用）；claude 的图走 formatStdinInput，忽略此项 */
+    imagePaths?: string[];
   }): string[];
   /**
    * 把一行 stdout 归一成事件（一行可能含多块 → 数组）；
@@ -79,6 +82,14 @@ export interface RuntimeDefinition {
   maxPromptArgBytes?: number;
   /** 登录预检：版本探测后跑一次，按输出判 authStatus（选择器提示用）。 */
   authProbe?: { args: string[]; timeoutMs?: number };
+  /** 能不能看图（dsh 看不了）。UI 据此禁用粘贴图片，路由降级为占位文本。 */
+  supportsImages?: boolean;
+  /**
+   * 自定义 stdin 载荷格式。缺省 = prompt 原文（codex/dsh）。
+   * claude 在有图时必须走 stream-json JSONL（Anthropic image 块）。
+   * 设置了它且有图时，图片不再落临时文件。
+   */
+  formatStdinInput?: (prompt: string, images?: ImageInput[]) => string;
 }
 
 /** 宽松取值：路径不存在时返回 undefined 而不抛错。 */
@@ -125,11 +136,15 @@ export const claudeCode: RuntimeDefinition = {
   probeArgs: ['--version'],
   requiresVerbose: true,
   promptViaStdin: true,
+  supportsImages: true,
+  // 图片与文本统一走 stream-json JSONL 输入行（Anthropic image 块）
+  formatStdinInput: (prompt, images) => formatClaudeStreamJsonInput(prompt, images),
   authProbe: { args: ['auth', 'status'], timeoutMs: 5000 },
   buildArgs({ prompt, mcpConfigPath, sessionId, resumeSessionId, extraArgs = [] }) {
-    // prompt 不进 argv：经 stdin 传（见 promptViaStdin 注释）
+    // prompt 不进 argv：经 stdin 传 JSONL（input-format 必须与 output-format 配对）
     const args = [
       '-p',
+      '--input-format', 'stream-json',
       '--output-format', 'stream-json',
       '--verbose',
       '--include-partial-messages',
@@ -300,18 +315,22 @@ export const codex: RuntimeDefinition = {
   executable: 'codex',
   probeArgs: ['--version'],
   promptViaStdin: true,
+  supportsImages: true,
   authProbe: { args: ['login', 'status'], timeoutMs: 5000 },
-  buildArgs({ prompt, mcpConfigPath, resumeSessionId, extraArgs = [] }) {
-    // prompt 不进 argv：`-` 位置参数表示读 stdin（exec 与 exec resume 同语义）
+  buildArgs({ prompt, mcpConfigPath, resumeSessionId, imagePaths = [], extraArgs = [] }) {
+    // prompt 不进 argv：`-` 位置参数表示读 stdin（exec 与 exec resume 同语义）。
+    // 布局要点（实测踩坑）：`-i` 是变长旗标，图片后必须 `--` 终结否则吞 prompt；
+    // 而 `--` 之后全是位置参数——所以旗标必须排在 `--` 前面，prompt 哨兵放最末。
     const head = resumeSessionId ? ['exec', 'resume', resumeSessionId] : ['exec'];
     return [
       ...head,
-      '-',
       '--json',
       '--skip-git-repo-check',
       '-c', 'sandbox_mode="read-only"',
       ...codexMcpArgs(mcpConfigPath),
       ...extraArgs,
+      ...(imagePaths.length ? ['-i', ...imagePaths, '--'] : []),
+      '-',
     ];
   },
   parseLine(line) {
@@ -393,6 +412,8 @@ export const dsh: RuntimeDefinition = {
   probeArgs: ['--version'],
   // headless 无原生会话：多轮靠转写注入（buildTranscript），不再标"单轮"
   recomposesHistory: true,
+  // DeepSeek 模型看不了图（实测它自己会说"PNG 我这个模型看不了"）
+  supportsImages: false,
   // task 走 argv 位置参数（headless 不读 stdin），超预算直接拒绝
   maxPromptArgBytes: 24_000,
   buildArgs({ prompt, mcpConfigPath, extraArgs = [] }) {
