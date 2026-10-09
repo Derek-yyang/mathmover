@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { ensureGGBLoaded, GGB_CODEBASE } from '@/lib/ggb-runtime';
+import { resizeAppletPreservingView } from '@/lib/ggb-view-resize';
 
 type GeoGebraApi = any;
 
@@ -13,6 +15,7 @@ interface GeoGebraBoardProps {
   showToolbar?: boolean;
   showAlgebraInput?: boolean;
   showMenuBar?: boolean;
+  showResetIcon?: boolean;
   enableShiftDragZoom?: boolean;
   materialId?: string;
   // 允许接收其他未明确声明的任意属性 (应急方案)
@@ -27,106 +30,120 @@ declare global {
   }
 }
 
-const GGB_SRC = 'https://www.geogebra.org/apps/deployggb.js';
-
-function ensureGGBLoaded(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve();
-  if (window.GGBApplet) return Promise.resolve();
-  
-  const existing = document.querySelector(`script[src="${GGB_SRC}"]`) as HTMLScriptElement | null;
-  if (existing) {
-    if ((existing as any).__ggbLoaded) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', reject, { once: true });
-    });
-  }
-  
-  if (window.__GGB_LOAD_PROMISE__) return window.__GGB_LOAD_PROMISE__;
-  
-  const script = document.createElement('script');
-  script.src = GGB_SRC;
-  script.async = true;
-  window.__GGB_LOAD_PROMISE__ = new Promise<void>((resolve, reject) => {
-    script.onload = () => { 
-      (script as any).__ggbLoaded = true; 
-      resolve(); 
-    };
-    script.onerror = reject;
-  });
-  document.body.appendChild(script);
-  return window.__GGB_LOAD_PROMISE__;
-}
-
-export default function GeoGebraBoard({ id, ggbBase64, onAppletReady }: GeoGebraBoardProps) {
+export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetIcon = true }: GeoGebraBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<GeoGebraApi | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
+  // 初始化只执行一次，但就绪回调始终读取最新的课件和事件处理函数。
+  const notifyAppletReady = useEffectEvent((api: GeoGebraApi) => {
+    api.setAxesVisible(true, true);
+    api.setGridVisible(true);
+
+    if (ggbBase64) {
+      try {
+        api.setBase64(ggbBase64);
+      } catch (e) {
+        console.error('Failed to set initial ggbBase64', e);
+      }
+    }
+
+    onAppletReady?.(api);
+  });
 
   useEffect(() => {
+    const container = containerRef.current;
+    const stage = stageRef.current;
+    if (!container || !stage) return;
+
     let cancelled = false;
+    setLoadError(false);
+    let resizeFrame = 0;
+    let lastSize: { width: number; height: number } | null = null;
+
+    const resizeApplet = () => {
+      const api = apiRef.current;
+      if (cancelled || !api) return;
+
+      const width = stage.clientWidth;
+      const height = stage.clientHeight;
+      // 暂时隐藏的画布不应用零尺寸，重新显示时由 observer 同步。
+      if (width <= 0 || height <= 0) return;
+      if (lastSize?.width === width && lastSize.height === height) return;
+
+      resizeAppletPreservingView(api, width, height);
+      lastSize = { width, height };
+    };
+
+    const scheduleResize = () => {
+      if (!cancelled && !resizeFrame) {
+        resizeFrame = requestAnimationFrame(() => {
+          resizeFrame = 0;
+          resizeApplet();
+        });
+      }
+    };
+
+    // 观察独立外层：注入节点会被 GeoGebra 写入固定尺寸，不能拿它做测量源。
+    const resizeObserver = new ResizeObserver(scheduleResize);
+    resizeObserver.observe(stage);
 
     ensureGGBLoaded().then(() => {
-      if (cancelled || !containerRef.current) return;
+      if (cancelled) return;
       
       const params = {
         "appName": "classic",
         "perspective": "2", 
-        "width": 900, 
-        "height": 600,
+        "width": Math.max(1, stage.clientWidth),
+        "height": Math.max(1, stage.clientHeight),
         "showToolBar": false,
         "showAlgebraInput": false,
         "showMenuBar": false,
         "enableShiftDragZoom": true,
-        "showResetIcon": true,
+        "showResetIcon": showResetIcon,
         "showAxes": true,
         "showGrid": true,
+        "borderColor": "#D3D3D3", // 与未聚焦时一致，点击画布后边框也保持浅灰。
         "errorDialogsActive": false,
         "useBrowserForScale": false, // 手动接管尺寸控制，避免自动缩放逻辑打架
+        "disableAutoScale": true,
         "appletOnLoad": (api: GeoGebraApi) => {
             if (cancelled) return;
             apiRef.current = api;
             window.ggbApplet = api; // 确保全局句柄可用（注意清理）
-            
-            // 设置初始状态
-            api.setAxesVisible(true, true);
-            api.setGridVisible(true);
-            
-            // 如果有初始 Base64，立即应用
-            if (ggbBase64) {
-              try {
-                api.setBase64(ggbBase64);
-              } catch (e) {
-                console.error('Failed to set initial ggbBase64', e);
-              }
-            }
-
-            if (onAppletReady) onAppletReady(api);
+            resizeApplet();
+            notifyAppletReady(api);
         }
       };
 
       // 初始化 Applet
       const applet = new window.GGBApplet(params, true);
+      applet.setHTML5Codebase(GGB_CODEBASE, true);
       
       // 清空容器，防止重复注入
-      if (containerRef.current) {
-        containerRef.current.innerHTML = '';
-        applet.inject(containerRef.current);
+      container.replaceChildren();
+      applet.inject(container);
+    }).catch((error) => {
+      if (!cancelled) {
+        console.error('Failed to load GeoGebra', error);
+        setLoadError(true);
       }
     });
 
     return () => {
       cancelled = true;
-      // 清理容器内容
-      if (containerRef.current) {
-        containerRef.current.innerHTML = '';
-      }
+      resizeObserver.disconnect();
+      if (resizeFrame) cancelAnimationFrame(resizeFrame);
+      container.replaceChildren();
       // 仅当全局句柄属于当前实例时才清理，避免误伤其他实例
       if (window.ggbApplet === apiRef.current) {
         window.ggbApplet = undefined;
       }
       apiRef.current = null;
     };
-  }, []); // 空依赖数组，只在挂载时执行一次初始化
+  }, [showResetIcon, loadAttempt]); // 尺寸变化不会重新初始化 Applet。
 
   // 监听 ggbBase64 变化并更新
   useEffect(() => {
@@ -140,10 +157,18 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady }: GeoGebra
   }, [ggbBase64]);
 
   return (
-    <div 
-      ref={containerRef} 
-      className="w-full h-full rounded-xl overflow-hidden bg-white"
-      id={id || "ggb-element"}
-    />
+    <div ref={stageRef} className="relative h-full w-full min-h-0 min-w-0 overflow-hidden bg-white">
+      <div
+        ref={containerRef}
+        className="absolute inset-0 h-full! w-full! overflow-hidden bg-white"
+        id={id || "ggb-element"}
+      />
+      {loadError && (
+        <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white p-6 text-sm text-stone-700">
+          <p>本地画板资源加载失败，请先运行 npm run ggb:install 安装运行库。</p>
+          <button type="button" onClick={() => setLoadAttempt(value => value + 1)} className="rounded-lg border border-stone-300 px-4 py-2 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700">重新加载</button>
+        </div>
+      )}
+    </div>
   );
 }

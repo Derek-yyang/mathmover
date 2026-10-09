@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, ArrowLeft, Cuboid, Play, Leaf, Check, Zap, Crown, Rocket, ScanEye, Box, MousePointerClick, Cpu, FileUp } from "lucide-react";
+import { ArrowRight, ArrowLeft, Cuboid, Leaf, Check, Zap, Crown, Rocket, ScanEye, Box, MousePointerClick, Cpu, FileUp, Github, Star, Download } from "lucide-react";
 import { motion } from 'framer-motion';
 
 import dynamic from 'next/dynamic';
@@ -346,12 +346,25 @@ SetColor(sF, "Black")
           </div>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <a
+              href="#github"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-stone-200 bg-white/90 text-stone-700 text-sm font-semibold hover:border-stone-300 hover:bg-stone-50 transition-all shadow-sm hover:shadow active:scale-95 group"
+            >
+              <Github className="w-4 h-4 text-stone-700 group-hover:text-black transition-colors" />
+              <span>GitHub</span>
+              <span className="inline-flex items-center gap-1 text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full group-hover:text-amber-500 group-hover:bg-amber-50 transition-colors">
+                <Star className="w-3 h-3 fill-current text-amber-400" />
+                Star
+              </span>
+            </a>
             <Link
               href="/dashboard"
               className="px-6 py-2.5 rounded-full font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm hover:shadow-md hover:-translate-y-[1px] transition-all active:scale-95"
             >
-              开始创作
+              在线试用
             </Link>
           </div>
         </div>
@@ -385,19 +398,23 @@ SetColor(sF, "Black")
           </p>
  
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-5 mb-24">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 sm:mb-24">
             <Link
               href="/dashboard"
-              className="w-full sm:w-auto px-8 py-4 rounded-full font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-8 py-4 rounded-full font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
             >
-              免费试用 <ArrowRight className="w-5 h-5" />
+              <span>在线试用 (Web Demo)</span>
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
             </Link>
-            <Link
-              href="#demo"
+            <a
+              href="#releases"
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-full sm:w-auto px-8 py-4 bg-white text-stone-700 border-2 border-stone-200 rounded-full font-bold text-lg hover:border-emerald-500 hover:text-emerald-600 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] flex items-center justify-center gap-2"
             >
-              <Play className="w-5 h-5 fill-current" /> 观看演示
-            </Link>
+              <Download className="w-5 h-5 text-emerald-600" />
+              <span>下载桌面端</span>
+            </a>
           </div>
 
           {/* Visual Center - Paper Card */}
@@ -672,6 +689,25 @@ SetColor(sF, "Black")
               </div>
           </div>
 
+          <div className="mt-14 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/dashboard"
+              className="w-full sm:w-auto px-7 py-3.5 rounded-full font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 group"
+            >
+              <span>免安装在线试用</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+            <a
+              href="#releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-7 py-3.5 bg-white text-stone-700 border-2 border-stone-200 rounded-full font-bold text-base hover:border-emerald-500 hover:text-emerald-600 transition-all flex items-center justify-center gap-2"
+            >
+              <Download className="w-4 h-4 text-emerald-600" />
+              <span>下载桌面端 (Windows / macOS)</span>
+            </a>
+          </div>
+
         </div>
       </section>
 
@@ -682,6 +718,36 @@ SetColor(sF, "Black")
              <div className="w-8 h-8 bg-stone-800 rounded-lg flex items-center justify-center text-white text-xs font-bold">M</div>
              <span className="font-bold text-stone-700 text-sm">MathMover Studio</span>
            </div>
+
+           {/* Open Source Links */}
+           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-stone-500 font-medium">
+             <a
+               href="#github"
+               target="_blank"
+               rel="noopener noreferrer"
+               className="inline-flex items-center gap-1.5 hover:text-stone-900 transition-colors"
+             >
+               <Github className="w-4 h-4" />
+               <span>GitHub 仓库</span>
+             </a>
+             <a
+               href="#releases"
+               target="_blank"
+               rel="noopener noreferrer"
+               className="hover:text-stone-900 transition-colors"
+             >
+               版本发布 (Releases)
+             </a>
+             <a
+               href="#issues"
+               target="_blank"
+               rel="noopener noreferrer"
+               className="hover:text-stone-900 transition-colors"
+             >
+               提交反馈与 Issue
+             </a>
+           </div>
+
            <p className="text-stone-400 text-sm font-bold">&copy; 2026 by 北海鱼籽酱</p>
         </div>
       </footer>

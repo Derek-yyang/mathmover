@@ -15,7 +15,8 @@ export interface GenerationRecord {
   commands: string[];
   created_at: string;
   thumbnail?: string; // 小尺寸 dataURL，可为空
-  router_meta?: Record<string, unknown> | null; // 路由后端元数据（llm/decisions、置信度、回退原因）
+  router_meta?: Record<string, unknown> | null; // 路由后端元数据
+  messages?: any[]; // 完整多轮对话记录
 }
 
 const KEY = "mathmover_generations_v1";
@@ -32,15 +33,38 @@ function readAll(): GenerationRecord[] {
   }
 }
 
+// 清洗消息中的附件，防止超大 raw base64 撑爆 localStorage 配额
+function sanitizeRecordForStorage(record: GenerationRecord): GenerationRecord {
+  if (!record.messages || !Array.isArray(record.messages)) return record;
+
+  const sanitizedMessages = record.messages.map((msg) => {
+    if (!msg.attachments || !Array.isArray(msg.attachments)) return msg;
+    const sanitizedAttachments = msg.attachments.map((att: any) => {
+      // 避免存入巨型 blob: 或超大 base64 字符串（超过 100KB）
+      const isTooLarge = typeof att.url === 'string' && att.url.length > 100 * 1024;
+      return {
+        id: att.id,
+        name: att.name,
+        contentType: att.contentType,
+        url: isTooLarge ? (record.thumbnail || '') : att.url,
+      };
+    });
+    return { ...msg, attachments: sanitizedAttachments };
+  });
+
+  return { ...record, messages: sanitizedMessages };
+}
+
 function writeAll(records: GenerationRecord[]): void {
   if (typeof window === "undefined") return;
+  const sanitized = records.slice(0, MAX_RECORDS).map(sanitizeRecordForStorage);
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(records.slice(0, MAX_RECORDS)));
+    window.localStorage.setItem(KEY, JSON.stringify(sanitized));
     window.dispatchEvent(new CustomEvent("mathmover_generations_changed"));
   } catch (e) {
     // 配额溢出：丢弃最旧的一半再试一次
     try {
-      const trimmed = records.slice(0, Math.floor(MAX_RECORDS / 2));
+      const trimmed = sanitized.slice(0, Math.floor(MAX_RECORDS / 2));
       window.localStorage.setItem(KEY, JSON.stringify(trimmed));
       window.dispatchEvent(new CustomEvent("mathmover_generations_changed"));
     } catch {
@@ -100,10 +124,12 @@ export async function makeThumbnail(file: File, maxEdge = 96): Promise<string | 
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, w, h);
-    return canvas.toDataURL("image/jpeg", 0.7);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return undefined;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", 0.65);
   } catch (e) {
-    console.warn("生成缩略图失败:", e);
+    console.error("生成缩略图失败:", e);
     return undefined;
   }
 }

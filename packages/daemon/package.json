@@ -1,0 +1,26 @@
+{
+  "name": "@mathmover/daemon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MathMover 本地守护进程：WebSocket 桥接活画布 + MCP 工具面 + 状态文件。只绑 127.0.0.1。",
+  "bin": {
+    "mathmover-daemon": "./src/cli.ts"
+  },
+  "scripts": {
+    "start": "node --experimental-strip-types src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^4.0.91",
+    "@ai-sdk/react": "^4.0.139",
+    "@mathmover/ggb-core": "*",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ai": "^7.0.136",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.0"
+  }
+}

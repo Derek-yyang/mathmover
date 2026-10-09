@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import DashboardSidebar from '../../components/DashboardSidebar';
-import PageTransition from '../../components/PageTransition';
+import { SidebarStateProvider } from '@/components/dashboard/SidebarState';
+import { AgentRuntimeProvider } from '@/components/dashboard/AgentRuntimeState';
 
 export default function DashboardLayout({
   children,
@@ -8,20 +9,22 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex h-screen w-full bg-[#FDFCF8] overflow-hidden">
-        {/* 左侧静态侧边栏 */}
+    <SidebarStateProvider>
+      <AgentRuntimeProvider>
+      <div className="flex h-screen w-full bg-[#FDFCF8] overflow-hidden">
+        {/* 左侧固定宽度侧栏，可收起，不拖动宽度。 */}
         <Suspense fallback={null}>
-        <DashboardSidebar />
+          <DashboardSidebar />
         </Suspense>
-        
         {/* 右侧动态内容区 */}
-        <div className="flex-1 relative h-full overflow-hidden">
-            <Suspense fallback={null}>
-                <PageTransition>
-                    {children}
-                </PageTransition>
-            </Suspense>
+        <div className="flex-1 relative h-full min-w-0 overflow-hidden">
+          <Suspense fallback={null}>
+            {/* 交互画布不能在缩放动画中初始化，否则引擎会缓存错误的像素比例。 */}
+            {children}
+          </Suspense>
         </div>
-    </div>
+      </div>
+      </AgentRuntimeProvider>
+    </SidebarStateProvider>
   );
 }

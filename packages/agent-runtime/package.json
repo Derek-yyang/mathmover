@@ -1,0 +1,9 @@
+{
+  "name": "@mathmover/agent-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent 运行时适配层：探测本机 agent CLI、启动子进程、把各家输出归一成 AgentEvent 流",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "mathmover",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MathMover 领域能力层：MCP 工具 + GGB 执行器（TS）。math-mover-next 为独立前端，不进 workspace。",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "spike:ggb-png": "node scripts/spike-ggb-png.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "playwright": "^1.49.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

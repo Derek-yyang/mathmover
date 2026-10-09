@@ -1,0 +1,89 @@
+import type { AgentDiagnostic } from '@/lib/agent-diagnostics';
+import type { AgentExecution } from '@/lib/agent-progress';
+
+export type CoursewareExportFormat = 'html' | 'ggb' | 'png';
+
+export interface GeoGebraApi {
+  newConstruction: () => void;
+  setPerspective: (p: string) => void;
+  setAxesVisible: (x: boolean, y: boolean, z?: boolean) => void;
+  setGridVisible: (v: boolean) => void;
+  evalCommand: (cmd: string) => boolean | void;
+  getValue: (name: string) => number;
+  setValue: (name: string, val: number) => void;
+  registerUpdateListener: (fn: (name: string) => void) => void;
+  unregisterUpdateListener: (fn: (name: string) => void) => void;
+  getBase64: (cb: (b64: string) => void) => void;
+  getPNGBase64?: (exportScale: number, transparent: boolean, dpi?: number) => string;
+  setBase64?: (b64: string) => void;
+  getViewProperties?: (view: number) => unknown;
+  setCoordSystem?: (xMin: number, xMax: number, yMin: number, yMax: number) => void;
+  refreshViews: () => void;
+  recalcDisplay?: () => void;
+  getAllObjectNames: () => string[];
+  getObjectType: (name: string) => string;
+  getValueString?: (name: string) => string;
+  isIndependent: (name: string) => boolean;
+  setAnimating?: (name: string, flag: boolean) => void;
+  startAnimation?: () => void;
+  stopAnimation?: () => void;
+  reset?: () => void;
+}
+
+export interface SliderItem {
+  name: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  isAnimating?: boolean;
+}
+
+export interface AuditFinding {
+  kind: 'missing' | 'undefined';
+  name: string;
+  line: string;
+}
+
+export interface AuditResult {
+  findings: AuditFinding[];
+  missing: AuditFinding[];
+  undefinedObjs: AuditFinding[];
+  degraded: boolean;
+}
+
+export interface ChatAttachment {
+  id?: string;
+  url: string;
+  name?: string;
+  contentType?: string;
+  file?: File;
+}
+
+export interface AgentMeta {
+  status?: 'classifying' | 'generating' | 'completed' | 'error';
+  category?: string;
+  categoryLabel?: string;
+  commands?: string[];
+  auditResult?: AuditResult | null;
+  errorMessage?: string;
+  diagnostic?: AgentDiagnostic;
+  execution?: AgentExecution;
+  routerMeta?: Record<string, unknown> | null;
+  characters?: number;
+}
+
+export interface AgentChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt: number;
+  attachments?: ChatAttachment[];
+  meta?: AgentMeta;
+}
+
+export interface ViewOptions {
+  showAxes: boolean;
+  showGrid: boolean;
+  isFullscreen: boolean;
+}

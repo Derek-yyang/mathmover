@@ -3,12 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "ggb:install": "node scripts/geogebra-runtime.mjs install",
+    "ggb:check": "node scripts/geogebra-runtime.mjs check",
+    "predev": "npm run ggb:check",
+    "prebuild": "npm run ggb:check",
+    "prestart": "npm run ggb:check",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.91",
+    "@ai-sdk/react": "^4.0.136",
+    "ai": "^7.0.133",
     "autoprefixer": "^10.4.24",
     "clsx": "^2.1.1",
     "framer-motion": "^12.34.0",
@@ -17,7 +25,8 @@
     "postcss": "^8.5.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "tailwind-merge": "^3.4.1"
+    "tailwind-merge": "^3.4.1",
+    "@mathmover/agent-runtime": "file:../packages/agent-runtime"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

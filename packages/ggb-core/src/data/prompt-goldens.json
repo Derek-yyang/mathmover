@@ -1,0 +1,388 @@
+{
+  "schema": "mathmover.prompt-goldens/1",
+  "generator": "scripts/gen_prompt_goldens.py",
+  "source": "expert_prompts.assemble_expert_prompt (Python, 当前实现)",
+  "notes": [
+    "text_sha256 为 UTF-8 字节哈希；TS 侧用 TextEncoder 后 crypto.subtle.digest 对拍。",
+    "characters/skill_characters/sop_characters 三者不可互推，逐字段断言。",
+    "sop_characters 是卡片 rstrip 原文之和，不含 H1→H3 每卡 +2 字符的改写增量。",
+    "files[].sha256 参与文件内容哈希，用作 TS 侧缓存失效键（不用 mtime）。",
+    "本基线**锁定现行行为**，含已知缺陷（如 'A := (0,0)' 的 COLON_DEF 误判）；",
+    "修复缺陷须同时更新本基线并另立变更，避免同一输入两套预期。"
+  ],
+  "goldens": [
+    {
+      "category": "A",
+      "skill": "function-expert",
+      "cards": [
+        "view-setup",
+        "function-object",
+        "fixed-point",
+        "intersection",
+        "moving-point-function",
+        "moving-point-path",
+        "moving-point-region",
+        "geometric-relations",
+        "projection-foot",
+        "closed-region",
+        "circle-tangent",
+        "locus",
+        "aux-line",
+        "hidden-helper"
+      ],
+      "card_count": 14,
+      "text_sha256": "44c08f77d499957534087f855632f51377d1c587dfdf76afbdb5fc083b251273",
+      "text_bytes_utf8": 13939,
+      "characters": 8601,
+      "skill_characters": 772,
+      "sop_characters": 7432,
+      "files": [
+        {
+          "path": "skills/function-expert/SKILL.md",
+          "sha256": "840ed95a20c916e1f224fcf6097bc856835cd04595fa43abbf76fa852d1b1e58"
+        },
+        {
+          "path": "skills/shared/generation-rules.md",
+          "sha256": "30c822699af499aa7c10cde1d9750f298b40f070ec3d639dddb2878ad62abd82"
+        },
+        {
+          "path": "skills/shared/sops/view-setup.md",
+          "sha256": "0e48b288b3a34e2e16a2d9b69ef6089764bc4b80ed5a40265f6eecad8e7bedb9"
+        },
+        {
+          "path": "skills/shared/sops/function-object.md",
+          "sha256": "61ed8992ed94baa865bdea3d4c46e11c720e582c1fd0b820a0e1af033972f3c2"
+        },
+        {
+          "path": "skills/shared/sops/fixed-point.md",
+          "sha256": "3a1e9f9a19fdb507a0123ad191fd1785a15b8c0ec64a0d1ffcd4814d5f949cd3"
+        },
+        {
+          "path": "skills/shared/sops/intersection.md",
+          "sha256": "930a9f0e10a5d2e77724062a61b34ac31a68a62ea7fadf646bca95bf8e334195"
+        },
+        {
+          "path": "skills/shared/sops/moving-point-function.md",
+          "sha256": "0ccb930ed9ece363391c23f3c118b3e591ab955e376918faa615921a07eeb87e"
+        },
+        {
+          "path": "skills/shared/sops/moving-point-path.md",
+          "sha256": "8ccca19fb9ea51c3309c6952449dbd007b8784ef07a7083a72f8fe271e1bc215"
+        },
+        {
+          "path": "skills/shared/sops/moving-point-region.md",
+          "sha256": "9662814e75a7e0440906c1948a4fef214e32b2477151fcf3454a1221382a33c3"
+        },
+        {
+          "path": "skills/shared/sops/geometric-relations.md",
+          "sha256": "85c3e15fe994b50e3ac754f3cae4bca9645dc6d3f998932e7ff2c26f3c509bb5"
+        },
+        {
+          "path": "skills/shared/sops/projection-foot.md",
+          "sha256": "93bc7eede5a9ea2587ab3975e23f95b5b3ff304adc488e79ea2a20897f3f6e60"
+        },
+        {
+          "path": "skills/shared/sops/closed-region.md",
+          "sha256": "c49d025635b9378c3fb935b51b140ab4516c2661586719306d362ecb9faacada"
+        },
+        {
+          "path": "skills/shared/sops/circle-tangent.md",
+          "sha256": "4e407fd916d32faa466a07b6a16a8a7197b7aff06d0c1c82dc6bfe7b3db97e38"
+        },
+        {
+          "path": "skills/shared/sops/locus.md",
+          "sha256": "64f701cf2677f8a4e6c5c581a32b66ee45d8775123e0ede9c951cdf0f79f2548"
+        },
+        {
+          "path": "skills/shared/sops/aux-line.md",
+          "sha256": "6400812e13dccdd2183b6871da60feb01d7f08257e6c8f5929e3888b4b801026"
+        },
+        {
+          "path": "skills/shared/sops/hidden-helper.md",
+          "sha256": "4bf2974fb45d0e7517726a43fe4c9cdf4d0b24d2d94f946b5104777e7d24494b"
+        }
+      ]
+    },
+    {
+      "category": "B",
+      "skill": "planar-geometry-expert",
+      "cards": [
+        "view-setup",
+        "fixed-point",
+        "geometric-relations",
+        "circle-tangent",
+        "closed-region",
+        "intersection",
+        "projection-foot",
+        "moving-point-path",
+        "moving-point-region",
+        "locus",
+        "aux-line",
+        "hidden-helper"
+      ],
+      "card_count": 12,
+      "text_sha256": "4e16267a3eee1e2204006c49ef10eb1dd50b0a325d9d2fa81e816bc41500e466",
+      "text_bytes_utf8": 12304,
+      "characters": 7496,
+      "skill_characters": 791,
+      "sop_characters": 6312,
+      "files": [
+        {
+          "path": "skills/planar-geometry-expert/SKILL.md",
+          "sha256": "70dc27afa7cad26c9a555a91855e53664e2f9f6ac9937f0053e7d7294214164b"
+        },
+        {
+          "path": "skills/shared/generation-rules.md",
+          "sha256": "30c822699af499aa7c10cde1d9750f298b40f070ec3d639dddb2878ad62abd82"
+        },
+        {
+          "path": "skills/shared/sops/view-setup.md",
+          "sha256": "0e48b288b3a34e2e16a2d9b69ef6089764bc4b80ed5a40265f6eecad8e7bedb9"
+        },
+        {
+          "path": "skills/shared/sops/fixed-point.md",
+          "sha256": "3a1e9f9a19fdb507a0123ad191fd1785a15b8c0ec64a0d1ffcd4814d5f949cd3"
+        },
+        {
+          "path": "skills/shared/sops/geometric-relations.md",
+          "sha256": "85c3e15fe994b50e3ac754f3cae4bca9645dc6d3f998932e7ff2c26f3c509bb5"
+        },
+        {
+          "path": "skills/shared/sops/circle-tangent.md",
+          "sha256": "4e407fd916d32faa466a07b6a16a8a7197b7aff06d0c1c82dc6bfe7b3db97e38"
+        },
+        {
+          "path": "skills/shared/sops/closed-region.md",
+          "sha256": "c49d025635b9378c3fb935b51b140ab4516c2661586719306d362ecb9faacada"
+        },
+        {
+          "path": "skills/shared/sops/intersection.md",
+          "sha256": "930a9f0e10a5d2e77724062a61b34ac31a68a62ea7fadf646bca95bf8e334195"
+        },
+        {
+          "path": "skills/shared/sops/projection-foot.md",
+          "sha256": "93bc7eede5a9ea2587ab3975e23f95b5b3ff304adc488e79ea2a20897f3f6e60"
+        },
+        {
+          "path": "skills/shared/sops/moving-point-path.md",
+          "sha256": "8ccca19fb9ea51c3309c6952449dbd007b8784ef07a7083a72f8fe271e1bc215"
+        },
+        {
+          "path": "skills/shared/sops/moving-point-region.md",
+          "sha256": "9662814e75a7e0440906c1948a4fef214e32b2477151fcf3454a1221382a33c3"
+        },
+        {
+          "path": "skills/shared/sops/locus.md",
+          "sha256": "64f701cf2677f8a4e6c5c581a32b66ee45d8775123e0ede9c951cdf0f79f2548"
+        },
+        {
+          "path": "skills/shared/sops/aux-line.md",
+          "sha256": "6400812e13dccdd2183b6871da60feb01d7f08257e6c8f5929e3888b4b801026"
+        },
+        {
+          "path": "skills/shared/sops/hidden-helper.md",
+          "sha256": "4bf2974fb45d0e7517726a43fe4c9cdf4d0b24d2d94f946b5104777e7d24494b"
+        }
+      ]
+    },
+    {
+      "category": "C",
+      "skill": "conic-expert",
+      "cards": [
+        "view-setup",
+        "fixed-point",
+        "curve-definition",
+        "conic-features",
+        "moving-point-path",
+        "moving-point-function",
+        "moving-point-region",
+        "geometric-relations",
+        "intersection",
+        "projection-foot",
+        "circle-tangent",
+        "closed-region",
+        "locus",
+        "aux-line",
+        "hidden-helper"
+      ],
+      "card_count": 15,
+      "text_sha256": "259bb8b118cfb1ca465d0fa70cf42f224a55daada08f3a0ef7122c88e0fba54c",
+      "text_bytes_utf8": 14888,
+      "characters": 9310,
+      "skill_characters": 809,
+      "sop_characters": 8102,
+      "files": [
+        {
+          "path": "skills/conic-expert/SKILL.md",
+          "sha256": "3b289019eb7892073c16eda05f1d458c349215b1ba24ec3a7ae2e51fb7e64493"
+        },
+        {
+          "path": "skills/shared/generation-rules.md",
+          "sha256": "30c822699af499aa7c10cde1d9750f298b40f070ec3d639dddb2878ad62abd82"
+        },
+        {
+          "path": "skills/shared/sops/view-setup.md",
+          "sha256": "0e48b288b3a34e2e16a2d9b69ef6089764bc4b80ed5a40265f6eecad8e7bedb9"
+        },
+        {
+          "path": "skills/shared/sops/fixed-point.md",
+          "sha256": "3a1e9f9a19fdb507a0123ad191fd1785a15b8c0ec64a0d1ffcd4814d5f949cd3"
+        },
+        {
+          "path": "skills/shared/sops/curve-definition.md",
+          "sha256": "8d2a729610c7728d5f22fecc79787595c39d98493bc8faa3db441501a808c0b6"
+        },
+        {
+          "path": "skills/shared/sops/conic-features.md",
+          "sha256": "1d69c03f5b7d469ab6568ba4cb89f37b23958a1993e9316840684178e12c82b8"
+        },
+        {
+          "path": "skills/shared/sops/moving-point-path.md",
+          "sha256": "8ccca19fb9ea51c3309c6952449dbd007b8784ef07a7083a72f8fe271e1bc215"
+        },
+        {
+          "path": "skills/shared/sops/moving-point-function.md",
+          "sha256": "0ccb930ed9ece363391c23f3c118b3e591ab955e376918faa615921a07eeb87e"
+        },
+        {
+          "path": "skills/shared/sops/moving-point-region.md",
+          "sha256": "9662814e75a7e0440906c1948a4fef214e32b2477151fcf3454a1221382a33c3"
+        },
+        {
+          "path": "skills/shared/sops/geometric-relations.md",
+          "sha256": "85c3e15fe994b50e3ac754f3cae4bca9645dc6d3f998932e7ff2c26f3c509bb5"
+        },
+        {
+          "path": "skills/shared/sops/intersection.md",
+          "sha256": "930a9f0e10a5d2e77724062a61b34ac31a68a62ea7fadf646bca95bf8e334195"
+        },
+        {
+          "path": "skills/shared/sops/projection-foot.md",
+          "sha256": "93bc7eede5a9ea2587ab3975e23f95b5b3ff304adc488e79ea2a20897f3f6e60"
+        },
+        {
+          "path": "skills/shared/sops/circle-tangent.md",
+          "sha256": "4e407fd916d32faa466a07b6a16a8a7197b7aff06d0c1c82dc6bfe7b3db97e38"
+        },
+        {
+          "path": "skills/shared/sops/closed-region.md",
+          "sha256": "c49d025635b9378c3fb935b51b140ab4516c2661586719306d362ecb9faacada"
+        },
+        {
+          "path": "skills/shared/sops/locus.md",
+          "sha256": "64f701cf2677f8a4e6c5c581a32b66ee45d8775123e0ede9c951cdf0f79f2548"
+        },
+        {
+          "path": "skills/shared/sops/aux-line.md",
+          "sha256": "6400812e13dccdd2183b6871da60feb01d7f08257e6c8f5929e3888b4b801026"
+        },
+        {
+          "path": "skills/shared/sops/hidden-helper.md",
+          "sha256": "4bf2974fb45d0e7517726a43fe4c9cdf4d0b24d2d94f946b5104777e7d24494b"
+        }
+      ]
+    },
+    {
+      "category": "D",
+      "skill": "solid-geometry-expert",
+      "cards": [
+        "view-setup",
+        "fixed-point",
+        "3d-frame",
+        "3d-edges",
+        "rotation-solid",
+        "moving-point-path",
+        "moving-point-region",
+        "geometric-relations",
+        "plane-helper",
+        "projection-foot",
+        "intersection",
+        "polyhedron-section",
+        "closed-region",
+        "locus",
+        "aux-line",
+        "hidden-helper"
+      ],
+      "card_count": 16,
+      "text_sha256": "ac4b7d7c344d980c1a2b70a8292efe8581d712701b9c525b48c92428458794c9",
+      "text_bytes_utf8": 16423,
+      "characters": 10505,
+      "skill_characters": 903,
+      "sop_characters": 9201,
+      "files": [
+        {
+          "path": "skills/solid-geometry-expert/SKILL.md",
+          "sha256": "47771f09fce9fe014d632df1a77a8c46a458b8f46c61d19e3c2ea43703265dc6"
+        },
+        {
+          "path": "skills/shared/generation-rules.md",
+          "sha256": "30c822699af499aa7c10cde1d9750f298b40f070ec3d639dddb2878ad62abd82"
+        },
+        {
+          "path": "skills/shared/sops/view-setup.md",
+          "sha256": "0e48b288b3a34e2e16a2d9b69ef6089764bc4b80ed5a40265f6eecad8e7bedb9"
+        },
+        {
+          "path": "skills/shared/sops/fixed-point.md",
+          "sha256": "3a1e9f9a19fdb507a0123ad191fd1785a15b8c0ec64a0d1ffcd4814d5f949cd3"
+        },
+        {
+          "path": "skills/shared/sops/3d-frame.md",
+          "sha256": "a3d1eb838e8ac9b341ee473d63d930451a53d6745d6d1bf7ceaefe0b661bd4ea"
+        },
+        {
+          "path": "skills/shared/sops/3d-edges.md",
+          "sha256": "0b3164679af687fbd6a3c9b9e9e0f4507f9149ac0c5c9d5a57d15f7f2484d13e"
+        },
+        {
+          "path": "skills/shared/sops/rotation-solid.md",
+          "sha256": "0e8ed2ba2004b98ae0f91281f011615d82558906aee333abec6e82adab8caef5"
+        },
+        {
+          "path": "skills/shared/sops/moving-point-path.md",
+          "sha256": "8ccca19fb9ea51c3309c6952449dbd007b8784ef07a7083a72f8fe271e1bc215"
+        },
+        {
+          "path": "skills/shared/sops/moving-point-region.md",
+          "sha256": "9662814e75a7e0440906c1948a4fef214e32b2477151fcf3454a1221382a33c3"
+        },
+        {
+          "path": "skills/shared/sops/geometric-relations.md",
+          "sha256": "85c3e15fe994b50e3ac754f3cae4bca9645dc6d3f998932e7ff2c26f3c509bb5"
+        },
+        {
+          "path": "skills/shared/sops/plane-helper.md",
+          "sha256": "256b5c4e77cbad7c507f429ab38828a76dad1044ddaddc720f8658a360ae93b2"
+        },
+        {
+          "path": "skills/shared/sops/projection-foot.md",
+          "sha256": "93bc7eede5a9ea2587ab3975e23f95b5b3ff304adc488e79ea2a20897f3f6e60"
+        },
+        {
+          "path": "skills/shared/sops/intersection.md",
+          "sha256": "930a9f0e10a5d2e77724062a61b34ac31a68a62ea7fadf646bca95bf8e334195"
+        },
+        {
+          "path": "skills/shared/sops/polyhedron-section.md",
+          "sha256": "c3e93566a9e802c94ed26f703e5509e21f080ea51399334254a68c411ce09ac8"
+        },
+        {
+          "path": "skills/shared/sops/closed-region.md",
+          "sha256": "c49d025635b9378c3fb935b51b140ab4516c2661586719306d362ecb9faacada"
+        },
+        {
+          "path": "skills/shared/sops/locus.md",
+          "sha256": "64f701cf2677f8a4e6c5c581a32b66ee45d8775123e0ede9c951cdf0f79f2548"
+        },
+        {
+          "path": "skills/shared/sops/aux-line.md",
+          "sha256": "6400812e13dccdd2183b6871da60feb01d7f08257e6c8f5929e3888b4b801026"
+        },
+        {
+          "path": "skills/shared/sops/hidden-helper.md",
+          "sha256": "4bf2974fb45d0e7517726a43fe4c9cdf4d0b24d2d94f946b5104777e7d24494b"
+        }
+      ]
+    }
+  ]
+}
