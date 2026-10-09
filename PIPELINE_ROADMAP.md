@@ -44,6 +44,12 @@ specialist 输出后、下发前端前，逐条对照白名单校验对象/属�
   构造方式差异是主要质量瓶颈，属 P1+ 范畴；跨模型泛化方面
   prompt 对 Gemini 调优痕迹明显（Gemini 命中率 75% vs qwen 55%），需模型无关化改写。
 
+> 2026-10-08 政策更新：P0 校验层与语义自查的**回灌重试已整体移除**——每次重试都是
+> 一轮完整再生成（数十秒），且触发重试本身说明 prompt/SOP 没打磨到位，靠重试兜
+> 质量既慢又不一定提高。校验降级为「清洗 + 遥测」：无效行仍剔除，validity /
+> command_errors / unknown_commands / semantic_failures 随 completed 事件上报；
+> 质量改进回到 prompt 与 SOP 源头迭代，引擎侧兜底保持前端 evalCommand 布尔返回值告警。
+
 ### - [ ] P1：把计算还给 GeoGebra
 
 交点用 `Intersect(l, c, n)` 加索引消歧来做（引擎本就有此能力），
@@ -181,7 +187,9 @@ P0、P1 做完，与同类竞品会拉开肉眼可见的差距。
 - [ ] 添加 LICENSE 文件（协议见 C-1，它决定 README 里商业模式怎么写）
 - [ ] `requirements.txt` 锁定版本
 - [ ] supabase 迁移文件时间戳去重（三组前缀各被两个文件共用）
-- [ ] 移除脚本中的个人机器硬编码路径（start-local-test.bat 的 kimi-desktop node.exe）
+- [x] 移除脚本中的个人机器硬编码路径（start-local-test.bat 的 kimi-desktop node.exe）
+  2026-10-08 收尾：改用 PATH 的 node 后，该 bat 与 `start_backend.ps1` 职责重叠且无运行痕迹，
+  随死脚本清理一并删除；本地启动统一走 `scripts/start_backend.ps1`。
 
 ### 商业模式定调（2026-08-27，想法阶段确认）
 

@@ -43,7 +43,7 @@ def write_config(provider_key, model, entry):
         "api_key": entry["api_key"],
         "model_name": model,
         "timeout_seconds": str(entry.get("timeout_seconds", 240)),
-        "max_tokens": str(entry.get("max_tokens", 16384)),
+        "max_tokens": str(entry.get("max_tokens") or ''),
     })
     CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=True), encoding="utf-8")
     return cfg

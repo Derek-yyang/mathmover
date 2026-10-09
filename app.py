@@ -15,7 +15,7 @@ import sys
 # GGB 指令解析器（P0 指令校验层：specialist 输出的合法性检查与清洗）
 import ggb_parser
 import semantic_guard
-from expert_prompts import EXPERT_PROMPTS, assemble_expert_prompt, router_sop_catalog, load_sop_index
+from expert_prompts import EXPERT_PROMPTS, assemble_expert_prompt
 import decision_router
 
 # 加载环境变量
@@ -110,7 +110,7 @@ def apply_env_defaults(cfg: dict) -> dict:
 
 # --- Prompt Definitions (保留原有的 Prompt) ---
 ROUTER_PROMPT = """
-你是数学题目分类器。请根据图片内容及补充文字，通读题干与各小问，选择专家类别和生成图形需要的指令参考。
+你是数学题目分类器。请根据图片内容及补充文字，通读题干与各小问，选择专家类别。
 
 分类标准：
 A：函数与图像（一次函数、开口向上/向下的二次函数（抛物线）、三角函数、导数、一般函数）
@@ -121,15 +121,8 @@ D：立体几何（正方体、四面体、空间动点、球、旋转体）
 要求：
 - 请严格以 JSON 格式返回，不要包含任何 markdown 格式化（如 ```json ... ```）。
 - 格式如下：
-{"category": "A", "reason": "简要理由", "sops": ["function-object"], "sop_uncertain": false}
+{"category": "A", "reason": "简要理由"}
 - category 只能是 A、B、C 或 D。
-- sops 从下列索引选择；覆盖各小问需要的操作与支撑构造，允许多个类别的二维能力组合，不因题干未出现命令名而漏选。不需要的操作不选。
-- 动点的既定路径与派生点轨迹不同，只有需要轨迹才选 locus；区域内运动选 moving-point-region。空间专用卡只在 D 类选择。
-- 视图、点样式、隐藏计算对象由程序常驻加载，卡片依赖由程序补齐，不必重复选。
-- 读图不清、复合构造无法确定完整参考集时设 sop_uncertain=true，程序会加载该类别完整卡片集；不要猜测后声称确定。
-
-可选参考卡片：
-{sop_catalog}
 """
 
 PROMPT_MAP = EXPERT_PROMPTS
@@ -166,6 +159,20 @@ class ModelAdapter:
     def generate(self, prompt, image_bytes=None, mime_type=None):
         raise NotImplementedError
 
+
+def _optional_max_tokens(value):
+    """Leave output limits to the provider unless explicitly configured."""
+    if value is None or not str(value).strip():
+        return None
+    try:
+        tokens = int(str(value).strip())
+    except (TypeError, ValueError):
+        raise ValueError('max_tokens 必须为空或正整数') from None
+    if tokens <= 0:
+        raise ValueError('max_tokens 必须为空或正整数')
+    return tokens
+
+
 class OpenAICompatibleAdapter(ModelAdapter):
     def __init__(self, api_key, base_url, model_name, timeout_seconds=None, max_tokens=None):
         api_key = (api_key or '').strip()
@@ -185,14 +192,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             timeout=int(timeout_seconds or DEFAULT_MODEL_TIMEOUT),
             **client_kwargs,
         )
-        # 输出上限可按模型在 config.json 配置；不设 max_tokens 的请求会被
-        # 部分网关（如 b.ai）直接掐断，故始终发送有限值。默认 4096 对
-        # 思考型模型够用（思考吃满时由 generate 内降级重试兜底），
-        # 长输出的非思考模型（如 deepseek 指令流）可配 16384。
-        try:
-            self.max_tokens = int(max_tokens) if max_tokens else 4096
-        except (TypeError, ValueError):
-            self.max_tokens = 4096
+        self.max_tokens = _optional_max_tokens(max_tokens)
         # By default we do NOT cross-switch DashScope regions for BYOK.
         # A key can be region-scoped; automatic cross-region fallback can
         # turn transient timeout into deterministic invalid_api_key.
@@ -301,6 +301,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             response = None
             last_primary_error = None
             win_attempt = (base64_image, mime_type or 'image/png')
+            output_options = {} if self.max_tokens is None else {'max_tokens': self.max_tokens}
             for idx, (b64img, mime) in enumerate(attempts):
                 if attempts == [(None, 'image/png')] and idx > 0:
                     continue
@@ -308,10 +309,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     response = self.client.chat.completions.create(
                         model=self.model_name,
                         messages=_build_messages(b64img, mime),
-                        # 不带输出上限的请求会被部分上游网关直接掐断连接，
-                        # 首选值可按模型在 config.json 配置（max_tokens 键）；
-                        # 思考型模型吃满预算时由下方降级重试兜底
-                        max_tokens=self.max_tokens,
+                        **output_options,
                     )
                     win_attempt = (b64img, mime)
                     break
@@ -332,26 +330,10 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 response = self.fallback_client.chat.completions.create(
                     model=self.model_name,
                     messages=_build_messages(base64_image, mime_type or 'image/png'),
+                    **output_options,
                 )
             if response is None:
                 raise last_primary_error
-
-            # 推理模型思考吃满 max_tokens 时正文为空（finish=length）——
-            # 提额 + 降低思考力度重试一次（实测 glm-5.3-flash 16384+low 22s 出全文）
-            try:
-                _empty = not ((response.choices[0].message.content or '').strip())
-                _truncated = response.choices[0].finish_reason == 'length'
-                if _empty and _truncated:
-                    print("WARNING: empty content (thinking consumed the token budget), "
-                          "retrying with max_tokens=16384 + reasoning_effort=low")
-                    response = self.client.chat.completions.create(
-                        model=self.model_name,
-                        messages=_build_messages(*win_attempt),
-                        max_tokens=16384,
-                        reasoning_effort='low',
-                    )
-            except Exception as retry_error:
-                print(f"WARNING: elevated retry failed: {str(retry_error)[:80]}")
 
             # 检查停止原因
             finish_reason = response.choices[0].finish_reason
@@ -368,6 +350,25 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 print(f"DEBUG: Model Refusal: {refusal}")
                 return f"Error: Model Refused - {refusal}"
 
+            if not content and finish_reason == 'length':
+                # 思考型模型把输出预算全部吃在思考上、正文为空（finish=length）——
+                # 这是"模型什么都没返回"的必然失败兜底，不是质量重试：
+                # 降思考力度（reasoning_effort=low）+ 维持现有上限重试一次。
+                # 实测（2026-10-08, glm-5.3-flash@vultrinference）：同一请求
+                # 16384/32768/128000 上限均被思考吃光（正文 0），加 low 后 33~38s 出全文。
+                print("WARNING: empty content (thinking consumed the token budget), "
+                      "retrying once with reasoning_effort=low")
+                try:
+                    response = self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=_build_messages(win_attempt[0], win_attempt[1]),
+                        **output_options,
+                        reasoning_effort='low',
+                    )
+                    finish_reason = response.choices[0].finish_reason
+                    content = response.choices[0].message.content
+                except Exception as retry_error:
+                    print(f"WARNING: reasoning_effort retry failed: {str(retry_error)[:120]}")
             return content if content else ""
 
         except Exception as e:
@@ -443,10 +444,7 @@ class OpenAIResponsesAdapter(ModelAdapter):
         self.base_url = (base_url or '').strip().rstrip('/')
         self.model_name = (model_name or '').strip()
         self.timeout = int(timeout_seconds or DEFAULT_MODEL_TIMEOUT)
-        try:
-            self.max_tokens = int(max_tokens) if max_tokens else 4096
-        except (TypeError, ValueError):
-            self.max_tokens = 4096
+        self.max_tokens = _optional_max_tokens(max_tokens)
 
     @staticmethod
     def _extract_text(data):
@@ -459,7 +457,7 @@ class OpenAIResponsesAdapter(ModelAdapter):
         return "\n".join(parts) or (data.get('output_text') or '')
 
     def generate(self, prompt, image_bytes=None, mime_type=None):
-        def _build_body(b64img, mime, max_tokens):
+        def _build_body(b64img, mime):
             if b64img:
                 user_content = [
                     {"type": "input_image", "image_url": f"data:{mime};base64,{b64img}"},
@@ -468,29 +466,23 @@ class OpenAIResponsesAdapter(ModelAdapter):
             else:
                 user_content = [{"type": "input_text",
                                  "text": "请根据系统指令中给出的题目内容执行任务。"}]
-            return {
+            body = {
                 "model": self.model_name,
                 "instructions": prompt,
                 "input": [{"role": "user", "content": user_content}],
-                "max_output_tokens": max_tokens,
             }
+            if self.max_tokens is not None:
+                body['max_output_tokens'] = self.max_tokens
+            return body
 
         headers = {'Authorization': f'Bearer {self.api_key}', 'content-type': 'application/json'}
         attempts = _payload_ladder(image_bytes, mime_type)
-        data, win = _request_with_ladder(f'{self.base_url}/responses', headers,
-                                        lambda b, m: _build_body(b, m, self.max_tokens),
+        data, _ = _request_with_ladder(f'{self.base_url}/responses', headers,
+                                        _build_body,
                                         attempts, self.timeout)
         text = self._extract_text(data)
         if not text.strip() and data.get('status') == 'incomplete':
-            # 输出预算被思考吃光致正文为空——提额重试一次（与 Chat 适配器同策略）
-            print("WARNING: empty content (status=incomplete), retrying with max_output_tokens=16384")
-            try:
-                data, _ = _request_with_ladder(f'{self.base_url}/responses', headers,
-                                              lambda b, m: _build_body(b, m, 16384),
-                                              [win], self.timeout)
-                text = self._extract_text(data)
-            except Exception as retry_error:
-                print(f"WARNING: elevated retry failed: {str(retry_error)[:80]}")
+            print("WARNING: empty incomplete response; not retrying")
         return text
 
 
@@ -499,7 +491,7 @@ class AnthropicMessagesAdapter(ModelAdapter):
 
     base_url 约定与 OpenAI 相同（含 /v1 前缀），官方地址 https://api.anthropic.com/v1。
     图片走 image source（base64 + media_type），system prompt 走 system 字段，
-    max_tokens 为 Anthropic 必填项。
+    max_tokens 为 Anthropic 必填项，须显式配置，不自动补默认上限。
     """
 
     def __init__(self, api_key, base_url, model_name, timeout_seconds=None, max_tokens=None):
@@ -507,10 +499,9 @@ class AnthropicMessagesAdapter(ModelAdapter):
         self.base_url = (base_url or '').strip().rstrip('/')
         self.model_name = (model_name or '').strip()
         self.timeout = int(timeout_seconds or DEFAULT_MODEL_TIMEOUT)
-        try:
-            self.max_tokens = int(max_tokens) if max_tokens else 4096
-        except (TypeError, ValueError):
-            self.max_tokens = 4096
+        self.max_tokens = _optional_max_tokens(max_tokens)
+        if self.max_tokens is None:
+            raise ValueError('Anthropic Messages 协议要求 max_tokens，请在配置中显式指定正整数')
 
     @staticmethod
     def _extract_text(data):
@@ -521,7 +512,7 @@ class AnthropicMessagesAdapter(ModelAdapter):
         headers = {'x-api-key': self.api_key, 'anthropic-version': '2023-06-01',
                    'content-type': 'application/json'}
 
-        def _build_body(b64img, mime, max_tokens):
+        def _build_body(b64img, mime):
             if b64img:
                 content = [
                     {"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64img}},
@@ -531,25 +522,18 @@ class AnthropicMessagesAdapter(ModelAdapter):
                 content = [{"type": "text", "text": "请根据系统指令中给出的题目内容执行任务。"}]
             return {
                 "model": self.model_name,
-                "max_tokens": max_tokens,
+                "max_tokens": self.max_tokens,
                 "system": prompt,
                 "messages": [{"role": "user", "content": content}],
             }
 
         attempts = _payload_ladder(image_bytes, mime_type)
-        data, win = _request_with_ladder(f'{self.base_url}/messages', headers,
-                                        lambda b, m: _build_body(b, m, self.max_tokens),
+        data, _ = _request_with_ladder(f'{self.base_url}/messages', headers,
+                                        _build_body,
                                         attempts, self.timeout)
         text = self._extract_text(data)
         if not text.strip() and data.get('stop_reason') == 'max_tokens':
-            print("WARNING: empty content (stop_reason=max_tokens), retrying with max_tokens=16384")
-            try:
-                data, _ = _request_with_ladder(f'{self.base_url}/messages', headers,
-                                              lambda b, m: _build_body(b, m, 16384),
-                                              [win], self.timeout)
-                text = self._extract_text(data)
-            except Exception as retry_error:
-                print(f"WARNING: elevated retry failed: {str(retry_error)[:80]}")
+            print("WARNING: empty response at token limit; not retrying")
         return text
 
 
@@ -604,7 +588,7 @@ class ModelFactory:
 
 def llm_classify(model_adapter, image_data, mime_type, text_prompt):
     """LLM 路由分类：组装 ROUTER_PROMPT 调对话模型，返回其原始输出文本。"""
-    router_prompt_to_use = ROUTER_PROMPT.replace('{sop_catalog}', router_sop_catalog())
+    router_prompt_to_use = ROUTER_PROMPT
     if not image_data:
         router_prompt_to_use = router_prompt_to_use.replace("根据图片内容", "根据题目文字内容")
     final_router_prompt = router_prompt_to_use
@@ -716,6 +700,13 @@ def api_config():
     except ValueError:
         return jsonify({'error': 'decisions_threshold 必须是 (0, 1] 内的数字'}), 400
     body['decisions_threshold'] = threshold_raw
+    # max_tokens 显式设值时保存前校验；_optional_max_tokens 管格式，这里管业务上界
+    if (body.get('max_tokens') or '').strip():
+        try:
+            if _optional_max_tokens(body.get('max_tokens')) > 1_000_000:
+                return jsonify({'error': 'max_tokens 过大（上限 1,000,000），请检查是否误填'}), 400
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
     # 决策模型 ID：留空回落默认模型；router_mode=decisions 时保存前实测图片支持
     decisions_model = (str(body.get('decisions_model') or '').strip() or decision_router.DECISIONS_MODEL)
     body['decisions_model'] = decisions_model
@@ -840,6 +831,8 @@ def upload_file():
     image_data = None
     mime_type = None
     text_prompt = request.form.get('text', '')
+    current_commands_raw = request.form.get('current_commands', '')
+    request_category = request.form.get('category', '').strip()
 
     # 1. 优先检查是否有文件上传
     if 'file' in request.files:
@@ -871,81 +864,86 @@ def upload_file():
             # Yield initial status immediately to flush headers and prevent proxy timeout
             yield json.dumps({'status': 'processing', 'message': '已收到请求，正在分析题目类型...'}) + '\n'
             
-            # --- Step 1: Router ---
-            print("DEBUG: Calling Router...")
-            try:
-                # 路由后端由 route_classify 按 router_cfg 分发（decisions 决策模型 / llm 对话模型），
-                # 统一返回 {"category","reason"} JSON 文本，下方解析逻辑两种后端通用。
-                router_side = []
-                
-                # （router prompt 组装与用户文本拼接已并入 route_classify / llm_classify）
-                
-                # Use run_with_heartbeats to avoid proxy timeout during blocking API call
-                router_result_text = None
-                for status, val in run_with_heartbeats(route_classify, router_cfg, model_adapter,
-                                                       image_data, mime_type, text_prompt, router_side):
-                    if status == 'heartbeat':
-                        yield val
-                    elif status == 'error':
-                        raise val
-                    elif status == 'result':
-                        router_result_text = val
-
-                print(f"\n--- [DEBUG: RAW ROUTER OUTPUT] ---\n{router_result_text}\n------------------------------")
-            except Exception as router_e:
-                print(f"ERROR: Router failed: {router_e}")
-                error_text = str(router_e)
-                if 'timeout' in error_text.lower() or 'deadline' in error_text.lower():
-                    error_text = '模型响应超时，请稍后重试或换一张更清晰的图片。'
-                yield json.dumps({'status': 'error', 'message': f'分类模型调用失败: {error_text}'}) + '\n'
-                return
-
-            if not router_result_text:
-                 yield json.dumps({'status': 'error', 'message': 'Router returned no content.'}) + '\n'
-                 return
-
-            # --- 路由结果解析：三层兜底，失败回灌重试一次，仍失败默认 A 并显式标记 ---
-            category, reason = parse_router_result(router_result_text)
-            router_parse_failed = False
-            if category is None:
-                # 解析失败不静默吞掉：回灌要求严格 JSON 重试一次
-                print("WARNING: 路由输出无法解析，回灌重试一次（要求严格 JSON）")
-                yield json.dumps({'status': 'processing',
-                                  'message': '分类结果无法解析，正在要求模型重试...'}) + '\n'
-                corrective = ("你上一次的输出无法被解析。请只输出一行严格 JSON，不要 markdown、不要任何其他文字："
-                              '{"category": "A/B/C/D 之一", "reason": "简要理由", '
-                              '"sops": ["索引中的卡片名"], "sop_uncertain": false}')
-                retry_input = f"{text_prompt}\n\n{corrective}" if text_prompt else corrective
+            # 判断是否为多轮微调模式（已有画板指令，且用户指定了类别或未传新图）
+            is_refinement = bool(current_commands_raw.strip() and not image_data and request_category in PROMPT_MAP)
+            
+            if is_refinement:
+                category = request_category
+                reason = "多轮对话微调模式，沿用当前学科专家与画板上下文"
+                router_meta = {'mode': 'refinement'}
+                router_parse_failed = False
+                print(f"DEBUG: 进入微调模式: category={category}")
+            else:
+                # --- Step 1: Router ---
+                print("DEBUG: Calling Router...")
                 try:
-                    router_retry_text = None
+                    # 路由后端由 route_classify 按 router_cfg 分发（decisions 决策模型 / llm 对话模型），
+                    # 统一返回 {"category","reason"} JSON 文本，下方解析逻辑两种后端通用。
+                    router_side = []
+                    
+                    # Use run_with_heartbeats to avoid proxy timeout during blocking API call
+                    router_result_text = None
                     for status, val in run_with_heartbeats(route_classify, router_cfg, model_adapter,
-                                                           image_data, mime_type, retry_input, router_side):
+                                                           image_data, mime_type, text_prompt, router_side):
                         if status == 'heartbeat':
                             yield val
                         elif status == 'error':
                             raise val
                         elif status == 'result':
-                            router_retry_text = val
-                    if router_retry_text:
-                        category, reason = parse_router_result(router_retry_text)
-                        router_result_text = router_retry_text
-                except Exception as router_retry_e:
-                    print(f"WARNING: 路由解析重试失败: {router_retry_e}")
-                if category is None:
-                    category = 'A'
-                    reason = '路由输出两次均无法解析，默认按 A 类（函数与图像）处理'
-                    router_parse_failed = True
+                            router_result_text = val
 
-            if category not in PROMPT_MAP:
-                category = 'B' # Default to Geometry
-                
-            router_meta = router_side[-1] if router_side else {'mode': 'llm'}  # 取最近一次（含解析重试）
-            if router_meta.get('fallback_to_llm'):
-                reason = (reason + ' ' if reason else '') + f"（决策模型回退 LLM：{router_meta.get('fallback_reason', '')}）"
-            print(f"DEBUG: Classified as: {category}, Reason: {reason}, Router: {router_meta}")
-            # 每题始终加载完整 skill；仅指令参考按路由结果选择。旧/无效输出回退完整集。
-            prompt_assembly = assemble_expert_prompt(
-                category, '' if router_parse_failed else router_result_text)
+                    print(f"\n--- [DEBUG: RAW ROUTER OUTPUT] ---\n{router_result_text}\n------------------------------")
+                except Exception as router_e:
+                    print(f"ERROR: Router failed: {router_e}")
+                    error_text = str(router_e)
+                    if 'timeout' in error_text.lower() or 'deadline' in error_text.lower():
+                        error_text = '模型响应超时，请稍后重试或换一张更清晰的图片。'
+                    yield json.dumps({'status': 'error', 'message': f'分类模型调用失败: {error_text}'}) + '\n'
+                    return
+
+                if not router_result_text:
+                     yield json.dumps({'status': 'error', 'message': 'Router returned no content.'}) + '\n'
+                     return
+
+                # --- 路由结果解析：三层兜底，失败回灌重试一次，仍失败默认 A 并显式标记 ---
+                category, reason = parse_router_result(router_result_text)
+                router_parse_failed = False
+                if category is None:
+                    print("WARNING: 路由输出无法解析，回灌重试一次（要求严格 JSON）")
+                    yield json.dumps({'status': 'processing',
+                                      'message': '分类结果无法解析，正在要求模型重试...'}) + '\n'
+                    corrective = ("你上一次的输出无法被解析。请只输出一行严格 JSON，不要 markdown、不要任何其他文字："
+                                  '{"category": "A/B/C/D 之一", "reason": "简要理由"}')
+                    retry_input = f"{text_prompt}\n\n{corrective}" if text_prompt else corrective
+                    try:
+                        router_retry_text = None
+                        for status, val in run_with_heartbeats(route_classify, router_cfg, model_adapter,
+                                                               image_data, mime_type, retry_input, router_side):
+                            if status == 'heartbeat':
+                                yield val
+                            elif status == 'error':
+                                raise val
+                            elif status == 'result':
+                                router_retry_text = val
+                        if router_retry_text:
+                            category, reason = parse_router_result(router_retry_text)
+                            router_result_text = router_retry_text
+                    except Exception as router_retry_e:
+                        print(f"WARNING: 路由解析重试失败: {router_retry_e}")
+                    if category is None:
+                        category = 'A'
+                        reason = '路由输出两次均无法解析，默认按 A 类（函数与图像）处理'
+                        router_parse_failed = True
+
+                if category not in PROMPT_MAP:
+                    category = 'B'
+                    
+                router_meta = router_side[-1] if router_side else {'mode': 'llm'}
+                if router_meta.get('fallback_to_llm'):
+                    reason = (reason + ' ' if reason else '') + f"（决策模型回退 LLM：{router_meta.get('fallback_reason', '')}）"
+                print(f"DEBUG: Classified as: {category}, Reason: {reason}, Router: {router_meta}")
+            # skill 决定卡片及插入位置，完整展开该类别的所有 SOP 引用。
+            prompt_assembly = assemble_expert_prompt(category)
             prompt_meta = dict(prompt_assembly.metadata)
 
             # Send classification status with reason（解析兜底失败时显式标记，前端可提示）
@@ -956,30 +954,31 @@ def upload_file():
             yield json.dumps(classified_event) + '\n'
 
             # --- Step 2: Specialist ---
-            # 单段式：专家直接看图作图（模型内部先试 2x 增强图、失败回退原图）。
-            # 不做两段式转录：转接多一层就多一次信息损耗，且第二段不回看图时读错无从纠正。
             command_suffix = build_allowed_commands_suffix(category)
-            selected_prompt = prompt_assembly.text + command_suffix
-            prompt_meta['system_characters'] = len(selected_prompt)
-            if text_prompt:
-                selected_prompt = f"用户补充说明：{text_prompt}\n\n" + selected_prompt
-            prompt_meta['input_characters'] = len(selected_prompt)
-            prompt_meta['retry_reference_mode'] = None
-
-            def correction_base_prompt():
-                # 发生已有校验错误时扩大参考范围，不额外增加模型调用。
-                # 纠错不能被首次路由漏选限制；完整 skill、图片和题意始终保留。
-                prompt_meta['retry_reference_mode'] = 'full'
-                # 复合题可能首次选择了类别默认集以外的合法能力，纠错也须保留。
-                retry_cards = list(dict.fromkeys(
-                    load_sop_index()['categories'][category] + prompt_meta['cards']))
-                expanded = assemble_expert_prompt(category, json.dumps({
-                    'category': category, 'sops': retry_cards, 'sop_uncertain': False}))
-                full = expanded.text + command_suffix
-                prompt_meta['retry_cards'] = expanded.metadata['cards']
+            
+            if is_refinement:
+                # 微调专家 Prompt：携带当前画板已执行指令作为上下文
+                refinement_instruction = (
+                    "【微调任务指令】\n"
+                    "当前画板已经建立并执行了以下 GeoGebra 几何对象与指令：\n"
+                    "```geogebra\n"
+                    f"{current_commands_raw.strip()}\n"
+                    "```\n\n"
+                    f"用户现在的修改/调整需求是：\n"
+                    f"\"{text_prompt}\"\n\n"
+                    "【输出要求】\n"
+                    "1. 请根据用户的新需求，输出更新后的【完整全量最新 GeoGebra 指令清单】。\n"
+                    "2. 保持原有未修改对象的命名与关系不变，在此基础上做出增加、修改或删除。\n"
+                    "3. 严格遵守对应学科专家规范，纯命令逐行输出，禁止输出 markdown 代码块或解释说明。\n\n"
+                )
+                selected_prompt = refinement_instruction + prompt_assembly.text + command_suffix
+            else:
+                # 单段式全量构建
+                selected_prompt = prompt_assembly.text + command_suffix
                 if text_prompt:
-                    full = f"用户补充说明：{text_prompt}\n\n" + full
-                return full
+                    selected_prompt = f"用户补充说明：{text_prompt}\n\n" + selected_prompt
+            prompt_meta['system_characters'] = len(selected_prompt)
+            prompt_meta['input_characters'] = len(selected_prompt)
 
             print(f"DEBUG: Prompt references: {prompt_meta}")
             specialist_image, specialist_mime = image_data, mime_type
@@ -1016,92 +1015,20 @@ def upload_file():
 
             print(f"DEBUG: Generated text length: {len(specialist_result_text)}")
 
-            # --- P0 指令校验层：解析 -> 白名单校验 -> 低合格率自动重试一次 -> 清洗下发 ---
+            # --- P0 指令校验层：解析 -> 白名单校验 -> 清洗下发（不回灌重试）---
+            # 触发整代重试说明 prompt/SOP 没打磨好，靠再生成兜质量既耗时又不可靠
+            # （2026-10-08 移除）；校验只负责剔除无效行并留下遥测，改进回到 prompt 源头。
             validation = ggb_parser.validate_text(specialist_result_text)
-            retried = False
-            if (not validation['ok'] and (validation['validity'] < 0.95 or validation['has_command_errors'])
-                    and not specialist_result_text.startswith("Error:")):
-                invalid_preview = '\n'.join(validation['invalid_lines'][:10])
-                if validation['command_errors']:
-                    invalid_preview += '\n' + '\n'.join(
-                        f"{item['line']}: {'; '.join(item['errors'])}"
-                        for item in validation['command_errors'][:10])
-                print(f"WARNING: 指令校验未通过 (有效率 {validation['validity']})，自动重试一次。"
-                      f"无效行: {validation['invalid_lines'][:5]}")
-                yield json.dumps({'status': 'processing', 'message': '发现无效指令，正在自动修正...'}) + '\n'
-                retry_prompt = (
-                    correction_base_prompt()
-                    + "\n\n【修正要求】你上一次输出的以下行不是合法的 GeoGebra 命令，"
-                      "请重新输出完整指令列表，确保每一行都是可被 GeoGebra evalCommand 执行的命令，"
-                      "不要输出任何注释、说明文字或无法解析的内容：\n"
-                    + invalid_preview
-                )
-                try:
-                    retry_result_text = None
-                    for status, val in run_with_heartbeats(model_adapter.generate, retry_prompt, specialist_image, specialist_mime):
-                        if status == 'heartbeat':
-                            yield val
-                        elif status == 'error':
-                            raise val
-                        elif status == 'result':
-                            retry_result_text = val
-                    if retry_result_text:
-                        retry_validation = ggb_parser.validate_text(retry_result_text)
-                        print(f"DEBUG: 重试后有效率 {retry_validation['validity']} "
-                              f"(原 {validation['validity']})")
-                        if retry_validation['validity'] >= validation['validity']:
-                            specialist_result_text = retry_result_text
-                            validation = retry_validation
-                        retried = True
-                except Exception as retry_e:
-                    print(f"WARNING: 校验重试失败，沿用原结果: {retry_e}")
+            if validation['invalid_lines'] or validation['command_errors']:
+                print(f"WARNING: 指令校验发现无效内容 (有效率 {validation['validity']})，"
+                      f"无效行将在下发前剔除: {validation['invalid_lines'][:5]}")
 
-            print(f"DEBUG: 指令校验完成: 有效率 {validation['validity']}, "
-                  f"无效行 {validation['invalid_lines']}, 重试 {retried}")
-
-            # --- 语义校验闭环：类别结构化自查 -> 失败明细回灌重试（最多 2 次）---
-            # 金标准判分只能离线用；此处按类别做通用结构检查（动点/滑块/圆锥曲线/
-            # 3D 模式/文字残留），失败原因作为修正要求回灌，与 P0 语法闭环同构。
+            # --- 语义自查（仅遥测，不回灌重试）---
+            # 按类别做通用结构检查（动点/滑块/圆锥曲线/3D 模式/文字残留），
+            # 失败明细随 completed 事件上报，供 prompt/SOP 源头迭代。
             semantic_state = semantic_guard.semantic_check(category, specialist_result_text)
-            semantic_retries = 0
-            while (not semantic_state['ok'] and semantic_retries < 2
-                    and not specialist_result_text.startswith("Error:")):
-                semantic_retries += 1
-                print(f"WARNING: 语义校验未通过（第 {semantic_retries} 次），回灌重试: "
-                      f"{semantic_state['summary']}")
-                yield json.dumps({'status': 'processing',
-                                  'message': f'图形结构自检未通过，正在自动修正（{semantic_retries}/2）...'}) + '\n'
-                failure_lines = '\n'.join(f"- {f['detail']}" for f in semantic_state['failures'])
-                sem_retry_prompt = (
-                    correction_base_prompt()
-                    + "\n\n【结构自检修正要求】你上一次生成的指令通过了语法检查，但存在以下结构问题：\n"
-                    + failure_lines
-                    + "\n\n请重新输出完整指令列表（保留上一次正确的部分），修复上述全部问题。"
-                      "特别注意：动点按题意保留自由度，可直接拖动路径/区域点或由参数驱动，"
-                      "解析几何必须显式构造圆锥曲线对象，立体几何必须 MODE: 3D + 空间坐标，"
-                      "不要生成任何 Text 文字对象。"
-                )
-                try:
-                    sem_retry_text = None
-                    for status, val in run_with_heartbeats(model_adapter.generate, sem_retry_prompt,
-                                                           specialist_image, specialist_mime):
-                        if status == 'heartbeat':
-                            yield val
-                        elif status == 'error':
-                            raise val
-                        elif status == 'result':
-                            sem_retry_text = val
-                    if sem_retry_text:
-                        new_state = semantic_guard.semantic_check(category, sem_retry_text)
-                        print(f"DEBUG: 语义重试后 ok={new_state['ok']} (原 {semantic_state['ok']})")
-                        new_validation = ggb_parser.validate_text(sem_retry_text)
-                        if (not new_validation['has_command_errors']
-                                and (new_state['ok'] or len(new_state['failures']) < len(semantic_state['failures']))):
-                            specialist_result_text = sem_retry_text
-                            semantic_state = new_state
-                except Exception as sem_e:
-                    print(f"WARNING: 语义重试失败，沿用当前结果: {sem_e}")
-                    break
+            if not semantic_state['ok']:
+                print(f"WARNING: 语义自查未通过（仅记录，不重试）: {semantic_state['summary']}")
 
             # --- D 规则过滤：删除残留的 Text 文字对象行（比 prompt 约束更可靠）---
             filtered_text = semantic_guard.strip_text_objects(specialist_result_text)
@@ -1111,7 +1038,7 @@ def upload_file():
                 semantic_state = semantic_guard.semantic_check(category, specialist_result_text)
 
             commands = ggb_parser.extract_valid_commands(specialist_result_text)
-            # 语义修正和 Text 过滤可能更换最终文本；返回最终结果的校验与遥测。
+            # Text 过滤可能更换最终文本；返回最终结果的校验与遥测。
             validation = ggb_parser.validate_text(specialist_result_text)
 
             yield json.dumps({
@@ -1121,12 +1048,10 @@ def upload_file():
                 'prompt': prompt_meta,
                 'validation': {
                     'validity': validation['validity'],
-                    'retried': retried,
                     'unknown_commands': validation['unknown_commands'],
                     'command_errors': validation['command_errors'],
                     'semantic_ok': semantic_state['ok'],
                     'semantic_failures': [f['check'] for f in semantic_state['failures']],
-                    'semantic_retries': semantic_retries,
                 }
             }) + '\n'
 

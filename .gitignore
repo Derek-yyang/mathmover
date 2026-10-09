@@ -16,6 +16,8 @@ storage-cleanup-*.json
 # 本地工具产物
 .local-run-venv/
 .impeccable/
+.local-geogebra-download/
+math-mover-next/public/vendor/geogebra/
 
 # Python
 __pycache__/
@@ -59,3 +61,9 @@ providers.json
 
 # 盲评导入临时文件
 math-mover-next/public/review_import.json
+
+# 诊断/评测输出（截图、抓样、日志，可随时再生）
+spike-out/
+
+# 会话历史实验落盘（claude 风格 jsonl，本地状态）
+math-mover-next/projects/

@@ -80,19 +80,13 @@ def validate_imports():
     all_cards = {p.stem for p in prompts._SOPS_DIR.glob("*.md")}
     used = set()
     results = []
-    index = prompts.load_sop_index()
     for category, expert in prompts.CATEGORY_TO_SKILL.items():
         text = prompts._strip_frontmatter(prompts._read(prompts._SKILLS_DIR / expert / "SKILL.md"))
-        names = prompts.resolve_sops(category, index['categories'][category], index)
-        if len(names) != len(set(names)):
-            raise ValueError(f"{expert}: duplicate references")
+        names = prompts._sop_names(text, category)
         assembled = prompts.EXPERT_PROMPTS[category]
-        if "{{SOP" in assembled or not assembled.endswith(prompts._read(prompts._PITFALLS_PATH)):
+        if "{{SOP" in assembled or not assembled.startswith(prompts._read(prompts._RULES_PATH)):
             raise ValueError(f"{expert}: incomplete assembly")
-        locations = prompts._sop_names(text, category)
-        if set(locations) != set(names):
-            raise ValueError(f'{expert}: inline locations must cover the category reference set')
-        for name in locations:
+        for name in names:
             card = prompts._read(prompts._sop_card_path(name, category))
             if '{{SOP' in card:
                 raise ValueError(f'{expert}/{name}: nested reference')
