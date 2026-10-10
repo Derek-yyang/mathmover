@@ -21,7 +21,8 @@
    无效指令静默失败或画出错误图形，用户只能重新生成碰运气。
 2. **靠堆否定句补丁而非系统性兜底** —— 专家 prompt 里全是"禁止/不要/务必"，
    每发现新翻车模式就追加一条，prompt 越来越长且永远追不完。
-   （prompt 中还残留字符串拼接痕迹：字面引号与 `\n` 文本，见 `app.py` 各 PROMPT_*.py 定义。）
+   （prompt 中还残留字符串拼接痕迹：字面引号与 `\n` 文本，见原 `app.py` 各 PROMPT_*
+   定义——该文件已随一次性生成管线下线，现行 prompt 在 `skills/*/SKILL.md`。）
 3. **让模型手算数学，放弃了引擎的最大价值** —— 解析几何强制手算焦点为十进制近似值、
    函数题禁止 Intersect 要求硬编码交点坐标，本质是逼迫 LLM 做符号运算与浮点近似，
    风险从"可见可修"变成了"隐性算错没人知道"。
@@ -33,13 +34,14 @@
 specialist 输出后、下发前端前，逐条对照白名单校验对象/属性命令的签名；
 不合格行过滤掉；若合格率低于阈值，把报错信息拼回上下文自动重试一次。
 
-- 改动位置：`app.py` /api/upload 的 generate() 内，specialist 结果产出之后
+- 改动位置：原 `app.py` /api/upload 的 generate() 内（该管线已下线）。**校验层本体还在**，
+  现落于 `ggb-core` 的 `checkLines` / `classifyLine`，由 `submit_construction` 做行级剔除
 - 收益：通常能把可用率拉高一大截；此后可以从容删减 prompt 里的否定句补丁
 - 验收标准：无效指令不再到达前端；重试逻辑有日志可观测
 - 完成情况：2026-08-28 实现（`app.py` + `ggb_parser.py` 共享解析器）。
   26 题基线实测（qwen3.5-plus，改造前→后）：语法有效率 98.1%→**100%**，
   含无效指令行的题 5→0，1 例经重试从 15/27 提升到满分 PASS。
-  判分工具：`scripts/benchmark.py`（解析+判分）、`scripts/bench_run.py`（批量跑批），
+  判分工具（**已不在仓库**）：`scripts/benchmark.py`（解析+判分）、`scripts/bench_run.py`（批量跑批），
   金标准 26 题在 `benchmarks/cases/`。遗留：语义层命中率仅 55%→62%，
   构造方式差异是主要质量瓶颈，属 P1+ 范畴；跨模型泛化方面
   prompt 对 Gemini 调优痕迹明显（Gemini 命中率 75% vs qwen 55%），需模型无关化改写。
@@ -56,7 +58,14 @@ specialist 输出后、下发前端前，逐条对照白名单校验对象/属�
 焦点/焦距等由引擎计算，模型只负责定义结构关系。
 手算仅保留在题目明确要求标注数值的场景。
 
-- 改动位置：`app.py` PROMPT_FUNCTION / PROMPT_ANALYTIC 相关约束段落
+**写法层已大半就位**：`function-object` 用 `Extremum` / `Root` / `Tangent`、
+`conic-features` 用 `Focus` / `Directrix`，都是引擎算。**剩下没做的是流程正文**——
+skill 仍让模型「求出可确定参数/系数」并自己核对坐标，这正是算错的源头
+（历史 7 例质量问题里的「A1 坐标算错」）。
+
+- 改动位置：`skills/*/SKILL.md` 的「初始化并确定数据」「建立基准点」步骤正文
+  （原 `app.py` 的 PROMPT_FUNCTION / PROMPT_ANALYTIC 已随一次性生成管线下线）；
+  求交索引消歧的写法在 `skills/shared/sops/intersection.md`
 - 收益：消除隐性算错；prompt 变短
 - 验收标准：抽样对比改造前后同类题目的正确率
 
@@ -88,7 +97,8 @@ specialist 输出后、下发前端前，逐条对照白名单校验对象/属�
   (1) `ggb_commands.json` 权威命令表（~90 构造器按 2D/3D 分组 + 属性 + 全局命令）；
   (2) 解析器策略反转：未知命令放行下发 + 标记遥测，仅纯文字行剔除，重试触发条件同步收紧；
   (3) prompt 的"严格语法约束"区块改为运行时从命令表生成注入
-      （app.py: build_allowed_commands_suffix），手写区块已删，单一事实来源达成；
+      （原 `app.py: build_allowed_commands_suffix`，现为 `ggb-core/src/sop.ts`
+      的 `buildAllowedCommandsSuffix`），手写区块已删，单一事实来源达成；
   (4) bench_run 跑批报告新增 unknown_commands 统计；前端接通 evalCommand 布尔返回值，
       失败≥3 条 toast 告警（引擎兜底信号）。
   26/26 解析与性质自测全绿，端到端验证通过。
@@ -98,11 +108,15 @@ specialist 输出后、下发前端前，逐条对照白名单校验对象/属�
 | 层 | 职责 | 状态 |
 |---|---|---|
 | ~~L1 金标准比对~~ | ~~同模型回归~~ | **退役**：构造偏见不可修复；金标准原文永久保留（L2 抽取原料 + 校准参考 + 范例种子） |
-| L2 性质判分 | 开发内环主标尺：全量跑批、精确归因 | scripts/properties.py，bench_run 主指标 |
-| L3 视觉判官 | 产品仲裁：无头渲染 + 滑块多帧交互 + VLM 对照题目图判分 | scripts/l3_run.py（Playwright + 系统 Edge，零下载） |
+| ~~L2 性质判分~~ | ~~开发内环主标尺：全量跑批、精确归因~~ | **工具已不在仓库**（`scripts/properties.py`、`bench_run.py` 随一次性生成管线退役） |
+| ~~L3 视觉判官~~ | ~~产品仲裁：无头渲染 + 滑块多帧交互 + VLM 对照题目图判分~~ | **工具已不在仓库**（`scripts/l3_run.py` 同上） |
+
+> 2026-10-10 记录：**L2/L3 的跑批工具已随一次性生成管线一并退役**，`scripts/` 下
+> 现在没有 benchmark / bench_run / properties / l3_run。下面的数字是当时的实测结果，
+> 保留作度量口径的参考；真要用得重建工具（并按现状改成对 agent 链路跑分，见 P3）。
 
 L3 实现要点：滑块 `setValue` 首中末三帧（等同拖动，解决单帧遮挡与联动验证）；
-3D 题先 `setPerspective('T')` 等视图就绪再执行指令；判题模型与产品同通道（config.json）。
+3D 题先 `setPerspective('T')` 等视图就绪再执行指令；判题模型与产品同通道（原 `config.json`，已删）。
 
 首轮 L3 全量（24 题候选）：**17 PASS + 4 partial（83% 达到或接近可用）**，3 fail。
 L2/L3 不一致 15 例：13 例为 L2=FAIL vs L3=pass/partial——确认性质清单仍含
@@ -172,19 +186,31 @@ Python 一次性生成管线（Router → Specialist → 校验）没有任何�
 ### - [ ] P3：回归基准集
 
 攒 50~200 道代表题 + 各自期望的关键对象清单，形成自动化回归套件。
-系统已支持通过环境变量切换模型供应商（SYSTEM_MODEL_PROVIDER 等），
-这个套件就是换模型时的安全网——没有它，任何一次换模型都是在盲飞。
+现在要换的是 **agent CLI**（claude-code / codex / dsh，见
+`packages/agent-runtime/src/defs.ts` 的 `RUNTIMES`）和它们背后的模型——
+没有这个套件，任何一次换 CLI / 换模型都是在盲飞。
 
-- 建议形态：fixtures（题目+期望对象）+ 批跑脚本（可参考 scripts/ 下现有脚本风格）
-- 验收标准：换供应商时一键跑分并输出各题 pass/fail 报告
+- 建议形态：fixtures（题目 + 期望对象）+ 批跑脚本。判据现成：
+  `ggb-core/src/semantic.ts` 的 `semanticCheck` 按类别查结构，`ggb_get_state`
+  给对象清单，`submit_construction` 回传行级/语义明细；链路怎么跑可参考
+  `math-mover-next/scripts/smoke-agent-route.mjs` 与 `scripts/e2e-chat-panel.mjs`
+- **注意：判分工具也得一并重建**——原 L1/L2/L3 的 `scripts/benchmark.py`、
+  `bench_run.py`、`properties.py`、`l3_run.py` 已随管线退役、不在仓库。
+  L2 性质判分与 L3 视觉判官的度量口径见下文「三层度量体系」，数字可作参考
+- 验收标准：换 CLI / 换模型时一键跑分并输出各题 pass/fail 报告
 
 ### - [ ] P4：质量遥测
 
 记录每次生成的：类别、指令有效率、重试次数、用户生成后的手动修改行为
 （后者是最好的隐式质量信号）。
 
-- 数据落点：Supabase 新表即可，注意 RLS
-- 用途：驱动后续 prompt 调整有据可依，量化 P0~P1 的实际收益
+- 数据落点：本地 SQLite，与课件库同处——`packages/daemon/src/courseware-store.ts`
+  现有 `coursewares` / `revisions` 两张表，加一张 telemetry 表即可
+  （Supabase 已随 SaaS 化下线，不复存在）
+- 现成信号：类别在会话账本里（`packages/daemon/src/mcp-server.ts`）；
+  行级指令有效率与语义失败明细由 `submit_construction` 回传；
+  用户的手动修改本来就落在 `revisions` 版本历史里，差分即是隐式质量信号
+- 用途：驱动后续 prompt / SOP 调整有据可依，量化 P0~P1 的实际收益
 
 ## 四、一句话总结
 
@@ -213,12 +239,14 @@ P0、P1 做完，与同类竞品会拉开肉眼可见的差距。
 
 ### B. 工程门面（clone 下来就能跑）
 
-- [ ] 重写 README：项目简介、架构图、Supabase 建库 / migrations 导入 / 环境变量 / 本地启动指南
+- [ ] 重写 README：项目简介、架构图（agent CLI → MCP 工具面 → daemon → GeoGebra）、
+  `.env` 变量、本地启动指南（起 daemon 与前端）。原「Supabase 建库 / migrations 导入」
+  已不存在，README 该按本地优先的形态重写
 - [x] ~~新增后端 `.env.example`~~ 随 Python 生成管线下线失效
 - [ ] 新增前端 `.env.example`
 - [ ] 添加 LICENSE 文件（协议见 C-1，它决定 README 里商业模式怎么写）
 - [x] ~~`requirements.txt` 锁定版本~~ 该文件已删，Python 侧零第三方依赖
-- [ ] supabase 迁移文件时间戳去重（三组前缀各被两个文件共用）
+- [x] ~~supabase 迁移文件时间戳去重（三组前缀各被两个文件共用）~~ Supabase 已下线，无迁移文件
 - [x] 移除脚本中的个人机器硬编码路径（start-local-test.bat 的 kimi-desktop node.exe）
   2026-10-08 收尾：改用 PATH 的 node 后，该 bat 与 `start_backend.ps1` 职责重叠且无运行痕迹，
   随死脚本清理一并删除；本地启动统一走 `scripts/start_backend.ps1`。
@@ -268,6 +296,14 @@ P0、P1 做完，与同类竞品会拉开肉眼可见的差距。
    > - 本地命令面：用户与设置读写、生成历史 CRUD、图片存取（save/load/delete/path）
    > - **已剔除的 SaaS 残留**：`credits`、`subscription_tier`、`decrement_credits`
    >   —— 与 web 侧会员/积分清理同源，产品已定调开源全免费
+   >
+   > 2026-10-10 更新：**上面两条路线的前提都没了。** 一次性生成管线下线后
+   > Python 后端不复存在（sidecar 无从打包），"prompt 管线移植为 TS"也不成其为
+   > 移植——生成现在由本机第三方 agent CLI 完成，仓库里只剩 SOP 静态校验还是 Python。
+   > 三表设计里的 `generations.ggb_commands` 同理过时：指令清单由 agent 产出并经
+   > `submit_construction` 下发，不再是管线的直接输出。
+   > **C-3 要重新拍板**：桌面壳真正要解决的变成「怎么把 agent CLI 与 daemon 一起装进
+   > Electron、并管好用户自己的 API key」，而不是管线往哪跑。
 4. **域名确认**：线上现为 mathmover.top，demo 是否启用 .com 新域名待定
 5. **品牌确认**：MathMover 名称与 com.mathmover.desktop 标识是否延续到开源仓库
 
