@@ -1,0 +1,17 @@
+# dsh --patch 补丁：给任意 profile 叠上 mathmover 的 MCP 工具面（dsh-mcp-client 插件）。
+# 与同目录 claude-mcp.json 是同一个 MCP 端点的两种方言——改端点时两份一起改。
+#
+# 语法注意（cordis-plugin-include 的 patch 语义）：
+#   - 直接写条目 = 非 insert 补丁，必须有 id 且目标已存在（做覆盖/禁用）
+#   - 插新条目必须走 `insert:` 列表，否则报 "entry not found" / "id is required"
+# args 相对 spawn 的 cwd（产品侧固定为仓库根），故用相对路径；不要把它挪进用户 profile。
+- insert:
+    - id: mcp-mathmover
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: mathmover
+        transport: stdio
+        command: node
+        args: ['packages/daemon/src/mcp-stdio.ts']
+        env:
+          MATHMOVER_DAEMON_URL: http://127.0.0.1:8788

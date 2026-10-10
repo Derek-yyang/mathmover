@@ -45,7 +45,7 @@ function findRepoRoot(): string {
 
 const REPO_ROOT = findRepoRoot();
 const MCP_CONFIG_PATH =
-  process.env.MATHMOVER_MCP_CONFIG ?? path.join(REPO_ROOT, 'spike-out', 'mcp', 'claude-mcp.json');
+  process.env.MATHMOVER_MCP_CONFIG ?? path.join(REPO_ROOT, 'packages', 'daemon', 'mcp', 'claude-mcp.json');
 const DAEMON_URL = process.env.MATHMOVER_DAEMON_URL ?? 'http://127.0.0.1:8788';
 
 /**

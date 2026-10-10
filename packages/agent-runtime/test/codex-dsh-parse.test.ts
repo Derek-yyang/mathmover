@@ -68,9 +68,13 @@ describe('dsh.parseLine — 真实样本重放', () => {
   });
 
   it('buildArgs 用 --patch 挂 MCP 补丁、--profile headless', () => {
-    const args = dsh.buildArgs({ prompt: '你好', mcpConfigPath: 'X:/repo/spike-out/mcp/claude-mcp.json' });
+    // 路径故意与真实布局无关：这里锁的是「patch 跟着配置走」这条契约
+    // （defs.ts 用 path.dirname(mcpConfigPath) 定位补丁），不是某个具体目录。
+    const cfg = 'X:/any/dir/claude-mcp.json';
+    const args = dsh.buildArgs({ prompt: '你好', mcpConfigPath: cfg });
     const patchIdx = args.indexOf('--patch');
     expect(patchIdx).toBeGreaterThanOrEqual(0);
+    expect(path.dirname(args[patchIdx + 1].replace(/\\/g, '/'))).toBe(path.dirname(cfg));
     expect(args[patchIdx + 1]).toMatch(/dsh-mathmover\.patch\.yml$/);
     expect(args).toContain('--profile');
     expect(args[args.indexOf('--profile') + 1]).toBe('headless');

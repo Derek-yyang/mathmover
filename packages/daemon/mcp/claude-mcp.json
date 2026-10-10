@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mathmover": {
+      "command": "node",
+      "args": ["packages/daemon/src/mcp-stdio.ts"],
+      "env": {
+        "MATHMOVER_DAEMON_URL": "http://127.0.0.1:8788"
+      }
+    }
+  }
+}

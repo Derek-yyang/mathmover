@@ -18,7 +18,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 
 const DAEMON = 'http://127.0.0.1:8788';
-const MCP_CONFIG = 'spike-out/mcp/claude-mcp.json';
+const MCP_CONFIG = 'packages/daemon/mcp/claude-mcp.json';
 const OUT = 'spike-out/e2e';
 
 const results = [];

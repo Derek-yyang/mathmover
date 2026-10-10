@@ -14,7 +14,7 @@ import { RUNTIMES } from '../packages/agent-runtime/src/defs.ts';
 import { resolveSpawnTarget } from '../packages/agent-runtime/src/resolve.ts';
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..');
-const MCP_CONFIG = path.join(REPO_ROOT, 'spike-out', 'mcp', 'claude-mcp.json');
+const MCP_CONFIG = path.join(REPO_ROOT, 'packages', 'daemon', 'mcp', 'claude-mcp.json');
 const runtimeId = process.argv[2] ?? 'claude-code';
 const def = RUNTIMES.find((r) => r.id === runtimeId);
 if (!def) {

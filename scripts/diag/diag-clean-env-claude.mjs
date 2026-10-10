@@ -14,7 +14,7 @@ if (!TARGET) {
   console.error('claude 不可用');
   process.exit(1);
 }
-const MCP_CONFIG = path.join(REPO, 'spike-out', 'mcp', 'claude-mcp.json');
+const MCP_CONFIG = path.join(REPO, 'packages', 'daemon', 'mcp', 'claude-mcp.json');
 
 const routeArgs = [
   '-p', '回复OK两个字母即可',
