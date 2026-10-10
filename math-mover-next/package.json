@@ -14,14 +14,9 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.91",
-    "@ai-sdk/react": "^4.0.136",
     "@assistant-ui/react": "^0.15.26",
     "@assistant-ui/react-markdown": "^0.14.20",
     "@mathmover/agent-runtime": "file:../packages/agent-runtime",
-    "ai": "^7.0.133",
-    "autoprefixer": "^10.4.24",
-    "clsx": "^2.1.1",
     "framer-motion": "^12.34.0",
     "katex": "^0.19.0",
     "lucide-react": "^0.563.0",
@@ -32,8 +27,7 @@
     "react-dom": "19.2.3",
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
-    "remark-math": "^6.0.0",
-    "tailwind-merge": "^3.4.1"
+    "remark-math": "^6.0.0"
   },
   "overrides": {
     "katex": "$katex"

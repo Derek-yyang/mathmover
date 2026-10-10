@@ -10,7 +10,7 @@
  */
 
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { RawApplyResult, RawState } from './types.ts';
+import type { RawState } from './types.ts';
 import { randomBytes } from 'node:crypto';
 
 export interface Pending {
@@ -206,5 +206,3 @@ export class GgbBridgeClient {
 function isRawState(v: unknown): v is RawState {
   return !!v && typeof v === 'object' && Array.isArray((v as RawState).commands);
 }
-
-export type { RawState, RawApplyResult };

@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "functions": {
-    "/api/coursewares": {},
-    "/api/coursewares/[...path]": {},
-    "/icon": {}
-  }
-}

@@ -96,8 +96,3 @@ export function detectRuntimes(candidates: RuntimeDefinition[] = RUNTIMES): Dete
 
   return out;
 }
-
-/** 只返回可用的。 */
-export function usableRuntimes(): DetectedRuntime[] {
-  return detectRuntimes().filter((r) => r.usable);
-}

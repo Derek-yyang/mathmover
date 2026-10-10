@@ -14,11 +14,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.91",
-    "@ai-sdk/react": "^4.0.139",
     "@mathmover/ggb-core": "*",
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "ai": "^7.0.136",
     "ws": "^8.18.0"
   },
   "devDependencies": {

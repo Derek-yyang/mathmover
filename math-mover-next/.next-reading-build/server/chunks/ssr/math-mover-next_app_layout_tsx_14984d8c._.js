@@ -1,3 +1,0 @@
-module.exports=[15118,a=>{"use strict";var b=a.i(14268);function c({children:a}){return(0,b.jsx)("html",{lang:"en",className:"scroll-smooth",children:(0,b.jsx)("body",{className:"font-sans antialiased",children:a})})}a.s(["default",()=>c,"metadata",0,{title:"MathMover - 让数学几何动起来",description:"AI 驱动的数学题目动态演示生成器，秒级将几何题转化为交互式课件。"}])}];
-
-//# sourceMappingURL=math-mover-next_app_layout_tsx_14984d8c._.js.map

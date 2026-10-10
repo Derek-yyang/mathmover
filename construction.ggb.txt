@@ -1,6 +1,0 @@
-# MathMover 当前 GeoGebra 构造（由 daemon 自动写入，勿手改）
-# 这是「真源」——画布上的一切都由下面这些行决定。
-# 修改请调 ggb_apply 工具，直接改本文件无效。
-
-MODE:2D
-f = Function(x^2/4, -3, 3)

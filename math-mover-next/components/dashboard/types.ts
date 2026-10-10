@@ -76,7 +76,6 @@ export interface AgentMeta {
   errorMessage?: string;
   diagnostic?: AgentDiagnostic;
   execution?: AgentExecution;
-  routerMeta?: Record<string, unknown> | null;
   characters?: number;
 }
 
@@ -89,8 +88,3 @@ export interface AgentChatMessage {
   meta?: AgentMeta;
 }
 
-export interface ViewOptions {
-  showAxes: boolean;
-  showGrid: boolean;
-  isFullscreen: boolean;
-}

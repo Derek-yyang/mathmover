@@ -1,7 +1,7 @@
 """Validate SOP imports/examples; --html-dir prepares an isolated GeoGebra QA page.
 
-Run from any directory: .venv/Scripts/python.exe -B scripts/verify_sops.py
-No model calls, user history writes, or credentials are required.
+Run from any directory: python -B scripts/verify_sops.py
+No model calls, user history writes, or credentials are required. Pure stdlib.
 """
 import argparse
 import json

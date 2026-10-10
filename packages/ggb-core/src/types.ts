@@ -35,13 +35,6 @@ export type Mode = '2D' | '3D';
  */
 export type Category = 'A' | 'B' | 'C' | 'D';
 
-export const CATEGORY_LABELS: Record<Category, string> = {
-  A: '函数',
-  B: '平面几何',
-  C: '圆锥曲线',
-  D: '立体几何',
-};
-
 /** 解析后的一条 GGB 指令。 */
 export interface GgbCommand {
   /** 原始行文本（保留原样，用于 diff 与回放） */

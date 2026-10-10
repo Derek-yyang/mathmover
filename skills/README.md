@@ -84,8 +84,8 @@ prompt 装配在 TS 侧（`ggb-core/src/sop.ts`），由其单测覆盖。
 在仓库根目录运行：
 
 ```powershell
-.\.venv\Scripts\python.exe -B scripts\verify_sops.py
-.\.venv\Scripts\python.exe -B scripts\test_command_catalog.py
+python -B scripts/verify_sops.py
+python -B scripts/test_command_catalog.py
 ```
 
 第一项检查引用覆盖、示例与白名单：无孤儿卡、无嵌套引用、每块 ggb 都有示例 id、
@@ -100,8 +100,8 @@ id 与 `sop_examples.json` 一一对应、命令在白名单内、生产解析�
 生成独立浏览器验证页面，服务只暴露临时 QA 目录：
 
 ```powershell
-.\.venv\Scripts\python.exe -B scripts\verify_sops.py --html-dir "$env:TEMP\mathmover-sop-qa"
-.\.venv\Scripts\python.exe -B -m http.server 8766 --bind 127.0.0.1 --directory "$env:TEMP\mathmover-sop-qa"
+python -B scripts/verify_sops.py --html-dir "$env:TEMP\mathmover-sop-qa"
+python -B -m http.server 8766 --bind 127.0.0.1 --directory "$env:TEMP\mathmover-sop-qa"
 ```
 
 打开 http://127.0.0.1:8766/，等两种视图就绪后运行。页面加载与产品同源的 GeoGebra 部署脚本，

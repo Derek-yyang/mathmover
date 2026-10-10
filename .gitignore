@@ -19,6 +19,9 @@ storage-cleanup-*.json
 .local-geogebra-download/
 math-mover-next/public/vendor/geogebra/
 
+# daemon 运行态「真源」构造文件——由 ggb_apply 写入，按 workdir 落地，属本地状态
+construction.ggb.txt
+
 # Python
 __pycache__/
 *.pyc
@@ -31,6 +34,9 @@ venv/
 node_modules/
 math-mover-next/node_modules/
 .next/
+# 除常规 .next 外，reading-copy / 校验流程还会另起一套构建目录——全是产物，别进库
+.next-reading-*/
+.next-copy-verify/
 .next_stuck*/
 .out/
 
