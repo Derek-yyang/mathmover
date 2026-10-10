@@ -9,7 +9,9 @@
 import { describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import {
+  assembleDrawingPack,
   assembleSkill,
+  buildCardIndex,
   buildCatalog,
   buildAllowedCommandsSuffix,
   loadSopCards,
@@ -89,5 +91,39 @@ describe('buildAllowedCommandsSuffix', () => {  const names = loadWhitelist(REPO
       const lows = list.map((n) => n.toLowerCase());
       expect([...lows].sort()).toEqual(lows);
     }
+  });
+});
+
+describe('自由画图入口（非做题链路）', () => {
+  it('全库卡清单不按类别裁剪，也不带流程步骤号', () => {
+    const index = buildCardIndex(REPO_ROOT);
+    expect(index.length).toBe(18);
+    const names = index.map((c) => c.name);
+    // 做题时 A 类拿不到的三维卡，自由画图也该看得到
+    expect(names).toContain('3d-frame');
+    expect(names).toContain('polyhedron-section');
+    for (const c of index) {
+      expect(c.title.length).toBeGreaterThan(0);
+      expect(Object.hasOwn(c, 'step')).toBe(false);
+    }
+  });
+
+  it('画图基础包只有公共约定与通用写法，不含专家建模流程', () => {
+    const { text } = assembleDrawingPack(REPO_ROOT);
+    expect(text).toContain('共同输出约定');
+    expect(text).toContain('通用 GGB 写法');
+    expect(text).not.toContain('## 1. 清点对象'); // 专家 8 步不该混进来
+    expect(text).not.toContain('函数与图像专家');
+    expect(text).not.toContain('{{SOP');
+  });
+
+  it('不给类别时命令约束同时列 2D 与 3D', () => {
+    const names = loadWhitelist(REPO_ROOT).names;
+    const both = buildAllowedCommandsSuffix(undefined, names);
+    expect(both).toContain('构造命令:');
+    expect(both).toContain('3D 构造命令:');
+    // 对照：A/B/C 做题链路仍只列 2D
+    expect(buildAllowedCommandsSuffix('A', names)).not.toContain('3D 构造命令');
+    expect(buildAllowedCommandsSuffix('D', names)).toContain('3D 构造命令');
   });
 });

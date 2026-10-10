@@ -47,7 +47,6 @@ function DashboardContent() {
   const [showAxes, setShowAxes] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const canvasWorkspaceRef = useRef<HTMLDivElement>(null);
 
@@ -223,12 +222,11 @@ function DashboardContent() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (isFullscreen && !document.fullscreenElement) setIsFullscreen(false);
-        if (previewImageUrl) setPreviewImageUrl(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, previewImageUrl]);
+  }, [isFullscreen]);
 
   // 发送消息并触发 Agent 生成流程（支持多轮对话微调）
   /**
@@ -442,35 +440,12 @@ function DashboardContent() {
           sendDisabled={!courseware.canSend}
           loadingStatusText={loadingStatusText}
           onSendMessage={handleSendMessage}
-          onPreviewImage={(url) => setPreviewImageUrl(url)}
           runtimes={runtimes}
           activeRuntimeId={activeRuntimeId}
           onSelectRuntime={handleSelectRuntime}
         />
       </ResizableChatRegion>
 
-      {/* 大图预览弹窗 */}
-      {previewImageUrl && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
-          onClick={() => setPreviewImageUrl(null)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh] bg-white rounded-2xl overflow-hidden p-2 shadow-2xl">
-            <button
-              type="button"
-              onClick={() => setPreviewImageUrl(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <img
-              src={previewImageUrl}
-              alt="原题图大图预览"
-              className="max-h-[85vh] w-auto object-contain rounded-xl"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

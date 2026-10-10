@@ -16,7 +16,7 @@ import { createInterface } from 'node:readline';
 import type { AgentEvent, RuntimeDefinition } from './defs.ts';
 import { resolveExecutable } from './resolve.ts';
 import { withClaudeSettingsEnv } from './claude-env.ts';
-import { materializeImages, type ImageInput } from './images.ts';
+import { materializeImages, toImagePathNote, type ImageInput } from './images.ts';
 
 export interface RunOptions {
   def: RuntimeDefinition;
@@ -26,7 +26,7 @@ export interface RunOptions {
   sessionId?: string;
   /** 多轮续接的会话 id（各家语法由 RuntimeDefinition 自己翻译） */
   resumeSessionId?: string;
-  /** 题目图片（supportsImages 的运行时才递送） */
+  /** 题目图片（设了 imageDelivery 的运行时才递送，通道见 defs.ts） */
   images?: ImageInput[];
   extraArgs?: string[];
   env?: Record<string, string>;
@@ -45,9 +45,21 @@ export interface RunHandle {
 }
 
 export function runAgent(opts: RunOptions): RunHandle {
+  // 图片递送按通道分流（见 defs.ts 的 imageDelivery）：只描述「CLI 怎么收图」，
+  // 模型能不能看懂不建模。prompt-path 通道由本函数把落盘路径补进 prompt。
+  const delivery = opts.def.imageDelivery;
+  const images = delivery ? (opts.images ?? []) : [];
+  const materialized = images.length > 0 && delivery !== 'stdin-json'
+    ? materializeImages(images)
+    : { paths: [] as string[], cleanup: () => {} };
+  const prompt = delivery === 'prompt-path' && materialized.paths.length
+    ? `${opts.prompt}\n\n${toImagePathNote(materialized.paths)}`
+    : opts.prompt;
+
   // argv 传 prompt 的预算守卫：宁可明着拒绝，不要 ENAMETOOLONG 崩 spawn
   const budget = opts.def.maxPromptArgBytes ?? 24_000;
-  if (!opts.def.promptViaStdin && Buffer.byteLength(opts.prompt, 'utf-8') > budget) {
+  if (!opts.def.promptViaStdin && Buffer.byteLength(prompt, 'utf-8') > budget) {
+    materialized.cleanup();
     opts.onEvent({
       kind: 'error',
       message: `prompt 超过命令行预算 ${budget} 字节（${opts.def.displayName} 不支持 stdin 传入），请缩短输入`,
@@ -59,14 +71,8 @@ export function runAgent(opts: RunOptions): RunHandle {
     };
   }
 
-  // 图片递送：有 formatStdinInput 的走 stdin JSONL；否则落临时文件走 argv（codex -i）
-  const images = opts.def.supportsImages ? (opts.images ?? []) : [];
-  const materialized = images.length > 0 && !opts.def.formatStdinInput
-    ? materializeImages(images)
-    : { paths: [] as string[], cleanup: () => {} };
-
   const args = opts.def.buildArgs({
-    prompt: opts.prompt,
+    prompt,
     mcpConfigPath: opts.mcpConfigPath,
     sessionId: opts.sessionId,
     resumeSessionId: opts.resumeSessionId,
@@ -90,8 +96,8 @@ export function runAgent(opts: RunOptions): RunHandle {
   // prompt 通道：stdin 优先（绕 argv 长度上限），argv 模式直接关 stdin 防空等
   if (opts.def.promptViaStdin) {
     const payload = opts.def.formatStdinInput
-      ? opts.def.formatStdinInput(opts.prompt, images)
-      : opts.prompt;
+      ? opts.def.formatStdinInput(prompt, images)
+      : prompt;
     proc.stdin.write(payload);
   }
   proc.stdin.end();

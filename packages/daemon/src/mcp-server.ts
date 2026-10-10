@@ -17,7 +17,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import {
+  assembleDrawingPack,
   assembleSkill,
+  buildCardIndex,
   buildCatalog,
   buildAllowedCommandsSuffix,
   checkLines,
@@ -239,13 +241,54 @@ export function createMcpServer(
     }
   });
 
-  // ── SOP 三工具（P1→P1.5）：流程与写法分家，写法按需取 ────────────
+  // ── 画图工具面 ────────────────────────────────────────────────
+  // 产品定位是 agent 驱动的 GeoGebra 画图工作台。自由画图走 get_drawing_pack；
+  // 只有「拿题图转 GeoGebra」这条链路才需要 A/B/C/D 专家流程（get_expert_prompt）。
+
+  server.registerTool('get_drawing_pack', {
+    title: '取画图基础包 + 全库写法卡清单',
+    description:
+      '**自由画图（用户没给题目图）从这里开始**。一次给两样：① 画图基础包——公共输出约定、' +
+      '每题必用的 GGB 通用写法（MODE/视图/点/线/标签/样式）、严格语法约束（2D+3D 全列）；' +
+      '② 全库写法卡清单（不按类别裁剪，含每张卡的一句话说明与适用输入）。' +
+      '清单只是目录，具体写法要另外用 get_sop_cards 取；不确定怎么写就取，别凭印象编。\n' +
+      '**只有「拿题图转 GeoGebra」才需要专家建模流程**——那种任务改调 get_expert_prompt 并给出题目类别。',
+    inputSchema: {},
+  }, async () => {
+    try {
+      // 自由画图：清掉可能残留的题目类别，免得 submit_construction 误套类别结构检查
+      ledger.category = undefined;
+      ledger.reason = undefined;
+      const { text, characters } = assembleDrawingPack(rootDir);
+      const suffix = buildAllowedCommandsSuffix(undefined, loadWhitelist(rootDir).names);
+      const index = buildCardIndex(rootDir);
+      return {
+        content: [
+          { type: 'text', text: text + suffix },
+          {
+            type: 'text',
+            text:
+              `写法卡清单（全库 ${index.length} 张）——需要哪张就 get_sop_cards 取：\n` +
+              index.map((c) => `- ${c.name}：${c.title}${c.inputs ? `｜输入：${c.inputs}` : ''}`).join('\n'),
+          },
+          {
+            type: 'text',
+            text: JSON.stringify({ mode: 'drawing', characters: characters + suffix.length, cards: index.length, catalog: index }),
+          },
+        ],
+        isError: false,
+      };
+    } catch (e) {
+      return errContent(e);
+    }
+  });
 
   server.registerTool('get_expert_prompt', {
-    title: '取专家流程 + 写法卡清单',
+    title: '取专家建模流程 + 本类写法卡清单',
     description:
-      '本题属于哪一类，就调哪一类的：一次取两样——① 专家 skill（建模流程、每题必用的 GGB 通用写法、严格语法约束）；' +
-      '② 本类的写法卡清单（每张卡的一句话说明 + 适用输入 + 挂在流程第几步）。' +
+      '**题图→GeoGebra 专用**：用户发了题目图片/题面、要把题目变成动图时才调这个，' +
+      '平时自由画图请用 get_drawing_pack。一次取两样——① 专家 skill（8 步建模流程、' +
+      '每题必用的 GGB 通用写法、严格语法约束）；② 本类的写法卡清单（一句话说明 + 适用输入 + 挂在流程第几步）。' +
       '清单只是目录，具体写法要另外用 get_sop_cards 取；不确定怎么写就取，别凭印象编。' +
       'category 由你根据题目自己判（没有单独的分类步骤，调本工具即完成分类）；' +
       '中途发现判错了就换个 category 再调一次，覆盖账本即可。\n分类标准：\n' + CATEGORY_TAXONOMY,
@@ -320,25 +363,22 @@ export function createMcpServer(
   server.registerTool('submit_construction', {
     title: '提交构造（收卷：校验剔除后下发）',
     description:
-      'SOP 流程的收卷动作：提交**完整** GeoGebra 指令清单。自动做两层检查并把失败明细回传给你自行决定改不改' +
+      '收卷动作：提交**完整** GeoGebra 指令清单。自动做两层检查并把失败明细回传给你自行决定改不改' +
       '（不会替你重生成）：① 行级——语法/未知命令的行剔除后下发，明细列出；' +
-      '② 语义级——按账本类别查结构（A 要函数/方程、B 要多边形/圆、C 要圆锥曲线、D 要 3D）' +
-      '与动点自洽（free_param / orphan_slider）。类别从账本取（get_expert_prompt 调用时已登记）。',
+      '② 语义级——动点自洽（free_param / orphan_slider）恒查；' +
+      '若是题图→GeoGebra，再按类别查结构（A 要函数/方程、B 要多边形/圆、C 要圆锥曲线、D 要 3D）。' +
+      '**自由画图不要给 category**，硬套题目类别会得出无关的告警。',
     inputSchema: {
       commands: z.array(z.string()).min(1).describe('完整 GeoGebra 指令清单，每行一条（含 MODE: 首行可选、// 注释可选）'),
       category: z.enum(['A', 'B', 'C', 'D']).optional().describe(
-        '题目类别兜底：同轮内用账本的即可；跨轮续接时（工具进程已换）请把上一轮登记的类别传进来',
+        '题目类别：**仅题图→GeoGebra 链路需要**（那时会多查类别结构）。' +
+        '自由画图不给。不给则用账本里已登记的（get_expert_prompt 写入）；跨轮续接请直接传',
       ),
       png: z.boolean().optional().describe('返回结果是否附带画布截图，默认 true'),
     },
   }, async (args) => {
     try {
       const category = args?.category ?? ledger.category;
-      if (!category) {
-        return errContent(new Error(
-          '账本无类别：先调 get_expert_prompt 取流程（调它即登记类别）；若是跨轮续接，把上一轮的类别直接传给本工具的 category 参数',
-        ));
-      }
       if (args?.category) ledger.category = args.category;
       const rawLines = (args?.commands ?? []).flatMap((c) => String(c).split('\n'));
       const { knownLower } = loadWhitelist(rootDir);
@@ -362,7 +402,9 @@ export function createMcpServer(
 
       const r = await tools.apply(cleaned, { png: args?.png ?? true });
       const content: ToolContent = [
-        { type: 'text', text: `已按类别 ${category} 校验并下发 ${cleaned.length} 行（剔除 ${dropped.size} 行）。` },
+        { type: 'text', text: category
+          ? `已按类别 ${category} 校验并下发 ${cleaned.length} 行（剔除 ${dropped.size} 行）。`
+          : `已校验并下发 ${cleaned.length} 行（剔除 ${dropped.size} 行）。` },
       ];
       if (dropped.size) {
         content.push({

@@ -1,12 +1,16 @@
 /**
  * 图片输入（"发题目图"的感知侧）。
  *
- * 递送通道因 CLI 而异（2026-10-10 实测，见 scripts/diag-image-input.mjs）：
- * - claude：`--input-format stream-json` 的 stdin JSONL 行，
+ * **递送通道与模型能力是两回事**：这里只管「CLI 怎么收图」，模型能不能看懂不建模
+ * （对齐 OpenDesign——它的 RuntimeModelOption 连 vision 标志都没有，换多模态模型即可）。
+ *
+ * 三条通道（2026-10-10 实测，见 scripts/diag-image-input.mjs）：
+ * - `'stdin-json'`  claude：`--input-format stream-json` 的 stdin JSONL 行，
  *   `user.message.content[]` 里放 Anthropic image 块（必须配 --output-format stream-json）
- * - codex：`-i <file>...` 变长旗标收文件路径——**prompt 前必须 `--` 终结**，
+ * - `'argv-paths'`  codex：`-i <file>...` 变长旗标收文件路径——**prompt 前必须 `--` 终结**，
  *   否则 prompt 会被当成第二个图片路径吞掉
- * - dsh：看不了图（supportsImages=false），调用方用 toImagePlaceholder 降级
+ * - `'prompt-path'` dsh 一类没有图片入口的 CLI：落盘后把路径写进 prompt，
+ *   让 agent 自己用读文件工具看（OpenDesign `brands/prefetch.ts` 同款兜底）
  */
 
 import fs from 'node:fs';
@@ -46,9 +50,22 @@ export function validateImages(images: unknown): { images: ImageInput[]; error?:
   return { images: out };
 }
 
-/** 看不了图的运行时的文字降级占位（拼进 prompt）。 */
-export function toImagePlaceholder(count: number): string {
-  return `[用户附上了 ${count} 张题目图片，但你看不到图片内容。请基于文字继续；若必须看图，请提醒用户用文字描述题意。]`;
+/**
+ * `'prompt-path'` 通道的提示：把落盘路径交给 agent，让它自己看图。
+ *
+ * 显式要求「读不了就直说」——别让模型假装看过了。能不能读取决于它自己的读文件工具
+ * 与背后的模型，这里不预判。
+ */
+export function toImagePathNote(paths: string[]): string {
+  return `[用户附上了 ${paths.length} 张题目图片，已保存到：\n${paths.map((p) => `- ${p}`).join('\n')}\n`
+    + `请先用你的读文件/查看图片工具读它们，看清题意再作图；`
+    + `若你读不了这些图片，直接说读不了，并请用户用文字描述题意——不要假装看过。]`;
+}
+
+/** 该 CLI 完全没有图片入口时的文字说明（只陈述递送事实，不评判模型能力）。 */
+export function toImageUndeliveredNote(count: number): string {
+  return `[用户附上了 ${count} 张题目图片，但当前运行时没有图片递送通道，图片未送达。`
+    + `请基于文字继续；若必须看图，请请用户用文字描述题意。]`;
 }
 
 /**

@@ -9,6 +9,9 @@
 @source "../app";
 @source "../components";
 @source "../lib";
+/* Keep chat navigation utilities in the development CSS after incremental builds. */
+@source "../components/dashboard/ConversationIndex.tsx";
+@source "../components/dashboard/AgentChatPanel.tsx";
 
 :root {
   --background: #ffffff;
@@ -52,6 +55,46 @@ body {
 .chat-markdown th, .chat-markdown td { padding: 0.4em 0.7em; border-bottom: 1px solid #e7e5e4; text-align: left; }
 .chat-markdown blockquote { margin: 0.6em 0; padding: 0.5em 0.75em; background: #f5f5f4; border-radius: 8px; }
 .chat-markdown .katex { font-size: 1.05em; }
+
+/* Shared reading surfaces. Dialogs use a portal, outside the clipped chat panel. */
+.reading-dialog-overlay { position: fixed; inset: 0; z-index: 50; background: rgb(28 25 23 / 45%); }
+.reading-dialog { position: fixed; z-index: 50; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(64rem, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 20px; border-radius: 12px; background: #fff; color: #292524; font-size: 14px; outline: none; }
+.reading-dialog-title { padding-right: 36px; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reading-dialog-close { position: absolute; right: 12px; top: 12px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; }
+.reading-icon-button, .image-view-toolbar button, .image-gallery-controls button { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 6px; min-width: 28px; min-height: 28px; padding: 4px 6px; border-radius: 6px; background: #fff; color: #57534e; cursor: pointer; font: 12px Arial, sans-serif; }
+.reading-icon-button:hover, .reading-dialog-close:hover, .image-view-toolbar button:hover, .image-gallery-controls button:hover { background: #f5f5f4; color: #292524; }
+.reading-dialog button:focus-visible, .reading-icon-button:focus-visible, .reading-text-button:focus-visible { outline: 2px solid #047857; outline-offset: 2px; }
+.reading-text-button { display: inline-flex; align-items: center; gap: 6px; border-radius: 4px; color: #57534e; font-size: 12px; cursor: pointer; }
+.reading-text-button:hover { color: #047857; }
+.reading-dialog-footer { display: flex; justify-content: flex-end; margin-top: 12px; }
+.reading-block { display: block; position: relative; min-width: 0; margin: 16px 0; }
+.reading-block-actions { position: absolute; z-index: 1; top: -14px; right: 0; display: flex; align-items: center; border: 1px solid #e7e5e4; border-radius: 6px; background: #fff; opacity: 0; transition: opacity 150ms ease-out; }
+.reading-block:hover > .reading-block-actions, .reading-block:focus-within > .reading-block-actions { opacity: 1; }
+.chat-math-inline { display: inline-block; position: relative; max-width: 100%; vertical-align: baseline; }
+.chat-math-inline > .katex { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.math-inline-action { position: absolute; z-index: 1; right: 0; bottom: 100%; border: 1px solid #e7e5e4; border-radius: 6px; background: #fff; opacity: 0; transition: opacity 150ms ease-out; }
+.chat-math-inline:hover > .math-inline-action, .chat-math-inline:focus-within > .math-inline-action { opacity: 1; }
+.chat-formula-scroll { display: block; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+.chat-formula-scroll .katex-display { margin: 0.5em 0; }
+.reading-expanded-table { max-height: 70dvh; overflow: auto; margin-top: 16px; }
+.reading-expanded-table table { min-width: max-content; }
+.reading-expanded-formula { margin-top: 24px; overflow: auto; max-height: 65dvh; font-size: 22px; padding: 12px 0; }
+.chat-code-block { margin: 12px 0; min-width: 0; overflow: hidden; border: 1px solid #e7e5e4; border-radius: 8px; background: #f5f5f4; }
+.chat-code-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 4px 12px; font-size: 12px; color: #57534e; border-bottom: 1px solid #e7e5e4; }
+.chat-code-header .reading-icon-button { background: transparent; }
+.chat-code-block pre, .chat-markdown .chat-code-block pre { margin: 0; padding: 12px; overflow: auto; overscroll-behavior: contain; border-radius: 0; font-size: 12px; line-height: 1.7; background: transparent; }
+.chat-code-block code { font-family: var(--font-geist-mono), monospace; }
+.code-expand { padding: 8px 12px; width: 100%; border-top: 1px solid #e7e5e4; }
+.image-view-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
+.image-view-toolbar > span { min-width: 42px; font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
+.image-view-toolbar button:disabled, .image-gallery-controls button[aria-disabled=true] { color: #a8a29e; cursor: default; }
+.image-view-viewport { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; width: 100%; height: min(65dvh, 680px); border-radius: 8px; background: #f5f5f4; touch-action: none; cursor: grab; user-select: none; }
+.image-view-viewport.is-dragging { cursor: grabbing; }
+.image-view-viewport img { position: absolute; left: 50%; top: 50%; max-width: none; transform-origin: center; user-select: none; }
+.image-gallery-controls { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+@media (hover: none) { .reading-block-actions, .math-inline-action { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .reading-block-actions, .math-inline-action { transition: none; } }
+@media (max-width: 480px) { .reading-dialog { padding: 12px; width: calc(100vw - 16px); max-height: calc(100dvh - 16px); } .image-view-toolbar { gap: 4px; } }
 
 /* Keep sidebar content at its natural width: only the workspace boundary moves. */
 .dashboard-sidebar {

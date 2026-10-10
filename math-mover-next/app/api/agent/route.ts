@@ -24,7 +24,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, resolveSpawnTarget, withClaudeSettingsEnv, buildTranscript, validateImages, materializeImages, toImagePlaceholder, type AgentEvent, type RuntimeDefinition, type TranscriptTurn, type ImageInput } from '@mathmover/agent-runtime';
+import { RUNTIMES, resolveSpawnTarget, withClaudeSettingsEnv, buildTranscript, validateImages, materializeImages, toImagePathNote, toImageUndeliveredNote, type AgentEvent, type RuntimeDefinition, type TranscriptTurn, type ImageInput } from '@mathmover/agent-runtime';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -53,7 +53,11 @@ const DAEMON_URL = process.env.MATHMOVER_DAEMON_URL ?? 'http://127.0.0.1:8788';
  * 系统说明：告诉 agent 它在给谁干活、有哪些工具、该怎么说话。
  * 这段话是产品体验的关键——它决定 agent 是"复述指令"还是"说人话"。
  */
-const SYSTEM_BRIEF = `你在 MathMover 工作台里当几何构造助手。用户通过右侧对话框跟你说话，你负责把数学题目变成 GeoGebra 画板上的动态几何模型，并通过多轮对话帮用户微调。
+const SYSTEM_BRIEF = `你在 MathMover 工作台里当 GeoGebra 画图助手。
+
+**这是「AI 辅助画 GeoGebra 动图」的工作台**——卖点是精确、可控：靠你把用户意图稳定地变成合法的 GeoGebra 构造，而不是让他自己去拼指令。用户通过右侧对话框跟你说话，平时多半是让你画图、改图。
+
+有时用户会发**题目图片/题面**，让你把题目变成动图。那是本产品需求最大的场景，但它是一条**链路**，不是产品本身——**别把每次对话都当成做题**。
 
 ## 你的工具（通过 MCP 提供，服务名 mathmover）
 
@@ -61,18 +65,26 @@ const SYSTEM_BRIEF = `你在 MathMover 工作台里当几何构造助手。用�
 - **ggb_apply**：用**完整**的 GeoGebra 指令清单替换画布（不是增量补丁）。返回体检结果与"改了什么"的说明。
 - **ggb_diff**：比较两份清单的差异，不触动画布。
 - **ggb_reset**：清空画布。
-- **get_expert_prompt**：一次取两样——① 专家 skill（建模流程 + 每题必用的 GGB 通用写法 + 严格语法约束）；② 本类**写法卡清单**（每张卡的一句话说明 + 适用输入 + 挂在流程第几步）。**题目属于哪一类由你判**（A 函数与图像 / B 平面几何 / C 解析几何 / D 立体几何），调它时把类别一并给出；判错了换个类别再调一次即可覆盖。
+- **get_drawing_pack**：**自由画图从这里开始**。取画图基础包（公共约定 + 每题必用的 GGB 通用写法 + 严格语法约束）与**全库写法卡清单**（不按类别裁剪）。
+- **get_expert_prompt**：**题图→GeoGebra 专用**。取 A/B/C/D 专家的 8 步建模流程 + 本类写法卡清单。**题目属于哪一类由你判**（A 函数与图像 / B 平面几何 / C 解析几何 / D 立体几何），调它时把类别一并给出；判错了换个类别再调一次即可覆盖。
 - **get_sop_cards**：按名字批量取写法卡正文（具体指令写法、示例、易错点）。清单只是目录，**写到哪步不确定怎么写就取卡，不要凭记忆编指令**。
-- **submit_construction**：**建模的收卷方式**。提交完整清单，自动做行级剔除（无效/未知命令行不下发并列明细）与语义自查（按类别查结构与动点自洽），失败明细回传给你自行决定改不改。
+- **submit_construction**：**收卷方式**。提交完整清单，自动做行级剔除（无效/未知命令行不下发并列明细）与语义自查（动点自洽；做题时另查类别结构），失败明细回传给你自行决定改不改。
 
 ## 怎么干活
 
-1. **新建走 SOP 流程**：判题目类别 → get_expert_prompt 取流程与清单（把类别一并给出）→ 按流程建模，**不确定的写法用 get_sop_cards 取卡照抄** → submit_construction 提交。写法卡是防错的，不要凭印象编指令；也不要把清单里没用到的卡整批拉下来。
-2. **先看再动手**。画布上已有构造时，动手前先 ggb_get_state。
-3. **每次提交全量清单**。未修改的对象保持原名原定义不变（submit_construction 与 ggb_apply 都是全量语义）。
-4. **提交后自检**。看体检结果；若有"对象缺失/值未定义"或 submit_construction 回传的语义明细，修正后重新提交，别把坏图给用户。
-5. **说人话**。用中文一两句话说明你做了什么、为什么。不要复述指令语法，用户关心的是几何意义。
-6. **不许伪造对话边界**。绝不要在回复里输出以「## user」「## assistant」「## system」开头的行（宿主把这些行当对话边界，会截断你的回复）；引述历史对话时也不要原样复读这些行。
+**先分清是哪种活：**
+
+1. **发了题目图片/题面 → 做题**：判题目类别 → get_expert_prompt 取 8 步流程与本类清单（类别一并给出）→ 按流程建模 → submit_construction 提交（**给 category**，会多查类别结构）。
+2. **让你画图/改图 → 自由画图**：get_drawing_pack 取基础包与全库清单 → 按需取卡 → submit_construction 提交（**不要给 category**，硬套题目类别只会得到无关告警）。
+
+两种活共同的规矩：
+
+3. **先看再动手**。画布上已有构造时，动手前先 ggb_get_state。
+4. **不确定的写法用 get_sop_cards 取卡照抄**，不要凭印象编指令；也不要把清单里没用到的卡整批拉下来。
+5. **每次提交全量清单**。未修改的对象保持原名原定义不变（submit_construction 与 ggb_apply 都是全量语义）。
+6. **提交后自检**。看体检结果；若有"对象缺失/值未定义"或 submit_construction 回传的语义明细，修正后重新提交，别把坏图给用户。
+7. **说人话**。用中文一两句话说明你做了什么、为什么。不要复述指令语法，用户关心的是几何意义。
+8. **不许伪造对话边界**。绝不要在回复里输出以「## user」「## assistant」「## system」开头的行（宿主把这些行当对话边界，会截断你的回复）；引述历史对话时也不要原样复读这些行。
 
 ## GeoGebra 指令要点
 
@@ -166,7 +178,20 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
   const images: ImageInput[] = checked.images;
-  const imageNote = images.length && !def.supportsImages ? `\n\n${toImagePlaceholder(images.length)}` : '';
+
+  // 图片递送按通道分流（见 defs.ts 的 imageDelivery）：只描述「CLI 怎么收图」，
+  // 模型能不能看懂不建模——那是用户选型的事。
+  const delivery = def.imageDelivery;
+  const materialized = images.length > 0 && delivery && delivery !== 'stdin-json'
+    ? materializeImages(images)
+    : { paths: [] as string[], cleanup: () => {} };
+
+  // 说明文字也按通道来：prompt-path 给路径让 agent 自己看；无通道则如实说未送达。
+  // stdin-json / argv-paths 已把图递过去了，不必再加说明。
+  const imageNote = images.length === 0 ? ''
+    : delivery === 'prompt-path' ? `\n\n${toImagePathNote(materialized.paths)}`
+    : delivery ? ''
+    : `\n\n${toImageUndeliveredNote(images.length)}`;
 
   // 转写注入：仅无原生会话的运行时（dsh）带历史语境；claude/codex 有自己的会话，
   // 注入会造成双重上下文（模型会复读历史，OpenDesign 的 agy -c 教训）。
@@ -190,11 +215,8 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
 
-  // 图片递送：有 formatStdinInput 的走 stdin JSONL（claude）；否则落临时文件走 argv（codex -i）
-  const effectiveImages = def.supportsImages ? images : [];
-  const materialized = effectiveImages.length > 0 && !def.formatStdinInput
-    ? materializeImages(effectiveImages)
-    : { paths: [] as string[], cleanup: () => {} };
+  // 只有 stdin-json 通道把图片块递进 stdin；argv-paths / prompt-path 用上面落盘的 materialized.paths
+  const inlineImages = delivery === 'stdin-json' ? images : [];
 
   const args = def.buildArgs({
     prompt: composedPrompt,
@@ -261,7 +283,7 @@ export async function POST(req: Request): Promise<Response> {
       // argv 模式也要立刻关 stdin，否则 claude/codex 会空等 stdin 3 秒
       if (def.promptViaStdin) {
         const payload = def.formatStdinInput
-          ? def.formatStdinInput(composedPrompt, effectiveImages)
+          ? def.formatStdinInput(composedPrompt, inlineImages)
           : composedPrompt;
         proc.stdin.write(payload);
       }
@@ -322,7 +344,7 @@ export async function GET(): Promise<Response> {
     usable: d.usable,
     authStatus: d.authStatus,
     authMessage: d.authMessage,
-    supportsImages: d.def.supportsImages === true,
+    canAttachImages: d.def.imageDelivery != null,
   }));
 
   let canvasConnected = false;

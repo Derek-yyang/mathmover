@@ -82,8 +82,20 @@ export interface RuntimeDefinition {
   maxPromptArgBytes?: number;
   /** 登录预检：版本探测后跑一次，按输出判 authStatus（选择器提示用）。 */
   authProbe?: { args: string[]; timeoutMs?: number };
-  /** 能不能看图（dsh 看不了）。UI 据此禁用粘贴图片，路由降级为占位文本。 */
-  supportsImages?: boolean;
+  /**
+   * 图片递送通道——**只描述「CLI 怎么收图」，不描述「模型能不能看懂」**。
+   *
+   * 模型能力刻意不建模（对齐 OpenDesign：其 RuntimeModelOption 连 vision 标志都没有，
+   * 换多模态模型即可）。代码不该替用户判死模型，那是用户选型的事。
+   *
+   * - `'stdin-json'`   图片进 stdin 的 JSONL（Anthropic image 块），需配 formatStdinInput
+   * - `'argv-paths'`   落盘后以文件路径入参（OpenDesign 的 `supportsImagePaths`），
+   *                    需 buildArgs 消费 imagePaths
+   * - `'prompt-path'`  落盘后把路径写进 prompt，让 agent 自己用读文件工具看
+   *                    （OpenDesign `brands/prefetch.ts` 的做法，与 CLI 图片通道无关）
+   * - 不设 = 该 CLI 完全没有图片入口，UI 才禁用贴图
+   */
+  imageDelivery?: 'stdin-json' | 'argv-paths' | 'prompt-path';
   /**
    * 自定义 stdin 载荷格式。缺省 = prompt 原文（codex/dsh）。
    * claude 在有图时必须走 stream-json JSONL（Anthropic image 块）。
@@ -136,8 +148,8 @@ export const claudeCode: RuntimeDefinition = {
   probeArgs: ['--version'],
   requiresVerbose: true,
   promptViaStdin: true,
-  supportsImages: true,
   // 图片与文本统一走 stream-json JSONL 输入行（Anthropic image 块）
+  imageDelivery: 'stdin-json',
   formatStdinInput: (prompt, images) => formatClaudeStreamJsonInput(prompt, images),
   authProbe: { args: ['auth', 'status'], timeoutMs: 5000 },
   buildArgs({ prompt, mcpConfigPath, sessionId, resumeSessionId, extraArgs = [] }) {
@@ -319,7 +331,8 @@ export const codex: RuntimeDefinition = {
   executable: 'codex',
   probeArgs: ['--version'],
   promptViaStdin: true,
-  supportsImages: true,
+  // 落盘后走 `-i <file>...`（buildArgs 消费 imagePaths）
+  imageDelivery: 'argv-paths',
   authProbe: { args: ['login', 'status'], timeoutMs: 5000 },
   buildArgs({ prompt, mcpConfigPath, resumeSessionId, imagePaths = [], extraArgs = [] }) {
     // prompt 不进 argv：`-` 位置参数表示读 stdin（exec 与 exec resume 同语义）。
@@ -416,8 +429,10 @@ export const dsh: RuntimeDefinition = {
   probeArgs: ['--version'],
   // headless 无原生会话：多轮靠转写注入（buildTranscript），不再标"单轮"
   recomposesHistory: true,
-  // DeepSeek 模型看不了图（实测它自己会说"PNG 我这个模型看不了"）
-  supportsImages: false,
+  // dsh 没有任何图片入口（task 走 argv、headless 不读 stdin），但**这不是终点**：
+  // 走「落盘 + prompt 里给路径」让 agent 自己用读文件工具看（OpenDesign 同款兜底）。
+  // 模型能不能看懂是模型的事——换多模态模型即可，这里不替用户判死。
+  imageDelivery: 'prompt-path',
   // task 走 argv 位置参数（headless 不读 stdin），超预算直接拒绝
   maxPromptArgBytes: 24_000,
   buildArgs({ prompt, mcpConfigPath, extraArgs = [] }) {

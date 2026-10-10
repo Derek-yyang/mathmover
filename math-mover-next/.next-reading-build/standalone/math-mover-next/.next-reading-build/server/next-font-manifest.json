@@ -1,0 +1,10 @@
+{
+  "app": {
+    "[project]/math-mover-next/app/_not-found/page": [],
+    "[project]/math-mover-next/app/dashboard/page": [],
+    "[project]/math-mover-next/app/page": []
+  },
+  "appUsingSizeAdjust": false,
+  "pages": {},
+  "pagesUsingSizeAdjust": false
+}

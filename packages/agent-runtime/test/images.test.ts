@@ -1,17 +1,18 @@
 /**
- * 图片输入通道 —— 校验、claude stdin JSONL 形状、codex -i 布局、降级占位。
+ * 图片输入通道 —— 校验、claude stdin JSONL 形状、codex -i 布局、prompt-path 说明。
  * 真实形状校准见 scripts/diag-image-input.mjs（2026-10-10 用 case1.png 实测）。
  */
 
 import { describe, expect, it } from 'vitest';
 import {
   formatClaudeStreamJsonInput,
-  toImagePlaceholder,
+  toImagePathNote,
+  toImageUndeliveredNote,
   validateImages,
   MAX_IMAGES_PER_TURN,
   type ImageInput,
 } from '../src/images.ts';
-import { codex, dsh } from '../src/defs.ts';
+import { claudeCode, codex, dsh } from '../src/defs.ts';
 
 const png: ImageInput = { mediaType: 'image/png', base64: 'aGVsbG8=', name: '题.png' };
 
@@ -75,16 +76,29 @@ describe('codex buildArgs 图片布局', () => {
   });
 });
 
-describe('能力旗标与降级占位', () => {
-  it('dsh 看不了图，claude/codex 可以', () => {
-    expect(dsh.supportsImages).toBe(false);
-    expect(codex.supportsImages).toBe(true);
+describe('图片递送通道与说明文案', () => {
+  it('三家各走一条通道（只描述 CLI 怎么收图，不评判模型能力）', () => {
+    expect(claudeCode.imageDelivery).toBe('stdin-json');
+    expect(codex.imageDelivery).toBe('argv-paths');
+    // dsh 没有任何图片入口 → 落盘把路径交给 agent 自己看
+    expect(dsh.imageDelivery).toBe('prompt-path');
   });
 
-  it('占位文本说明看不到图并要求文字描述', () => {
-    const t = toImagePlaceholder(2);
+  it('prompt-path 说明给出落盘路径，并要求读不了就直说', () => {
+    const t = toImagePathNote(['/tmp/a.png', '/tmp/b.png']);
+    expect(t).toContain('/tmp/a.png');
+    expect(t).toContain('/tmp/b.png');
     expect(t).toContain('2 张');
-    expect(t).toContain('看不到');
-    expect(t).toContain('文字描述');
+    expect(t).toContain('读不了');
+    expect(t).toContain('不要假装看过');
+  });
+
+  it('未送达说明只讲递送事实，不宣称模型看不了图', () => {
+    const t = toImageUndeliveredNote(3);
+    expect(t).toContain('3 张');
+    expect(t).toContain('没有图片递送通道');
+    // 回归护栏：不许再把「模型能不能看图」写死进文案
+    expect(t).not.toContain('你看不到');
+    expect(t).not.toContain('看不了图');
   });
 });

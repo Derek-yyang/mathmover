@@ -160,6 +160,41 @@ export function assembleSkill(category: string, rootDir: string): SkillAssembly 
   };
 }
 
+/** 全库写法卡清单条目（不带流程步骤号，不按类别裁剪）。 */
+export interface SopIndexEntry {
+  name: string;
+  title: string;
+  inputs: string;
+}
+
+/**
+ * 全库写法卡清单——**18 张全给，不按类别裁剪**。
+ * 自由画图走这条：agent 看清单挑卡即可，不必先声明题目类别。
+ * 做题另走 buildCatalog（带流程步骤号、只列本类引用的卡）。
+ */
+export function buildCardIndex(rootDir: string): SopIndexEntry[] {
+  return fs.readdirSync(path.join(rootDir, 'skills', 'shared', 'sops'))
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => f.replace(/\.md$/, ''))
+    .sort()
+    .map((name) => ({ name, ...readCardMeta(rootDir, name) }));
+}
+
+/**
+ * 自由画图的基础包：公共约定 + 通用 GGB 写法，**不含专家建模流程**。
+ *
+ * 产品定位是 agent 驱动的 GeoGebra 画图工作台；题图→GGB 只是其中一条链路，
+ * 那条链路才需要 A/B/C/D 的 8 步方法论（assembleSkill）。平时 chat 画图，
+ * 模型自身能力 + 本包 + 写法卡就够。
+ */
+export function assembleDrawingPack(rootDir: string): { text: string; characters: number } {
+  const text = [
+    read(path.join(rootDir, 'skills', 'shared', 'generation-rules.md')),
+    read(path.join(rootDir, 'skills', 'shared', 'ggb-basics.md')),
+  ].join('\n\n').trim();
+  return { text, characters: text.length };
+}
+
 /** 该类的写法卡清单（名字 + 一句话说明 + 适用输入 + 所属步骤）。 */
 export function buildCatalog(category: string, rootDir: string): SopCatalogEntry[] {
   const skillRaw = stripFrontmatter(read(skillPath(rootDir, category)));
@@ -209,8 +244,14 @@ export function loadSopCards(
  * app.py:build_allowed_commands_suffix 的移植——
  * 与解析白名单同源的"严格语法约束"prompt 尾巴。
  */
-export function buildAllowedCommandsSuffix(category: string, names: WhitelistNames): string {
-  const views: Array<'2d' | '3d'> = category === 'D' ? ['2d', '3d'] : ['2d'];
+/**
+ * 命令约束后缀（与校验白名单同源）。
+ *
+ * `category` 决定列 2D 还是 2D+3D：A/B/C 只做二维故只列 2D，D 类给全。
+ * **不给类别时两种都列**——自由画图可能是二维也可能是三维，不该按做题分类裁剪。
+ */
+export function buildAllowedCommandsSuffix(category: string | undefined, names: WhitelistNames): string {
+  const views: Array<'2d' | '3d'> = category && category !== 'D' ? ['2d'] : ['2d', '3d'];
   const ctorLines: string[] = [];
   for (const v of views) {
     const cmds = names[v];

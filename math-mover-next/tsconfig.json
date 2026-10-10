@@ -39,7 +39,9 @@
     ".next-library-test/types/**/*.ts",
     ".next-library-test/dev/types/**/*.ts",
     ".next-library-build/types/**/*.ts",
-    ".next-library-build/dev/types/**/*.ts"
+    ".next-library-build/dev/types/**/*.ts",
+    ".next-reading-build/types/**/*.ts",
+    ".next-reading-build/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

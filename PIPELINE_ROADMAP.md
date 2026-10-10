@@ -111,9 +111,11 @@ skill 仍让模型「求出可确定参数/系数」并自己核对坐标，这�
 | ~~L2 性质判分~~ | ~~开发内环主标尺：全量跑批、精确归因~~ | **工具已不在仓库**（`scripts/properties.py`、`bench_run.py` 随一次性生成管线退役） |
 | ~~L3 视觉判官~~ | ~~产品仲裁：无头渲染 + 滑块多帧交互 + VLM 对照题目图判分~~ | **工具已不在仓库**（`scripts/l3_run.py` 同上） |
 
-> 2026-10-10 记录：**L2/L3 的跑批工具已随一次性生成管线一并退役**，`scripts/` 下
-> 现在没有 benchmark / bench_run / properties / l3_run。下面的数字是当时的实测结果，
-> 保留作度量口径的参考；真要用得重建工具（并按现状改成对 agent 链路跑分，见 P3）。
+> 2026-10-10 记录：**L2/L3 的跑批工具已删除**，`scripts/` 下现在没有 benchmark /
+> bench_run / properties / l3_run。**这是主动删除，不是随管线丢失**——旧判分本身
+> 不可信（见下：性质清单带构造习惯残留、判官有冤枉与放水、L1 因构造偏见退役），
+> 原样重建只会把同样的毛病带回来。下面的数字是当时的实测结果，保留作度量口径的
+> 参考；后续要建的是一套**更可信的判分**，不是复原旧工具。
 
 L3 实现要点：滑块 `setValue` 首中末三帧（等同拖动，解决单帧遮挡与联动验证）；
 3D 题先 `setPerspective('T')` 等视图就绪再执行指令；判题模型与产品同通道（原 `config.json`，已删）。
@@ -186,6 +188,8 @@ Python 一次性生成管线（Router → Specialist → 校验）没有任何�
 ### - [ ] P3：回归基准集
 
 攒 50~200 道代表题 + 各自期望的关键对象清单，形成自动化回归套件。
+**动手前先读 `docs/tuning-surfaces.md`**——调参面清单，列清了改哪儿能改变出图
+（不止 skill 与 SOP 卡，还有 agent 读到的说明书、反馈文案、判据），以及谁守着哪些。
 现在要换的是 **agent CLI**（claude-code / codex / dsh，见
 `packages/agent-runtime/src/defs.ts` 的 `RUNTIMES`）和它们背后的模型——
 没有这个套件，任何一次换 CLI / 换模型都是在盲飞。
@@ -194,9 +198,11 @@ Python 一次性生成管线（Router → Specialist → 校验）没有任何�
   `ggb-core/src/semantic.ts` 的 `semanticCheck` 按类别查结构，`ggb_get_state`
   给对象清单，`submit_construction` 回传行级/语义明细；链路怎么跑可参考
   `math-mover-next/scripts/smoke-agent-route.mjs` 与 `scripts/e2e-chat-panel.mjs`
-- **注意：判分工具也得一并重建**——原 L1/L2/L3 的 `scripts/benchmark.py`、
-  `bench_run.py`、`properties.py`、`l3_run.py` 已随管线退役、不在仓库。
-  L2 性质判分与 L3 视觉判官的度量口径见下文「三层度量体系」，数字可作参考
+- **注意：判分这块要新建，不是复原**——原 L1/L2/L3 的 `scripts/benchmark.py`、
+  `bench_run.py`、`properties.py`、`l3_run.py` 已被主动删除（旧判分本身不可信，
+  见下文三层度量体系）。重造时必须避开旧毛病：**别把某家模型的构造习惯写进断言**
+  （`point_at` 类过严就是这么来的），断言要写成与构造方式无关的数学性质；
+  判官模型自身也要有校准依据（旧判官 21 例里冤枉 2、放水 2）
 - 验收标准：换 CLI / 换模型时一键跑分并输出各题 pass/fail 报告
 
 ### - [ ] P4：质量遥测

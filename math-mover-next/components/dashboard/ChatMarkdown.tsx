@@ -5,16 +5,20 @@ import { MarkdownTextPrimitive, normalizeMathDelimiters } from '@assistant-ui/re
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import { rehypeMathSource } from '@/lib/reading-content';
+import { ChatCodeBlock, ReadingSpan, ReadingTable } from './ReadingContent';
 
 const remarkPlugins = [remarkGfm, remarkMath];
-const rehypePlugins = [rehypeKatex];
+const rehypePlugins = [rehypeKatex, rehypeMathSource];
 const components = {
   a: ({ children, href }: React.ComponentPropsWithoutRef<'a'>) =>
     <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
   // Agent Markdown must not automatically fetch remote image URLs.
   img: ({ alt }: React.ComponentPropsWithoutRef<'img'>) => <span>[图片：{alt || '未加载'}]</span>,
-  table: ({ children }: React.ComponentPropsWithoutRef<'table'>) =>
-    <div className="chat-table-scroll"><table>{children}</table></div>,
+  table: ReadingTable,
+  span: ReadingSpan,
+  CodeHeader: () => null,
+  SyntaxHighlighter: ChatCodeBlock,
 };
 
 export default memo(function ChatMarkdown() {

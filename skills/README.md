@@ -12,12 +12,19 @@ skill 的编号流程始终完整加载，模型仍直接读取原题文字/图�
 题目类别由调用方给出（agent 自己判；分类路由与一次性生成管线均已下线）。
 卡片集合和插入位置只由 skill 决定，不由调用方临时指定。
 
-`ggb-core/src/sop.ts` 提供 agent 链路这一套装配：
+`ggb-core/src/sop.ts` 提供两套装配，共用同一批源文件：
 
 ```text
-公共约定 + 通用 GGB 写法 + 专家步骤（{{SOP:*}} 只留指路行）
-get_expert_prompt 返回 skill 与本类写法卡清单，具体写法由 get_sop_cards 按名批量抽取
+画图基础包 assembleDrawingPack：公共约定 + 通用 GGB 写法
+  → get_drawing_pack 给「自由画图」用，附全库写法卡清单（不按类别裁剪）
+
+专家包 assembleSkill：公共约定 + 通用 GGB 写法 + 专家步骤（{{SOP:*}} 只留指路行）
+  → get_expert_prompt 给「题图→GeoGebra」用，附本类清单（带流程步骤号）
 ```
+
+产品定位是 agent 驱动的 GeoGebra 画图工作台，题图→GGB 只是其中一条链路——
+**4 份 SKILL 的建模方法论只服务那条链路**，平时画图用不到。两者的具体写法
+都由 `get_sop_cards` 按名批量抽取。
 
 原先还有卡片原位内联的 `assembleExpertPrompt`（+ 命令白名单），配 Python
 `expert_prompts.py` 作参考实现、用 `prompt-goldens.json` 做逐字节对拍；

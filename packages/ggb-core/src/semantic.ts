@@ -149,8 +149,15 @@ export function checkLines(text: string, knownCommandLower: Set<string>): LineCh
   };
 }
 
+/**
+ * 语义自查。
+ *
+ * `category` 只在**做题链路**给出（题图→GGB）：那时额外查 category_structure
+ * （A 要函数、B 要多边形/圆…）。自由画图不给类别——「画条线段」被要求"缺函数对象"
+ * 是废话，所以类别结构检查按需启用，其余检查（语法率、文字残留、动点自洽）恒跑。
+ */
 export function semanticCheck(
-  category: string,
+  category: string | undefined,
   candidateText: string,
   opts: { knownCommandLower?: Set<string>; mode?: Mode } = {},
 ): SemanticResult {

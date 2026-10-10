@@ -72,3 +72,23 @@ describe('stripTextObjects', () => {
     expect(out).not.toContain('SetColor(msg');
   });
 });
+
+describe('category_structure 按需启用', () => {
+  const bare = 'A = Point(0, 0)\nB = Point(1, 1)';
+
+  it('自由画图不给类别时，不套题目类别结构', () => {
+    // 「画两个点」不该被要求"缺函数对象"——那只是做题链路的要求
+    const r = semanticCheck(undefined, bare, { knownCommandLower: KNOWN });
+    expect(r.failures.some((f) => f.check === 'category_structure')).toBe(false);
+  });
+
+  it('做题给了类别时照旧查结构', () => {
+    const r = semanticCheck('A', bare, { knownCommandLower: KNOWN });
+    expect(r.failures.some((f) => f.check === 'category_structure')).toBe(true);
+  });
+
+  it('动点自洽与文字残留与类别无关，恒查', () => {
+    const r = semanticCheck(undefined, 'A = Point(0, 0)\nmsg = Text("hi")', { knownCommandLower: KNOWN });
+    expect(r.failures.some((f) => f.check === 'no_text')).toBe(true);
+  });
+});
