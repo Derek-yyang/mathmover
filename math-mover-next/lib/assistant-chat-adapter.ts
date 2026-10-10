@@ -9,7 +9,7 @@ export function assistantMessagePhase(message: AgentChatMessage): AssistantMessa
   // 用户主动打断：内容是残的，但既不是失败也不是正常结束
   if (meta.status === 'stopped' || meta.execution?.status === 'stopped') return 'stopped';
   if (meta.status === 'error' || meta.execution?.status === 'error' || meta.execution?.status === 'unconfirmed') return 'error';
-  if (meta.status === 'classifying' || meta.status === 'generating' || meta.execution?.status === 'running') return 'running';
+  if (meta.status === 'generating' || meta.execution?.status === 'running') return 'running';
   return 'complete';
 }
 

@@ -21,7 +21,6 @@ test('projection preserves identity and host metadata without mutating saved mes
 test('error, streaming and finished states are explicit; user messages are not running', () => {
   assert.deepEqual(toAssistantMessage(message({status:'error'})).status, {type:'incomplete',reason:'error'});
   assert.deepEqual(toAssistantMessage(message({status:'generating'})).status, {type:'running'});
-  assert.deepEqual(toAssistantMessage(message({status:'classifying'})).status, {type:'running'});
   assert.deepEqual(toAssistantMessage(message({execution:{status:'running'}})).status, {type:'running'});
   assert.deepEqual(toAssistantMessage(message({execution:{status:'error'}})).status, {type:'incomplete',reason:'error'});
   assert.deepEqual(toAssistantMessage(message({execution:{status:'unconfirmed'}})).status, {type:'incomplete',reason:'error'});
@@ -31,14 +30,12 @@ test('error, streaming and finished states are explicit; user messages are not r
 
 test('copy action stays unavailable while a message is running', () => {
   assert.equal(assistantMessagePhase(message({status:'generating'})), 'running');
-  assert.equal(assistantMessagePhase(message({status:'classifying'})), 'running');
   assert.equal(assistantMessagePhase(message({execution:{status:'running'}})), 'running');
   assert.equal(assistantMessagePhase(message({status:'completed'})), 'complete');
   assert.equal(assistantMessagePhase(message()), 'complete');
   assert.equal(assistantMessagePhase(message({status:'error'})), 'error');
 
   assert.equal(canCopyAgentMessage(message({status:'generating'})), false);
-  assert.equal(canCopyAgentMessage(message({status:'classifying'})), false);
   assert.equal(canCopyAgentMessage(message({execution:{status:'running'}})), false);
   assert.equal(canCopyAgentMessage(message({status:'completed'})), true);
   assert.equal(canCopyAgentMessage(message({status:'error'})), true);

@@ -19,7 +19,7 @@ export function executionPresentation(execution: AgentExecution) {
 }
 
 export function runResultPresentation(meta?: AgentMeta) {
-  if (!meta || meta.status === 'generating' || meta.status === 'classifying' || meta.execution?.status === 'running') return null;
+  if (!meta || meta.status === 'generating' || meta.execution?.status === 'running') return null;
   const execution = meta.execution;
   const audit = meta.auditResult;
   const commands = meta.commands?.length ?? 0;

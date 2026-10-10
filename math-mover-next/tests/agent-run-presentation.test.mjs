@@ -53,7 +53,7 @@ test('clean audit claims only absence of object issues, and active runs have no 
   assert.equal(result.check, '未发现对象缺失或数值异常');
   assert.equal(result.commands, 1);
   assert.equal(result.category, '平面几何');
-  for (const status of ['generating', 'classifying']) assert.equal(runResultPresentation({ ...meta, status }), null);
+  assert.equal(runResultPresentation({ ...meta, status: 'generating' }), null);
   assert.equal(runResultPresentation({ ...meta, execution: run([], 'running') }), null);
 });
 
