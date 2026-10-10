@@ -10,8 +10,7 @@
  */
 
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { RawState } from './types.ts';
-import { GGB_ERROR } from '@mathmover/ggb-core';
+import { GGB_ERROR, type RawState } from '@mathmover/ggb-core';
 import { randomBytes } from 'node:crypto';
 
 export interface Pending {

@@ -1,5 +1,11 @@
 import type { AgentDiagnostic } from '@/lib/agent-diagnostics';
 import type { AgentExecution } from '@/lib/agent-progress';
+// 体检类型是跨进程共享的领域契约，唯一真源在 ggb-core（本文件曾有第三份副本）。
+// 注意只走子路径导出，不要从 '@mathmover/ggb-core' 整包引——那会把 sop/whitelist
+// 连同 node:fs 拖进浏览器产物。
+import type { AuditFinding, AuditResult } from '@mathmover/ggb-core/types';
+
+export type { AuditFinding, AuditResult };
 
 export type CoursewareExportFormat = 'html' | 'ggb' | 'png';
 
@@ -51,19 +57,6 @@ export interface SliderItem {
   max: number;
   step?: number;
   isAnimating?: boolean;
-}
-
-export interface AuditFinding {
-  kind: 'missing' | 'undefined';
-  name: string;
-  line: string;
-}
-
-export interface AuditResult {
-  findings: AuditFinding[];
-  missing: AuditFinding[];
-  undefinedObjs: AuditFinding[];
-  degraded: boolean;
 }
 
 export interface ChatAttachment {

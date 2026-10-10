@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { GeoGebraApi, SliderItem, AuditResult } from '@/components/dashboard/types';
-import { auditConstruction } from '@/lib/ggb-audit';
+// 体检算法唯一真源在 ggb-core。只走 /probe 子路径，不从整包引（见 types.ts 顶部说明）。
+import { auditConstruction } from '@mathmover/ggb-core/probe';
 import { animateViewToCenter, readViewBounds } from '@/lib/ggb-view-transition';
 import { createCoursewareHTML } from '@/lib/ggb-html-export';
 import { getCoursewarePNG } from '@/lib/ggb-png-export';

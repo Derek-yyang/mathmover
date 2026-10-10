@@ -15,7 +15,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createMcpServer } from '../src/mcp-server.ts';
 import { GgbTools, type ToolsConfig } from '../src/tools.ts';
 import type { GgbBridgeClient } from '../src/bridge-client.ts';
-import type { RawApplyResult, RawState } from '../src/types.ts';
+import type { RawApplyResult, RawState } from '@mathmover/ggb-core';
 
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const workdirs: string[] = [];

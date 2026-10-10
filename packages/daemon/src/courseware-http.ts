@@ -1,6 +1,7 @@
 import type http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import { CoursewareStore, LibraryError, type CoursewareInput } from './courseware-store.ts';
+import { CoursewareStore, type CoursewareInput } from './courseware-store.ts';
+import { CoursewareError } from '@mathmover/ggb-core';
 import type { GgbBridgeClient } from './bridge-client.ts';
 
 export interface LibraryServices { store: CoursewareStore; token: string; bridge: GgbBridgeClient }
@@ -13,11 +14,11 @@ export async function readJson(req: http.IncomingMessage): Promise<any> {
   const chunks: Buffer[] = []; let length = 0;
   for await (const chunk of req) {
     length += chunk.length;
-    if (length > 64 * 1024 * 1024) throw new LibraryError(413, '课件请求过大，请减少单次图片数量');
+    if (length > 64 * 1024 * 1024) throw new CoursewareError(413, '课件请求过大，请减少单次图片数量');
     chunks.push(chunk);
   }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); }
-  catch { throw new LibraryError(400, '请求不是合法 JSON'); }
+  catch { throw new CoursewareError(400, '请求不是合法 JSON'); }
 }
 export async function libraryRequest(req: http.IncomingMessage, res: http.ServerResponse, url: URL, services: LibraryServices): Promise<boolean> {
   if (!url.pathname.startsWith('/api/coursewares')) return false;
@@ -30,7 +31,7 @@ export async function libraryRequest(req: http.IncomingMessage, res: http.Server
     if (!parts.length && method === 'GET') send(200, { records: store.list(url.searchParams.get('trash') === '1'), dataDirectory: store.root });
     else if (!parts.length && method === 'POST') send(200, store.save(await readJson(req)));
     else if (parts[0] === 'import' && method === 'POST') send(200, store.import(await readJson(req) as CoursewareInput));
-    else if (parts[0] === 'delete' && method === 'POST') { const body = await readJson(req); if (!Array.isArray(body.ids)) throw new LibraryError(400, '缺少课件 ID'); store.remove(body.ids); send(200, { ok: true }); }
+    else if (parts[0] === 'delete' && method === 'POST') { const body = await readJson(req); if (!Array.isArray(body.ids)) throw new CoursewareError(400, '缺少课件 ID'); store.remove(body.ids); send(200, { ok: true }); }
     else if (parts[0] === 'backup' && method === 'POST') send(200, { name: await store.createBackup() });
     else if (parts[0] === 'windows' && parts.length === 1 && method === 'POST') { const body = await readJson(req); send(200, { bindingToken: bridge.issueBinding(body.windowId) }); }
     else if (parts[0] === 'assets' && parts.length === 2 && method === 'GET') {
@@ -41,6 +42,6 @@ export async function libraryRequest(req: http.IncomingMessage, res: http.Server
     else if (parts[1] === 'versions' && parts.length === 2 && method === 'GET') send(200, { versions: store.versions(parts[0]) });
     else if (parts[1] === 'versions' && parts.length === 3 && method === 'GET' && /^\d+$/.test(parts[2])) send(200, store.get(parts[0], Number(parts[2])));
     else send(404, { error: '未知课件接口' });
-  } catch (e) { send(e instanceof LibraryError ? e.status : 500, { error: e instanceof LibraryError ? e.message : '本地课件读写失败，原数据已保留，请检查磁盘空间、目录权限或服务日志' }); console.error('[courseware-library]', e); }
+  } catch (e) { send(e instanceof CoursewareError ? e.status : 500, { error: e instanceof CoursewareError ? e.message : '本地课件读写失败，原数据已保留，请检查磁盘空间、目录权限或服务日志' }); console.error('[courseware-library]', e); }
   return true;
 }

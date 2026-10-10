@@ -25,10 +25,10 @@ import {
   type BoardState,
   type DiffResult,
   type ObjectSummary,
+  type RawState,
   type SliderState,
 } from '@mathmover/ggb-core';
 import type { GgbBridgeClient } from './bridge-client.ts';
-import type { RawState } from './types.ts';
 
 export interface ToolsConfig {
   /** 受管工作目录：构造文件写这里。默认 process.cwd() */

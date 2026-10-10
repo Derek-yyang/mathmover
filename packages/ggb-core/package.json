@@ -6,7 +6,8 @@
   "description": "MathMover 领域核心：共享类型、GGB 指令解析/目录/语义校验（零运行时依赖）",
   "exports": {
     ".": "./src/index.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./probe": "./src/probe.ts"
   },
   "scripts": {
     "test": "vitest run",

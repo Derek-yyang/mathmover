@@ -4,36 +4,29 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { dataDirectory } from './data-directory.ts';
 import { validateGgbSnapshot } from './ggb-snapshot.ts';
+import { CoursewareError, type CoursewareSummary } from '@mathmover/ggb-core';
 // Resolve the native module in Node, including test runners predating node:sqlite.
 const { DatabaseSync, backup } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
-export class LibraryError extends Error {
-  status: number;
-  constructor(status: number, message: string) { super(message); this.status = status; }
-}
 export interface CoursewareInput {
   id: string; expectedRevision: number; title: string; category?: string | null;
   commands: string[]; messages: unknown[]; ggbBase64?: string;
   view?: { showAxes: boolean; showGrid: boolean; bounds?: [number, number, number, number] };
   runtimeId?: string; sessionId?: string; created_at?: string;
 }
-export interface CoursewareSummary {
-  id: string; title: string; category: string | null; created_at: string; updated_at: string;
-  revision: number; deleted_at: string | null;
-}
 type Row = CoursewareSummary & { payload: string; snapshot: string | null };
 const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 const ID = /^[a-zA-Z0-9_-]{1,100}$/;
 const HASH = /^[a-f0-9]{64}$/;
 function validId(id: unknown): asserts id is string {
-  if (typeof id !== 'string' || !ID.test(id)) throw new LibraryError(400, '课件 ID 不合法');
+  if (typeof id !== 'string' || !ID.test(id)) throw new CoursewareError(400, '课件 ID 不合法');
 }
 function bytes(base64: string, limit: number): Buffer {
   if (!base64 || base64.length > Math.ceil(limit * 4 / 3) + 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64))
-    throw new LibraryError(400, '资源编码无效或超过大小限制');
+    throw new CoursewareError(400, '资源编码无效或超过大小限制');
   const b = Buffer.from(base64, 'base64');
   if (b.length > limit || b.toString('base64').replace(/=+$/, '') !== base64.replace(/=+$/, ''))
-    throw new LibraryError(400, '资源编码无效');
+    throw new CoursewareError(400, '资源编码无效');
   return b;
 }
 
@@ -68,20 +61,20 @@ export class CoursewareStore {
     const full = path.join(this.root, relative);
     fs.mkdirSync(full, { recursive: true, mode: 0o700 });
     if (fs.realpathSync(full) !== full || fs.lstatSync(full).isSymbolicLink())
-      throw new LibraryError(400, '课件资源目录不允许符号链接');
+      throw new CoursewareError(400, '课件资源目录不允许符号链接');
     return full;
   }
   private file(relative: string): string {
     const full = path.resolve(this.root, relative);
-    if (!full.startsWith(this.root + path.sep)) throw new LibraryError(400, '资源路径不合法');
+    if (!full.startsWith(this.root + path.sep)) throw new CoursewareError(400, '资源路径不合法');
     this.safeDirectory(path.relative(this.root, path.dirname(full)) || '.');
-    if (fs.existsSync(full) && fs.lstatSync(full).isSymbolicLink()) throw new LibraryError(400, '资源不允许符号链接');
+    if (fs.existsSync(full) && fs.lstatSync(full).isSymbolicLink()) throw new CoursewareError(400, '资源不允许符号链接');
     return full;
   }
   private put(relative: string, content: Buffer): void {
     const target = this.file(relative);
     if (fs.existsSync(target)) {
-      if (hash(fs.readFileSync(target)) !== hash(content)) throw new LibraryError(500, '资源校验失败，原文件已保留');
+      if (hash(fs.readFileSync(target)) !== hash(content)) throw new CoursewareError(500, '资源校验失败，原文件已保留');
       return;
     }
     const temp = this.file(relative + '.' + randomUUID() + '.tmp');
@@ -97,27 +90,27 @@ export class CoursewareStore {
     validId(id);
     const row = this.db.prepare(`SELECT c.*, r.payload, r.snapshot FROM coursewares c JOIN revisions r
       ON r.id=c.id AND r.revision=COALESCE(?,c.revision) WHERE c.id=?`).get(revision ?? null, id) as unknown as Row | undefined;
-    if (!row) throw new LibraryError(404, '课件不存在');
+    if (!row) throw new CoursewareError(404, '课件不存在');
     const { payload, snapshot, ...summary } = row;
     const ggbBase64 = snapshot ? this.readResource(`coursewares/${id}/${snapshot}.ggb`, snapshot).toString('base64') : undefined;
     return { ...summary, ...JSON.parse(payload), revision: revision ?? summary.revision, ggbBase64 };
   }
   private readResource(relative: string, expected: string): Buffer {
     const content = fs.readFileSync(this.file(relative));
-    if (hash(content) !== expected) throw new LibraryError(500, '课件资源损坏，请从上一版本或备份恢复');
+    if (hash(content) !== expected) throw new CoursewareError(500, '课件资源损坏，请从上一版本或备份恢复');
     return content;
   }
   asset(key: string): { data: Buffer; mime: string } {
     const m = /^([a-f0-9]{64})\.(png|jpg|webp|gif)$/.exec(key);
-    if (!m) throw new LibraryError(400, '图片 ID 不合法');
+    if (!m) throw new CoursewareError(400, '图片 ID 不合法');
     return { data: this.readResource(`assets/${key}`, m[1]), mime: `image/${m[2] === 'jpg' ? 'jpeg' : m[2]}` };
   }
   private messages(input: unknown[]): unknown[] {
     return input.map(raw => {
-      if (!raw || typeof raw !== 'object') throw new LibraryError(400, '消息记录不合法');
+      if (!raw || typeof raw !== 'object') throw new CoursewareError(400, '消息记录不合法');
       const m = raw as Record<string, unknown>;
       if (!['user', 'assistant', 'system'].includes(String(m.role)) || typeof m.content !== 'string')
-        throw new LibraryError(400, '消息记录不合法');
+        throw new CoursewareError(400, '消息记录不合法');
       const attachments = Array.isArray(m.attachments) ? m.attachments.map(rawAtt => {
         const a = rawAtt as Record<string, unknown>;
         let url = typeof a.url === 'string' ? a.url : '';
@@ -141,16 +134,16 @@ export class CoursewareStore {
     validId(input.id);
     if (!Number.isInteger(input.expectedRevision) || input.expectedRevision < 0 || typeof input.title !== 'string' || !input.title.trim()
       || !Array.isArray(input.commands) || input.commands.some(c => typeof c !== 'string') || !Array.isArray(input.messages))
-      throw new LibraryError(400, '课件数据不合法');
+      throw new CoursewareError(400, '课件数据不合法');
     this.db.exec('BEGIN IMMEDIATE');
     try {
       const old = this.db.prepare('SELECT * FROM coursewares WHERE id=?').get(input.id) as unknown as CoursewareSummary | undefined;
-      if ((old?.revision ?? 0) !== input.expectedRevision || old?.deleted_at) throw new LibraryError(409, '课件已在其他窗口修改或删除，请重新打开；本窗口内容尚未保存');
+      if ((old?.revision ?? 0) !== input.expectedRevision || old?.deleted_at) throw new CoursewareError(409, '课件已在其他窗口修改或删除，请重新打开；本窗口内容尚未保存');
       const now = new Date().toISOString();
       let snapshot: string | null = old ? (this.db.prepare('SELECT snapshot FROM revisions WHERE id=? AND revision=?').get(old.id, old.revision)?.snapshot as string | null) : null;
       if (input.ggbBase64 !== undefined) {
         const content = bytes(input.ggbBase64, 32 * 1024 * 1024);
-        try { validateGgbSnapshot(content); } catch { throw new LibraryError(400, '画板快照不是完整、有效的 GGB ZIP 文件'); }
+        try { validateGgbSnapshot(content); } catch { throw new CoursewareError(400, '画板快照不是完整、有效的 GGB ZIP 文件'); }
         snapshot = hash(content);
         this.put(`coursewares/${input.id}/${snapshot}.ggb`, content);
       }
@@ -180,7 +173,7 @@ export class CoursewareStore {
   }
   private changeDeletion(id: string, deletedAt: string | null): void {
     const old = this.db.prepare('SELECT * FROM coursewares WHERE id=?').get(id) as unknown as CoursewareSummary | undefined;
-    if (!old) throw new LibraryError(404, '课件不存在');
+    if (!old) throw new CoursewareError(404, '课件不存在');
     const revision = old.revision + 1;
     this.db.prepare(`INSERT INTO revisions SELECT id,?,payload,snapshot,? FROM revisions WHERE id=? AND revision=?`).run(revision, new Date().toISOString(), id, old.revision);
     this.db.prepare('UPDATE coursewares SET deleted_at=?,revision=? WHERE id=?').run(deletedAt, revision, id);

@@ -2,8 +2,10 @@
  * MathMover 领域核心类型 —— 唯一真源。
  *
  * 被 ggb-executor / MCP 工具层 / 评测脚本共同依赖。
- * 吸收了 math-mover-next/components/dashboard/types.ts 与 lib/ggb-audit.ts 的双份定义
- * （那份是 React 侧的副本，前端收敛后应改从这里取）。
+ * 前端（math-mover-next）也从这里取，但**只走子路径导出**（`./types` / `./probe`）：
+ * 整包 barrel 会把 sop.ts / whitelist.ts 连同 node:fs 拖进浏览器产物。
+ * 2026-10-11 已收敛：前端此前的 lib/ggb-audit.ts 与 components/dashboard/types.ts
+ * 里的重复定义均已删除。
  *
  * ────────────────────────────────────────────────────────────────────────
  * 三条已裁定的不变量（2026-10-09 作者拍板），改动前请先想清楚：
@@ -72,7 +74,7 @@ export interface ParsedCommands {
   mode: Mode;
 }
 
-/** 体检发现。对应 ggb-audit.ts 的 AuditFinding。 */
+/** 体检发现。前端与 daemon 都消费这个形状，勿再复制第二份。 */
 export interface AuditFinding {
   kind: 'missing' | 'undefined';
   name: string;
@@ -149,6 +151,67 @@ export interface PngResult {
    */
   nonBlank: boolean | null;
   degradedReason?: string;
+}
+
+/**
+ * 页面采集的**原始**状态契约 —— WebSocket 桥的返回形状。
+ *
+ * 这里刻意是原始形状（objects 是 Record、没有 audit/diff）：页面只负责采集，
+ * 结构化与智能由 tools.ts 在此之上完成。前端（ggb-bridge.ts）与 daemon
+ * （bridge-client.ts / tools.ts）共用这一份，勿再复制第二份。
+ *
+ * 注意 `pngSource` 是**页面侧**的窄联合（页面只可能报这两种），与上面
+ * `PngSource`（工具层的多元通道）不是同一个概念，不要合并。
+ */
+export interface RawState {
+  /** 真源：当前已提交的全量指令清单（账本原样） */
+  commands: string[];
+  /** getAllObjectNames 原样 */
+  names: string[];
+  /** { name: { type, value, independent } } */
+  objects: Record<string, { type: string; value: string | null; independent: boolean }>;
+  /** 滑块探测（numeric + independent） */
+  sliders: Array<{ name: string; value: number }>;
+  /** canvas.toDataURL 的 base64 段（不含 dataURL 前缀），失败为 null */
+  png: string | null;
+  /** PNG 来源，供降级诊断 */
+  pngSource: 'canvas-to-data-url' | 'none';
+  generation: number;
+}
+
+export interface RawApplyResult {
+  applied: string[];
+  /** 第一遍失败、300ms 后补漏的行 */
+  failedFirstPass: string[];
+  durationMs: number;
+  /** 重放后立刻回一份状态，省一次往返 */
+  state: RawState;
+}
+
+/**
+ * 跨进程课件库契约 —— daemon 的 SQLite 存储与前端客户端共用。
+ *
+ * **不是 GGB 领域**，暂寄此处（为它单开一个包为时过早）。
+ * 字段与 coursewares 表一一对应；`category` 装 A/B/C/D。
+ */
+export interface CoursewareSummary {
+  id: string;
+  title: string;
+  category: string | null;
+  created_at: string;
+  updated_at: string;
+  revision: number;
+  deleted_at: string | null;
+}
+
+/**
+ * 课件库错误。两端各自抛出、各自捕获，**不跨进程传输**
+ * （对面收到的是 `{ error }` JSON，不是这个类的实例）。
+ * 此前 daemon 叫 LibraryError、前端叫 CoursewareError，两份类体逐字相同。
+ */
+export class CoursewareError extends Error {
+  status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
 /**

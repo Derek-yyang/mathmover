@@ -2,19 +2,19 @@
 import type { AgentChatMessage, GeoGebraApi } from '@/components/dashboard/types';
 import { readViewBounds } from './ggb-view-transition';
 import { readGgbGraphics } from './ggb-graphics-state';
+// 课件库契约是跨进程共享的，唯一真源在 ggb-core。只走 /types 子路径。
+import { CoursewareError, type CoursewareSummary } from '@mathmover/ggb-core/types';
 
-export interface CoursewareSummary {
-  id: string; title: string; category: string | null; created_at: string; updated_at: string;
-  revision: number; deleted_at: string | null; problem_type?: string | null;
-}
+// CoursewareError 是类（值），必须用 export 而非 export type ——
+// useCoursewareLibrary 要拿它做 instanceof。export type 会把类擦成纯类型。
+export type { CoursewareSummary };
+export { CoursewareError };
+
+/** 带正文的完整课件记录。`messages` 是前端领域类型，故只在前端声明。 */
 export interface CoursewareRecord extends CoursewareSummary {
   commands: string[]; messages: AgentChatMessage[]; ggbBase64?: string;
   runtimeId?: string; sessionId?: string;
   view?: { showAxes: boolean; showGrid: boolean; bounds?: [number, number, number, number] };
-}
-export class CoursewareError extends Error {
-  status: number;
-  constructor(status: number, message: string) { super(message); this.status = status; }
 }
 export async function libraryRequest<T>(path = '', body?: unknown): Promise<T> {
   const res = await fetch(`/api/coursewares${path}`, { method: body === undefined ? 'GET' : 'POST', cache: 'no-store',

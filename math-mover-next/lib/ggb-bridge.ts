@@ -13,31 +13,11 @@
  */
 
 import type { GeoGebraApi } from '@/components/dashboard/types';
+// 页面侧与 daemon 共用同一份原始状态契约。只走 /types 子路径，不从整包引
+// （barrel 会把 sop/whitelist 连同 node:fs 拖进浏览器产物）。
+import type { RawState, RawApplyResult } from '@mathmover/ggb-core/types';
 
 /** 页面持有的账本：真源。派生视图由 daemon 现场重算。 */
-export interface RawState {
-  /** 当前已提交的全量指令清单（账本原样） */
-  commands: string[];
-  /** getAllObjectNames 原样 */
-  names: string[];
-  /** { name: { type, value, independent } } */
-  objects: Record<string, { type: string; value: string | null; independent: boolean }>;
-  /** 滑块探测（numeric + independent） */
-  sliders: Array<{ name: string; value: number }>;
-  /** 画布 PNG（canvas.toDataURL 的 base64 段），失败为 null */
-  png: string | null;
-  /** PNG 来源，供降级诊断 */
-  pngSource: 'canvas-to-data-url' | 'none';
-  generation: number;
-}
-
-export interface RawApplyResult {
-  applied: string[];
-  failedFirstPass: string[];
-  durationMs: number;
-  /** 重放后立刻回一份状态，省一次往返 */
-  state: RawState;
-}
 
 interface Bridge {
   version: 1;
