@@ -8,6 +8,7 @@
  */
 
 import { POST } from '../app/api/agent/route.ts';
+import { GGB_ERROR } from '../../packages/ggb-core/src/types.ts';
 import fs from 'node:fs';
 
 const runtimeId = process.argv[2] ?? 'claude-code';
@@ -161,7 +162,7 @@ console.log(`\n── [${runtimeId}] 第四轮：SOP 流程 ──`);
       (st.objects ?? []).map((o) => o.name).join(','));
   } else {
     // 无画布环境（没有页面连 daemon）：收卷应止于画布门并如实报障
-    check('无画布时如实报障', /GGB_SESSION_DEAD|画布/.test(joined4), joined4.slice(0, 80).replace(/\n/g, ' '));
+    check('无画布时如实报障', new RegExp(`${GGB_ERROR.SESSION_DEAD}|画布`).test(joined4), joined4.slice(0, 80).replace(/\n/g, ' '));
   }
   check('无 error 事件', ev4.filter((e) => e.kind === 'error').length === 0,
     joined4.slice(0, 60).replace(/\n/g, ' '));

@@ -11,6 +11,7 @@ import http from 'node:http';
 import type { GgbTools } from './tools.ts';
 import { libraryRequest, authorized, type LibraryServices } from './courseware-http.ts';
 import { LibraryError } from './courseware-store.ts';
+import { GGB_ERROR } from '@mathmover/ggb-core';
 
 export interface HttpApiOptions {
   port: number;
@@ -97,7 +98,7 @@ export function createHttpServer(tools: GgbTools, opts: HttpApiOptions): http.Se
       json(res, 404, { error: `未知路径: ${url.pathname}` });
     } catch (e) {
       const msg = String(e instanceof Error ? e.message : e);
-      const status = e instanceof LibraryError ? e.status : msg.includes('GGB_SESSION_DEAD') ? 503 : 500;
+      const status = e instanceof LibraryError ? e.status : msg.includes(GGB_ERROR.SESSION_DEAD) ? 503 : 500;
       json(res, status, { error: msg });
     }
   });

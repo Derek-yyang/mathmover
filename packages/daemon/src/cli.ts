@@ -13,6 +13,7 @@
 import path from 'node:path';
 import { GgbBridgeClient } from './bridge-client.ts';
 import { GgbTools, DEFAULT_TOOLS_CONFIG, type ToolsConfig } from './tools.ts';
+import { GGB_ERROR } from '@mathmover/ggb-core';
 import { serveStdio } from './mcp-server.ts';
 import { listenHttp } from './http-api.ts';
 import { CoursewareStore } from './courseware-store.ts';
@@ -70,7 +71,7 @@ async function main(): Promise<void> {
 
   const bridge = new GgbBridgeClient({ port: args.wsPort, host: '127.0.0.1' });
   bridge.onConnectionChange((up) => {
-    log(up ? '画布已连接' : '画布已断开（工具调用会报 GGB_SESSION_DEAD）');
+    log(up ? '画布已连接' : `画布已断开（工具调用会报 ${GGB_ERROR.SESSION_DEAD}）`);
   });
 
   await bridge.start();

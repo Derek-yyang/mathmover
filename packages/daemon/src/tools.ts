@@ -20,6 +20,7 @@ import {
   detectSliders,
   diffCommands,
   summarizeObjects,
+  GGB_ERROR,
   type AuditResult,
   type BoardState,
   type DiffResult,
@@ -148,7 +149,7 @@ export class GgbTools {
   private requireLive(): void {
     if (!this.bridge.connected) {
       throw new Error(
-        'GGB_SESSION_DEAD: 没有已连接的画布。请确认工作台页面已打开、GeoGebra 已就绪。',
+        `${GGB_ERROR.SESSION_DEAD}: 没有已连接的画布。请确认工作台页面已打开、GeoGebra 已就绪。`,
       );
     }
   }

@@ -11,6 +11,7 @@
 
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { RawState } from './types.ts';
+import { GGB_ERROR } from '@mathmover/ggb-core';
 import { randomBytes } from 'node:crypto';
 
 export interface Pending {
@@ -85,7 +86,7 @@ export class GgbBridgeClient {
           this.live.delete(ws);
           for (const [id, socket] of this.windows) if (socket === ws) { this.windows.delete(id); this.states.delete(id); }
           for (const [id, p] of this.pending) if (p.socket === ws) {
-            clearTimeout(p.timer); p.reject(new Error('GGB_SESSION_DEAD: 请求绑定的画板已断开')); this.pending.delete(id);
+            clearTimeout(p.timer); p.reject(new Error(`${GGB_ERROR.SESSION_DEAD}: 请求绑定的画板已断开`)); this.pending.delete(id);
           }
           if (this.socket !== ws) return;        // 不是活跃连接，无需处理
 
@@ -166,7 +167,7 @@ export class GgbBridgeClient {
     const socket = windowId ? this.windows.get(windowId) : this.socket;
     if (!socket || socket.readyState !== 1) {
       return Promise.reject(new Error(
-        'GGB_SESSION_DEAD: 没有已连接的画布。请确认工作台页面已打开且 GeoGebra 已就绪。',
+        `${GGB_ERROR.SESSION_DEAD}: 没有已连接的画布。请确认工作台页面已打开且 GeoGebra 已就绪。`,
       ));
     }
     const id = `c${++this.seq}`;
