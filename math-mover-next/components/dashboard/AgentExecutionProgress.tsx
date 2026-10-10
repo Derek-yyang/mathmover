@@ -10,7 +10,7 @@ export default function AgentExecutionProgress({ execution }: { execution: Agent
   // Explicit expansion is scoped to the current phase: completing a run closes
   // it, but users can reopen the finished process without an effect reset.
   const [expanded, setExpanded] = useState<{ running: boolean; open: boolean } | null>(null);
-  const open = expanded?.running === running ? expanded.open : running;
+  const open = expanded?.running === running ? expanded.open : false;
   const [now, setNow] = useState(execution.startedAt);
   useEffect(() => {
     if (!running) return;
@@ -30,7 +30,7 @@ export default function AgentExecutionProgress({ execution }: { execution: Agent
     : execution.status === 'unconfirmed' || hasUnknown ? CircleHelp : Check;
 
   return <details open={open} data-agent-execution={execution.status}
-    className="w-full min-w-0 max-w-[92%] text-xs text-stone-600">
+    className="w-full min-w-0 text-xs text-stone-600">
     <summary onClick={event => { event.preventDefault(); setExpanded({ running, open: !open }); }}
       className="list-none cursor-pointer rounded-lg px-2 py-2 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 [&::-webkit-details-marker]:hidden">
       <span className="flex items-center gap-2">

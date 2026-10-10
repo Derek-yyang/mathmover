@@ -50,15 +50,22 @@ export default function ControlDeck({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  // 点击外部收起导出菜单
+  // 普通页面区域通过 mousedown 关闭；GeoGebra 嵌入区可能是 iframe，
+  // 内部点击不会冒泡到页面，用 focusin 捕捉焦点转入 iframe 的情况。
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+    const closeWhenOutside = (target: EventTarget | null) => {
+      if (exportMenuRef.current && target instanceof Node && !exportMenuRef.current.contains(target)) {
         setShowExportMenu(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    const handleMouseDown = (event: MouseEvent) => closeWhenOutside(event.target);
+    const handleFocusIn = (event: FocusEvent) => closeWhenOutside(event.target);
+    document.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('focusin', handleFocusIn);
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('focusin', handleFocusIn);
+    };
   }, []);
 
   return (

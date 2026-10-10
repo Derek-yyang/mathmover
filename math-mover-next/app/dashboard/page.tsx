@@ -437,7 +437,9 @@ function DashboardContent() {
       <ResizableChatRegion disabled={isFullscreen}>
         <AgentChatPanel
           messages={messages}
-          isLoading={isLoading || !courseware.canSend}
+          conversationId={courseware.summary?.id}
+          isLoading={isLoading}
+          sendDisabled={!courseware.canSend}
           loadingStatusText={loadingStatusText}
           onSendMessage={handleSendMessage}
           onPreviewImage={(url) => setPreviewImageUrl(url)}
