@@ -1,6 +1,7 @@
 'use client';
 import type { AgentChatMessage, GeoGebraApi } from '@/components/dashboard/types';
 import { readViewBounds } from './ggb-view-transition';
+import { readGgbGraphics } from './ggb-graphics-state';
 
 export interface CoursewareSummary {
   id: string; title: string; category: string | null; created_at: string; updated_at: string;
@@ -68,7 +69,9 @@ export function captureGgb(api: GeoGebraApi): Promise<string> {
 }
 export function currentView(api: GeoGebraApi, showAxes: boolean, showGrid: boolean): CoursewareRecord['view'] {
   const bounds = readViewBounds(api.getViewProperties?.(1));
-  return { showAxes, showGrid, bounds: bounds ? [bounds.xMin, bounds.xMax, bounds.yMin, bounds.yMax] : undefined };
+  const actual = readGgbGraphics(api);
+  return { showAxes: actual ? actual.axes === 'all' : showAxes, showGrid: actual?.showGrid ?? showGrid,
+    bounds: bounds ? [bounds.xMin, bounds.xMax, bounds.yMin, bounds.yMax] : undefined };
 }
 export function interruptedMessages(messages: AgentChatMessage[]): AgentChatMessage[] {
   return messages.map(message => message.meta?.status === 'generating' || message.meta?.execution?.status === 'running'

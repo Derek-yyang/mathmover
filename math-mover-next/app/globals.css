@@ -74,11 +74,14 @@ body {
 .chat-math-inline > .katex { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
 .math-inline-action { position: absolute; z-index: 1; right: 0; bottom: 100%; border: 1px solid #e7e5e4; border-radius: 6px; background: #fff; opacity: 0; transition: opacity 150ms ease-out; }
 .chat-math-inline:hover > .math-inline-action, .chat-math-inline:focus-within > .math-inline-action { opacity: 1; }
-.chat-formula-scroll { display: block; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
-.chat-formula-scroll .katex-display { margin: 0.5em 0; }
+.chat-formula-scroll { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+.chat-formula-scroll .katex-display { margin: 0.5em 0; max-width: none; overflow: visible; }
+.chat-formula-scroll .katex-display > .katex, .reading-expanded-formula .katex-display > .katex { text-align: left; }
+.chat-table-scroll table { min-width: max-content; }
 .reading-expanded-table { max-height: 70dvh; overflow: auto; margin-top: 16px; }
 .reading-expanded-table table { min-width: max-content; }
 .reading-expanded-formula { margin-top: 24px; overflow: auto; max-height: 65dvh; font-size: 22px; padding: 12px 0; }
+.reading-expanded-formula .katex-display { max-width: none; overflow: visible; }
 .chat-code-block { margin: 12px 0; min-width: 0; overflow: hidden; border: 1px solid #e7e5e4; border-radius: 8px; background: #f5f5f4; }
 .chat-code-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 4px 12px; font-size: 12px; color: #57534e; border-bottom: 1px solid #e7e5e4; }
 .chat-code-header .reading-icon-button { background: transparent; }

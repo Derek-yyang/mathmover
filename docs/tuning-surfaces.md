@@ -15,20 +15,6 @@
 
 分四层，按"离出图多近"排序。
 
-## 先分清两条链路
-
-产品是 **agent 驱动的 GeoGebra 画图工作台**；题图→GGB 是其中一条链路（需求最大），
-不是产品本身。两条链路的入口不同，**要调的东西也不同**：
-
-| | 入口 | 用到哪些变量 |
-|---|---|---|
-| **自由画图**（用户让你画/改图） | `get_drawing_pack` | `generation-rules` + `ggb-basics` + **全库 18 张卡** + 工具描述 |
-| **做题**（用户发了题目图片/题面） | `get_expert_prompt` | 上面全部 + **4 份 SKILL 的 8 步建模方法论** + 本类清单 |
-
-判据侧也随之分流：`submit_construction` 的 `category_structure`（A 要函数、B 要多边形/圆…）
-**只在做题链路查**；自由画图不给 category，只做行级剔除与动点自洽。
-所以调 SKILL 的 8 步**只会影响做题**，调 `ggb-basics` 或卡库**两条链路都受影响**。
-
 ---
 
 ## 一、智力侧：skill 资产
@@ -54,7 +40,7 @@ SOP 库只放「小范围、可能用而未必用」的条件写法。库里现�
 | `math-mover-next/app/api/agent/route.ts` 的 `SYSTEM_BRIEF` | 「怎么干活」6 条、GeoGebra 指令要点、说人话的要求 | 改工作方式、加纪律 | **无** |
 | `packages/daemon/src/mcp-server.ts` 各工具的 `title` / `description` | 模型据此决定调不调、何时调、传什么 | 加引导语、改措辞 | 工具面测试只抓 schema |
 | 同文件 `CATEGORY_TAXONOMY` | A/B/C/D 分类判据原文 | 调类别边界描述 | **无** |
-| `buildAllowedCommandsSuffix` 生成的文案 | 「仅可使用以上命令…不能把函数当圆锥曲线」 | 改命令约束措辞 | `sop.test.ts` 断言**区块标题在**（`### 严格语法约束`、`构造命令:`、`3D 构造命令`、`属性命令:`、`视图命令:`）；正文措辞可改，删标题会红 |
+| `buildAllowedCommandsSuffix` 生成的文案 | 「仅可使用以上命令…不能把函数当圆锥曲线」 | 改命令约束措辞 | `sop.test.ts` 抓形态不抓内容 |
 
 > `SYSTEM_BRIEF` 里"不许伪造对话边界"这类条目看着像杂务，实际是宿主协议约束，
 > 改坏了会截断回复——动它先跑 `e2e-chat-panel.mjs`。

@@ -9,7 +9,7 @@ export function useReadingCopy() {
   const generation = useRef(0);
   useEffect(() => () => { generation.current++; clearTimeout(timer.current); }, []);
   const copy = async (value: string) => {
-    const current = generation.current;
+    const current = ++generation.current;
     try {
       if (!navigator.clipboard) throw new Error('Clipboard unavailable');
       await navigator.clipboard.writeText(value);

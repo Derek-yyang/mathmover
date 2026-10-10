@@ -2,7 +2,8 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { ensureGGBLoaded, GGB_CODEBASE } from '@/lib/ggb-runtime';
-import { resizeAppletPreservingView } from '@/lib/ggb-view-resize';
+import { resizeAppletPreservingView, resizedViewBounds } from '@/lib/ggb-view-resize';
+import { ggbClientEventType, isRestoringGgb, readGgbGraphics } from '@/lib/ggb-graphics-state';
 
 type GeoGebraApi = any;
 
@@ -62,6 +63,39 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
     setLoadError(false);
     let resizeFrame = 0;
     let lastSize: { width: number; height: number } | null = null;
+    let internalResizeFrame = 0;
+    let previousView: unknown = null;
+    let adjustingView = false;
+    let graphicsMode: '2D' | '3D' = '2D';
+    const readView = () => { try { return apiRef.current?.getViewProperties?.(1); } catch { return null; } };
+    const viewSize = (value: unknown) => {
+      try { const parsed = typeof value === 'string' ? JSON.parse(value) : value as { width?: number; height?: number } | null;
+        return parsed ? `${parsed.width}:${parsed.height}` : ''; } catch { return ''; }
+    };
+    // The native settings panel resizes the internal graphics view, not the outer applet.
+    const onViewChanged = (event: unknown) => {
+      const type = ggbClientEventType(event);
+      if (cancelled || adjustingView || !apiRef.current || !['perspectiveChange', 'viewChanged2D', 'viewPropertiesChanged'].includes(type ?? '')) return;
+      if (type === 'perspectiveChange') graphicsMode = readGgbGraphics(apiRef.current)?.mode ?? graphicsMode;
+      const current = readView();
+      if (isRestoringGgb(apiRef.current) || graphicsMode === '3D') {
+        if (internalResizeFrame) cancelAnimationFrame(internalResizeFrame);
+        internalResizeFrame = 0; previousView = current; return;
+      }
+      if (!previousView || viewSize(previousView) === viewSize(current)) { previousView = current; return; }
+      if (!internalResizeFrame) internalResizeFrame = requestAnimationFrame(() => {
+        internalResizeFrame = 0;
+        const api = apiRef.current;
+        if (!api || cancelled || isRestoringGgb(api)) { previousView = readView(); return; }
+        const bounds = resizedViewBounds(previousView, readView());
+        if (bounds && api.setCoordSystem) {
+          adjustingView = true;
+          try { api.setCoordSystem(bounds.xMin, bounds.xMax, bounds.yMin, bounds.yMax); }
+          finally { adjustingView = false; }
+        }
+        previousView = readView();
+      });
+    };
 
     const resizeApplet = () => {
       const api = apiRef.current;
@@ -115,6 +149,9 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
             window.ggbApplet = api; // 确保全局句柄可用（注意清理）
             resizeApplet();
             notifyAppletReady(api);
+            previousView = readView();
+            graphicsMode = readGgbGraphics(api)?.mode ?? '2D';
+            api.registerClientListener?.(onViewChanged);
         }
       };
 
@@ -136,6 +173,8 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
       cancelled = true;
       resizeObserver.disconnect();
       if (resizeFrame) cancelAnimationFrame(resizeFrame);
+      if (internalResizeFrame) cancelAnimationFrame(internalResizeFrame);
+      apiRef.current?.unregisterClientListener?.(onViewChanged);
       container.replaceChildren();
       // 仅当全局句柄属于当前实例时才清理，避免误伤其他实例
       if (window.ggbApplet === apiRef.current) {

@@ -8,6 +8,8 @@ import { useAgentRuntimeState } from '@/components/dashboard/AgentRuntimeState';
 import ResizableChatRegion from '@/components/dashboard/ResizableChatRegion';
 import CanvasStage from '@/components/dashboard/CanvasStage';
 import { useGgbSession } from '@/hooks/useGgbSession';
+import { useGgbGraphics } from '@/hooks/useGgbGraphics';
+import { beginGgbRestore } from '@/lib/ggb-graphics-state';
 import { attachGgbBridge } from '@/lib/ggb-bridge';
 import { agentFailure, agentResponseError } from '@/lib/agent-diagnostics';
 import { finishExecution, updateToolProgress, toolStepLabel } from '@/lib/agent-progress';
@@ -41,14 +43,9 @@ function DashboardContent() {
 
   // 对话流状态
   // messages / isLoading 由 handleSendMessage 流式维护
-  // 当前这一轮的取消句柄。用户点「停止」→ abort fetch → 流被取消 →
-  // route 的 ReadableStream.cancel() 杀掉 agent 子进程（见 app/api/agent/route.ts）。
-  const abortRef = useRef<AbortController | null>(null);
   const [loadingStatusText, setLoadingStatusText] = useState('准备就绪');
 
   // 视图控制
-  const [showAxes, setShowAxes] = useState(true);
-  const [showGrid, setShowGrid] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const canvasWorkspaceRef = useRef<HTMLDivElement>(null);
@@ -67,10 +64,6 @@ function DashboardContent() {
     }
 
     if (document.fullscreenEnabled && workspace.requestFullscreen) {
-      const controller = new AbortController();
-      abortRef.current = controller;
-      let stopped = false;
-
       try {
         await workspace.requestFullscreen();
         return;
@@ -109,6 +102,10 @@ function DashboardContent() {
     exportPNG,
     exportHTML,
   } = useGgbSession();
+  const graphics = useGgbGraphics(ggbApplet);
+  const syncGraphics = graphics.sync;
+  const showAxes = graphics.axes === 'all';
+  const showGrid = graphics.showGrid;
 
   // ── Agent 对话 ──────────────────────────────────────────────
   // 驱动**本机已装的 agent CLI**（Claude Code / Codex / dsh），不需要 API key。
@@ -120,6 +117,9 @@ function DashboardContent() {
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
   const { runtimes, activeRuntimeId, selectRuntime: handleSelectRuntime, busy: isLoading, setBusy: setIsLoading, recordFailure, clearFailure } = useAgentRuntimeState();
   const sessionIdRef = useRef<string | undefined>(undefined);
+  // 当前这一轮的取消句柄。用户点「停止」→ abort fetch → 流被取消 →
+  // route 的 ReadableStream.cancel() 杀掉 agent 子进程（见 app/api/agent/route.ts）。
+  const abortRef = useRef<AbortController | null>(null);
 
   // ── Agent 运行时选择（PATH 扫描 + 用户自选，持久化） ──────────
   // 刻意**不自动降级**：用户选了哪个就用哪个，起不来就如实报错让他换。
@@ -147,23 +147,26 @@ function DashboardContent() {
     setMessages(record?.messages ?? []);
     if (record?.ggbBase64) {
       if (!ggbApplet.setBase64) throw new Error('当前画板不支持完整快照恢复');
-      await new Promise<void>((resolve, reject) => {
+      const finishRestore = beginGgbRestore(ggbApplet);
+      try { await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('画板恢复超时，未覆盖已保存的课件')), 15000);
         try { ggbApplet.setBase64!(record.ggbBase64!, () => { clearTimeout(timeout); resolve(); }); }
         catch (error) { clearTimeout(timeout); reject(error); }
-      });
+      }); } finally { finishRestore(); }
       refreshSliders(ggbApplet);
     } else if (record?.commands.length) await executeCommands(record.commands);
     else clearConstruction();
-    if (record?.view) {
-      setShowAxes(record.view.showAxes); setShowGrid(record.view.showGrid);
+    // A complete snapshot already owns its axis visibility, styles and range.
+    // Coarse legacy flags must not overwrite a one-axis or custom-grid snapshot.
+    if (!record?.ggbBase64 && record?.view) {
       setAxesVisible(record.view.showAxes); setGridVisible(record.view.showGrid);
       const b = record.view.bounds; if (b) ggbApplet.setCoordSystem?.(...b);
-    } else { setShowAxes(true); setShowGrid(true); setAxesVisible(true); setGridVisible(true); }
+    } else if (!record?.ggbBase64) { setAxesVisible(true); setGridVisible(true); }
+    syncGraphics();
     // Hook state may update its old command ledger during snapshot loading; the persisted one wins.
     ledgerRef.current = record?.commands ?? [];
     restoreCommandLedger(record?.commands ?? []);
-  }, [ggbApplet, activeRuntimeId, refreshSliders, restoreCommandLedger, executeCommands, clearConstruction, setAxesVisible, setGridVisible]);
+  }, [ggbApplet, activeRuntimeId, refreshSliders, restoreCommandLedger, executeCommands, clearConstruction, setAxesVisible, setGridVisible, syncGraphics]);
   const courseware = useCoursewareLibrary({ api: ggbApplet, messages, commands: ledgerRef, busy: isLoading,
     runtimeId: activeRuntimeId, sessionId: sessionIdRef, showAxes, showGrid, onRestore: restoreCourseware });
   const displayedTitle = courseware.summary?.title ?? currentTitle;
@@ -196,18 +199,10 @@ function DashboardContent() {
   );
 
   // 切换坐标轴显示
-  const handleToggleAxes = () => {
-    const next = !showAxes;
-    setShowAxes(next);
-    setAxesVisible(next);
-  };
+  const handleToggleAxes = graphics.toggleAxes;
 
   // 切换网格显示
-  const handleToggleGrid = () => {
-    const next = !showGrid;
-    setShowGrid(next);
-    setGridVisible(next);
-  };
+  const handleToggleGrid = graphics.toggleGrid;
 
   // 导出处理
   const handleExport = (type: CoursewareExportFormat) => {
@@ -253,6 +248,9 @@ function DashboardContent() {
     async (text: string, attachments: ChatAttachment[]) => {
       if (isLoading || !canSend) return;
       clearFailure(activeRuntimeId);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let stopped = false;
 
       const userMsg: AgentChatMessage = {
         id: `msg_user_${Date.now()}`,
@@ -311,8 +309,8 @@ function DashboardContent() {
         }
 
         const res = await fetch('/api/agent', {
-          signal: controller.signal,
           method: 'POST',
+          signal: controller.signal,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             text,
@@ -426,7 +424,10 @@ function DashboardContent() {
           saveStatusText={{ idle: '', dirty: '尚未保存', saving: '保存中…', saved: '已保存到本地', error: '保存／恢复失败', restoring: '恢复中…' }[courseware.status]}
           sliders={sliders}
           showAxes={showAxes}
+          axesMixed={graphics.axes === 'mixed'}
           showGrid={showGrid}
+          settingsOpen={graphics.settingsOpen}
+          onToggleSettings={ggbApplet ? graphics.toggleSettings : undefined}
           isFullscreen={isFullscreen}
           onSliderChange={setSliderValue}
           onToggleAnimation={toggleSliderAnimation}

@@ -41,7 +41,9 @@
     ".next-library-build/types/**/*.ts",
     ".next-library-build/dev/types/**/*.ts",
     ".next-reading-build/types/**/*.ts",
-    ".next-reading-build/dev/types/**/*.ts"
+    ".next-reading-build/dev/types/**/*.ts",
+    ".next_stuck_graphics_verify/types/**/*.ts",
+    ".next_stuck_graphics_verify/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

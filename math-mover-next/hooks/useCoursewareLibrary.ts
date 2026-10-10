@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { AgentChatMessage, GeoGebraApi } from '@/components/dashboard/types';
+import { ggbClientEventType, readGgbGraphics, watchGgbGraphics } from '@/lib/ggb-graphics-state';
 import { captureGgb, currentView, getCourseware, historyChanged, interruptedMessages, libraryRequest, migrateLegacyHistory, persistableMessages,
   CoursewareError, type CoursewareRecord, type CoursewareSummary } from '@/lib/courseware-client';
 
@@ -85,10 +86,15 @@ export function useCoursewareLibrary(options: Options) {
     api.registerUpdateListener(changed);
     api.registerAddListener?.(changed); api.registerRemoveListener?.(changed);
     const client = (event: unknown) => {
-      const type = (event as { type?: string } | null)?.type;
+      const type = ggbClientEventType(event);
       if (type && ['viewChanged2D', 'viewChanged3D', 'storeUndo', 'clear', 'rename', 'updateStyle', 'dragEnd', 'animationStop'].includes(type)) markDirty();
     }; api.registerClientListener?.(client);
-    return () => { api.unregisterUpdateListener(changed); api.unregisterAddListener?.(changed); api.unregisterRemoveListener?.(changed); api.unregisterClientListener?.(client); };
+    let signature: string | undefined;
+    const stopGraphics = watchGgbGraphics(api, graphics => {
+      if (signature !== undefined && signature !== graphics.signature) markDirty();
+      signature = graphics.signature;
+    });
+    return () => { stopGraphics(); api.unregisterUpdateListener(changed); api.unregisterAddListener?.(changed); api.unregisterRemoveListener?.(changed); api.unregisterClientListener?.(client); };
   }, [options.api, markDirty]);
   useEffect(() => {
     const changed = (event: Event) => {
@@ -130,6 +136,11 @@ export function useCoursewareLibrary(options: Options) {
         restoredInputs.current = { messages: loaded?.messages ?? [], showAxes: loaded?.view?.showAxes ?? true, showGrid: loaded?.view?.showGrid ?? true, runtimeId: state.current.runtimeId };
         await state.current.onRestore(loaded);
         if (cancelled) return;
+        const graphics = state.current.api && readGgbGraphics(state.current.api);
+        if (graphics && restoredInputs.current) {
+          restoredInputs.current.showAxes = graphics.axes === 'all';
+          restoredInputs.current.showGrid = graphics.showGrid;
+        }
         record.current = loaded; setSummary(loaded); dirty.current = 0; saved.current = 0; conflict.current = false;
         restoring.current = false; setStatus(loaded ? 'saved' : 'idle');
         if (action === 'new') router.replace('/dashboard');

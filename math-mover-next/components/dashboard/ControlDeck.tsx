@@ -5,6 +5,7 @@ import {
   Play,
   Pause,
   Grid,
+  Settings2,
   Maximize2,
   Minimize2,
   RotateCcw,
@@ -21,7 +22,10 @@ interface ControlDeckProps {
   saveStatusText?: string;
   sliders: SliderItem[];
   showAxes: boolean;
+  axesMixed?: boolean;
   showGrid: boolean;
+  settingsOpen?: boolean;
+  onToggleSettings?: () => void;
   isFullscreen: boolean;
   onSliderChange: (name: string, value: number) => void;
   onToggleAnimation: (name: string) => void;
@@ -37,7 +41,10 @@ export default function ControlDeck({
   saveStatusText,
   sliders,
   showAxes,
+  axesMixed = false,
   showGrid,
+  settingsOpen = false,
+  onToggleSettings,
   isFullscreen,
   onSliderChange,
   onToggleAnimation,
@@ -131,10 +138,11 @@ export default function ControlDeck({
         <button
           type="button"
           onClick={onToggleAxes}
-          title={showAxes ? '隐藏坐标轴' : '显示坐标轴'}
-          aria-pressed={showAxes}
+          title={axesMixed ? '坐标轴部分显示，点击显示全部' : showAxes ? '隐藏坐标轴' : '显示坐标轴'}
+          aria-label="显示坐标轴"
+          aria-pressed={axesMixed ? 'mixed' : showAxes}
           className={`p-2 rounded-lg text-xs font-medium transition-colors ${
-            showAxes
+            axesMixed ? 'text-emerald-700 bg-stone-100 ring-1 ring-inset ring-emerald-600/40 hover:bg-emerald-50' : showAxes
               ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
               : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'
           }`}
@@ -146,6 +154,7 @@ export default function ControlDeck({
           type="button"
           onClick={onToggleGrid}
           title={showGrid ? '隐藏网格' : '显示网格'}
+          aria-label="显示网格"
           aria-pressed={showGrid}
           className={`p-2 rounded-lg text-xs transition-colors ${
             showGrid
@@ -154,6 +163,12 @@ export default function ControlDeck({
           }`}
         >
           <Grid className="w-4 h-4" />
+        </button>
+
+        <button type="button" onClick={onToggleSettings} disabled={!onToggleSettings}
+          aria-label="画板设置" title={settingsOpen ? '关闭画板设置' : '打开画板设置'} aria-pressed={settingsOpen}
+          className={`p-2 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-40 ${settingsOpen ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'}`}>
+          <Settings2 aria-hidden className="w-4 h-4" />
         </button>
 
         <button

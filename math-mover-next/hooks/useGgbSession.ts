@@ -6,6 +6,7 @@ import { auditConstruction } from '@/lib/ggb-audit';
 import { animateViewToCenter, readViewBounds } from '@/lib/ggb-view-transition';
 import { createCoursewareHTML } from '@/lib/ggb-html-export';
 import { getCoursewarePNG } from '@/lib/ggb-png-export';
+import { watchGgbGraphics } from '@/lib/ggb-graphics-state';
 
 interface UseGgbSessionOptions {
   onAuditCompleted?: (audit: AuditResult) => void;
@@ -19,6 +20,7 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
   const [activeSliderName, setActiveSliderName] = useState<string | null>(null);
   const [lastExecutedCommands, setLastExecutedCommands] = useState<string[]>([]);
   const [currentMode, setCurrentMode] = useState<'2D' | '3D'>('2D');
+  useEffect(() => ggbApplet ? watchGgbGraphics(ggbApplet, state => setCurrentMode(state.mode)) : undefined, [ggbApplet]);
 
   const execSessionRef = useRef(0);
   const animatingSlidersRef = useRef<Set<string>>(new Set());

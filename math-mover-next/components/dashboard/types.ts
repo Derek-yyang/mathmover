@@ -6,8 +6,14 @@ export type CoursewareExportFormat = 'html' | 'ggb' | 'png';
 export interface GeoGebraApi {
   newConstruction: () => void;
   setPerspective: (p: string) => void;
-  setAxesVisible: (x: boolean, y: boolean, z?: boolean) => void;
-  setGridVisible: (v: boolean) => void;
+  setAxesVisible: {
+    (x: boolean, y: boolean, z?: boolean): void;
+    (view: number, x: boolean, y: boolean, z: boolean): void;
+  };
+  setGridVisible: {
+    (visible: boolean): void;
+    (view: number, visible: boolean): void;
+  };
   evalCommand: (cmd: string) => boolean | void;
   getValue: (name: string) => number;
   setValue: (name: string, val: number) => void;
@@ -23,6 +29,8 @@ export interface GeoGebraApi {
   registerClientListener?: (fn: (event: unknown) => void) => void;
   unregisterClientListener?: (fn: (event: unknown) => void) => void;
   getViewProperties?: (view: number) => unknown;
+  getGraphicsOptions?: (view: number) => unknown;
+  getPerspectiveXML?: () => string;
   setCoordSystem?: (xMin: number, xMax: number, yMin: number, yMax: number) => void;
   refreshViews: () => void;
   recalcDisplay?: () => void;
@@ -88,4 +96,3 @@ export interface AgentChatMessage {
   attachments?: ChatAttachment[];
   meta?: AgentMeta;
 }
-

@@ -41,11 +41,11 @@ export function ImagePreviewProvider({ children }: { children: ReactNode }) {
       }}>
         <DialogTitle className="reading-dialog-title">{request.images[request.index].name || '题目图片'}</DialogTitle>
         <DialogDescription className="sr-only">滚轮缩放，拖动查看图片；左右方向键切换，按 Escape 或点击外部关闭。</DialogDescription>
-        <ImageCanvas key={`${request.index}:${request.images[request.index].url}`} image={request.images[request.index]} />
+        <ImageCanvas key={request.index} image={request.images[request.index]} />
         {request.images.length > 1 && <div className="image-gallery-controls">
-          <button aria-label="上一张题图" aria-disabled={request.index === 0} onClick={() => setRequest({ ...request, index: Math.max(0, request.index - 1) })}><ChevronLeft aria-hidden size={18} /></button>
+          <button aria-label="上一张题图" aria-disabled={request.index === 0} onClick={() => setRequest(previous => previous ? { ...previous, index: Math.max(0, previous.index - 1) } : null)}><ChevronLeft aria-hidden size={18} /></button>
           <span aria-live="polite">{request.index + 1} / {request.images.length}</span>
-          <button aria-label="下一张题图" aria-disabled={request.index === request.images.length - 1} onClick={() => setRequest({ ...request, index: Math.min(request.images.length - 1, request.index + 1) })}><ChevronRight aria-hidden size={18} /></button>
+          <button aria-label="下一张题图" aria-disabled={request.index === request.images.length - 1} onClick={() => setRequest(previous => previous ? { ...previous, index: Math.min(previous.images.length - 1, previous.index + 1) } : null)}><ChevronRight aria-hidden size={18} /></button>
         </div>}
       </DialogContent>
     </Dialog>}
