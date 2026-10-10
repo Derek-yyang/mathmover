@@ -106,3 +106,28 @@ describe('runAgent 图片递送分流', () => {
     expect(getCaptured()!.prompt).toBe('画个图');
   });
 });
+
+describe('runAgent 打断', () => {
+  it('cancel() 杀掉子进程，run 随之收尾（不留僵尸）', async () => {
+    // 起一个长命进程，模拟跑 SOP 流程的 agent
+    const def = {
+      id: 'fake-cli',
+      displayName: 'Fake CLI',
+      executable: process.execPath,
+      probeArgs: ['--version'],
+      parseLine: () => null,
+      buildArgs: () => ['-e', 'setTimeout(() => {}, 60000)'],
+    } as unknown as RuntimeDefinition;
+
+    const events: Array<{ kind: string }> = [];
+    const handle = runAgent({ def, prompt: 'p', mcpConfigPath: 'x.json', onEvent: (e) => events.push(e as { kind: string }) });
+    expect(handle.proc).not.toBeNull();
+    expect(handle.proc!.killed).toBe(false);
+
+    handle.cancel();
+    const { exitCode } = await handle.done;
+    // 被杀：进程不再活着，run 正常收尾（不悬挂）
+    expect(handle.proc!.killed).toBe(true);
+    expect(exitCode).not.toBe(0);
+  });
+});

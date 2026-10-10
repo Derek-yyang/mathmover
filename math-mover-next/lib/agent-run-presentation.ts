@@ -11,6 +11,7 @@ export function executionPresentation(execution: AgentExecution) {
   const warning = execution.status === 'error' || errors > 0;
   const uncertain = execution.status === 'unconfirmed' || unconfirmed > 0;
   const label = running ? current ? `正在${toolStepLabel(current.name)}` : '等待 Agent 回复'
+    : execution.status === 'stopped' ? '已停止 · 本轮未跑完'
     : execution.status === 'error' ? '本轮中断'
     : warning ? '本轮结束 · 有工具返回错误'
     : uncertain ? '本轮结束 · 有结果未确认' : '本轮已结束';

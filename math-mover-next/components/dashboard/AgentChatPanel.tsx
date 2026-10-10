@@ -21,12 +21,14 @@ interface AgentChatPanelProps {
   messages: AgentChatMessage[]; isLoading: boolean; sendDisabled?: boolean;
   conversationId?: string; loadingStatusText?: string;
   onSendMessage: (text: string, attachments: ChatAttachment[]) => void | Promise<void>;
+  /** 停止当前这一轮（agent 正在跑时才用得上） */
+  onStopRun?: () => void;
   runtimes?: RuntimeOption[];
   activeRuntimeId?: string; onSelectRuntime?: (id: string) => void;
 }
 
 function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusText = '等待 Agent 回复…',
-  onSendMessage, canAttachImages }: AgentChatPanelProps & { canAttachImages: boolean }) {
+  onSendMessage, onStopRun, canAttachImages }: AgentChatPanelProps & { canAttachImages: boolean }) {
   const { detecting, detectionError, refreshRuntimes } = useAgentRuntimeState();
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -81,7 +83,7 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
         </ThreadPrimitive.Viewport>
         <ConversationIndex turns={turns} viewportRef={viewportRef} contentRef={contentRef} onNavigate={() => setIndexBrowsing(true)} />
       </div>
-      <AssistantChatComposer canAttachImages={canAttachImages} isLoading={isLoading} getAttachmentCount={() => runtime.thread.composer.getState().attachments.length} />
+      <AssistantChatComposer canAttachImages={canAttachImages} isLoading={isLoading} onStopRun={onStopRun} getAttachmentCount={() => runtime.thread.composer.getState().attachments.length} />
     </ThreadPrimitive.Root>
   </AssistantRuntimeProvider>;
 }

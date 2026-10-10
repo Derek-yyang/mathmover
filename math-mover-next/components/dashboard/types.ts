@@ -68,7 +68,8 @@ export interface ChatAttachment {
 }
 
 export interface AgentMeta {
-  status?: 'classifying' | 'generating' | 'completed' | 'error';
+  /** stopped = 用户主动打断；不要当错误呈现 */
+  status?: 'classifying' | 'generating' | 'completed' | 'error' | 'stopped';
   category?: string;
   categoryLabel?: string;
   commands?: string[];

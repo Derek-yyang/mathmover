@@ -41,6 +41,9 @@ function DashboardContent() {
 
   // 对话流状态
   // messages / isLoading 由 handleSendMessage 流式维护
+  // 当前这一轮的取消句柄。用户点「停止」→ abort fetch → 流被取消 →
+  // route 的 ReadableStream.cancel() 杀掉 agent 子进程（见 app/api/agent/route.ts）。
+  const abortRef = useRef<AbortController | null>(null);
   const [loadingStatusText, setLoadingStatusText] = useState('准备就绪');
 
   // 视图控制
@@ -64,6 +67,10 @@ function DashboardContent() {
     }
 
     if (document.fullscreenEnabled && workspace.requestFullscreen) {
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let stopped = false;
+
       try {
         await workspace.requestFullscreen();
         return;
@@ -235,6 +242,13 @@ function DashboardContent() {
    * 事件是 NDJSON：text-delta 累积成正文，tool-call/tool-result 用于显示
    * "它在干什么"，done 收尾。多轮靠 sessionId 续（--resume）。
    */
+  // 停止当前这一轮：abort fetch → 流取消 → route 杀掉 agent 子进程。
+  // 本轮状态记为 stopped（不是 error），已产出的内容保留在气泡里。
+  const stopRun = useCallback(() => {
+    abortRef.current?.abort();
+    setLoadingStatusText('正在停止…');
+  }, []);
+
   const handleSendMessage = useCallback(
     async (text: string, attachments: ChatAttachment[]) => {
       if (isLoading || !canSend) return;
@@ -297,6 +311,7 @@ function DashboardContent() {
         }
 
         const res = await fetch('/api/agent', {
+          signal: controller.signal,
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -380,14 +395,18 @@ function DashboardContent() {
           for (const raw of lines) handleLine(raw);
         }
         handleLine(buffer + decoder.decode());
-        if (!sawDone && !sawError) reportFailure('消息流结束，但没有收到任务完成标记。无法确认此次任务是否完成。', 'runtime');
+        if (!sawDone && !sawError && !stopped) reportFailure('消息流结束，但没有收到任务完成标记。无法确认此次任务是否完成。', 'runtime');
       } catch (e) {
-        reportFailure(String(e instanceof Error ? e.message : e), 'request');
+        // 用户点「停止」是正常打断，不是失败——不要报成错误
+        if (controller.signal.aborted) stopped = true;
+        else reportFailure(String(e instanceof Error ? e.message : e), 'request');
       } finally {
         const now = Date.now();
-        const status = sawError ? 'error' : sawDone ? 'completed' : 'unconfirmed';
+        if (abortRef.current === controller) abortRef.current = null;
+        const status = stopped ? 'stopped' : sawError ? 'error' : sawDone ? 'completed' : 'unconfirmed';
         patch(m => m.meta?.execution ? { ...m, meta: { ...m.meta,
-          status: sawError ? 'error' : 'completed', execution: finishExecution(m.meta.execution, status, now) } } : m);
+          status: stopped ? 'stopped' : sawError ? 'error' : 'completed',
+          execution: finishExecution(m.meta.execution, status, now) } } : m);
         setIsLoading(false);
         setLoadingStatusText('准备就绪');
       }
@@ -440,6 +459,7 @@ function DashboardContent() {
           sendDisabled={!courseware.canSend}
           loadingStatusText={loadingStatusText}
           onSendMessage={handleSendMessage}
+          onStopRun={stopRun}
           runtimes={runtimes}
           activeRuntimeId={activeRuntimeId}
           onSelectRuntime={handleSelectRuntime}

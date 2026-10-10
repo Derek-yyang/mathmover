@@ -9,6 +9,7 @@ import AgentExecutionProgress from './AgentExecutionProgress';
 import AgentRunResult from './AgentRunResult';
 import { useAgentRuntimeState } from './AgentRuntimeState';
 import { agentFailure } from '@/lib/agent-diagnostics';
+import { assistantMessagePhase, canCopyAgentMessage } from '@/lib/assistant-chat-adapter';
 import { useImagePreview } from './ImagePreview';
 import { ChatCodeBlock } from './ReadingContent';
 
@@ -19,6 +20,10 @@ export default function AssistantChatMessage() {
   const { detecting, refreshRuntimes } = useAgentRuntimeState();
   if (!msg) return null;
   const isUser = msg.role === 'user';
+  const phase = assistantMessagePhase(msg);
+  // 出错或被停止时内容都是残的，别按"完整消息"措辞
+  const copyLabel = phase === 'error' || phase === 'stopped' ? '复制已生成内容' : '复制消息';
+  const canCopy = canCopyAgentMessage(msg);
   const diagnostic = !isUser && msg.meta?.status === 'error'
     ? msg.meta.diagnostic ?? agentFailure({ stage: 'runtime', message: msg.meta.errorMessage || '没有返回具体错误信息。' }) : undefined;
   const cmds = msg.meta?.commands ?? [];
@@ -42,10 +47,12 @@ export default function AssistantChatMessage() {
         <div className="px-3 pb-3"><ChatCodeBlock code={cmds.join(String.fromCharCode(10))} language="GeoGebra" copyLabel="复制全部指令" /></div>
       </details>}
     </div>
-    {msg.content && <ActionBarPrimitive.Root className="flex h-7 items-center opacity-0 transition-opacity group-hover/message:opacity-100 group-focus-within/message:opacity-100 [@media(hover:none)]:opacity-100 motion-reduce:transition-none">
-      <ActionBarPrimitive.Copy aria-label="复制消息" title="复制消息" className="rounded-md p-1.5 text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700">
-        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-      </ActionBarPrimitive.Copy>
-    </ActionBarPrimitive.Root>}
+    <div className="relative h-7">
+      {canCopy && <ActionBarPrimitive.Root className="absolute inset-x-0 top-0 flex h-7 items-center opacity-0 transition-opacity group-hover/message:opacity-100 group-focus-within/message:opacity-100 [@media(hover:none)]:opacity-100 motion-reduce:transition-none">
+        <ActionBarPrimitive.Copy aria-label={copyLabel} title={copyLabel} className="rounded-md p-1.5 text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700">
+          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+        </ActionBarPrimitive.Copy>
+      </ActionBarPrimitive.Root>}
+    </div>
   </MessagePrimitive.Root>;
 }

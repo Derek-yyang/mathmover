@@ -8,7 +8,8 @@ export interface AgentToolStep {
 }
 
 export interface AgentExecution {
-  status: 'running' | 'completed' | 'error' | 'unconfirmed';
+  /** stopped = 用户主动打断（不是失败，也不是正常结束） */
+  status: 'running' | 'completed' | 'error' | 'unconfirmed' | 'stopped';
   startedAt: number;
   endedAt?: number;
   steps: AgentToolStep[];

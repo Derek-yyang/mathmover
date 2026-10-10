@@ -56,3 +56,10 @@ test('clean audit claims only absence of object issues, and active runs have no 
   for (const status of ['generating', 'classifying']) assert.equal(runResultPresentation({ ...meta, status }), null);
   assert.equal(runResultPresentation({ ...meta, execution: run([], 'running') }), null);
 });
+
+test('user-stopped runs are neither success nor failure', () => {
+  const result = executionPresentation(run([], 'stopped'));
+  assert.equal(result.label, '已停止 · 本轮未跑完');
+  assert.equal(result.warning, false);
+  assert.equal(result.uncertain, false);
+});

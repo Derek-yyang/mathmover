@@ -2,10 +2,10 @@
 
 import { useRef, useState } from 'react';
 import { AttachmentPrimitive, ComposerPrimitive, useAui, useAuiState } from '@assistant-ui/react';
-import { ImagePlus, Loader2, X } from 'lucide-react';
+import { ImagePlus, Square, X } from 'lucide-react';
 import { useImagePreview } from './ImagePreview';
 
-export default function AssistantChatComposer({ canAttachImages, isLoading, getAttachmentCount }: { canAttachImages: boolean; isLoading: boolean; getAttachmentCount: () => number }) {
+export default function AssistantChatComposer({ canAttachImages, isLoading, onStopRun, getAttachmentCount }: { canAttachImages: boolean; isLoading: boolean; onStopRun?: () => void; getAttachmentCount: () => number }) {
   const aui = useAui();
   const preview = useImagePreview();
   const input = useRef<HTMLInputElement>(null);
@@ -59,9 +59,22 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, getA
           onChange={event => { void addImages(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
         <button type="button" aria-label="添加题目图片" title={canAttachImages ? '上传、粘贴或拖入题目图片' : '当前 Agent 没有图片通道'}
           disabled={!canAttachImages} onClick={() => input.current?.click()} className="rounded-lg p-2 text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:text-stone-400"><ImagePlus aria-hidden className="h-4 w-4" /></button>
-        <ComposerPrimitive.Send disabled={incompatibleAttachments} aria-label="发送消息" title="发送消息" className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500">
-          {isLoading ? <Loader2 aria-hidden className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <span aria-hidden className="text-lg leading-none">↑</span>}
-        </ComposerPrimitive.Send>
+        {/* 运行中换成停止按钮——原来只是转圈的发送键，看着能点、点了没反应。
+            两颗按钮共用几何与叠放位，靠透明度交叉过渡，读起来是「同一颗按钮变了状态」
+            而不是「跳出一个新控件」。用浅绿底与深绿图标呼应主题：停止一轮不是破坏性操作，
+            已生成的内容与画布都保留；红色在这套奶油底+emerald 的色板里也是异物。 */}
+        <div className="relative h-8 w-8">
+          <button type="button" tabIndex={isLoading ? 0 : -1} aria-hidden={!isLoading}
+            onClick={() => onStopRun?.()} aria-label="停止本轮" title="停止本轮（agent 正在运行）"
+            className={`absolute inset-0 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 transition-opacity duration-150 motion-reduce:transition-none ${isLoading ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+            <Square aria-hidden className="h-3.5 w-3.5 fill-current" />
+          </button>
+          <ComposerPrimitive.Send tabIndex={isLoading ? -1 : 0} aria-hidden={isLoading}
+            disabled={isLoading || incompatibleAttachments} aria-label="发送消息" title="发送消息"
+            className={`absolute inset-0 flex items-center justify-center rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500 transition-opacity duration-150 motion-reduce:transition-none ${isLoading ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
+            <span aria-hidden className="text-lg leading-none">↑</span>
+          </ComposerPrimitive.Send>
+        </div>
       </div>
     </ComposerPrimitive.Root>
     {attachmentError && <p role="alert" className="mt-2 text-xs leading-5 text-amber-900">{attachmentError}</p>}

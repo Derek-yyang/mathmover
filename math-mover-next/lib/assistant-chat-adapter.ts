@@ -1,15 +1,32 @@
 import type { AppendMessage, ThreadMessageLike } from '@assistant-ui/react';
 import type { AgentChatMessage, ChatAttachment } from '@/components/dashboard/types';
 
+export type AssistantMessagePhase = 'running' | 'complete' | 'error' | 'stopped';
+
+export function assistantMessagePhase(message: AgentChatMessage): AssistantMessagePhase {
+  const meta = message.meta;
+  if (!meta) return 'complete';
+  // 用户主动打断：内容是残的，但既不是失败也不是正常结束
+  if (meta.status === 'stopped' || meta.execution?.status === 'stopped') return 'stopped';
+  if (meta.status === 'error' || meta.execution?.status === 'error' || meta.execution?.status === 'unconfirmed') return 'error';
+  if (meta.status === 'classifying' || meta.status === 'generating' || meta.execution?.status === 'running') return 'running';
+  return 'complete';
+}
+
+export function canCopyAgentMessage(message: AgentChatMessage): boolean {
+  return message.content.trim().length > 0 && assistantMessagePhase(message) !== 'running';
+}
+
 /** Presentation projection only: the host remains the source of truth and saves its own format. */
 export function toAssistantMessage(message: AgentChatMessage): ThreadMessageLike {
+  const phase = assistantMessagePhase(message);
   return {
     id: message.id, role: message.role, createdAt: new Date(message.createdAt),
     content: message.content ? [{ type: 'text', text: message.content }] : [],
     status: message.role === 'assistant'
-      ? message.meta?.status === 'error' ? { type: 'incomplete', reason: 'error' }
-      : message.meta?.execution?.status === 'running' || message.meta?.status === 'generating'
-        ? { type: 'running' } : { type: 'complete', reason: 'stop' }
+      ? phase === 'error' ? { type: 'incomplete', reason: 'error' }
+      : phase === 'stopped' ? { type: 'incomplete', reason: 'cancelled' }
+      : phase === 'running' ? { type: 'running' } : { type: 'complete', reason: 'stop' }
       : undefined,
     // Domain metadata is rendered separately, never executed as frontend tools.
     metadata: { custom: { mathmover: message } },
