@@ -1,6 +1,11 @@
 /** 测 codex MCP 工具的审批放行开关（严格判定：只看 mcp_tool_call 项的 status）。临时诊断用。 */
 import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { resolveSpawnTarget } from '../packages/agent-runtime/src/resolve.ts';
+
+// 仓库根从脚本自身位置推，不写死盘符
+const REPO = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 const target = resolveSpawnTarget('codex');
 if (!target) {
@@ -24,7 +29,7 @@ const variants = {
 
 for (const [name, args] of Object.entries(variants)) {
   const r = spawnSync(target.command, [...target.prefixArgs, ...args], {
-    encoding: 'utf-8', timeout: 120_000, windowsHide: true, cwd: 'D:/Mathmover',
+    encoding: 'utf-8', timeout: 120_000, windowsHide: true, cwd: REPO,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const out = (r.stdout || '') + (r.stderr || '');
@@ -49,7 +54,7 @@ for (const [name, args] of Object.entries(variants)) {
 const H = ['exec', '--json', '--skip-git-repo-check', '--approve-for-me', '-c', 'sandbox_mode="read-only"', ...MCP, PROMPT];
 {
   const r = spawnSync(target.command, [...target.prefixArgs, ...H], {
-    encoding: 'utf-8', timeout: 120_000, windowsHide: true, cwd: 'D:/Mathmover',
+    encoding: 'utf-8', timeout: 120_000, windowsHide: true, cwd: REPO,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const out = (r.stdout || '') + (r.stderr || '');
@@ -76,7 +81,7 @@ for (const mode of MODES) {
     '-c', `mcp_servers.mathmover.default_tools_approval_mode="${mode}"`,
     ...MCP, PROMPT];
   const r = spawnSync(target.command, [...target.prefixArgs, ...args], {
-    encoding: 'utf-8', timeout: 120_000, windowsHide: true, cwd: 'D:/Mathmover',
+    encoding: 'utf-8', timeout: 120_000, windowsHide: true, cwd: REPO,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const out = (r.stdout || '') + (r.stderr || '');
@@ -100,7 +105,7 @@ for (const mode of MODES) {
     '-c', 'mcp_servers.mathmover.default_tools_approval_mode="approve"',
     ...MCP, PROMPT];
   const r = spawnSync(target.command, [...target.prefixArgs, ...args], {
-    encoding: 'utf-8', timeout: 120_000, windowsHide: true, cwd: 'D:/Mathmover',
+    encoding: 'utf-8', timeout: 120_000, windowsHide: true, cwd: REPO,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const out = (r.stdout || '') + (r.stderr || '');

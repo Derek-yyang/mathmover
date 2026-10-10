@@ -3,16 +3,25 @@
  * 对比带 harness 变量的情况，定位 Not logged in 的触发条件。临时诊断用。
  */
 import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { resolveSpawnTarget } from '../packages/agent-runtime/src/resolve.ts';
 
-const EXE = 'C:/Users/Derek/AppData/Roaming/npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe';
-const REPO = 'D:/Mathmover';
+// 仓库根从脚本自身位置推，不写死盘符（换机器/换克隆位置要能直接跑）
+const REPO = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+const TARGET = resolveSpawnTarget('claude');
+if (!TARGET) {
+  console.error('claude 不可用');
+  process.exit(1);
+}
+const MCP_CONFIG = path.join(REPO, 'spike-out', 'mcp', 'claude-mcp.json');
 
 const routeArgs = [
   '-p', '回复OK两个字母即可',
   '--output-format', 'stream-json',
   '--verbose',
   '--include-partial-messages',
-  '--mcp-config', 'D:/Mathmover/spike-out/mcp/claude-mcp.json',
+  '--mcp-config', MCP_CONFIG,
   '--restricted',
 ];
 
@@ -29,7 +38,7 @@ function minimalEnv() {
 }
 
 function run(name, env) {
-  const r = spawnSync(EXE, routeArgs, {
+  const r = spawnSync(TARGET.command, [...TARGET.prefixArgs, ...routeArgs], {
     encoding: 'utf-8', timeout: 90_000, windowsHide: true, env,
     cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -60,7 +69,7 @@ const fullEnv = (() => {
 })();
 
 function run2(name, env, args) {
-  const r = spawnSync(EXE, args, {
+  const r = spawnSync(TARGET.command, [...TARGET.prefixArgs, ...args], {
     encoding: 'utf-8', timeout: 90_000, windowsHide: true, env,
     cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -78,7 +87,7 @@ const base = ['-p', '回复OK两个字母即可', '--output-format', 'json'];
 const variants = {
   '仅基础': base,
   '基础+--restricted': [...base, '--restricted'],
-  '基础+--mcp-config': [...base, '--mcp-config', 'D:/Mathmover/spike-out/mcp/claude-mcp.json'],
+  '基础+--mcp-config': [...base, '--mcp-config', MCP_CONFIG],
   '基础+stream-json+verbose': ['-p', '回复OK两个字母即可', '--output-format', 'stream-json', '--verbose'],
   '基础+--include-partial-messages': [...base, '--include-partial-messages'],
 };
@@ -90,10 +99,10 @@ for (const [name, args] of Object.entries(variants)) {
 const allowArgs = [
   '-p', '调用 ggb_get_state 看一下画布，然后一句话说你看到了什么。另外：如果你有 Bash 工具就运行 echo hi 并报告输出，没有就说没有 Bash。',
   '--output-format', 'stream-json', '--verbose',
-  '--mcp-config', 'D:/Mathmover/spike-out/mcp/claude-mcp.json',
+  '--mcp-config', MCP_CONFIG,
   '--allowedTools', 'mcp__mathmover__*',
 ];
-const r3 = spawnSync(EXE, allowArgs, {
+const r3 = spawnSync(TARGET.command, [...TARGET.prefixArgs, ...allowArgs], {
   encoding: 'utf-8', timeout: 90_000, windowsHide: true, env: fullEnv,
   cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'],
 });

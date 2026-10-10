@@ -52,13 +52,19 @@ function skillPath(rootDir: string, category: string): string {
   return path.join(rootDir, 'skills', skill, 'SKILL.md');
 }
 
-function sopCardPath(rootDir: string, name: string, category: string): string {
+/**
+ * 卡文件路径。
+ * `category` 只用于把错误消息指到具体专家（如「SOP 卡缺失: …（function-expert）」）；
+ * 全库场景没有类别可给，这时不带该后缀——别传 `'?'` 之类占位，那只会打出 `（undefined）`。
+ */
+function sopCardPath(rootDir: string, name: string, category?: string): string {
   if (typeof name !== 'string' || !/^[a-z0-9-]+$/.test(name)) {
     throw new SopAssemblyError(`非法 SOP 名称: ${JSON.stringify(name)}`);
   }
   const card = path.join(rootDir, 'skills', 'shared', 'sops', `${name}.md`);
   if (!fs.existsSync(card)) {
-    throw new SopAssemblyError(`SOP 卡缺失: ${card}（${CATEGORY_TO_SKILL[category]}）`);
+    const where = category ? `（${CATEGORY_TO_SKILL[category] ?? category}）` : '';
+    throw new SopAssemblyError(`SOP 卡缺失: ${card}${where}`);
   }
   return card;
 }
@@ -112,7 +118,7 @@ export interface SopCatalogEntry {
 
 /** 卡头元数据：`# SOP: name — title` + `输入：...` 行。清单从这里自动生成，零维护。 */
 export function readCardMeta(rootDir: string, name: string): { title: string; inputs: string } {
-  const body = read(sopCardPath(rootDir, name, '?'));
+  const body = read(sopCardPath(rootDir, name));
   const head = /^#\s*SOP:\s*[a-z0-9-]+\s*—\s*(.+)$/m.exec(body);
   const inputs = /^输入：(.*)$/m.exec(body);
   return {
@@ -230,7 +236,7 @@ export function loadSopCards(
       unknown.push(name);
       continue;
     }
-    cards.push({ name, text: read(sopCardPath(rootDir, name, '?')) });
+    cards.push({ name, text: read(sopCardPath(rootDir, name)) });
   }
   const suggestions = unknown
     .map((u) => all.filter((n) => n.includes(u) || u.includes(n)).slice(0, 3))

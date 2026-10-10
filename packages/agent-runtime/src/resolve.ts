@@ -16,8 +16,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const IS_WIN = process.platform === 'win32';
-const RUNNABLE_ON_WIN = /\.(exe|com|cmd|bat)$/i;
 
+/**
+ * **注意：不要只取 `command` 就去 spawn。**
+ * `.js` 入口的场景 `command` 是 node、脚本路径在 `prefixArgs` 里——
+ * 只拿 command 等于 spawn 了个空 node（曾经真出过这个 bug，故不留
+ * 「只给可执行路径」的便捷函数，免得再被误用）。
+ */
 export interface SpawnTarget {
   /** 真正要启动的可执行文件 */
   command: string;
@@ -107,11 +112,6 @@ export function resolveSpawnTarget(name: string): SpawnTarget | null {
 
   cache.set(name, result);
   return result;
-}
-
-/** 兼容旧调用点：只要一个可执行路径。 */
-export function resolveExecutable(name: string): string | null {
-  return resolveSpawnTarget(name)?.command ?? null;
 }
 
 export function clearResolveCache(): void {

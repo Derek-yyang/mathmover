@@ -20,11 +20,10 @@
  *   也避免与 ai 包的版本耦合。
  */
 
-import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, resolveSpawnTarget, withClaudeSettingsEnv, buildTranscript, validateImages, materializeImages, toImagePathNote, toImageUndeliveredNote, type AgentEvent, type RuntimeDefinition, type TranscriptTurn, type ImageInput } from '@mathmover/agent-runtime';
+import { RUNTIMES, runAgent, resolveSpawnTarget, buildTranscript, validateImages, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -169,7 +168,8 @@ export async function POST(req: Request): Promise<Response> {
   }
   const { def, target } = picked;
 
-  // 题目图片：校验载荷，按运行时能力递送（claude stdin 图片块 / codex -i 文件）或降级占位
+  // 题目图片：这里只校验载荷。递送通道分流、prompt 说明、argv 预算守卫都归
+  // agent-runtime 的 runAgent（见 src/run.ts）——本层是 HTTP，只把事件转成 NDJSON 流。
   const checked = validateImages(body.images);
   if (checked.error) {
     return new Response(
@@ -177,21 +177,6 @@ export async function POST(req: Request): Promise<Response> {
       { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
     );
   }
-  const images: ImageInput[] = checked.images;
-
-  // 图片递送按通道分流（见 defs.ts 的 imageDelivery）：只描述「CLI 怎么收图」，
-  // 模型能不能看懂不建模——那是用户选型的事。
-  const delivery = def.imageDelivery;
-  const materialized = images.length > 0 && delivery && delivery !== 'stdin-json'
-    ? materializeImages(images)
-    : { paths: [] as string[], cleanup: () => {} };
-
-  // 说明文字也按通道来：prompt-path 给路径让 agent 自己看；无通道则如实说未送达。
-  // stdin-json / argv-paths 已把图递过去了，不必再加说明。
-  const imageNote = images.length === 0 ? ''
-    : delivery === 'prompt-path' ? `\n\n${toImagePathNote(materialized.paths)}`
-    : delivery ? ''
-    : `\n\n${toImageUndeliveredNote(images.length)}`;
 
   // 转写注入：仅无原生会话的运行时（dsh）带历史语境；claude/codex 有自己的会话，
   // 注入会造成双重上下文（模型会复读历史，OpenDesign 的 agy -c 教训）。
@@ -200,33 +185,37 @@ export async function POST(req: Request): Promise<Response> {
         Boolean(t) && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string' && t.content.trim().length > 0)
     : [];
   const transcript = priorTurns.length ? buildTranscript(priorTurns) : '';
-  const composedPrompt = (transcript
+  const composedPrompt = transcript
     ? `${SYSTEM_BRIEF}\n\n---\n\n## 此前的对话（供延续语境，不要复述）\n${transcript}\n\n---\n\n用户现在说：\n${prompt}`
-    : `${SYSTEM_BRIEF}\n\n---\n\n用户现在说：\n${prompt}`) + imageNote;
+    : `${SYSTEM_BRIEF}\n\n---\n\n用户现在说：\n${prompt}`;
 
-  // argv 传 prompt 的预算守卫：明着拒绝，不要 ENAMETOOLONG 崩 spawn
-  if (!def.promptViaStdin) {
-    const budget = def.maxPromptArgBytes ?? 24_000;
-    if (Buffer.byteLength(composedPrompt, 'utf-8') > budget) {
-      return new Response(
-        line({ kind: 'error', message: `输入过长（超过 ${budget} 字节命令行预算，${def.displayName} 不支持 stdin 传入），请缩短题目或分批发送` }),
-        { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
-      );
-    }
-  }
+  // 流建立前到的事件先排队（runAgent 启动时就会吐「# 启动 …」）
+  const queued: AgentEvent[] = [];
+  let sink: (e: AgentEvent) => void = (e) => queued.push(e);
 
-  // 只有 stdin-json 通道把图片块递进 stdin；argv-paths / prompt-path 用上面落盘的 materialized.paths
-  const inlineImages = delivery === 'stdin-json' ? images : [];
-
-  const args = def.buildArgs({
+  const handle = runAgent({
+    def,
     prompt: composedPrompt,
     mcpConfigPath: MCP_CONFIG_PATH,
-    // 多轮续接交给定义自己翻译（claude=--resume，codex=exec resume <id>，dsh 转写注入）。
-    // 不要传 sessionId —— 那是"新建指定 id"语义，与续接冲突。
-    sessionId: undefined,
+    cwd: REPO_ROOT,
+    // 不要传 sessionId —— 那是"新建指定 id"语义，与续接冲突
     resumeSessionId: body.sessionId || undefined,
-    imagePaths: materialized.paths,
+    images: checked.images,
+    env: { MATHMOVER_WINDOW_ID: body.windowId ?? '' },
+    // 长任务保护：**静默**超时（不是墙钟），见 run.ts
+    inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? 180_000),
+    onEvent: (e) => sink(e),
   });
+
+  // 拒启（如 prompt 超 argv 预算）：明着 400，不要拿 200 + 流内错误糊弄
+  if (!handle.proc) {
+    const first = queued.find((e) => e.kind === 'error');
+    return new Response(
+      line({ kind: 'error', message: first?.kind === 'error' ? first.message : `启动 ${def.displayName} 被拒绝` }),
+      { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
+    );
+  }
+  void target; // 仅用于 findRuntime 的可用性预检，真正 spawn 由 runAgent 负责
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -238,90 +227,15 @@ export async function POST(req: Request): Promise<Response> {
           /* 流已关闭 */
         }
       };
-
-      send({ kind: 'raw', line: `# 启动 ${def.displayName}（${target.command.split(/[\\/]/).pop()}）` });
-
-      // 不经 shell：参数走 argv 数组，避免命令注入（见 agent-runtime/src/resolve.ts）
-      // cwd 必须是仓库根：MCP 配置里的 packages/daemon/... 是相对仓库根的路径。
-      // claude --restricted 忽略 settings.json env 块（自定义通道认证在那），补回去。
-      const proc = spawn(target.command, [...target.prefixArgs, ...args], {
-        cwd: REPO_ROOT,
-        env: { ...(def.id === 'claude-code' ? withClaudeSettingsEnv(process.env) : process.env), MATHMOVER_WINDOW_ID: body.windowId ?? '' },
-        windowsHide: true,
-      });
-
-      let buf = '';
-      let sessionId = body.sessionId;
-      let stderrBuf = '';
-
-      const drain = (chunk: string, isErr: boolean) => {
-        if (isErr) {
-          stderrBuf += chunk;
-          return;
-        }
-        buf += chunk;
-        const parts = buf.split('\n');
-        buf = parts.pop() ?? '';
-        for (const l of parts) {
-          if (!l.trim()) continue;
-          const parsed = def.parseLine(l);
-          if (!parsed) continue;
-          for (const ev of Array.isArray(parsed) ? parsed : [parsed]) {
-            if (ev.kind === 'session') sessionId = ev.sessionId;
-            if (ev.kind === 'done') {
-              send({ ...ev, sessionId: ev.sessionId ?? sessionId });
-            } else {
-              send(ev);
-            }
-          }
-        }
-      };
-
-      proc.stdout.on('data', (d) => drain(d.toString(), false));
-      proc.stderr.on('data', (d) => drain(d.toString(), true));
-      // prompt 通道：stdin 优先（绕 Windows 32k 命令行上限）；
-      // argv 模式也要立刻关 stdin，否则 claude/codex 会空等 stdin 3 秒
-      if (def.promptViaStdin) {
-        const payload = def.formatStdinInput
-          ? def.formatStdinInput(composedPrompt, inlineImages)
-          : composedPrompt;
-        proc.stdin.write(payload);
-      }
-      proc.stdin.end();
-
-      proc.on('error', (e) => {
-        send({ kind: 'error', message: `启动 ${def.displayName} 失败: ${e.message}` });
-        controller.close();
-      });
-
-      proc.on('close', (code) => {
-        clearTimeout(killTimer);
-        // stdout 可能还有残留的最后一行
-        if (buf.trim()) drain('\n', false);
-        // 解析器未识别的 stderr 透传出来，便于诊断
-        const tail = stderrBuf.trim();
-        if (tail && code !== 0) {
-          send({ kind: 'error', message: `${def.displayName} 退出码 ${code}：${tail.slice(-500)}` });
-        }
-        send({ kind: 'done', sessionId, resultText: undefined });
-        controller.close();
-        materialized.cleanup();
-      });
-
-      // 长任务保护：**静默**超时（不是墙钟）——stdout/stderr 有输出就顺延。
-      // 慢代理下 SOP 流程（多轮工具往返）曾被 5 分钟墙钟掐死在半路；
-      // 只有彻底静默才算死。MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS 可覆盖（默认 3 分钟）。
-      const inactivityMs = Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? 180_000);
-      let killTimer: ReturnType<typeof setTimeout> | undefined;
-      const armKill = () => {
-        clearTimeout(killTimer);
-        killTimer = setTimeout(() => {
-          try { proc.kill(); } catch {}
-        }, inactivityMs);
-      };
-      armKill();
-      proc.stdout.on('data', armKill);
-      proc.stderr.on('data', armKill);
+      for (const e of queued.splice(0)) send(e);
+      sink = send;
+      handle.done.then(
+        () => { try { controller.close(); } catch { /* 已关闭 */ } },
+        () => { try { controller.close(); } catch { /* 已关闭 */ } },
+      );
+    },
+    cancel() {
+      try { handle.cancel(); } catch { /* 已退出 */ }
     },
   });
 
