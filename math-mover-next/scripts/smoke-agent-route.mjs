@@ -138,19 +138,20 @@ console.log(`\n── [${runtimeId}] 第三轮：发题目图 ──`);
   check('无 error 事件', errors3.length === 0, errors3.map((e) => e.message).join(' | ').slice(0, 100));
 }
 
-// ── 第四轮：SOP 三工具（P1：专家卡进智力侧）──────────────────
+// ── 第四轮：SOP 工具面（专家卡进智力侧）──────────────────
 console.log(`\n── [${runtimeId}] 第四轮：SOP 流程 ──`);
 {
   await fetch('http://127.0.0.1:8788/api/reset', { method: 'POST' }).catch(() => {});
   const ev4 = await send(
-    '请走 SOP 流程建一个最简单的函数构造：ggb_route 判类别为 A，get_expert_prompt 取卡，' +
-    '然后用 submit_construction 提交两行：MODE:2D 和 f = Function(x^2/4, -3, 3)。',
+    '请走 SOP 流程建一个最简单的函数构造：题目判为 A 类（函数与图像），用 get_expert_prompt 取 A 类流程与清单，' +
+    '再用 get_sop_cards 取 function-object 卡看写法，最后用 submit_construction 提交两行：MODE:2D 和 f = Function(x^2/4, -3, 3)。',
   );
   const names4 = ev4.filter((e) => e.kind === 'tool-call').map((e) => e.name);
   const joined4 = ev4.filter((e) => e.kind === 'text').map((e) => e.text ?? '').join('');
   if (EXPECT_TOOL_EVENTS) {
-    check('调用了 ggb_route', names4.includes('ggb_route'), names4.join(','));
-    check('调用了 get_expert_prompt', names4.includes('get_expert_prompt'), '');
+    check('调用了 get_expert_prompt（自带分类，无独立路由步）', names4.includes('get_expert_prompt'), names4.join(','));
+    check('未再调用 ggb_route（已删除）', !names4.includes('ggb_route'), names4.join(','));
+    check('调用了 get_sop_cards（按需取卡）', names4.includes('get_sop_cards'), '');
     check('调用了 submit_construction', names4.includes('submit_construction'), '');
   }
   const health = await fetch('http://127.0.0.1:8788/api/health').then((r) => r.json()).catch(() => ({}));

@@ -1,5 +1,5 @@
 /**
- * 语义校验（semantic_guard.py 的 TS 移植）。
+ * 语义校验（判据移植自原 Python `semantic_guard.py`，该文件已随一次性生成管线下线）。
  *
  * 忠实移植的部分：free_param / orphan_slider 的判据与文案（_DEF_RE/_TOKEN_RE 逻辑）、
  * 残留文字对象过滤（stripTextObjects）、类别结构检查的失败文案。

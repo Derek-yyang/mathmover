@@ -1,66 +1,77 @@
 /**
- * 专家提示拼装 —— 与 prompt-goldens.json 金基线逐字段对拍。
+ * 专家提示拼装 —— skill 形态、清单元数据、指路行与取卡的行为测试。
  *
- * 基线由 scripts/gen_prompt_goldens.py 从 Python 实现生成（锁定现行行为）。
- * TS 移植必须字节级复现：text_sha256 / characters / skill_characters /
- * sop_characters / cards / files[].sha256 逐项断言，任何一侧改动都会红。
+ * 原先还有一层「金基线对拍」（text_sha256 / 三计数 / 参与文件哈希逐项断言），
+ * 用意是拿 Python 参考实现锁住 TS 的字节产出。参考实现已随一次性生成管线下线，
+ * 对拍失去对象，连同 prompt-goldens.json 与 gen_prompt_goldens.py 一并退役。
  */
 
 import { describe, expect, it } from 'vitest';
-import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-  assembleExpertPrompt,
+  assembleSkill,
+  buildCatalog,
   buildAllowedCommandsSuffix,
-  participatingFiles,
-  sha256Utf8,
+  loadSopCards,
   SopAssemblyError,
 } from '../src/sop.ts';
 import { loadWhitelist } from '../src/whitelist.ts';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
-const goldens = JSON.parse(
-  fs.readFileSync(fileURLToPath(new URL('../src/data/prompt-goldens.json', import.meta.url)), 'utf-8'),
-) as {
-  goldens: Array<{
-    category: string;
-    skill: string;
-    cards: string[];
-    card_count: number;
-    text_sha256: string;
-    text_bytes_utf8: number;
-    characters: number;
-    skill_characters: number;
-    sop_characters: number;
-    files: { path: string; sha256: string }[];
-  }>;
-};
 
-describe('assembleExpertPrompt — 金基线对拍', () => {
-  for (const g of goldens.goldens) {
-    it(`类别 ${g.category}（${g.skill}）逐字段一致`, () => {
-      const { text, metadata } = assembleExpertPrompt(g.category, REPO_ROOT);
-      expect(metadata.cards).toEqual(g.cards);
-      expect(metadata.cards.length).toBe(g.card_count);
-      expect(metadata.characters).toBe(g.characters);
-      expect(metadata.skill_characters).toBe(g.skill_characters);
-      expect(metadata.sop_characters).toBe(g.sop_characters);
-      expect(sha256Utf8(text)).toBe(g.text_sha256);
-      expect(Buffer.byteLength(text, 'utf8')).toBe(g.text_bytes_utf8);
-    });
-
-    it(`类别 ${g.category} 参与文件哈希一致（缓存键语义）`, () => {
-      expect(participatingFiles(g.category, REPO_ROOT)).toEqual(g.files);
-    });
-  }
-
+describe('装配错误处理', () => {
   it('未知类别 / 坏引用抛 SopAssemblyError', () => {
-    expect(() => assembleExpertPrompt('Z', REPO_ROOT)).toThrow(SopAssemblyError);
+    expect(() => assembleSkill('Z', REPO_ROOT)).toThrow(SopAssemblyError);
   });
 });
 
-describe('buildAllowedCommandsSuffix', () => {
-  const names = loadWhitelist(REPO_ROOT).names;
+describe('assembleSkill / buildCatalog / loadSopCards —— agent 链路', () => {
+  it('skill = 约定 + 通用写法 + 流程；卡片只留指路不内联', () => {
+    const { text, metadata } = assembleSkill('A', REPO_ROOT);
+    expect(text).toContain('共同输出约定');
+    expect(text).toContain('通用 GGB 写法');       // 每题必用的写法在 skill 里
+    expect(text).toContain('## 1. 清点对象');        // 流程骨架在
+    expect(text).toContain('get_sop_cards');         // 指路行提到取卡工具
+    expect(text).not.toContain('```ggb');            // 卡片正文不内联
+    expect(metadata.cards).toContain('intersection');
+    expect(metadata.cards).not.toContain('view-setup'); // 已剔除、写法并入 ggb-basics
+    expect(metadata.cards).not.toContain('fixed-point'); // 已剔除、写法并入 ggb-basics
+    expect(metadata.cards).not.toContain('aux-line');    // 已剔除、写法并入 ggb-basics
+  });
+
+  it('连续多张卡的槽位合并为一行指路', () => {
+    const { text } = assembleSkill('A', REPO_ROOT);
+    expect(text).toMatch(/〔写法卡：moving-point-function、moving-point-path、moving-point-region —— 动手前用 get_sop_cards 取用〕/);
+    expect(text).not.toMatch(/〔写法卡：[a-z0-9-]+〕〔写法卡/); // 不再粘连
+  });
+
+  it('清单带标题、输入与所属步骤（从卡头自动生成）', () => {
+    const catalog = buildCatalog('A', REPO_ROOT);
+    expect(catalog.length).toBeGreaterThan(10);
+    const it0 = catalog.find((c) => c.name === 'intersection')!;
+    expect(it0.title).toContain('求交');
+    expect(it0.inputs.length).toBeGreaterThan(0);
+    expect(it0.step).toBe('4'); // 挂在「建立基准点」
+    // 四类清单各自不同
+    const dNames = buildCatalog('D', REPO_ROOT).map((c) => c.name);
+    expect(dNames).toContain('polyhedron-section');
+    expect(dNames).not.toContain('function-object');
+  });
+
+  it('loadSopCards 批量取卡；未知名回报并给相近提示', () => {
+    const { cards, unknown } = loadSopCards(['intersection', 'locus'], REPO_ROOT);
+    expect(cards.map((c) => c.name)).toEqual(['intersection', 'locus']);
+    expect(cards[0].text).toContain('Intersect');
+    expect(unknown).toEqual([]);
+
+    const miss = loadSopCards(['intersect', 'nosuch'], REPO_ROOT);
+    expect(miss.cards).toEqual([]);
+    expect(miss.unknown).toEqual(['intersect', 'nosuch']);
+    expect(miss.suggestions).toContain('intersection'); // 'intersect' 的相近名
+  });
+});
+
+describe('buildAllowedCommandsSuffix', () => {  const names = loadWhitelist(REPO_ROOT).names;
 
   it('A/B/C 只列 2D 构造命令，D 列 2D+3D', () => {
     const abc = buildAllowedCommandsSuffix('A', names);

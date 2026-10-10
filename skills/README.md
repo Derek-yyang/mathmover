@@ -9,30 +9,32 @@ skill 的编号流程始终完整加载，模型仍直接读取原题文字/图�
 
 ## Prompt 装配
 
-路由只确定专家类别。`expert_prompts.assemble_expert_prompt(category)` 读取对应 skill，
-将其中全部 `{{SOP:card-name}}` 替换为卡片正文。卡片集合和插入位置只由 skill 决定。
+题目类别由调用方给出（agent 自己判；分类路由与一次性生成管线均已下线）。
+卡片集合和插入位置只由 skill 决定，不由调用方临时指定。
+
+`ggb-core/src/sop.ts` 提供 agent 链路这一套装配：
 
 ```text
-精简公共约定 + 完整专家步骤（全部引用的 SOP 原位展开）+ 命令白名单
+公共约定 + 通用 GGB 写法 + 专家步骤（{{SOP:*}} 只留指路行）
+get_expert_prompt 返回 skill 与本类写法卡清单，具体写法由 get_sop_cards 按名批量抽取
 ```
 
-装配器生成前两部分，`app.py` 随后追加同源命令白名单与用户说明；图片作为独立输入发送。
+原先还有卡片原位内联的 `assembleExpertPrompt`（+ 命令白名单），配 Python
+`expert_prompts.py` 作参考实现、用 `prompt-goldens.json` 做逐字节对拍；
+这三样连同金基线已随一次性生成管线下线退役。
 
-- skill 在相应编号步骤写独占一行的 `{{SOP:card-name}}`。卡片标题降为步骤下的三级标题，
-  完整步骤及示例指令保留。模型按题跳过无关分支、取用所需片段。
-- 四份 skill 都明确引用视图、定点和隐藏辅助写法；没有另设常驻卡列表。
+- skill 在相应编号步骤写独占一行的 `{{SOP:card-name}}`。装配时该行变成指路行
+  （`〔写法卡：a、b —— 动手前用 get_sop_cards 取用〕`），保持「哪一步用哪张卡」的映射，
+  不把正文搬进 skill。模型按题跳过无关分支、按需取卡。
+- 四份 skill 都明确引用隐藏辅助写法；没有另设常驻卡列表。视图、点、线、标签、样式等
+  每题必用的通用写法已收入 `shared/ggb-basics.md`（与 `shared/generation-rules.md` 同为
+  skill 前置层），不再占卡。
 - 跨类别能力通过在该 skill 的合适步骤直接引用同一张卡片复用，不复制卡片正文，
-  不由路由临时添加卡片。所需支撑写法同样在 skill 中直接引用并按对象依赖安排位置。
+  不临时添加卡片。所需支撑写法同样在 skill 中直接引用并按对象依赖安排位置。
 - 引用缺失、重复、格式错误、位于编号步骤外或卡片含嵌套引用时明确报错。
-- LLM 和 Perplexity Decisions 路由都只分类；同一类别装配相同的专家正文。
+- 同一类别装配相同的专家正文；类别只决定取哪份 skill，不影响卡片集合。
 - 语法/语义校验只做清洗与遥测，不回灌重试（2026-10-08 移除：整代重试耗时且
   掩盖 prompt 短板，质量改进回到 prompt/SOP 源头）。
-- `EXPERT_PROMPTS[category]` / `load_expert_prompt(category)` 保留完整参考接口。
-  文件改动下次装配即可生效；旧接口的缓存覆盖 skill、公共规则和该 skill 引用的卡片。
-- `classified` 与 `completed` 事件的 `prompt` 字段记录完整加载模式、卡片和字符数。
-  `characters` 是装配正文长度，`system_characters` 含命令名单，`input_characters`
-  还含用户文字；均不含图片或适配器消息包装，也不是 token 数。
-  `cards` 按 skill 中的引用顺序记录已展开卡片。
 
 数学正确性须用实际题目验证，不能凭 prompt 长度或语法通过推断。
 
@@ -40,15 +42,17 @@ skill 的编号流程始终完整加载，模型仍直接读取原题文字/图�
 
 | 构造 | 卡片 |
 |---|---|
-| 开场、定点、样式与辅助对象 | view-setup、fixed-point、aux-line、hidden-helper |
-| 几何关系、求交、垂足 | geometric-relations、intersection、projection-foot |
+| 关系点、平行垂直、变换与样式 | geometric-relations |
+| 求交、垂足 | intersection、projection-foot |
 | 函数与圆锥曲线 | function-object、curve-definition、conic-features |
 | 圆、弧、切线与切点 | circle-tangent |
 | 一维/二维运动、派生点轨迹 | moving-point-function、moving-point-path、moving-point-region、locus |
 | 多边形及区域 | closed-region |
+| 按视图隐藏计算对象 | hidden-helper |
 | 三维建系、线框、平面、有限截面、旋转体 | 3d-frame、3d-edges、plane-helper、polyhedron-section、rotation-solid |
 
-库有 21 张卡。四类 skill 分别引用 14 / 12 / 15 / 16 张；新增卡片只需创建卡片文件，
+库有 18 张卡（每题必用的通用写法在 `shared/ggb-basics.md`，不占卡）。
+四类 skill 分别引用 11 / 9 / 12 / 13 张；新增卡片只需创建卡片文件，
 并在适用 skill 的相应步骤添加引用，核对视图兼容和所需支撑写法。
 旧 `references/sops.md` 已移除，指令写法只维护于 `shared/sops/`。
 
@@ -67,28 +71,19 @@ skill 的编号流程始终完整加载，模型仍直接读取原题文字/图�
 
 ## 验证
 
-模型请求默认不主动指定输出 token 上限，使用服务商默认值；不因长度上限、空正文或
-incomplete 状态自动提额重试，也不自动设置思考力度。`config.json` 的 `max_tokens`
-为空表示不传，正整数表示显式上限；供应商切换脚本没有隐式默认值。
-Anthropic 原生 Messages 协议要求 `max_tokens`，使用该协议时需显式配置；未配置则
-明确报错，不补默认额度。图片载荷与网络错误的原有处理保持独立。
+Python 侧只剩 SOP 静态校验与命令目录校验（纯标准库，不调模型、不读凭据）。
+prompt 装配在 TS 侧（`ggb-core/src/sop.ts`），由其单测覆盖。
 
 在仓库根目录运行：
 
 ```powershell
 .\.venv\Scripts\python.exe -B scripts\verify_sops.py
-.\.venv\Scripts\python.exe -B scripts\test_sop_loader.py
-.\.venv\Scripts\python.exe -B scripts\test_prompt_pipeline.py
 .\.venv\Scripts\python.exe -B scripts\test_command_catalog.py
-.\.venv\Scripts\python.exe -B scripts\test_model_output_limits.py
 ```
 
-第一项检查引用覆盖、完整装配、示例与白名单；第二项检查原位展开、完整步骤保留、
-卡片复用、引用变更与热更新及编写错误；第三项用模拟适配器检查分类、路由解析重试、
-校验不重试（无效行剔除、语义失败仅上报）
-和决策路由兼容；第四项检查命令目录。上述命令不调用模型。
-第五项检查默认请求不含输出限额或思考控制、显式限额、达到限额不重试、Anthropic
-必填参数及供应商切换时清除旧限额。
+第一项检查引用覆盖、示例与白名单：无孤儿卡、无嵌套引用、每块 ggb 都有示例 id、
+id 与 `sop_examples.json` 一一对应、命令在白名单内、生产解析器可解析；
+第二项检查命令目录。上述命令不调用模型、不读取凭据。
 静态检查通过不等于 GeoGebra 执行成功。
 
 引擎验收检查定义对象存在、显示值有效、点坐标有限，以及数学关系与实际属性状态。

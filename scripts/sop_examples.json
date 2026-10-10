@@ -1,25 +1,4 @@
 {
-  "view-2d": {
-    "mode": "2D",
-    "prelude": [
-      "ShowAxes(1,false)",
-      "ShowGrid(1,false)"
-    ],
-    "checks": [],
-    "samples": [],
-    "views": {
-      "1": {
-        "axes": true,
-        "grid": true
-      }
-    }
-  },
-  "view-3d": {
-    "mode": "3D",
-    "prelude": [],
-    "checks": [],
-    "samples": []
-  },
   "fixed-independent": {
     "mode": "2D",
     "prelude": [],

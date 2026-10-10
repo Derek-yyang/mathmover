@@ -1,32 +1,10 @@
 version: '3.8'
 
 services:
-  # 后端服务 (Python Flask)
-  # 模型配置不打进镜像（config.json / providers.json 已列入 .dockerignore）。
-  # 运行时两条路，config.json 优先级高于 env：
-  #   1) env 注入 —— 密钥写进根目录 .env，docker compose 启动时自动读取做变量替换
-  #   2) volume 挂载 config.json —— 可热更新，便于本地调试换模型
-  # env 变量名：
-  #   通用      SYSTEM_BASE_URL / SYSTEM_API_KEY / SYSTEM_MODEL_NAME
-  #   决策路由  ROUTER_MODE(llm|decisions) / PERPLEXITY_API_KEY / DECISIONS_THRESHOLD
-  #   其它      MODEL_TIMEOUT_SECONDS
-  backend:
-    build: .
-    restart: always
-    expose:
-      - "5000"
-    environment:
-      - SYSTEM_BASE_URL=${SYSTEM_BASE_URL:-}
-      - SYSTEM_API_KEY=${SYSTEM_API_KEY:-}
-      - SYSTEM_MODEL_NAME=${SYSTEM_MODEL_NAME:-}
-      - ROUTER_MODE=${ROUTER_MODE:-}
-      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-}
-      - DECISIONS_THRESHOLD=${DECISIONS_THRESHOLD:-}
-      - MODEL_TIMEOUT_SECONDS=${MODEL_TIMEOUT_SECONDS:-}
-    volumes:
-      - ./config.json:/app/config.json
-
-  # 前端服务 (Next.js)
+  # 前端服务 (Next.js)。
+  # 题目→构造现在由第三方 agent CLI 驱动，前端只与本机 daemon 通信
+  # （MATHMOVER_DAEMON_URL，见 app/api/agent/route.ts）；原 Python 后端已随
+  # 一次性生成管线一并下线，不再有 backend 服务。
   frontend:
     build:
       context: ./math-mover-next
@@ -34,14 +12,6 @@ services:
     restart: always
     expose:
       - "3000"
-    environment:
-      - BACKEND_INTERNAL_URL=http://backend:5000
-    depends_on:
-      - backend
 
 # 反向代理（Caddy）已随线上服务器停服退役（2026-10-08）。
 # 本地调试需要访问前端时，给 frontend 加 ports: ["3000:3000"] 即可。
-# 以后上反代时注意：/api/* 必须关闭响应缓冲，否则 /api/upload 的 NDJSON
-# 流式进度会被攒到一起才吐出，前端的渐进式生成体验会失效
-# （Caddy: flush_interval -1；nginx: proxy_buffering off）。
-

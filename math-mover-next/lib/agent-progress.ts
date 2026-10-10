@@ -54,10 +54,12 @@ export function finishExecution(execution: AgentExecution, status: Exclude<Agent
 }
 
 export function toolStepLabel(name: string): string {
+  const normalized = name.replace(/^mcp__[^_]+__/, '');
   const labels: Record<string, string> = {
     ggb_get_state: '读取画板', ggb_apply: '更新构造', ggb_diff: '比较构造差异', ggb_reset: '清空画板',
+    get_expert_prompt: '读取建模规则', submit_construction: '提交构造并检查',
   };
-  return Object.hasOwn(labels, name) ? labels[name] : '调用工具';
+  return Object.hasOwn(labels, normalized) ? labels[normalized] : '调用工具';
 }
 
 export function elapsedLabel(startedAt: number, endedAt: number): string {

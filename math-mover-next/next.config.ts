@@ -1,8 +1,6 @@
 import path from 'node:path';
 import type { NextConfig } from "next";
 
-const backendInternalUrl = process.env.BACKEND_INTERNAL_URL || 'http://127.0.0.1:5000';
-
 const nextConfig: NextConfig = {
   output: 'standalone',
   distDir: process.env.MATHMOVER_NEXT_DIST_DIR || '.next',
@@ -21,15 +19,6 @@ const nextConfig: NextConfig = {
         hostname: '**',
       },
     ],
-  },
-  async rewrites() {
-    // Local route handlers (including dynamic courseware routes) take precedence.
-    return { fallback: [
-      {
-        source: '/api/:path*',
-        destination: `${backendInternalUrl}/api/:path*`,
-      },
-    ] };
   },
 };
 

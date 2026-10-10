@@ -128,14 +128,46 @@ Gemini 构造习惯残留（point_at 类过严），这批案例即性质清单�
   （点/线换位连锁 5 对象失败——可做校验层自动纠正）、动点未绑定路径（死点）、
   P 未约束于正方体内部、圆锥缺失、A1 坐标算错、镜像方向、缺关键对象
 
-### - [ ] P2：分类路由瘦身或降级
+### - [x] P2：分类路由下线（2026-10-10）
 
-现状是每次生成都走两跳大模型（Router → Specialist），延迟与成本双倍。
+原「瘦身或降级」的两个方案都不需要了——分类不再由独立模型做：
 
-- 方案 A：合并为一次调用，按需追问
-- 方案 B：用便宜得多的小模型做 A/B/C/D 分类
-- 改动位置：`app.py` ROUTER_PROMPT 与 generate() 的两步流程
-- 验收标准：单次生成平均时延与 token 成本下降，分类准确率不低于现水平
+- agent 链路：agent 自己看题判 A/B/C/D，调 `get_expert_prompt` 时把类别一并给出
+  （`ggb_route` 这个独立登记步骤已删，工具面 8 → 7）
+- 老管线 `/api/upload`：先改为类别由请求字段传入，随后随整条管线一并退役（见下节）
+
+已删：`route_classify` / `llm_classify` / `parse_router_result` / `ROUTER_PROMPT`、
+`decision_router.py`（Perplexity 决策模型与缩图探针）、配置里的 `router_mode` /
+`perplexity_api_key` / `decisions_threshold` / `decisions_model`、
+设置页「分类路由」面板与 `routing-settings.ts`。
+
+效果：单次生成从两跳大模型降为一跳，Perplexity 依赖与置信度回退逻辑一并消失。
+
+### - [x] 一次性生成管线下线（2026-10-10）
+
+题目→构造已全部交给第三方 agent CLI（Claude Code / Codex / dsh）经 MCP 工具面完成。
+Python 一次性生成管线（Router → Specialist → 校验）没有任何调用方——前端只打
+`/api/agent` 与 `/api/coursewares`，两个都直连 daemon——整条退役：
+
+- 删 `app.py`（Flask + 三个模型适配器 + ModelFactory + config 层 +
+  `/api/upload`、`/api/config`、`/api/config/models`）
+- 删 `semantic_guard.py`（TS `ggb-core/src/semantic.ts` 已是同款判据）
+- 删 `scripts/test_prompt_pipeline.py`、`test_model_output_limits.py`、`switch_provider.py`
+- 删根 `Dockerfile` / `.dockerignore` / `requirements.txt`；`docker-compose.yml` 摘掉 backend 服务
+- `math-mover-next/next.config.ts` 去掉 `/api/:path*` → 后端的 fallback 重写与 `BACKEND_INTERNAL_URL`
+
+**Python 侧保留**：`ggb_parser.py` / `ggb_catalog.py` 与
+`scripts/verify_sops.py`、`test_command_catalog.py`——SOP 静态校验 + 命令目录校验。纯标准库。
+
+**2026-10-10 追加**：Python 侧的 prompt 装配参考实现也一并退役。`expert_prompts.py`、
+`scripts/gen_prompt_goldens.py`、`scripts/test_sop_loader.py`、
+`packages/ggb-core/src/data/prompt-goldens.json`、`scripts/diag-golden-diff.mjs` 删除。
+金基线的立身之本是「Python ↔ TS 逐字节对拍」，参考实现一走就没了对拍对象；
+剩下那层「改动探测」对单人维护的卡库只是仪式。装配逻辑由 `sop.test.ts` 的行为测试覆盖。
+`verify_sops.py` 只依赖卡库路径与 skill 槽位解析，已把这几样内联进去，不受影响。
+
+`config.json` / `providers.json` / `scripts/probe_channel.py` 也一并删除（2026-10-10）：
+它们只服务于被删管线，留着只是盘上的明文密钥。
 
 ### - [ ] P3：回归基准集
 
@@ -176,20 +208,21 @@ P0、P1 做完，与同类竞品会拉开肉眼可见的差距。
 
 公开等于全网可见 + 可被打，以下两项从"建议"升级为"必做"：
 
-- [ ] 500 错误不再向客户端返回异常原文（`app.py:596-601`）
-- [ ] BYOK `custom_base_url` 增加 https 强制与私网地址拒绝（`app.py:558`）
+- [x] ~~500 错误不再向客户端返回异常原文（`app.py:596-601`）~~ 随 Python 生成管线下线失效
+- [x] ~~BYOK `custom_base_url` 增加 https 强制与私网地址拒绝（`app.py:558`）~~ 同上
 
 ### B. 工程门面（clone 下来就能跑）
 
 - [ ] 重写 README：项目简介、架构图、Supabase 建库 / migrations 导入 / 环境变量 / 本地启动指南
-- [ ] 新增后端 `.env.example`（变量清单已核对过：见根 .env 与 app.py 交叉核对记录）
+- [x] ~~新增后端 `.env.example`~~ 随 Python 生成管线下线失效
 - [ ] 新增前端 `.env.example`
 - [ ] 添加 LICENSE 文件（协议见 C-1，它决定 README 里商业模式怎么写）
-- [ ] `requirements.txt` 锁定版本
+- [x] ~~`requirements.txt` 锁定版本~~ 该文件已删，Python 侧零第三方依赖
 - [ ] supabase 迁移文件时间戳去重（三组前缀各被两个文件共用）
 - [x] 移除脚本中的个人机器硬编码路径（start-local-test.bat 的 kimi-desktop node.exe）
   2026-10-08 收尾：改用 PATH 的 node 后，该 bat 与 `start_backend.ps1` 职责重叠且无运行痕迹，
   随死脚本清理一并删除；本地启动统一走 `scripts/start_backend.ps1`。
+  2026-10-10 更新：`start_backend.ps1` 随 Python 生成管线下线一并删除，本地不再有后端进程。
 
 ### 商业模式定调（2026-08-27，想法阶段确认）
 

@@ -57,8 +57,8 @@ export interface GgbCommand {
 
 /**
  * 指令行种类。注意 COLON_DEF 覆盖 `A := (0,0)` 这类冒号定义——
- * 现行 Python 的 DEF_LINE 正则把它误判成 equation，已知缺陷，
- * 本轮 golden 锁旧行为，修复另立变更（见 prompt-goldens.json 的 notes）。
+ * 现行 Python 的 DEF_LINE 正则把它误判成 equation，已知缺陷。
+ * TS 这边按正确行为实现；原金基线曾锁定过旧错误行为，基线已退役。
  */
 export type CommandKind =
   | 'definition'   // E = ... / f(x) = ...

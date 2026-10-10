@@ -177,3 +177,102 @@ Chat Completions 和 Responses 默认不传 max_tokens/max_output_tokens，额�
 - 实际生成一次简单函数题成功，返回 5 条指令，静态语法有效率为 1.0。
 
 未对多题、图片题或数学正确率做对照；本次简单请求不能证明总体延迟改善。
+
+## 写法分层：固定写法进 skill、SOP 库只留条件写法（2026-10-10）
+
+按「每题必用的 GGB 写法从 SOP 库剔除、直接进 skill」的分工裁定重构：
+
+- 新增 `skills/shared/ggb-basics.md`（通用 GGB 写法：MODE、视图、点、线、标签、样式），
+  与 generation-rules.md 同为 skill 的前置层，两条装配链路（Python 老管线、agent 链路）同吃。
+- `view-setup` 卡内容被 ggb-basics 完全覆盖，整卡从库中剔除，四类 SKILL.md 的对应槽位一并移除。
+  SOP 库 21 → 20 张，且此后库里只放「小范围、可能用而未必用」的条件写法。
+- agent 链路的 skill 与卡库分家：skill 只含流程 + 固定写法（`{{SOP:*}}` 槽位转为取卡指引），
+  写法卡经 get_sop_cards 按需批量抽取；清单由卡头（标题 + 输入行）自动生成，按类分列。
+
+四类完整装配正文字符数（老管线口径，含 ggb-basics、不含命令白名单）：
+
+| 类别 | 本次修改前 | 本次修改后 |
+|---|---:|---:|
+| A 函数 | 8,601 | 9,075 |
+| B 平面几何 | 7,496 | 7,970 |
+| C 圆锥曲线 | 9,310 | 9,784 |
+| D 立体几何 | 10,505 | 10,979 |
+
+每类 +474 字符：ggb-basics 补入的通用写法，扣去被剔除的 view-setup 卡正文。
+基线已随本次变更重新固化（prompt-goldens.json），此后改 SOP 卡或装配逻辑测试即红。
+
+## 分类路由下线、agent 工具面去 ggb_route（2026-10-10）
+
+**本次不动装配体，四类字符数与 SHA-256 与上一节完全一致**（`gen_prompt_goldens.py --check`
+复核通过，未重写 prompt-goldens.json）。改的是"类别从哪来"与"卡片怎么到模型眼前"的机制层：
+
+- agent 工具面删掉 `ggb_route`（纯登记、零信息增益的一步），`get_expert_prompt` 的
+  `category` 改为必填——分类由 agent 自己判，调它即完成"分类 + 取流程与清单"两件事。
+  分类学文本并入该工具描述，纠偏仍是换个 category 再调一次覆盖账本。
+  会话账本语义不变：`get_expert_prompt` 写、`submit_construction` 只读；写入方从两个收成一个。
+- 分类路由整条下线：`app.py` 的 `route_classify` / `llm_classify` / `parse_router_result` /
+  `ROUTER_PROMPT`、`decision_router.py`（Perplexity 决策模型 + 缩图探针）、
+  配置键 `router_mode` / `perplexity_api_key` / `decisions_threshold` / `decisions_model`、
+  设置页「分类路由」面板与 `math-mover-next/lib/routing-settings.ts`。
+- 老管线 `/api/upload` 改为类别由请求字段 `category` 给出（A/B/C/D 之一），
+  缺失或非法直接 400；`classified` 事件不再带 `router` / `router_parse_failed`。
+
+`/api/upload` 模拟回归由 7 项收敛为 6 项：删掉分类、路由解析重试、Decisions 回退
+三类路由测试（机制已不存在），补"缺/非法 category 拒绝"与"微调模式沿用类别并带画板上下文"。
+其余覆盖不变（按类别装配且一次调齐全部引用卡、命令错误与语义失败只上报不重试）。
+
+## 固定写法继续下沉：fixed-point / aux-line 出库（2026-10-10）
+
+按「每题必用的固定写法进 skill、SOP 库只留条件写法」的分工裁定，把上一轮没拆干净的
+`aux-line` / `fixed-point` / `function-object` 三张卡处理完：
+
+- **`fixed-point`、`aux-line` 整卡删除**。两卡正文几乎全是重复：坐标 / `SetFixed` / 标签 /
+  样式、`Segment`/`Line`/`Ray` 区分、虚线与线宽、按视图隐藏，都已在 `ggb-basics.md`；
+  `Midpoint` 派生点与 `PerpendicularLine` 都在 `geometric-relations.md`。仅剩的两句改放：
+  「派生点保留原表达式，不能抄当前坐标」进 ggb-basics「点」；
+  「`PerpendicularLine` 首参是点、第二参是目标对象，写反会连锁失败」强化进
+  `geometric-relations` 写法注意（该坑是历史高频错误）。
+- **四个 QA 示例迁入 `geometric-relations.md`**（fixed-independent / fixed-derived /
+  auxiliary-line / auxiliary-perpendicular），夹具 `sop_examples.json` 不动——
+  55 个示例一个没少，示例仍由卡片承载（`verify_sops` 只从 `shared/sops/*.md` 收集）。
+- **`function-object` 瘦身**：函数对象定义 `f(x) = 表达式` 收进 function-expert 第 3 步正文，
+  卡片示例去掉 ggb-basics 已覆盖的样式行，只留零点 / 极值 / 切线的条件写法与易错点。
+- SOP 库 20 → 18 张，四类引用 13 / 11 / 14 / 15 → 11 / 9 / 12 / 13。
+
+四类完整装配正文字符数（老管线口径，含 ggb-basics、不含命令白名单）：
+
+| 类别 | 本次修改前 | 本次修改后 |
+|---|---:|---:|
+| A 函数 | 9,075 | 8,851 |
+| B 平面几何 | 7,970 | 7,780 |
+| C 圆锥曲线 | 9,784 | 9,594 |
+| D 立体几何 | 10,979 | 10,789 |
+
+A 少 224 字符（比其他三类多减掉 function-object 的样式行），B / C / D 各少 190。
+基线已随本次变更重新固化（prompt-goldens.json），此后改 SOP 卡或装配逻辑测试即红。
+
+## 金基线与 Python 装配参考实现退役（2026-10-10）
+
+**从本节起，本文件上方那些字符数/SHA-256 对照表只作历史记录，不再有自动护栏。**
+
+原机制：`expert_prompts.py` 作参考实现，`gen_prompt_goldens.py` 把四类装配产物
+（字符数 + SHA-256 + 卡片清单 + 参与文件哈希）固化进 `prompt-goldens.json`，
+TS `sop.test.ts` 逐字段对拍；`gen_prompt_goldens.py` 写文件前还会比对本文件记录的
+验收数字，漂了就拒写（「历史验收失效」）。
+
+退役原因：金基线的立身之本是 **Python ↔ TS 逐字节对拍**。一次性生成管线下线后
+Python 装配已无调用方，参考实现一走，对拍就没有对象了。剩下那层「装配体改动探测」
+对单人维护的卡库只是仪式——本次前面几次变更里，它拦下来的全是**有意改动**，
+流程固定成「改卡 → 立本文件记录 → 改常量 → 重固化」，安全增益接近零。
+
+装配逻辑本身由 TS `sop.test.ts` 的行为测试覆盖（skill 形态、清单元数据、指路行合并、
+批量取卡容错、坏引用抛错），那些不依赖哈希。
+
+**连带删除**：`expert_prompts.py`、`scripts/gen_prompt_goldens.py`、
+`scripts/test_sop_loader.py`（13 条测的全是装配本身）、
+`packages/ggb-core/src/data/prompt-goldens.json`、`scripts/diag-golden-diff.mjs`。
+
+**SOP 静态校验保留**：`scripts/verify_sops.py` 只依赖卡库路径与 skill 槽位解析，
+所需几样已内联进该文件。它仍然检查无孤儿卡、无嵌套引用、每块 ggb 有示例 id、
+id 与 `sop_examples.json` 一一对应、命令在白名单内、生产解析器可解析。
+今日两次抓到孤儿夹具（`view-2d`/`view-3d`、以及 fixed-point/aux-line 迁移校验）靠的就是它。

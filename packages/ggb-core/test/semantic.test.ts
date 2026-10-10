@@ -1,5 +1,5 @@
 /**
- * 语义校验 —— semantic_guard.py 判据的单测（free_param / orphan_slider / 结构 / 文字残留）。
+ * 语义校验 —— 判据单测（free_param / orphan_slider / 结构 / 文字残留）。
  */
 
 import { describe, expect, it } from 'vitest';

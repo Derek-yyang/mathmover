@@ -1,18 +1,20 @@
 /**
- * 专家 prompt 拼装（expert_prompts.py 的 TS 移植，语义对拍）。
+ * 专家提示拼装（agent 链路）。
  *
- * 组装规则（锁定于 prompt-goldens.json，改这里必须过金测试）：
- *   text = generation-rules.md + "\n\n" + skill(去 frontmatter、{{SOP:...}} 换成卡片)
- *   卡片标题降级：每卡首个行首 "# " → "### "（嵌进编号步骤之下）
- *   校验：SOP 引用必须独占一行、不重复、且都在编号步骤（## N.）内；卡内不得再嵌 {{SOP
- * 缓存键按金测试设计用**文件内容 sha256**（不是 mtime）。
+ * skill 只含「流程 + 每题必用的固定写法」（见 ggb-basics.md），卡片按需抽取。
+ * 分工原则（作者裁定）：每题必用的 GGB 写法进 skill，
+ * sop 库只留「小范围、可能用而未必用」的条件写法。
  *
- * buildAllowedCommandsSuffix 是 app.py 同名函数的移植（不在金测试内，忠实转写）。
+ * {{SOP:name}} 插槽在 skill 里只留指路行（保持「哪一步用哪张卡」的映射，不搬正文），
+ * 具体写法由 get_sop_cards 按名批量抽取。SKILL.md 文件本身不改，由装配器决定形态。
+ *
+ * 原先还有卡片原位内联的 assembleExpertPrompt / expertPromptWithSuffix，
+ * 拿去与 Python expert_prompts.py 逐字节对拍（prompt-goldens.json）。
+ * 那套随一次性生成管线下线一并退役，现在只留 agent 链路这一套。
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
 import { loadWhitelist, type WhitelistNames } from './whitelist.ts';
 
 export const CATEGORY_TO_SKILL: Record<string, string> = {
@@ -35,27 +37,11 @@ function stripFrontmatter(text: string): string {
 }
 
 /**
- * Python 文本模式的读法（universal newlines：\r\n → \n），再 rstrip。
- * 卡片在 Windows 检出可能是 CRLF——不归一会让字符数与哈希全盘偏离金基线。
+ * 文本模式的读法（universal newlines：\r\n → \n），再 rstrip。
+ * 卡片在 Windows 检出可能是 CRLF，不归一会让装配产物随检出方式漂移。
  */
 function read(file: string): string {
   return fs.readFileSync(file, 'utf-8').replace(/\r\n?/g, '\n').replace(/\s+$/, '');
-}
-
-/** 生成器 files[].sha256 的口径：LF 归一的全文（含尾部空白，不 rstrip）。 */
-function readNormalized(file: string): string {
-  return fs.readFileSync(file, 'utf-8').replace(/\r\n?/g, '\n');
-}
-
-export interface PromptAssembly {
-  text: string;
-  metadata: {
-    mode: 'full';
-    cards: string[];
-    characters: number;
-    skill_characters: number;
-    sop_characters: number;
-  };
 }
 
 export class SopAssemblyError extends Error {}
@@ -101,56 +87,122 @@ function sopNames(body: string, category: string): string[] {
   return names;
 }
 
-export function assembleExpertPrompt(category: string, rootDir: string): PromptAssembly {
-  const skill = stripFrontmatter(read(skillPath(rootDir, category)));
-  const names = sopNames(skill, category);
-  const cards = new Map<string, string>();
-  for (const name of names) cards.set(name, read(sopCardPath(rootDir, name, category)));
-  for (const card of cards.values()) {
-    if (card.includes('{{SOP')) {
-      throw new SopAssemblyError('SOP 卡含嵌套引用；所需写法应在 skill 中直接引用');
-    }
-  }
+// ── agent 链路：skill 与卡库分家 ────────────────────────────────
 
-  const inline = skill.replace(new RegExp(SOP_REFERENCE.source, 'gm'), (_m, name: string) =>
-    // 每卡首个行首 H1 降为 H3（嵌进步骤之下；示例代码原样保留）
-    cards.get(name)!.replace(/^# /, '### '),
-  ).trim();
-  const text = read(path.join(rootDir, 'skills', 'shared', 'generation-rules.md')) + '\n\n' + inline;
+export interface SkillAssembly {
+  text: string;
+  metadata: {
+    category: string;
+    skill: string;
+    /** 流程里指到的写法卡（顺序即流程顺序） */
+    cards: string[];
+    characters: number;
+  };
+}
 
+export interface SopCatalogEntry {
+  name: string;
+  /** 卡头副标题，如「求交与多结果承接」 */
+  title: string;
+  /** 卡头「输入：」行——什么情况下该取这张卡 */
+  inputs: string;
+  /** 挂在流程第几步（如 "4"）；未挂在编号步骤时为空 */
+  step: string;
+}
+
+/** 卡头元数据：`# SOP: name — title` + `输入：...` 行。清单从这里自动生成，零维护。 */
+export function readCardMeta(rootDir: string, name: string): { title: string; inputs: string } {
+  const body = read(sopCardPath(rootDir, name, '?'));
+  const head = /^#\s*SOP:\s*[a-z0-9-]+\s*—\s*(.+)$/m.exec(body);
+  const inputs = /^输入：(.*)$/m.exec(body);
+  return {
+    title: (head?.[1] ?? '').trim(),
+    inputs: (inputs?.[1] ?? '').trim(),
+  };
+}
+
+/** 流程里的 {{SOP:x}} 槽位 → 「写法卡指路」行；连续多张合并为一行。 */
+function slotsToPointer(skillBody: string): string {
+  const replaced = skillBody.replace(
+    new RegExp(SOP_REFERENCE.source, 'gm'),
+    (_m, name: string) => `〔写法卡：${name}〕`,
+  );
+  return replaced.replace(
+    /(?:^〔写法卡：[a-z0-9-]+〕\n)+/gm,
+    (whole) => {
+      const names = [...whole.matchAll(/〔写法卡：([a-z0-9-]+)〕/g)].map((m) => m[1]);
+      return `〔写法卡：${names.join('、')} —— 动手前用 get_sop_cards 取用〕\n`;
+    },
+  );
+}
+
+/**
+ * agent 链路的 skill：共同输出约定 + 通用 GGB 写法 + 流程（卡片只留指路）。
+ * 每题必用的写法在 ggb-basics.md，不在 sop 库——这是作者裁定的分工。
+ */
+export function assembleSkill(category: string, rootDir: string): SkillAssembly {
+  const skillRaw = stripFrontmatter(read(skillPath(rootDir, category)));
+  const names = sopNames(skillRaw, category); // 借老校验：槽位必须在编号步骤内、不重复
+  const body = slotsToPointer(skillRaw);
+  const text = [
+    read(path.join(rootDir, 'skills', 'shared', 'generation-rules.md')),
+    read(path.join(rootDir, 'skills', 'shared', 'ggb-basics.md')),
+    body,
+  ].join('\n\n').trim();
   return {
     text,
     metadata: {
-      mode: 'full',
+      category,
+      skill: CATEGORY_TO_SKILL[category],
       cards: names,
       characters: text.length,
-      skill_characters: skill.replace(new RegExp(SOP_REFERENCE.source, 'gm'), '').length,
-      sop_characters: [...cards.values()].reduce((n, c) => n + c.length, 0),
     },
   };
 }
 
-/** 参与拼装的全部文件 + 内容哈希（金测试同款字段；作缓存失效键）。 */
-export function participatingFiles(
-  category: string,
-  rootDir: string,
-): { path: string; sha256: string }[] {
-  const skillFile = skillPath(rootDir, category);
-  const skill = stripFrontmatter(read(skillFile));
-  const names = sopNames(skill, category);
-  const files = [
-    skillFile,
-    path.join(rootDir, 'skills', 'shared', 'generation-rules.md'),
-    ...names.map((n) => sopCardPath(rootDir, n, category)),
-  ];
-  return files.map((f) => ({
-    path: path.relative(rootDir, f).replace(/\\/g, '/'),
-    sha256: sha256Utf8(readNormalized(f)),
-  }));
+/** 该类的写法卡清单（名字 + 一句话说明 + 适用输入 + 所属步骤）。 */
+export function buildCatalog(category: string, rootDir: string): SopCatalogEntry[] {
+  const skillRaw = stripFrontmatter(read(skillPath(rootDir, category)));
+  const names = sopNames(skillRaw, category);
+  const stepOf = new Map<string, string>();
+  for (const block of skillRaw.matchAll(new RegExp(STEP_BLOCK.source, 'gms'))) {
+    for (const ref of block[0].matchAll(new RegExp(SOP_REFERENCE.source, 'gm'))) {
+      if (!stepOf.has(ref[1])) stepOf.set(ref[1], block[1]);
+    }
+  }
+  return names.map((name) => ({ name, step: stepOf.get(name) ?? '', ...readCardMeta(rootDir, name) }));
 }
 
-export function sha256Utf8(text: string): string {
-  return createHash('sha256').update(Buffer.from(text, 'utf8')).digest('hex');
+/**
+ * 批量取写法卡（模型看清单自己挑）。未知名不抛错——报回来让模型改名重试，
+ * 并附上相近名提示（少一轮猜）。
+ */
+export function loadSopCards(
+  names: string[],
+  rootDir: string,
+): { cards: { name: string; text: string }[]; unknown: string[]; suggestions: string[] } {
+  const all = fs.readdirSync(path.join(rootDir, 'skills', 'shared', 'sops'))
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => f.replace(/\.md$/, ''));
+  const cards: { name: string; text: string }[] = [];
+  const unknown: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of names) {
+    const name = String(raw ?? '').trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    if (!/^[a-z0-9-]+$/.test(name) || !all.includes(name)) {
+      unknown.push(name);
+      continue;
+    }
+    cards.push({ name, text: read(sopCardPath(rootDir, name, '?')) });
+  }
+  const suggestions = unknown
+    .map((u) => all.filter((n) => n.includes(u) || u.includes(n)).slice(0, 3))
+    .flat()
+    .filter((n, i, arr) => arr.indexOf(n) === i)
+    .slice(0, 5);
+  return { cards, unknown, suggestions };
 }
 
 /**
@@ -176,14 +228,4 @@ export function buildAllowedCommandsSuffix(category: string, names: WhitelistNam
     '标签模式用 SetLabelMode，平行平面用 Plane(点,平面)。' +
     '命令重载按对象类型选择，不能把函数当圆锥曲线或把点当数值。\n'
   );
-}
-
-export function expertPromptWithSuffix(category: string, rootDir: string): PromptAssembly {
-  const assembly = assembleExpertPrompt(category, rootDir);
-  const suffix = buildAllowedCommandsSuffix(category, loadWhitelist(rootDir).names);
-  return {
-    ...assembly,
-    text: assembly.text + suffix,
-    metadata: { ...assembly.metadata, characters: assembly.text.length + suffix.length },
-  };
 }

@@ -1,12 +1,12 @@
-/** SOP 三工具单轮探针：走 /api/agent POST，倒出全部事件。临时诊断用。 */
+/** SOP 工具面单轮探针：走 /api/agent POST，倒出全部事件。临时诊断用。 */
 import { POST } from '../math-mover-next/app/api/agent/route.ts';
 
 const res = await POST(new Request('http://local/api/agent', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
-    text: '请走 SOP 流程建一个最简单的函数构造：ggb_route 判类别为 A，get_expert_prompt 取卡，' +
-      '然后用 submit_construction 提交两行：MODE:2D 和 f = Function(x^2/4, -3, 3)。',
+    text: '请走 SOP 流程建一个最简单的函数构造：题目判为 A 类（函数与图像），用 get_expert_prompt 取 A 类流程与清单，' +
+      '再用 get_sop_cards 取 function-object 卡看写法，最后用 submit_construction 提交两行：MODE:2D 和 f = Function(x^2/4, -3, 3)。',
     runtimeId: 'claude-code',
   }),
 }));

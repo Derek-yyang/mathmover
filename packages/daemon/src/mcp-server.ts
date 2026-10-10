@@ -7,21 +7,22 @@
  *  - 结构化数据用 `text` block 承载 JSON，附一个纯文本摘要便于 agent 快速理解。
  *  - 工具签名不含 sessionId（签名寿命是第一资产）：会话 = 一个 daemon 进程。
  *    页面断开时如实报 GGB_SESSION_DEAD，不假装画布还在。
- *  - SOP 三工具（P1）：ggb_route 定类别、get_expert_prompt 取专家卡、
+ *  - SOP 工具面（P1→P1.6）：get_expert_prompt 取流程+清单、get_sop_cards 按需取卡、
  *    submit_construction 收卷（校验剔除后下发 + 明细回传）。
- *    category 由会话账本自动记（ggb_route / get_expert_prompt 写入，
- *    submit_construction 取用）——已裁定的语义，勿改。
+ *    category 由会话账本自动记（get_expert_prompt 写入，submit_construction 取用）。
+ *    分类由 agent 自己判——调 get_expert_prompt 时亮出 category，即完成分类+取材两件事。
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import {
-  assembleExpertPrompt,
+  assembleSkill,
+  buildCatalog,
   buildAllowedCommandsSuffix,
   checkLines,
   classifyLine,
-  CATEGORY_TO_SKILL,
+  loadSopCards,
   loadWhitelist,
   semanticCheck,
   type BoardState,
@@ -35,7 +36,7 @@ type ToolContent = Array<
   | { type: 'image'; data: string; mimeType: string }
 >;
 
-/** 题目分类学（ggb_route 的判定标准；与旧 ROUTER_PROMPT 同源）。 */
+/** 题目分类学（get_expert_prompt 的判定标准；与 ggb-core 的类别→skill 映射同源）。 */
 const CATEGORY_TAXONOMY =
   'A：函数与图像（一次函数、开口向上/向下的二次函数（抛物线）、三角函数、导数、一般函数）\n' +
   'B：平面几何（圆、多边形、角平分线、平面向量）\n' +
@@ -127,7 +128,7 @@ export function createMcpServer(
   const server = new McpServer({ name: info.name, version: info.version });
   const rootDir = opts.rootDir ?? process.cwd();
 
-  // 会话账本：category 归属（ggb_route / get_expert_prompt 写，submit_construction 读）。
+  // 会话账本：category 归属（get_expert_prompt 写，submit_construction 读）。
   // 会话 = 一个 daemon 进程（签名不带 sessionId），进程级单份即"会话账本"。
   const ledger: { category?: string; reason?: string; at?: number } = {};
 
@@ -238,35 +239,48 @@ export function createMcpServer(
     }
   });
 
-  // ── SOP 三工具（P1）：把 21 张专家卡接进 agent 的智力侧 ──────────────
+  // ── SOP 三工具（P1→P1.5）：流程与写法分家，写法按需取 ────────────
 
-  server.registerTool('ggb_route', {
-    title: '登记题目类别（选专家）',
+  server.registerTool('get_expert_prompt', {
+    title: '取专家流程 + 写法卡清单',
     description:
-      '通读题干与各小问（图看不清就结合 ggb_get_state 或用户文字），判定题目类别并登记到账本。' +
-      '这是 SOP 流程的第一步；类别决定后续取哪张专家卡、校验按哪类结构要求。\n\n' +
-      '分类标准：\n' + CATEGORY_TAXONOMY,
+      '本题属于哪一类，就调哪一类的：一次取两样——① 专家 skill（建模流程、每题必用的 GGB 通用写法、严格语法约束）；' +
+      '② 本类的写法卡清单（每张卡的一句话说明 + 适用输入 + 挂在流程第几步）。' +
+      '清单只是目录，具体写法要另外用 get_sop_cards 取；不确定怎么写就取，别凭印象编。' +
+      'category 由你根据题目自己判（没有单独的分类步骤，调本工具即完成分类）；' +
+      '中途发现判错了就换个 category 再调一次，覆盖账本即可。\n分类标准：\n' + CATEGORY_TAXONOMY,
     inputSchema: {
-      category: z.enum(['A', 'B', 'C', 'D']).describe('题目类别：A 函数与图像 / B 平面几何 / C 解析几何 / D 立体几何'),
-      reason: z.string().optional().describe('一句话判定理由（便于用户复核分诊）'),
+      category: z.enum(['A', 'B', 'C', 'D']).describe(
+        '题目类别（必填，你来判）：A 函数与图像 / B 平面几何 / C 解析几何 / D 立体几何',
+      ),
     },
   }, async (args) => {
     try {
       const category = args?.category;
-      if (!category) return errContent(new Error('必须给出 category（A/B/C/D）'));
+      if (!category) return errContent(new Error('必须给出 category（A/B/C/D）——由你根据题目判定'));
       ledger.category = category;
-      ledger.reason = args?.reason;
       ledger.at = Date.now();
-      const { metadata } = assembleExpertPrompt(category, rootDir);
+      const { text, metadata } = assembleSkill(category, rootDir);
+      const suffix = buildAllowedCommandsSuffix(category, loadWhitelist(rootDir).names);
+      const catalog = buildCatalog(category, rootDir);
       return {
-        content: [{
-          type: 'text',
-          text:
-            `已登记类别 ${category}（${CATEGORY_TO_SKILL[category]}）` +
-            (args?.reason ? `，理由：${args.reason}` : '') + '。\n' +
-            `该类 SOP 卡（共 ${metadata.cards.length} 张）：${metadata.cards.join('、')}。\n` +
-            '下一步：调 get_expert_prompt 取完整专家卡（含语法约束），按卡建模后用 submit_construction 提交。',
-        }],
+        content: [
+          { type: 'text', text: text + suffix },
+          {
+            type: 'text',
+            text:
+              `写法卡清单（${category} 类，共 ${catalog.length} 张）——需要哪张就 get_sop_cards 取：\n` +
+              catalog.map((c) => `- ${c.name}${c.step ? `（流程第 ${c.step} 步）` : ''}：${c.title}${c.inputs ? `｜输入：${c.inputs}` : ''}`).join('\n'),
+          },
+          {
+            type: 'text',
+            text: JSON.stringify({
+              category, skill: metadata.skill, cards: metadata.cards,
+              characters: metadata.characters + suffix.length,
+              catalog,
+            }),
+          },
+        ],
         isError: false,
       };
     } catch (e) {
@@ -274,38 +288,30 @@ export function createMcpServer(
     }
   });
 
-  server.registerTool('get_expert_prompt', {
-    title: '取专家卡（SOP 建模秘籍）',
+  server.registerTool('get_sop_cards', {
+    title: '批量取写法卡',
     description:
-      '取当前题目类别的完整专家提示：领域 SOP 卡（建模套路/骨架/示例）+ 生成规则 + 严格语法约束。' +
-      '建模前必读；不给 category 则用账本里已登记的类别（未登记会报错，请先 ggb_route）。' +
-      '给出 category 时也会写入账本（与 ggb_route 等效）。',
+      '按名字取写法卡正文（GGB 指令的具体写法、示例、易错点）。从 get_expert_prompt 的清单里挑；' +
+      '一次可以取多张。用完即可——写到哪步不确定写法就再取，不要凭记忆编指令。',
     inputSchema: {
-      category: z.enum(['A', 'B', 'C', 'D']).optional().describe('缺省用账本类别'),
+      names: z.array(z.string()).min(1).describe('卡片名列表，如 ["intersection", "locus"]'),
     },
   }, async (args) => {
     try {
-      const category = args?.category ?? ledger.category;
-      if (!category) {
-        return errContent(new Error('账本无类别：请先调 ggb_route 判定题目类别，或直接给出 category'));
+      const names = (args?.names ?? []).map((n) => String(n));
+      const { cards, unknown, suggestions } = loadSopCards(names, rootDir);
+      const content: ToolContent = [];
+      for (const c of cards) content.push({ type: 'text', text: `【${c.name}】\n${c.text}` });
+      if (unknown.length) {
+        content.push({
+          type: 'text',
+          text: `未找到的卡片：${unknown.join('、')}${suggestions.length ? `；相近的有：${suggestions.join('、')}` : ''}`,
+        });
       }
-      ledger.category = category;
-      ledger.at = Date.now();
-      const { text, metadata } = assembleExpertPrompt(category, rootDir);
-      const suffix = buildAllowedCommandsSuffix(category, loadWhitelist(rootDir).names);
-      return {
-        content: [
-          { type: 'text', text: text + suffix },
-          {
-            type: 'text',
-            text: JSON.stringify({
-              category, skill: CATEGORY_TO_SKILL[category], cards: metadata.cards,
-              characters: metadata.characters + suffix.length,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      if (cards.length === 0) {
+        return errContent(new Error(`没有取到任何卡片${unknown.length ? `（未知名：${unknown.join('、')}）` : ''}，请按清单里的名字取`));
+      }
+      return { content, isError: false };
     } catch (e) {
       return errContent(e);
     }
@@ -317,7 +323,7 @@ export function createMcpServer(
       'SOP 流程的收卷动作：提交**完整** GeoGebra 指令清单。自动做两层检查并把失败明细回传给你自行决定改不改' +
       '（不会替你重生成）：① 行级——语法/未知命令的行剔除后下发，明细列出；' +
       '② 语义级——按账本类别查结构（A 要函数/方程、B 要多边形/圆、C 要圆锥曲线、D 要 3D）' +
-      '与动点自洽（free_param / orphan_slider）。类别从账本取（ggb_route 或 get_expert_prompt 已登记）。',
+      '与动点自洽（free_param / orphan_slider）。类别从账本取（get_expert_prompt 调用时已登记）。',
     inputSchema: {
       commands: z.array(z.string()).min(1).describe('完整 GeoGebra 指令清单，每行一条（含 MODE: 首行可选、// 注释可选）'),
       category: z.enum(['A', 'B', 'C', 'D']).optional().describe(
@@ -330,7 +336,7 @@ export function createMcpServer(
       const category = args?.category ?? ledger.category;
       if (!category) {
         return errContent(new Error(
-          '账本无类别：先调 ggb_route / get_expert_prompt 登记；若是跨轮续接，把上一轮的类别直接传给本工具的 category 参数',
+          '账本无类别：先调 get_expert_prompt 取流程（调它即登记类别）；若是跨轮续接，把上一轮的类别直接传给本工具的 category 参数',
         ));
       }
       if (args?.category) ledger.category = args.category;

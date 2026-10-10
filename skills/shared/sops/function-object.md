@@ -1,16 +1,12 @@
-# SOP: function-object — 函数、零点、极值与切线写法
+# SOP: function-object — 零点、极值与切线写法
 
 输入：解析式 f(x)、合法定义域或隔根区间；切线分支需要可微函数。
 
 <!-- example: function-quadratic -->
 ```ggb
 f(x) = -x^2 + 2*x + 3
-SetColor(f, "Black")
 V = Extremum(f)
-ShowLabel(V, true)
-SetLabelMode(V, 1)
 axisV = Line(V, V + (0, 1))
-SetLineStyle(axisV, 2)
 E = Root(f, 2, 4)
 ```
 

@@ -11,9 +11,57 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-import expert_prompts as prompts
 import ggb_parser
 import ggb_catalog
+
+# --- SOP 库的路径与 skill 槽位解析（原 expert_prompts.py 的只读部分）---
+# 装配实现已随一次性生成管线下线；SOP 静态校验只读卡库与 skill 槽位，这些就够。
+_SKILLS_DIR = ROOT / "skills"
+_SOPS_DIR = _SKILLS_DIR / "shared" / "sops"
+CATEGORY_TO_SKILL = {
+    "A": "function-expert", "B": "planar-geometry-expert",
+    "C": "conic-expert", "D": "solid-geometry-expert",
+}
+_SOP_REFERENCE = re.compile(r"^[ \t]*\{\{SOP:([a-z0-9-]+)\}\}[ \t]*$", re.M)
+_STEP_BLOCK = re.compile(r"^## ([1-9]\d*)\.[^\n]*\n.*?(?=^## [1-9]\d*\.|\Z)", re.M | re.S)
+
+
+def _strip_frontmatter(text):
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        if end != -1:
+            return text[end + 4:].lstrip("\n")
+    return text
+
+
+def _read(path):
+    return path.read_text(encoding="utf-8").rstrip()
+
+
+def _sop_card_path(name, category):
+    if not isinstance(name, str) or not re.fullmatch(r"[a-z0-9-]+", name):
+        raise ValueError(f"非法 SOP 名称: {name!r}")
+    card = _SOPS_DIR / f"{name}.md"
+    if not card.is_file():
+        raise FileNotFoundError(f"SOP 卡缺失: {card}（{CATEGORY_TO_SKILL[category]}）")
+    return card
+
+
+def _sop_names(body, category):
+    """SKILL.md 单独决定卡片清单与插入顺序。"""
+    names = _SOP_REFERENCE.findall(body)
+    if not names or "{{SOP" in _SOP_REFERENCE.sub("", body):
+        raise ValueError(f"{CATEGORY_TO_SKILL[category]}: SOP 插入位置缺失或格式错误；"
+                         "应独占一行写 {{SOP:card-name}}")
+    if len(names) != len(set(names)):
+        raise ValueError(f"{CATEGORY_TO_SKILL[category]}: SOP 插入位置重复")
+    blocks = list(_STEP_BLOCK.finditer(body))
+    steps = [block.group(1) for block in blocks]
+    if len(steps) != len(set(steps)):
+        raise ValueError(f"{CATEGORY_TO_SKILL[category]}: 编号步骤重复")
+    if set(_SOP_REFERENCE.findall("".join(block.group(0) for block in blocks))) != set(names):
+        raise ValueError(f"{CATEGORY_TO_SKILL[category]}: SOP 插入位置必须位于编号步骤")
+    return names
 
 EXAMPLE = re.compile(r"<!-- example: ([\w-]+) -->\s*```ggb\n(.*?)\n```", re.S)
 
@@ -26,7 +74,7 @@ def collect_cases():
         allowed.update(names)
     allowed.update(commands.get("aliases", {}))
     cases = []
-    for card in sorted(prompts._SOPS_DIR.glob("*.md")):
+    for card in sorted(_SOPS_DIR.glob("*.md")):
         text = card.read_text(encoding="utf-8")
         for required in ("输入：", "写法注意："):
             if required not in text:
@@ -77,21 +125,18 @@ def collect_command_cases():
 
 
 def validate_imports():
-    all_cards = {p.stem for p in prompts._SOPS_DIR.glob("*.md")}
+    all_cards = {p.stem for p in _SOPS_DIR.glob("*.md")}
     used = set()
     results = []
-    for category, expert in prompts.CATEGORY_TO_SKILL.items():
-        text = prompts._strip_frontmatter(prompts._read(prompts._SKILLS_DIR / expert / "SKILL.md"))
-        names = prompts._sop_names(text, category)
-        assembled = prompts.EXPERT_PROMPTS[category]
-        if "{{SOP" in assembled or not assembled.startswith(prompts._read(prompts._RULES_PATH)):
-            raise ValueError(f"{expert}: incomplete assembly")
+    for category, expert in CATEGORY_TO_SKILL.items():
+        text = _strip_frontmatter(_read(_SKILLS_DIR / expert / "SKILL.md"))
+        names = _sop_names(text, category)
         for name in names:
-            card = prompts._read(prompts._sop_card_path(name, category))
+            card = _read(_sop_card_path(name, category))
             if '{{SOP' in card:
                 raise ValueError(f'{expert}/{name}: nested reference')
         used.update(names)
-        results.append({"category": category, "cards": len(names), "characters": len(assembled)})
+        results.append({"category": category, "cards": len(names)})
     if all_cards != used:
         raise ValueError(f"Unused SOP cards: {sorted(all_cards - used)}")
     return results

@@ -71,6 +71,8 @@ test('metadata excludes tool payloads and redacts credential-like names', () => 
 });
 
 test('elapsed text is local time only and tolerates backwards clocks', () => {
+  assert.equal(toolStepLabel('mcp__mathmover__get_expert_prompt'), '读取建模规则');
+  assert.equal(toolStepLabel('mcp__mathmover__submit_construction'), '提交构造并检查');
   assert.equal(elapsedLabel(1000, 2000), '1 秒');
   assert.equal(elapsedLabel(1000, 62000), '1 分 1 秒');
   assert.equal(elapsedLabel(2000, 1000), '0 秒');
