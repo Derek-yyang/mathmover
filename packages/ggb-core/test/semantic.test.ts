@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { checkLines, semanticCheck, stripTextObjects } from '../src/semantic.ts';
+import { checkLines, semanticCheck } from '../src/semantic.ts';
 
 const KNOWN = new Set(['point', 'line', 'function', 'polygon', 'circle', 'slider', 'text', 'setcolor', 'showlabel', 'ellipse', 'parabola']);
 
@@ -60,16 +60,6 @@ describe('checkLines', () => {
     expect(r.unknownCommands.map((u) => u.head)).toContain('frobulate');
     expect(r.invalidCount).toBeGreaterThanOrEqual(1);
     expect(r.validity).toBeLessThan(1);
-  });
-});
-
-describe('stripTextObjects', () => {
-  it('删除 Text 定义行与首参为它的属性行，其余保留', () => {
-    const out = stripTextObjects('A = Point(0, 0)\nmsg = Text("hi")\nSetColor(msg, "#FF0000")\nSetColor(A, "#00FF00")\n');
-    expect(out).toContain('A = Point(0, 0)');
-    expect(out).toContain('SetColor(A, "#00FF00")');
-    expect(out).not.toContain('msg = Text');
-    expect(out).not.toContain('SetColor(msg');
   });
 });
 

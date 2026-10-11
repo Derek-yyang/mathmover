@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCommands, classifyLine, detectMode, extractExecutableText } from '../src/parse.ts';
+import { parseCommands, classifyLine, detectMode } from '../src/parse.ts';
 
 describe('classifyLine', () => {
   it('识别普通定义行', () => {
@@ -84,8 +84,3 @@ describe('detectMode', () => {
   });
 });
 
-describe('extractExecutableText', () => {
-  it('只返回可执行文本', () => {
-    expect(extractExecutableText(['', '// c', 'A = (0,0)', 'MODE:2D'])).toEqual(['A = (0,0)']);
-  });
-});

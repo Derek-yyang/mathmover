@@ -2,7 +2,10 @@
  * 语义校验（判据移植自原 Python `semantic_guard.py`，该文件已随一次性生成管线下线）。
  *
  * 忠实移植的部分：free_param / orphan_slider 的判据与文案（_DEF_RE/_TOKEN_RE 逻辑）、
- * 残留文字对象过滤（stripTextObjects）、类别结构检查的失败文案。
+ * 类别结构检查的失败文案。
+ * （Python 的 strip_text_objects 曾一并移植为 stripTextObjects，2026-10-11 删除——
+ *   调用者随一次性管线一起下线了；且「悄悄删」与 submit_construction 的
+ *   「校验不拦路」不变量相反。文字对象现在由 no_text 检查报告，让模型自己改。）
  *
  * 记录在案的实现差异：Python 侧对象 kind 由 ggb_parser 的表达式精化（圆锥/方程
  * 识别等多趟启发式）给出；这里按**定义命令头**分类 + 少量表达式启发（二次项
@@ -264,33 +267,4 @@ function detectModeText(text: string): string {
     if (kind === 'mode') return /3d/i.test(line) ? '3D' : '2D';
   }
   return '2D';
-}
-
-/** D 规则过滤：删除 Text 类对象的定义行及其属性行。Python strip_text_objects 同款。 */
-export function stripTextObjects(candidateText: string): string {
-  const { objs } = classifyDefs(candidateText);
-  const textNames = new Set(objs.filter((o) => o.kind === 'text').map((o) => o.name.toLowerCase()));
-  if (textNames.size === 0) return candidateText;
-  const out: string[] = [];
-  for (const line of candidateText.split('\n')) {
-    const s = line.trim();
-    if (!s) continue;
-    const sLow = s.toLowerCase();
-    let dropped = false;
-    for (const tn of textNames) {
-      if (sLow === `${tn} = text(...)` || sLow.startsWith(`${tn}=text(`) || sLow.startsWith(`${tn} = text(`)) {
-        dropped = true;
-        break;
-      }
-      if (sLow.startsWith('set') && s.includes('(')) {
-        const firstArg = s.split('(', 2)[1].split(',')[0].trim().replace(/^"|"$/g, '').toLowerCase();
-        if (firstArg === tn) {
-          dropped = true;
-          break;
-        }
-      }
-    }
-    if (!dropped) out.push(line);
-  }
-  return out.join('\n') + '\n';
 }

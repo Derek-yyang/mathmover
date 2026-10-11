@@ -67,8 +67,4 @@ export function elapsedLabel(startedAt: number, endedAt: number): string {
   const seconds = Math.max(0, Math.floor((endedAt - startedAt) / 1000));
   return seconds < 60 ? `${seconds} 秒` : `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
 }
-
-export function isNearChatBottom(scrollTop: number, scrollHeight: number, clientHeight: number): boolean {
-  return scrollHeight - clientHeight - scrollTop <= 80;
-}
 import { redactAgentError } from './agent-diagnostics';

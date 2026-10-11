@@ -7,7 +7,7 @@ const compile = name => ts.transpileModule(readFileSync(new URL(`../lib/${name}.
   { compilerOptions: { module: ts.ModuleKind.ES2020 } }).outputText;
 const url = code => 'data:text/javascript;base64,' + Buffer.from(code).toString('base64');
 const code = compile('agent-progress').replace("'./agent-diagnostics'", JSON.stringify(url(compile('agent-diagnostics'))));
-const { updateToolProgress: update, finishExecution: finish, toolStepLabel, elapsedLabel, isNearChatBottom } = await import(url(code));
+const { updateToolProgress: update, finishExecution: finish, toolStepLabel, elapsedLabel } = await import(url(code));
 const fresh = () => ({ status: 'running', startedAt: 1000, steps: [] });
 
 test('parallel tool calls correlate by ID, never by name or position', () => {
@@ -78,9 +78,3 @@ test('elapsed text is local time only and tolerates backwards clocks', () => {
   assert.equal(elapsedLabel(2000, 1000), '0 秒');
 });
 
-test('follow threshold handles short history, exact boundary and overscroll', () => {
-  assert.equal(isNearChatBottom(0, 100, 600), true);
-  assert.equal(isNearChatBottom(320, 1000, 600), true);
-  assert.equal(isNearChatBottom(319, 1000, 600), false);
-  assert.equal(isNearChatBottom(500, 1000, 600), true);
-});

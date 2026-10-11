@@ -92,8 +92,3 @@ export function detectMode(commands: GgbCommand[]): Mode {
   }
   return '2D';
 }
-
-/** 取出将实际下发的行文本（已过滤、已归一）。 */
-export function extractExecutableText(lines: string[]): string[] {
-  return parseCommands(lines).executable.map((c) => c.text);
-}
