@@ -5,9 +5,11 @@ import { AttachmentPrimitive, ComposerPrimitive, useAui, useAuiState } from '@as
 import { ImagePlus, Square, X } from 'lucide-react';
 import { useImagePreview } from './ImagePreview';
 import ComposerModelPicker, { type PickableModel } from './ComposerModelPicker';
+import ComposerEffortPicker, { type EffortOption } from './ComposerEffortPicker';
 
 export default function AssistantChatComposer({ canAttachImages, isLoading, onStopRun, getAttachmentCount,
-  models = [], modelSource, selectedModel, onSelectModel, supportsCustomModel = true }: {
+  models = [], modelSource, selectedModel, onSelectModel, supportsCustomModel = true,
+  reasoningOptions, selectedEffort, onSelectEffort }: {
   canAttachImages: boolean; isLoading: boolean; onStopRun?: () => void; getAttachmentCount: () => number;
   /** 该 agent 可选的模型；空数组或「只有默认且不能手填」时不渲染控件 */
   models?: PickableModel[];
@@ -15,6 +17,10 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
   selectedModel?: string;
   onSelectModel?: (id: string) => void;
   supportsCustomModel?: boolean;
+  /** 当前模型的推理档位；只有一项或没有时不渲染 */
+  reasoningOptions?: EffortOption[];
+  selectedEffort?: string;
+  onSelectEffort?: (id: string) => void;
 }) {
   const aui = useAui();
   const preview = useImagePreview();
@@ -77,6 +83,9 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
             <ComposerModelPicker models={models} source={modelSource} loading={isLoading && models.length === 0}
               selectedId={selectedModel ?? 'default'} onSelect={id => onSelectModel?.(id)} />
           )}
+          {/* 档位跟着当前模型走：换个模型档位集就变了。只有一项时不渲染（控件自己判）。 */}
+          <ComposerEffortPicker options={reasoningOptions ?? []} selectedId={selectedEffort}
+            onSelect={id => onSelectEffort?.(id)} disabled={isLoading} />
         </div>
         {/* 运行中换成停止按钮——原来只是转圈的发送键，看着能点、点了没反应。
             两颗按钮共用几何与叠放位，靠透明度交叉过渡，读起来是「同一颗按钮变了状态」

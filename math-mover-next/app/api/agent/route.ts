@@ -134,6 +134,8 @@ export async function POST(req: Request): Promise<Response> {
     runtimeId?: string;
     /** 本次要用的模型 id。不传 = 用 CLI 自己的配置。UI 的模型选择器填这里。 */
     model?: string;
+    /** 推理档位（该模型 reasoningOptions 之一）。只对支持的运行时生效。 */
+    reasoningEffort?: string;
     windowId?: string;
     /** 此前轮次（不含本轮）；仅 recomposesHistory 的运行时会用（转写注入） */
     history?: TranscriptTurn[];
@@ -220,6 +222,8 @@ export async function POST(req: Request): Promise<Response> {
     resumeSessionId: body.sessionId || undefined,
     images: checked.images,
     model,
+    reasoningEffort: typeof body.reasoningEffort === 'string' && body.reasoningEffort.trim()
+      ? body.reasoningEffort.trim().slice(0, 32) : undefined,
     env: { MATHMOVER_WINDOW_ID: body.windowId ?? '' },
     // 长任务保护：**静默**超时（不是墙钟），见 run.ts
     inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? 180_000),

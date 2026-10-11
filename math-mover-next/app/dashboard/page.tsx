@@ -161,6 +161,22 @@ function DashboardContent() {
     setModelByAgent(prev => ({ ...prev, [activeRuntimeId]: id }));
   }, [activeRuntimeId]);
 
+  // 推理档位按「agent + 模型」记：换个模型档位集就变了，不能跟着 agent 走。
+  // 用 JSON 一层套娃当 key，避免 agent/model 里的斜杠歧义。
+  const effortKey = JSON.stringify([activeRuntimeId ?? '', selectedModel]);
+  const [effortByModel, setEffortByModel] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('mathmover_effort_by_model') ?? '{}') as Record<string, string>; }
+    catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('mathmover_effort_by_model', JSON.stringify(effortByModel)); } catch { /* 隐私模式等 */ }
+  }, [effortByModel]);
+  const selectedEffort = effortByModel[effortKey];
+  const handleSelectEffort = useCallback((id: string) => {
+    setEffortByModel(prev => ({ ...prev, [JSON.stringify([activeRuntimeId ?? '', selectedModel])]: id }));
+  }, [activeRuntimeId, selectedModel]);
+
+
   useEffect(() => {
     ledgerRef.current = lastExecutedCommands;
   }, [lastExecutedCommands]);
@@ -350,6 +366,7 @@ function DashboardContent() {
             runtimeId: activeRuntimeId,
             // 不传「默认」——后端不传 --model，用 CLI 自己的配置
             model: selectedModel !== 'default' ? selectedModel : undefined,
+            reasoningEffort: selectedEffort || undefined,
             images: imagePayloads.length ? imagePayloads : undefined,
             // 此前轮次（闭包里是本轮发送前的列表）；dsh 等无会话运行时靠它做转写注入。
             // 带图轮次在转写里只留占位（转写注入是纯文本通道）。
@@ -505,6 +522,8 @@ function DashboardContent() {
           activeRuntimeId={activeRuntimeId}
           selectedModel={selectedModel}
           onSelectModel={handleSelectModel}
+          selectedEffort={selectedEffort}
+          onSelectEffort={handleSelectEffort}
           onSelectRuntime={handleSelectRuntime}
         />
       </ResizableChatRegion>

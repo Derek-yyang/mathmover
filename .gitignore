@@ -45,6 +45,8 @@ math-mover-next/node_modules/
 
 # 构建产物
 deploy.tar
+*.tgz
+packages/dsh-runtime/dist/
 *.tar
 *.gz
 

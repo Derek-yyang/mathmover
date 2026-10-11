@@ -33,6 +33,8 @@ export interface RunOptions {
    * 调用方应先用 resolveModel() 校验——不要直接透传用户输入。
    */
   model?: string;
+  /** 推理档位（该模型 reasoningOptions 之一）。只对支持的运行时生效。 */
+  reasoningEffort?: string;
   extraArgs?: string[];
   env?: Record<string, string>;
   /** 墙钟硬超时（毫秒）；超时杀进程并发 error 事件 */
@@ -129,6 +131,7 @@ export function runAgent(opts: RunOptions): RunHandle {
           requestId: randomUUID(),
           cwd: opts.cwd,
           model: opts.model,
+          reasoningEffort: opts.reasoningEffort,
           resumeSessionId: opts.resumeSessionId,
         })
       : prompt;

@@ -41,6 +41,11 @@ export type AgentEvent =
 export interface RuntimeModelOption {
   id: string;
   label: string;
+  /**
+   * 该模型支持的推理档位（如 off/low/high/max）。可选——不是所有运行时都有。
+   * 这是**运行参数**不是模型能力标志，用户选了就随 execute 帧下发。
+   */
+  reasoningOptions?: Array<{ id: string; label: string; default?: boolean }>;
 }
 
 /**
@@ -69,6 +74,8 @@ export interface StdinContext {
   cwd?: string;
   /** 选中的模型 id（对 dsh 是 `provider/model` 形式） */
   model?: string;
+  /** 推理档位（该模型的 reasoningOptions 之一） */
+  reasoningEffort?: string;
   resumeSessionId?: string;
 }
 
@@ -592,7 +599,19 @@ function parseDshModels(stdout: string): RuntimeModelOption[] | null {
       const providerName = typeof pick(item, 'provider_name') === 'string' && pick(item, 'provider_name')
         ? pick(item, 'provider_name') : provider;
       // id 保持 provider/model 形式——下发时由 dshModelSelection 拆回两段
-      out.push({ id: `${provider}/${id}`, label: `${name} · ${providerName}` });
+      const entry: RuntimeModelOption = { id: `${provider}/${id}`, label: `${name} · ${providerName}` };
+      const efforts = pick(item, 'reasoning_options');
+      if (Array.isArray(efforts)) {
+        const opts = efforts.flatMap((rawEffort) => {
+          const eid = pick(rawEffort, 'id');
+          const ename = pick(rawEffort, 'name');
+          if (typeof eid !== 'string') return [];
+          const def = pick(rawEffort, 'default') === true;
+          return [{ id: eid, label: typeof ename === 'string' && ename ? ename : eid, ...(def ? { default: true } : {}) }];
+        });
+        if (opts.length) entry.reasoningOptions = opts;
+      }
+      out.push(entry);
     }
     return out.length ? out : null;
   }
@@ -635,6 +654,7 @@ export const dsh: RuntimeDefinition = {
       mcp_servers: [],
       ...(ctx?.resumeSessionId ? { resume_session_id: ctx.resumeSessionId } : {}),
       ...(model ? { model } : {}),
+      ...(ctx?.reasoningEffort ? { reasoning_effort: ctx.reasoningEffort } : {}),
     }) + '\n';
   },
   parseLine(line) {

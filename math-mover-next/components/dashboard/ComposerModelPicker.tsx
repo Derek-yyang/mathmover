@@ -13,6 +13,8 @@ import { Check, ChevronDown } from 'lucide-react';
 export interface PickableModel {
   id: string;
   label: string;
+  /** 该模型支持的推理档位（如 off/low/high/max）。换模型档位集会变。 */
+  reasoningOptions?: Array<{ id: string; label: string; default?: boolean }>;
 }
 
 export interface ComposerModelPickerProps {
