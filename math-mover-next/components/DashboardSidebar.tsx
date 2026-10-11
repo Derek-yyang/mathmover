@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useId } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Search, PanelLeftClose, PanelLeftOpen, SquarePen, Settings2, MoreHorizontal, Edit2, Trash2, X, Check } from 'lucide-react';
@@ -26,6 +27,9 @@ export default function DashboardSidebar() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(true);
   const { busy } = useAgentRuntimeState();
+  const reducedMotion = useReducedMotion();
+  const listTransition = { duration: reducedMotion ? 0 : 0.22, ease: [0.25, 1, 0.5, 1] as const };
+  const listExit = { opacity: 0, x: reducedMotion ? 0 : -8, pointerEvents: 'none' as const };
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -188,16 +192,19 @@ export default function DashboardSidebar() {
           </div>
         </>}
 
-        <nav aria-label="历史课件" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-4">
+        <motion.nav layoutScroll aria-label="历史课件" className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-4">
           {historyError && <p role="alert" className="px-3 py-3 text-xs leading-5 text-amber-900">{historyError}</p>}
-          {isDashboard && (groups.length === 0 ? <div className="px-3 py-5 text-sm leading-6 text-stone-600" role="status">
+          <LayoutGroup>
+          <AnimatePresence initial={false} mode="popLayout">
+          {isDashboard && (groups.length === 0 ? <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={listTransition} className="px-3 py-5 text-sm leading-6 text-stone-600" role="status">
             {historyLoading ? '正在读取本地课件…' : historyError ? '课件列表尚未读取成功。' : history.length === 0 ? '暂无课件，点击“新建课件”开始。' : '没有找到匹配的课件，试试其他标题。'}
-          </div> : groups.map(group => <section key={group.label} aria-label={group.label} className="mb-5">
+          </motion.div> : groups.map(group => <motion.section key={group.label} layout={reducedMotion ? false : 'position'} initial={false} animate={{ opacity: 1, x: 0, pointerEvents: 'auto' }} exit={listExit} transition={listTransition} aria-label={group.label} className="relative mb-5">
             <h2 className="px-3 pb-2 pt-3 text-xs font-medium text-stone-600">{group.label}</h2>
-            <ul className="space-y-0.5">{group.items.map(item => {
+            <ul className="relative flex flex-col gap-0.5">
+            <AnimatePresence initial={false} mode="popLayout">{group.items.map(item => {
               const active = item.id === currentHistoryId;
               const selected = selectedIds.has(item.id);
-              return <li key={item.id} className={`group relative rounded-lg ${active || selected ? 'bg-emerald-50 text-emerald-900' : 'text-stone-800 hover:bg-stone-200/50'}`}>
+              return <motion.li key={item.id} layout={reducedMotion ? false : 'position'} initial={false} animate={{ opacity: 1, x: 0, pointerEvents: 'auto' }} exit={listExit} transition={listTransition} className={`group relative rounded-lg ${active || selected ? 'bg-emerald-50 text-emerald-900' : 'text-stone-800 hover:bg-stone-200/50'}`}>
                 {editingId === item.id ? <div className="px-2 py-1">
                   <input type="text" aria-label="课件名称" autoFocus value={editName} onChange={event => setEditName(event.target.value)} onBlur={() => submitEdit()}
                     onKeyDown={event => {
@@ -226,10 +233,12 @@ export default function DashboardSidebar() {
                       setMenu({id:item.id, left:Math.max(8, Math.min(box.right - 176, window.innerWidth - 184)), top:Math.max(8, Math.min(box.bottom + 4, window.innerHeight - 140))});
                     }}><MoreHorizontal className="h-4 w-4" /></button>}
                 </>}
-              </li>;
-            })}</ul>
-          </section>))}
-        </nav>
+              </motion.li>;
+            })}</AnimatePresence></ul>
+          </motion.section>))}
+          </AnimatePresence>
+          </LayoutGroup>
+        </motion.nav>
 
         {selectionMode && <div className="shrink-0 border-t border-stone-200 px-3 py-3 text-xs text-stone-700">
           <div className="flex items-center justify-between">
