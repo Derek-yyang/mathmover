@@ -1,0 +1,155 @@
+{
+  "retrievedAt": "2026-10-10T18:18:34.493Z",
+  "sources": [
+    {
+      "url": "https://r.assistant-ui.com/elements-tool-call.json",
+      "file": "components/assistant-ui/elements/tool-call.tsx",
+      "sha256": "71c673d273b02d5757ae06c8b3be006b29f6a522ebea344243e66977c2b7259b"
+    },
+    {
+      "url": "https://r.assistant-ui.com/thread.json",
+      "file": "components/assistant-ui/elements/thread.aui.tsx",
+      "sha256": "a5c2a4655a90a4e24df4e1223bbe4eb4f4f1b58f95fe868ce7b1fc9894f60dc7"
+    },
+    {
+      "url": "https://ui.shadcn.com/r/styles/new-york/skeleton.json",
+      "file": "components/assistant-ui/ui/skeleton.tsx",
+      "sha256": "87608e7cc815ad3d88e0b9de6c402bb37b58ea1b38636cf69709da1baff6e334"
+    },
+    {
+      "url": "https://r.assistant-ui.com/image.json",
+      "file": "components/assistant-ui/elements/image.tsx",
+      "sha256": "93eaf85070e3a0199ae345b63b80d1ddc13ab37e11a0cda4795e54847a82ebea"
+    },
+    {
+      "url": "https://ui.shadcn.com/r/styles/new-york/button.json",
+      "file": "components/assistant-ui/ui/button.tsx",
+      "sha256": "c2b999a96781e6c932632bd089095368e973bf5602e1b1a62156b7d2b43f1e84"
+    },
+    {
+      "url": "https://r.assistant-ui.com/tool-fallback.json",
+      "file": "components/assistant-ui/elements/tool-fallback.aui.tsx",
+      "sha256": "2230ad6e2a812242aa5990e58bd9a716aee8916508b805adb4c039f2b1e281ad"
+    },
+    {
+      "url": "https://r.assistant-ui.com/markdown-text.json",
+      "file": "components/assistant-ui/elements/markdown-text.tsx",
+      "sha256": "7d20bd8fe709a1a6aeee24ba82531309e374740ba6181e092592275ffd6ff8ac"
+    },
+    {
+      "url": "https://r.assistant-ui.com/file.json",
+      "file": "components/assistant-ui/elements/file.tsx",
+      "sha256": "af6c5c38b0409f168e1bcebacffa9efaf7ff17ecc3cc0b5fab8d4770df0454a0"
+    },
+    {
+      "url": "https://r.assistant-ui.com/follow-up-suggestions.json",
+      "file": "components/assistant-ui/elements/follow-up-suggestions.aui.tsx",
+      "sha256": "f0db1e9cfc5f648adeb57c8ac61fbeca4ebbb4d55267a9c107709af01b73abb4"
+    },
+    {
+      "url": "https://r.assistant-ui.com/reasoning.json",
+      "file": "components/assistant-ui/elements/reasoning.aui.tsx",
+      "sha256": "94f888b035c28a499be79995c90fc2729dc067fc74d250f0f555187c4e698f4f"
+    },
+    {
+      "url": "https://r.assistant-ui.com/tool-group.json",
+      "file": "components/assistant-ui/elements/tool-group.aui.tsx",
+      "sha256": "757caf28ee232d4f500c8af7d6837fe7d6d2b144774a6a0bcdaff8c0c517bd9e"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-collapsible-root.json",
+      "file": "components/assistant-ui/elements/collapsible-root.tsx",
+      "sha256": "ebea1fff3af62e619a63680227b3c4b89cec449fac059f5fcd6695cc128f38b8"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-href.json",
+      "file": "components/assistant-ui/utils/href.ts",
+      "sha256": "3a8038d038b1918ae3f58a61dcd30933633131dda341eb5bea5b6a650b31a912"
+    },
+    {
+      "url": "https://r.assistant-ui.com/use-copy-to-clipboard.json",
+      "file": "components/assistant-ui/hooks/use-copy-to-clipboard.ts",
+      "sha256": "1f3b8a1bab79cef961f62eb25d6b58a0d16c957d63ba1faf086ad09c99712c0a"
+    },
+    {
+      "url": "https://r.assistant-ui.com/attachment.json",
+      "file": "components/assistant-ui/elements/attachment.aui.tsx",
+      "sha256": "b8e3dd0f08a6f464a4e33db791a99e566e848104da83ff67117b7e97a7050d16"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-reasoning.json",
+      "file": "components/assistant-ui/elements/reasoning.tsx",
+      "sha256": "02c42a1cad5fd56f4479fe65c779e9f9934c03a6e935ac92ebf98cbb46ef3cc7"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-reasoning.json",
+      "file": "components/assistant-ui/utils/useIsomorphicLayoutEffect.ts",
+      "sha256": "8db117d730e640655e5099e086af4e00d545c283839d9ef5885ca93419d51893"
+    },
+    {
+      "url": "https://ui.shadcn.com/r/styles/new-york/textarea.json",
+      "file": "components/assistant-ui/ui/textarea.tsx",
+      "sha256": "ec7c92aaed80f6923a7caa4bfe4eead395b50a7001504fd7fbb0b9381804dae9"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-media-player.json",
+      "file": "components/assistant-ui/elements/media-player.tsx",
+      "sha256": "c1d92c3b7eeb21adac5052ff12ae1ac53b9e036340d58a4a80f84db1414ca538"
+    },
+    {
+      "url": "https://r.assistant-ui.com/use-attachment-src.json",
+      "file": "components/assistant-ui/hooks/use-attachment-src.ts",
+      "sha256": "dfb621f1a18f4013994aa29815beddb436020105164526ab7c86b0b0a32040a1"
+    },
+    {
+      "url": "https://ui.shadcn.com/r/styles/new-york/dialog.json",
+      "file": "components/assistant-ui/ui/dialog.tsx",
+      "sha256": "fe70a91bb924ef3a40b7504e6847ef9a57aed3b503d2a7dbb7610e821ea40b6f"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-surfaces.json",
+      "file": "components/assistant-ui/elements/surfaces.tsx",
+      "sha256": "5d81fbb669e67ae20026cd30ed57efc51a5e3ee0f4f5d265e1723de75359b8fa"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-surfaces.json",
+      "file": "components/assistant-ui/utils/useIsomorphicLayoutEffect.ts",
+      "sha256": "8db117d730e640655e5099e086af4e00d545c283839d9ef5885ca93419d51893"
+    },
+    {
+      "url": "https://ui.shadcn.com/r/styles/new-york/avatar.json",
+      "file": "components/assistant-ui/ui/avatar.tsx",
+      "sha256": "e78b35ed76c67d8ff50603fbe0dfa4fe600097bd860d89e65beea3e16683dad8"
+    },
+    {
+      "url": "https://r.assistant-ui.com/tooltip-icon-button.json",
+      "file": "components/assistant-ui/elements/tooltip-icon-button.tsx",
+      "sha256": "1ec2af97d22c34c955588c866aba5ddbfc579b1fd9218f68f75010b10e5a7868"
+    },
+    {
+      "url": "https://ui.shadcn.com/r/styles/new-york/tooltip.json",
+      "file": "components/assistant-ui/ui/tooltip.tsx",
+      "sha256": "ce6afa34fb9dae51053a863b4c3f7c6e55f3da23b00149f31a8e4402bc963be0"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-run-activity.json",
+      "file": "components/assistant-ui/elements/run-activity.tsx",
+      "sha256": "1b838ae6054c2c45535701af231291436e77da1d6215a2c2a80a313de5aaeace"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-surfaces.json",
+      "file": "components/assistant-ui/elements/surfaces.tsx",
+      "sha256": "5d81fbb669e67ae20026cd30ed57efc51a5e3ee0f4f5d265e1723de75359b8fa"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-tool-timeline.json",
+      "file": "components/assistant-ui/elements/tool-timeline.tsx",
+      "sha256": "bb9e3cf5d498c0339ab33590db5f86c3412a06e80db0094287e48380d997adfe"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-range.json",
+      "file": "components/assistant-ui/utils/range.ts",
+      "sha256": "3506d5f07865c042a4ef9b96904f687d19372a14e7dfccf946749860a3606182"
+    }
+  ]
+}
