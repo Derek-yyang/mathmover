@@ -22,6 +22,7 @@ import {
 } from '@/components/dashboard/types';
 import { useCoursewareLibrary } from '@/hooks/useCoursewareLibrary';
 import type { CoursewareRecord } from '@/lib/courseware-client';
+import { historyBeforeUserMessage } from '@/lib/assistant-chat-adapter';
 
 export default function Dashboard() {
   return (
@@ -162,7 +163,7 @@ function DashboardContent() {
   }, [activeRuntimeId]);
 
   // 推理档位按「agent + 模型」记：换个模型档位集就变了，不能跟着 agent 走。
-  // 用 JSON 一层套娃当 key，避免 agent/model 里的斜杠歧义。
+  // 用 JSON 一层套娃当 key，避免 `agent/model` 里的斜杠歧义。
   const effortKey = JSON.stringify([activeRuntimeId ?? '', selectedModel]);
   const [effortByModel, setEffortByModel] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem('mathmover_effort_by_model') ?? '{}') as Record<string, string>; }
@@ -175,7 +176,6 @@ function DashboardContent() {
   const handleSelectEffort = useCallback((id: string) => {
     setEffortByModel(prev => ({ ...prev, [JSON.stringify([activeRuntimeId ?? '', selectedModel])]: id }));
   }, [activeRuntimeId, selectedModel]);
-
 
   useEffect(() => {
     ledgerRef.current = lastExecutedCommands;
@@ -292,8 +292,12 @@ function DashboardContent() {
   }, []);
 
   const handleSendMessage = useCallback(
-    async (text: string, attachments: ChatAttachment[]) => {
-      if (isLoading || !canSend) return;
+    async (text: string, attachments: ChatAttachment[], editMessageId?: string) => {
+      if (isLoading || abortRef.current || !canSend) return;
+      const priorMessages = editMessageId ? historyBeforeUserMessage(messages, editMessageId) : messages;
+      if (!priorMessages || (!text.trim() && !attachments.length)) return;
+      // An edited turn must not resume the CLI session containing the superseded replies.
+      if (editMessageId) sessionIdRef.current = undefined;
       clearFailure(activeRuntimeId);
       const controller = new AbortController();
       abortRef.current = controller;
@@ -309,7 +313,7 @@ function DashboardContent() {
       const assistantId = `msg_agent_${Date.now()}`;
 
       const nextMessages: AgentChatMessage[] = [
-        ...messages,
+        ...priorMessages,
         userMsg,
         { id: assistantId, role: 'assistant', content: '', createdAt: Date.now(),
           meta: { status: 'generating', execution: { status: 'running', startedAt: Date.now(), steps: [] } } },
@@ -363,14 +367,15 @@ function DashboardContent() {
             text,
             windowId,
             sessionId: sessionIdRef.current,
+            restartFromHistory: editMessageId ? true : undefined,
             runtimeId: activeRuntimeId,
             // 不传「默认」——后端不传 --model，用 CLI 自己的配置
             model: selectedModel !== 'default' ? selectedModel : undefined,
             reasoningEffort: selectedEffort || undefined,
             images: imagePayloads.length ? imagePayloads : undefined,
-            // 此前轮次（闭包里是本轮发送前的列表）；dsh 等无会话运行时靠它做转写注入。
+            // 本轮之前保留的对话；编辑时用于重建新会话，dsh 用它延续语境。
             // 带图轮次在转写里只留占位（转写注入是纯文本通道）。
-            history: messages
+            history: priorMessages
               .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content)
               .map((m) => ({
                 role: m.role,
@@ -469,6 +474,10 @@ function DashboardContent() {
     [isLoading, activeRuntimeId, setIsLoading, recordFailure, clearFailure, messages, canSend, flush, windowId],
   );
 
+  const handleEditMessage = useCallback(async (messageId: string, text: string, attachments: ChatAttachment[]) => {
+    await handleSendMessage(text, attachments, messageId);
+  }, [handleSendMessage]);
+
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 bg-[#FDFCF8] overflow-hidden">
       {/* 工具栏与画布共用一个工作区；全屏时保留同一个 Applet 实例。 */}
@@ -517,6 +526,7 @@ function DashboardContent() {
           sendDisabled={!courseware.canSend}
           loadingStatusText={loadingStatusText}
           onSendMessage={handleSendMessage}
+          onEditMessage={handleEditMessage}
           onStopRun={stopRun}
           runtimes={runtimes}
           activeRuntimeId={activeRuntimeId}

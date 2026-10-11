@@ -24,6 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken } from '../../../../packages/daemon/src/data-directory.ts';
 import { RUNTIMES, runAgent, resolveSpawnTarget, buildTranscript, validateImages, listAgentModels, resolveModel, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { agentRequestHistory } from '@/lib/agent-request-history';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -131,13 +132,15 @@ export async function POST(req: Request): Promise<Response> {
   const body = (await req.json().catch(() => ({}))) as {
     text?: string;
     sessionId?: string;
+    /** An edited turn starts a fresh native session using only the retained conversation. */
+    restartFromHistory?: boolean;
     runtimeId?: string;
     /** 本次要用的模型 id。不传 = 用 CLI 自己的配置。UI 的模型选择器填这里。 */
     model?: string;
     /** 推理档位（该模型 reasoningOptions 之一）。只对支持的运行时生效。 */
     reasoningEffort?: string;
     windowId?: string;
-    /** 此前轮次（不含本轮）；仅 recomposesHistory 的运行时会用（转写注入） */
+    /** 此前轮次（不含本轮）；用于无会话运行时或编辑后的新会话。 */
     history?: TranscriptTurn[];
     /** 题目图片（发题拿动图的感知侧） */
     images?: unknown;
@@ -198,12 +201,9 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  // 转写注入：仅无原生会话的运行时（dsh）带历史语境；claude/codex 有自己的会话，
-  // 注入会造成双重上下文（模型会复读历史，OpenDesign 的 agy -c 教训）。
-  const priorTurns = def.recomposesHistory && Array.isArray(body.history)
-    ? body.history.filter((t): t is TranscriptTurn =>
-        Boolean(t) && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string' && t.content.trim().length > 0)
-    : [];
+  // Only fresh edited native sessions need a retained transcript. Resumed sessions
+  // already own their history and must not receive duplicate context.
+  const priorTurns = agentRequestHistory(body, def.recomposesHistory);
   const transcript = priorTurns.length ? buildTranscript(priorTurns) : '';
   const composedPrompt = transcript
     ? `${SYSTEM_BRIEF}\n\n---\n\n## 此前的对话（供延续语境，不要复述）\n${transcript}\n\n---\n\n用户现在说：\n${prompt}`
@@ -282,16 +282,16 @@ export async function GET(): Promise<Response> {
       try {
         const listing = await listAgentModels(d.def, d.target ?? d.def.executable);
         models = { list: listing.models, source: listing.source };
-      } catch { /* 不带模型清单，前端据此藏控件 */ }
+      } catch { /* 不带模型清单，前端据 hides 控件 */ }
     }
     return {
-    id: d.def.id,
-    name: d.def.displayName,
-    version: d.version,
-    usable: d.usable,
-    authStatus: d.authStatus,
-    authMessage: d.authMessage,
-    canAttachImages: d.def.imageDelivery != null,
+      id: d.def.id,
+      name: d.def.displayName,
+      version: d.version,
+      usable: d.usable,
+      authStatus: d.authStatus,
+      authMessage: d.authMessage,
+      canAttachImages: d.def.imageDelivery != null,
       supportsCustomModel: d.def.supportsCustomModel !== false,
       models,
     };
