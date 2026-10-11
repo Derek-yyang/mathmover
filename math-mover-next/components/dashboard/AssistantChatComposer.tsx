@@ -4,8 +4,18 @@ import { useRef, useState } from 'react';
 import { AttachmentPrimitive, ComposerPrimitive, useAui, useAuiState } from '@assistant-ui/react';
 import { ImagePlus, Square, X } from 'lucide-react';
 import { useImagePreview } from './ImagePreview';
+import ComposerModelPicker, { type PickableModel } from './ComposerModelPicker';
 
-export default function AssistantChatComposer({ canAttachImages, isLoading, onStopRun, getAttachmentCount }: { canAttachImages: boolean; isLoading: boolean; onStopRun?: () => void; getAttachmentCount: () => number }) {
+export default function AssistantChatComposer({ canAttachImages, isLoading, onStopRun, getAttachmentCount,
+  models = [], modelSource, selectedModel, onSelectModel, supportsCustomModel = true }: {
+  canAttachImages: boolean; isLoading: boolean; onStopRun?: () => void; getAttachmentCount: () => number;
+  /** 该 agent 可选的模型；空数组或「只有默认且不能手填」时不渲染控件 */
+  models?: PickableModel[];
+  modelSource?: 'live' | 'fallback';
+  selectedModel?: string;
+  onSelectModel?: (id: string) => void;
+  supportsCustomModel?: boolean;
+}) {
   const aui = useAui();
   const preview = useImagePreview();
   const input = useRef<HTMLInputElement>(null);
@@ -57,8 +67,17 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
       <div className="mt-2 flex items-center justify-between gap-2">
         <input ref={input} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple disabled={!canAttachImages} className="hidden"
           onChange={event => { void addImages(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
+        <div className="flex min-w-0 items-center gap-1">
         <button type="button" aria-label="添加题目图片" title={canAttachImages ? '上传、粘贴或拖入题目图片' : '当前 Agent 没有图片通道'}
           disabled={!canAttachImages} onClick={() => input.current?.click()} className="rounded-lg p-2 text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:text-stone-400"><ImagePlus aria-hidden className="h-4 w-4" /></button>
+          {/* 模型选择器放在工具栏里（挨着附件/发送），不放聊天区头部——「随手换模型」
+              的视线就在输入框。只有该 agent 真能选时才显示：只有一项「默认」且
+              不能手填（dsh）时整个控件藏掉，给一个只有一项的下拉是噪音。 */}
+          {(models.length > 1 || (models.length > 0 && supportsCustomModel)) && (
+            <ComposerModelPicker models={models} source={modelSource} loading={isLoading && models.length === 0}
+              selectedId={selectedModel ?? 'default'} onSelect={id => onSelectModel?.(id)} />
+          )}
+        </div>
         {/* 运行中换成停止按钮——原来只是转圈的发送键，看着能点、点了没反应。
             两颗按钮共用几何与叠放位，靠透明度交叉过渡，读起来是「同一颗按钮变了状态」
             而不是「跳出一个新控件」。用浅绿底与深绿图标呼应主题：停止一轮不是破坏性操作，

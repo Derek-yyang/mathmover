@@ -269,8 +269,18 @@ export async function POST(req: Request): Promise<Response> {
 
 /** 健康检查：有哪些 agent 可用 + 画布是否连着。 */
 export async function GET(): Promise<Response> {
-  const { detectRuntimes } = await import('@mathmover/agent-runtime');
-  const detected = detectRuntimes().map((d) => ({
+  const { detectRuntimes, listAgentModels } = await import('@mathmover/agent-runtime');
+  const detected = await Promise.all(detectRuntimes().map(async (d) => {
+    // 模型清单：能用的才探（claude/codex 读配置文件，很快；有 listModels 的才 spawn）。
+    // 探失败不影响运行时本身可用——只是模型下拉没得选。
+    let models: { list: Array<{ id: string; label: string }>; source: string } | undefined;
+    if (d.usable) {
+      try {
+        const listing = await listAgentModels(d.def, d.target ?? d.def.executable);
+        models = { list: listing.models, source: listing.source };
+      } catch { /* 不带模型清单，前端据此藏控件 */ }
+    }
+    return {
     id: d.def.id,
     name: d.def.displayName,
     version: d.version,
@@ -278,6 +288,9 @@ export async function GET(): Promise<Response> {
     authStatus: d.authStatus,
     authMessage: d.authMessage,
     canAttachImages: d.def.imageDelivery != null,
+      supportsCustomModel: d.def.supportsCustomModel !== false,
+      models,
+    };
   }));
 
   let canvasConnected = false;

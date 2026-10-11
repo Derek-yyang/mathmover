@@ -146,6 +146,21 @@ function DashboardContent() {
     sessionIdRef.current = undefined;
   }, [activeRuntimeId]);
 
+  // 模型选择按 agent 分别记（localStorage）。**不进课件记录**——模型是「怎么跑」的，
+  // 不是「跑出了什么」；跟着课件走会让历史课件在换模型后语义混乱。
+  const [modelByAgent, setModelByAgent] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('mathmover_model_by_agent') ?? '{}') as Record<string, string>; }
+    catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('mathmover_model_by_agent', JSON.stringify(modelByAgent)); } catch { /* 隐私模式等，丢选择不影响使用 */ }
+  }, [modelByAgent]);
+  const selectedModel = (activeRuntimeId && modelByAgent[activeRuntimeId]) || 'default';
+  const handleSelectModel = useCallback((id: string) => {
+    if (!activeRuntimeId) return;
+    setModelByAgent(prev => ({ ...prev, [activeRuntimeId]: id }));
+  }, [activeRuntimeId]);
+
   useEffect(() => {
     ledgerRef.current = lastExecutedCommands;
   }, [lastExecutedCommands]);
@@ -333,6 +348,8 @@ function DashboardContent() {
             windowId,
             sessionId: sessionIdRef.current,
             runtimeId: activeRuntimeId,
+            // 不传「默认」——后端不传 --model，用 CLI 自己的配置
+            model: selectedModel !== 'default' ? selectedModel : undefined,
             images: imagePayloads.length ? imagePayloads : undefined,
             // 此前轮次（闭包里是本轮发送前的列表）；dsh 等无会话运行时靠它做转写注入。
             // 带图轮次在转写里只留占位（转写注入是纯文本通道）。
@@ -486,6 +503,8 @@ function DashboardContent() {
           onStopRun={stopRun}
           runtimes={runtimes}
           activeRuntimeId={activeRuntimeId}
+          selectedModel={selectedModel}
+          onSelectModel={handleSelectModel}
           onSelectRuntime={handleSelectRuntime}
         />
       </ResizableChatRegion>

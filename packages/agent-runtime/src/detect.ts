@@ -18,6 +18,9 @@ export interface DetectedRuntime {
   /** 登录预检结论（仅声明了 authProbe 的运行时会探测） */
   authStatus?: 'ok' | 'missing' | 'unknown';
   authMessage?: string;
+  /** 解析后的 spawn 目标。模型发现（listModels）要按这个起进程——
+   *  npm 的 .cmd shim 解析后 command 是 node、脚本在 prefixArgs 里。 */
+  target?: { command: string; prefixArgs?: string[] };
 }
 
 /**
@@ -60,9 +63,10 @@ export function detectRuntimes(candidates: RuntimeDefinition[] = RUNTIMES): Dete
     let usable = false;
     let authStatus: DetectedRuntime['authStatus'];
     let authMessage: string | undefined;
+    let target: ReturnType<typeof resolveSpawnTarget> = null;
 
     try {
-      const target = resolveSpawnTarget(def.executable);
+      target = resolveSpawnTarget(def.executable);
       const r = spawnSync(
         target?.command ?? def.executable,
         [...(target?.prefixArgs ?? []), ...def.probeArgs],
@@ -91,7 +95,7 @@ export function detectRuntimes(candidates: RuntimeDefinition[] = RUNTIMES): Dete
       // 不在 PATH 上，或无法启动
     }
 
-    out.push({ def, version, usable, authStatus, authMessage });
+    out.push({ def, version, usable, authStatus, authMessage, target: target ?? undefined });
   }
 
   return out;

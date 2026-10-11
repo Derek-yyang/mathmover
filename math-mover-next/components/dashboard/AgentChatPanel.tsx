@@ -16,6 +16,10 @@ import { conversationTurns } from '@/lib/conversation-index';
 export interface RuntimeOption {
   id: string; name: string; version: string | null; usable: boolean;
   authStatus?: 'ok' | 'missing' | 'unknown'; authMessage?: string; canAttachImages?: boolean;
+  /** 该 agent 可选的模型（发现或兜底）。缺省/空 = 没得选，UI 藏掉模型控件。 */
+  models?: { list: Array<{ id: string; label: string }>; source?: 'live' | 'fallback' };
+  /** false = 模型由 profile/配置定，手填也传不进去（dsh）。 */
+  supportsCustomModel?: boolean;
 }
 interface AgentChatPanelProps {
   messages: AgentChatMessage[]; isLoading: boolean; sendDisabled?: boolean;
@@ -25,10 +29,17 @@ interface AgentChatPanelProps {
   onStopRun?: () => void;
   runtimes?: RuntimeOption[];
   activeRuntimeId?: string; onSelectRuntime?: (id: string) => void;
+  selectedModel?: string; onSelectModel?: (id: string) => void;
 }
 
 function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusText = '等待 Agent 回复…',
-  onSendMessage, onStopRun, canAttachImages }: AgentChatPanelProps & { canAttachImages: boolean }) {
+  onSendMessage, onStopRun, canAttachImages,
+  models, modelSource, selectedModel, onSelectModel, supportsCustomModel }: AgentChatPanelProps & {
+    canAttachImages: boolean;
+    models?: Array<{ id: string; label: string }>;
+    modelSource?: 'live' | 'fallback';
+    supportsCustomModel?: boolean;
+  }) {
   const { detecting, detectionError, refreshRuntimes } = useAgentRuntimeState();
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -83,14 +94,20 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
         </ThreadPrimitive.Viewport>
         <ConversationIndex turns={turns} viewportRef={viewportRef} contentRef={contentRef} onNavigate={() => setIndexBrowsing(true)} />
       </div>
-      <AssistantChatComposer canAttachImages={canAttachImages} isLoading={isLoading} onStopRun={onStopRun} getAttachmentCount={() => runtime.thread.composer.getState().attachments.length} />
+      <AssistantChatComposer canAttachImages={canAttachImages} isLoading={isLoading} onStopRun={onStopRun} getAttachmentCount={() => runtime.thread.composer.getState().attachments.length}
+        models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel} supportsCustomModel={supportsCustomModel} />
     </ThreadPrimitive.Root>
   </AssistantRuntimeProvider>;
 }
 
 export default function AgentChatPanel(props: AgentChatPanelProps) {
-  const { runtimes = [], activeRuntimeId, onSelectRuntime, isLoading, conversationId } = props;
+  const { runtimes = [], activeRuntimeId, onSelectRuntime, isLoading, conversationId, selectedModel, onSelectModel } = props;
   const canAttachImages = runtimes.find(runtime => runtime.id === activeRuntimeId)?.canAttachImages !== false;
+  // 模型清单跟着当前 agent 走。只有「默认」一项且不能手填时视为没得选（UI 藏控件）。
+  const active = runtimes.find(runtime => runtime.id === activeRuntimeId);
+  const models = active?.models?.list ?? [];
+  const modelSource = active?.models?.source;
+  const supportsCustomModel = active?.supportsCustomModel !== false;
   return <aside aria-label="数学助教" className="flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-[#E7E5E4] bg-[#FDFCF8]">
     <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[#E7E5E4] px-4">
       <span className="shrink-0 text-sm font-semibold text-stone-800">数学助教</span>
@@ -99,6 +116,7 @@ export default function AgentChatPanel(props: AgentChatPanelProps) {
         {runtimes.map(runtime => <option key={runtime.id} value={runtime.id} disabled={!runtime.usable}>{runtime.name}{runtime.usable ? '' : '（未安装）'}{runtime.authStatus === 'missing' ? '（未登录）' : ''}</option>)}
       </select>}
     </div>
-    <ImagePreviewProvider key={conversationId ?? 'new'}><ChatThread {...props} canAttachImages={canAttachImages} /></ImagePreviewProvider>
+    <ImagePreviewProvider key={conversationId ?? 'new'}><ChatThread {...props} canAttachImages={canAttachImages}
+      models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel} supportsCustomModel={supportsCustomModel} /></ImagePreviewProvider>
   </aside>;
 }
