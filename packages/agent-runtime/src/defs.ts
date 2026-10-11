@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { formatClaudeStreamJsonInput, type ImageInput } from './images.ts';
+import { claudeConfiguredModels } from './claude-env.ts';
 
 /** 归一后的事件——前端 useChat 与上层编排都只认这个。 */
 export type AgentEvent =
@@ -30,6 +31,41 @@ export type AgentEvent =
   | { kind: 'done'; resultText?: string; sessionId?: string }
   | { kind: 'error'; message: string }
   | { kind: 'raw'; line: string };
+
+/**
+ * 模型选项。`id` 是下发给 CLI 的原样值（别名或全名），`label` 只用来看。
+ *
+ * 对齐 OpenDesign 的 RuntimeModelOption：**不建模模型能力**（没有 vision / reasoning
+ * 等能力标志）。模型能不能看图、推理多深，是用户选型的事，不该由代码判死。
+ */
+export interface RuntimeModelOption {
+  id: string;
+  label: string;
+}
+
+/**
+ * 这份模型清单是「真发现」还是「兜底猜的」。
+ *
+ * OpenDesign 的关键设计：`fallbackModels` 只是 UI 上的提示，**不是真清单**。
+ * 下发前要对 live 清单校验用户的选择，别让 UI 显示了一个跑不了的模型。
+ */
+export type RuntimeModelSource = 'live' | 'fallback';
+
+/** CLI 自带的 `models` 子命令：跑 args、解析 stdout。 */
+export interface RuntimeListModels {
+  args: string[];
+  timeoutMs?: number;
+  parse: (stdout: string) => RuntimeModelOption[] | null;
+}
+
+/**
+ * 「不指定，用 CLI 自己的配置」。永远排在模型清单最前。
+ * 放在契约文件里，免得 defs.ts 为拿它去 import models.ts 造成循环依赖。
+ */
+export const DEFAULT_MODEL_OPTION: RuntimeModelOption = {
+  id: 'default',
+  label: '默认（用 CLI 自己的配置）',
+};
 
 export interface RuntimeDefinition {
   /** 稳定 id，用于日志与前端展示 */
@@ -55,6 +91,12 @@ export interface RuntimeDefinition {
     extraArgs?: string[];
     /** 已落盘的图片文件路径（codex `-i` 用）；claude 的图走 formatStdinInput，忽略此项 */
     imagePaths?: string[];
+    /**
+     * 本次要用的模型 id（`listModels`/`fetchModels` 给出的那个）。
+     * 不设 = 不传 --model，用 CLI 自己的配置。
+     * 定义自己决定怎么翻成 argv（dsh 无处可传，忽略）。
+     */
+    model?: string;
   }): string[];
   /**
    * 把一行 stdout 归一成事件（一行可能含多块 → 数组）；
@@ -82,6 +124,19 @@ export interface RuntimeDefinition {
   maxPromptArgBytes?: number;
   /** 登录预检：版本探测后跑一次，按输出判 authStatus（选择器提示用）。 */
   authProbe?: { args: string[]; timeoutMs?: number };
+  /**
+   * 模型发现，按优先级取第一个成功的：
+   *  1. `listModels`   —— CLI 自带 `models` 子命令（有的话最准）
+   *  2. `fetchModels`  —— 自定义发现（读配置、探代理路由等）
+   *  3. `fallbackModels` —— 兜底提示清单（**不是真清单**，见 RuntimeModelSource）
+   * 三者都没有 = 该运行时不做模型选择。
+   */
+  listModels?: RuntimeListModels;
+  fetchModels?: (resolvedBin: string, env: NodeJS.ProcessEnv) => Promise<RuntimeModelOption[] | null>;
+  /** 兜底提示。UI 显示用，下发前须对 live 清单校验。 */
+  fallbackModels?: RuntimeModelOption[];
+  /** false = 不给「手填模型名」入口（模型由 profile/配置定，填了也传不进去）。 */
+  supportsCustomModel?: boolean;
   /**
    * 图片递送通道——**只描述「CLI 怎么收图」，不描述「模型能不能看懂」**。
    *
@@ -141,6 +196,21 @@ function normalizeToolName(name: string): string {
  * 不该让 agent 在用户机器上跑命令。这是刻意的安全收敛。
  * `--include-partial-messages` 打开 stream_event 增量，对话框靠它流式吐字。
  */
+/**
+ * claude 的兜底提示清单。`claude --model` 收别名或全名，两者都列上。
+ * 只是提示——真清单来自 fetchModels 读到的用户配置。
+ */
+const CLAUDE_FALLBACK_MODELS: RuntimeModelOption[] = [
+  { id: 'sonnet', label: 'Sonnet（别名）' },
+  { id: 'opus', label: 'Opus（别名）' },
+  { id: 'haiku', label: 'Haiku（别名）' },
+  { id: 'fable', label: 'Fable（别名）' },
+  { id: 'claude-opus-5', label: 'claude-opus-5' },
+  { id: 'claude-sonnet-5', label: 'claude-sonnet-5' },
+  { id: 'claude-fable-5', label: 'claude-fable-5' },
+  { id: 'claude-haiku-4-5', label: 'claude-haiku-4-5' },
+];
+
 export const claudeCode: RuntimeDefinition = {
   id: 'claude-code',
   displayName: 'Claude Code',
@@ -152,7 +222,16 @@ export const claudeCode: RuntimeDefinition = {
   imageDelivery: 'stdin-json',
   formatStdinInput: (prompt, images) => formatClaudeStreamJsonInput(prompt, images),
   authProbe: { args: ['auth', 'status'], timeoutMs: 5000 },
-  buildArgs({ prompt, mcpConfigPath, sessionId, resumeSessionId, extraArgs = [] }) {
+  // `claude` 没有 list-models 子命令（实测 --help / auth status 都不给模型清单）。
+  // 发现走配置：用户自定义通道的 ANTHROPIC_DEFAULT_*_MODEL 映射。
+  // 没配就只有兜底别名提示——那是提示，不是真清单（见 RuntimeModelSource）。
+  fetchModels: async (_bin, _env) => {
+    const found = claudeConfiguredModels();
+    return found.length ? found : null;
+  },
+  fallbackModels: CLAUDE_FALLBACK_MODELS,
+  supportsCustomModel: true,
+  buildArgs({ prompt, mcpConfigPath, sessionId, resumeSessionId, extraArgs = [], model }) {
     // prompt 不进 argv：经 stdin 传 JSONL（input-format 必须与 output-format 配对）。
     // --allowedTools=mcp__mathmover__* 让自家 MCP 工具免权限分类直通：
     // auto 模式下每次工具调用要过 LLM 安全分类器，分类器抖动会拒工具（实测踩过），
@@ -169,6 +248,8 @@ export const claudeCode: RuntimeDefinition = {
     ];
     if (sessionId) args.push('--session-id', sessionId);
     if (resumeSessionId) args.push('--resume', resumeSessionId);
+    // --model 收别名（opus/fable/…）或全名；不设 = 用 CLI 自己的配置
+    if (model) args.push('--model', model);
     return [...args, ...extraArgs];
   },
   parseLine(line) {
@@ -325,6 +406,24 @@ function codexMcpArgs(mcpConfigPath: string): string[] {
  *   item.started|item.completed（item.type=agent_message|mcp_tool_call|reasoning|error）/
  *   turn.completed（usage）。
  */
+/**
+ * 读 ~/.codex/config.toml 里的 `model = "..."`。
+ *
+ * 只抠这一行，不引 TOML 依赖（配置格式稳定，正则够用）。
+ * 自定义 provider 时实际可用模型集由端点决定，这里只知道「配好的那个」。
+ */
+function readCodexConfiguredModel(): RuntimeModelOption | null {
+  try {
+    const file = path.join(process.env.HOME ?? process.env.USERPROFILE ?? '', '.codex', 'config.toml');
+    const text = fs.readFileSync(file, 'utf-8');
+    const m = /^\s*model\s*=\s*["']([^"']+)["']/m.exec(text);
+    if (!m) return null;
+    return { id: m[1], label: `${m[1]}（config.toml）` };
+  } catch {
+    return null;
+  }
+}
+
 export const codex: RuntimeDefinition = {
   id: 'codex',
   displayName: 'Codex',
@@ -334,7 +433,19 @@ export const codex: RuntimeDefinition = {
   // 落盘后走 `-i <file>...`（buildArgs 消费 imagePaths）
   imageDelivery: 'argv-paths',
   authProbe: { args: ['login', 'status'], timeoutMs: 5000 },
-  buildArgs({ prompt, mcpConfigPath, resumeSessionId, imagePaths = [], extraArgs = [] }) {
+  // codex 的模型在 ~/.codex/config.toml（model = "..."）。自定义 provider 时实际
+  // 可用集由那个端点决定，我们无从枚举——所以发现只取「已配好的那个」，
+  // 其余交给 supportsCustomModel 手填。
+  fetchModels: async (_bin, _env) => {
+    const m = readCodexConfiguredModel();
+    return m ? [m] : null;
+  },
+  fallbackModels: [
+    { id: 'gpt-5.6-luna', label: 'gpt-5.6-luna' },
+    { id: 'gpt-5.1-codex-mini', label: 'gpt-5.1-codex-mini' },
+  ],
+  supportsCustomModel: true,
+  buildArgs({ prompt, mcpConfigPath, resumeSessionId, imagePaths = [], extraArgs = [], model }) {
     // prompt 不进 argv：`-` 位置参数表示读 stdin（exec 与 exec resume 同语义）。
     // 布局要点（实测踩坑）：`-i` 是变长旗标，图片后必须 `--` 终结否则吞 prompt；
     // 而 `--` 之后全是位置参数——所以旗标必须排在 `--` 前面，prompt 哨兵放最末。
@@ -344,6 +455,8 @@ export const codex: RuntimeDefinition = {
       '--json',
       '--skip-git-repo-check',
       '-c', 'sandbox_mode="read-only"',
+      // --model 必须在 `--` 之前（它是旗标，不是位置参数）
+      ...(model ? ['--model', model] : []),
       ...codexMcpArgs(mcpConfigPath),
       ...extraArgs,
       ...(imagePaths.length ? ['-i', ...imagePaths, '--'] : []),
@@ -435,7 +548,15 @@ export const dsh: RuntimeDefinition = {
   imageDelivery: 'prompt-path',
   // task 走 argv 位置参数（headless 不读 stdin），超预算直接拒绝
   maxPromptArgBytes: 24_000,
+  // 模型不可选：dsh 的模型由 profile 决定，launcher 层没有 --model（顶层 options
+  // 只有 --profile/--patch/--dump-config）。OpenDesign 的 `--profile X --models`
+  // 是他们 profile 里的插件提供的，不是 dsh 核心能力；我们用 --profile headless
+  // + dsh-mathmover.patch.yml（只加 MCP 插件），没有 models 插件。
+  // 所以这里只有「用 profile 自己的配置」一项，且不给手填入口——填了也传不进去。
+  fallbackModels: [DEFAULT_MODEL_OPTION],
+  supportsCustomModel: false,
   buildArgs({ prompt, mcpConfigPath, extraArgs = [] }) {
+    // model 刻意不消费：无处可传（见上）。留参数是为了让契约统一。
     const patchPath = path.join(path.dirname(mcpConfigPath), 'dsh-mathmover.patch.yml');
     return ['--patch', patchPath, '--profile', 'headless', prompt, ...extraArgs];
   },

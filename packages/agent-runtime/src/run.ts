@@ -27,6 +27,11 @@ export interface RunOptions {
   resumeSessionId?: string;
   /** 题目图片（设了 imageDelivery 的运行时才递送，通道见 defs.ts） */
   images?: ImageInput[];
+  /**
+   * 本次要用的模型 id。不设 = 不传 --model，用 CLI 自己的配置。
+   * 调用方应先用 resolveModel() 校验——不要直接透传用户输入。
+   */
+  model?: string;
   extraArgs?: string[];
   env?: Record<string, string>;
   /** 墙钟硬超时（毫秒）；超时杀进程并发 error 事件 */
@@ -94,6 +99,7 @@ export function runAgent(opts: RunOptions): RunHandle {
     resumeSessionId: opts.resumeSessionId,
     extraArgs: opts.extraArgs,
     imagePaths: materialized.paths,
+    model: opts.model,
   });
 
   // 不经 shell：参数走 argv 数组，避免命令注入（见 resolve.ts）。

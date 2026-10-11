@@ -5,3 +5,4 @@ export * from './run.ts';
 export * from './claude-env.ts';
 export * from './transcript.ts';
 export * from './images.ts';
+export * from './models.ts';

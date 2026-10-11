@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { RuntimeModelOption } from './defs.ts';
 
 function readEnvBlock(file: string): Record<string, string> {
   try {
@@ -44,6 +45,38 @@ export function claudeSettingsEnv(homeDir?: string): Record<string, string> {
     ...readEnvBlock(path.join(dir, 'settings.json')),
     ...readEnvBlock(path.join(dir, 'settings.local.json')),
   };
+}
+
+/**
+ * 从 settings env 里读出「已配好的模型」。
+ *
+ * 自定义通道的映射形如：
+ *   ANTHROPIC_DEFAULT_OPUS_MODEL      = "claude-opus-5[1M]"   ← 真实模型 id
+ *   ANTHROPIC_DEFAULT_OPUS_MODEL_NAME = "mimo-v2.6-pro"       ← 显示名（可选）
+ *
+ * `claude --model` 收的是**别名**（opus/fable/haiku/sonnet），所以 id 取别名，
+ * label 把映射关系显示出来（如 `Opus → claude-opus-5[1M]`），免得用户以为在选真名。
+ *
+ * 没有任何映射时返回空数组——调用方据此降级到 fallbackModels（那是提示，不是真清单）。
+ */
+export function claudeConfiguredModels(homeDir?: string): RuntimeModelOption[] {
+  const env = claudeSettingsEnv(homeDir);
+  const out: RuntimeModelOption[] = [];
+  const seen = new Set<string>();
+  for (const [key, value] of Object.entries(env)) {
+    const m = /^ANTHROPIC_DEFAULT_([A-Z0-9]+)_MODEL$/.exec(key);
+    if (!m) continue;
+    const alias = m[1].toLowerCase();
+    if (!alias || seen.has(alias) || !String(value).trim()) continue;
+    seen.add(alias);
+    const display = env[`ANTHROPIC_DEFAULT_${m[1]}_MODEL_NAME`];
+    const nice = alias.charAt(0).toUpperCase() + alias.slice(1);
+    out.push({
+      id: alias,
+      label: display && display !== value ? `${nice} → ${value}（${display}）` : `${nice} → ${value}`,
+    });
+  }
+  return out;
 }
 
 /** 把 settings env 填进 spawn 环境：processEnv 显式设置的优先，settings 只补空缺。 */

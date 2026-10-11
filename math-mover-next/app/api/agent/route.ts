@@ -23,7 +23,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, runAgent, resolveSpawnTarget, buildTranscript, validateImages, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { RUNTIMES, runAgent, resolveSpawnTarget, buildTranscript, validateImages, listAgentModels, resolveModel, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -132,6 +132,8 @@ export async function POST(req: Request): Promise<Response> {
     text?: string;
     sessionId?: string;
     runtimeId?: string;
+    /** 本次要用的模型 id。不传 = 用 CLI 自己的配置。UI 的模型选择器填这里。 */
+    model?: string;
     windowId?: string;
     /** 此前轮次（不含本轮）；仅 recomposesHistory 的运行时会用（转写注入） */
     history?: TranscriptTurn[];
@@ -168,6 +170,22 @@ export async function POST(req: Request): Promise<Response> {
   }
   const { def, target } = picked;
 
+  // 模型：先跑一次发现（把 live 清单记进缓存），再校验用户的选择。
+  // 不校验会出现「UI 显示了一个模型，实际跑不了」——fallbackModels 只是提示，
+  // 不是真清单（见 agent-runtime/src/models.ts）。
+  let model: string | undefined;
+  if (typeof body.model === 'string' && body.model.trim()) {
+    await listAgentModels(def, target).catch(() => null);
+    const resolved = resolveModel(def.id, body.model, { supportsCustomModel: def.supportsCustomModel });
+    if (!resolved.ok) {
+      return new Response(
+        line({ kind: 'error', message: resolved.reason }),
+        { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
+      );
+    }
+    model = resolved.model;
+  }
+
   // 题目图片：这里只校验载荷。递送通道分流、prompt 说明、argv 预算守卫都归
   // agent-runtime 的 runAgent（见 src/run.ts）——本层是 HTTP，只把事件转成 NDJSON 流。
   const checked = validateImages(body.images);
@@ -201,6 +219,7 @@ export async function POST(req: Request): Promise<Response> {
     // 不要传 sessionId —— 那是"新建指定 id"语义，与续接冲突
     resumeSessionId: body.sessionId || undefined,
     images: checked.images,
+    model,
     env: { MATHMOVER_WINDOW_ID: body.windowId ?? '' },
     // 长任务保护：**静默**超时（不是墙钟），见 run.ts
     inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? 180_000),
