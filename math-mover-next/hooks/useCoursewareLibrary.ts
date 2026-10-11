@@ -56,7 +56,13 @@ export function useCoursewareLibrary(options: Options) {
       const reuseCheckpoint = o.busy && !!current.ggbBase64;
       const ggbBase64 = reuseCheckpoint ? current.ggbBase64 : await captureGgb(o.api);
       // 课件名优先级：用户手改的 > agent 起的（submit_construction 的 title）> 首条消息截断。
-      // 「手改过」用「当前名 ≠ 自动名」判定——用户把名字改回去也仍是手改，宁可不让 agent 覆盖。
+      //
+      // 「手改过」是**推断**的（当前名 ≠ 自动名）：不加标记就分不开「用户改的」和「agent 给的」。
+      // 这里选偏紧的一侧——宁可 agent 写不进去，也不覆盖用户命名。副作用正好是想要的：
+      // 标题命名的是「用户第一条消息要做什么」，多轮微调后**不该**跟着变。
+      //
+      // 已知洞：用户改的名字恰好等于自动名时，会被当成「没改过」而被 agent 覆盖。
+      // 要堵就得加个 titleLocked 标记（列或 payload 字段），目前没做。
       const agentTitle = (messageOverride ?? o.messages).find(m => m.meta?.title)?.meta?.title;
       const title = current.title && current.title !== autoTitle ? current.title : (agentTitle || autoTitle);
       const next = { ...current, title, commands: reuseCheckpoint ? current.commands : [...o.commands.current], messages, ggbBase64,

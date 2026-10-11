@@ -371,8 +371,10 @@ export function createMcpServer(
     inputSchema: {
       commands: z.array(z.string()).min(1).describe('完整 GeoGebra 指令清单，每行一条（含 MODE: 首行可选、// 注释可选）'),
       title: z.string().optional().describe(
-        '给这次构造起个短名（8 字以内为宜，如「抛物线与直线相交」）。' +
-        '用它当课件名展示；不给则回退到用户首条消息的截断。自由画图与做题都建议给。',
+        '给这个任务起个短名（8 字以内为宜）。**概括用户第一条消息要做什么**，' +
+        '不是概括你画成了什么——标题命名的是「请求」，多轮微调后也不该变。' +
+        '如用户说「画个抛物线，焦点在(1,0)，再画条过焦点的直线」→「抛物线与过焦点直线」。' +
+        '不给则回退到用户首条消息的截断。',
       ),
       category: z.enum(['A', 'B', 'C', 'D']).optional().describe(
         '题目类别：**仅题图→GeoGebra 链路需要**（那时会多查类别结构）。' +
