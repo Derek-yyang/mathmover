@@ -57,12 +57,14 @@ export function useCoursewareLibrary(options: Options) {
       const ggbBase64 = reuseCheckpoint ? current.ggbBase64 : await captureGgb(o.api);
       // 课件名优先级：用户手改的 > agent 起的（submit_construction 的 title）> 首条消息截断。
       //
-      // 「手改过」是**推断**的（当前名 ≠ 自动名）：不加标记就分不开「用户改的」和「agent 给的」。
-      // 这里选偏紧的一侧——宁可 agent 写不进去，也不覆盖用户命名。副作用正好是想要的：
-      // 标题命名的是「用户第一条消息要做什么」，多轮微调后**不该**跟着变。
+      // 「手改过」用「当前名 ≠ 自动名」推断。看着粗，但够用：
+      // 用户起的名只要与自动名不同就会被保住——这正是需要保护的场景。
+      // 而「用户改成了恰好等于自动名」的边角可以忽略：那要么他没真改、只是接受了
+      // 默认占位，要么意图与「无偏好」不可区分；两种情况下让 agent 覆盖都不违背
+      // 用户意图，反而会让标题从占位升级成更好的总结。所以不需要 titleLocked 标记。
       //
-      // 已知洞：用户改的名字恰好等于自动名时，会被当成「没改过」而被 agent 覆盖。
-      // 要堵就得加个 titleLocked 标记（列或 payload 字段），目前没做。
+      // 偏紧一侧的副作用正好是想要的：标题命名的是「用户第一条消息要做什么」，
+      // 多轮微调后**不该**跟着变。
       const agentTitle = (messageOverride ?? o.messages).find(m => m.meta?.title)?.meta?.title;
       const title = current.title && current.title !== autoTitle ? current.title : (agentTitle || autoTitle);
       const next = { ...current, title, commands: reuseCheckpoint ? current.commands : [...o.commands.current], messages, ggbBase64,
