@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { ensureGGBLoaded, GGB_CODEBASE } from '@/lib/ggb-runtime';
 import { resizeAppletPreservingView, resizedViewBounds } from '@/lib/ggb-view-resize';
 import { ggbClientEventType, isRestoringGgb, readGgbGraphics } from '@/lib/ggb-graphics-state';
+import { registerGgbSettingsPanel } from '@/lib/ggb-settings-refresh';
 
 type GeoGebraApi = any;
 
@@ -67,6 +68,7 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
     let previousView: unknown = null;
     let adjustingView = false;
     let graphicsMode: '2D' | '3D' = '2D';
+    let releaseSettingsPanel: (() => void) | undefined;
     const readView = () => { try { return apiRef.current?.getViewProperties?.(1); } catch { return null; } };
     const viewSize = (value: unknown) => {
       try { const parsed = typeof value === 'string' ? JSON.parse(value) : value as { width?: number; height?: number } | null;
@@ -148,6 +150,8 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
             apiRef.current = api;
             window.ggbApplet = api; // 确保全局句柄可用（注意清理）
             resizeApplet();
+            releaseSettingsPanel = registerGgbSettingsPanel(api, () =>
+              container.querySelector<HTMLElement>('.PropertiesViewW')?.offsetWidth ?? 0);
             notifyAppletReady(api);
             previousView = readView();
             graphicsMode = readGgbGraphics(api)?.mode ?? '2D';
@@ -172,6 +176,7 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
     return () => {
       cancelled = true;
       resizeObserver.disconnect();
+      releaseSettingsPanel?.();
       if (resizeFrame) cancelAnimationFrame(resizeFrame);
       if (internalResizeFrame) cancelAnimationFrame(internalResizeFrame);
       apiRef.current?.unregisterClientListener?.(onViewChanged);
