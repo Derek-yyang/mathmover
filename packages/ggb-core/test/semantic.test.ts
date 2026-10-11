@@ -34,6 +34,14 @@ describe('semanticCheck', () => {
     expect(r.failures.find((f) => f.check === 'no_text')!.detail).toContain('msg');
   });
 
+  it('no_text 只在做题链路查——自由画图加说明文字不该被拦', () => {
+    // 同一段文本对照：做题链路（给 category）抓，自由画图（不给）放行。
+    // 「在图上写句『这是重心』」是自由画图的合理需求，不该撞上"题目文字不应生成 Text"。
+    const text = 'A = Point(0, 0)\nnote = Text("这是重心")';
+    expect(semanticCheck('B', text, { knownCommandLower: KNOWN }).failures.some((f) => f.check === 'no_text')).toBe(true);
+    expect(semanticCheck(undefined, text, { knownCommandLower: KNOWN }).failures.some((f) => f.check === 'no_text')).toBe(false);
+  });
+
   it('类别结构：A 要函数/方程、B 要多边形/圆、C 要圆锥曲线', () => {
     expect(semanticCheck('A', 'A = Point(0, 0)', { knownCommandLower: KNOWN }).failures.some((f) => f.check === 'category_structure')).toBe(true);
     expect(semanticCheck('A', 'f = Function(x^2, -3, 3)', { knownCommandLower: KNOWN }).failures.some((f) => f.check === 'category_structure')).toBe(false);
@@ -77,8 +85,13 @@ describe('category_structure 按需启用', () => {
     expect(r.failures.some((f) => f.check === 'category_structure')).toBe(true);
   });
 
-  it('动点自洽与文字残留与类别无关，恒查', () => {
-    const r = semanticCheck(undefined, 'A = Point(0, 0)\nmsg = Text("hi")', { knownCommandLower: KNOWN });
-    expect(r.failures.some((f) => f.check === 'no_text')).toBe(true);
+  it('动点自洽与类别无关，恒查', () => {
+    // 不给 category（自由画图）也必须抓 free_param / orphan_slider——
+    // 动点自洽对两条链路都适用。文字残留则已改为按链路分流，
+    // 见「no_text 只在做题链路查」那条。
+    const fp = semanticCheck(undefined, 'f = Function(t^2, -3, 3)\nP = (t, f(t))', { knownCommandLower: KNOWN });
+    expect(fp.failures.some((f) => f.check === 'free_param')).toBe(true);
+    const os = semanticCheck(undefined, 'f = Function(x^2, -3, 3)\ns = Slider(0, 1, 0.1)', { knownCommandLower: KNOWN });
+    expect(os.failures.some((f) => f.check === 'orphan_slider')).toBe(true);
   });
 });

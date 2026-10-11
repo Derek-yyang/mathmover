@@ -156,8 +156,13 @@ export function checkLines(text: string, knownCommandLower: Set<string>): LineCh
  * 语义自查。
  *
  * `category` 只在**做题链路**给出（题图→GGB）：那时额外查 category_structure
- * （A 要函数、B 要多边形/圆…）。自由画图不给类别——「画条线段」被要求"缺函数对象"
- * 是废话，所以类别结构检查按需启用，其余检查（语法率、文字残留、动点自洽）恒跑。
+ * （A 要函数、B 要多边形/圆…）**与 no_text**（题面文字该画出来，不是贴上去）。
+ * 自由画图不给类别，这两条都不跑——「画条线段」被要求"缺函数对象"是废话，
+ * 「在图上写句说明」被要求"删掉文字对象"同样是废话。
+ * 恒跑的只剩语法率与动点自洽（两类链路都适用）。
+ *
+ * 2026-10-11：no_text 此前归在「恒跑」里，会误伤自由画图——用户要一段说明文字
+ * 是合理的（标签另说，产品约定是 ShowLabel/SetLabelMode 挂在对象上，不用 Text）。
  */
 export function semanticCheck(
   category: string | undefined,
@@ -182,9 +187,12 @@ export function semanticCheck(
     });
   }
 
-  // 2) 残留文字对象
+  // 2) 残留文字对象 —— **只在做题链路查**（与 category_structure 同款门控）。
+  //    规则本意是「题面文字不应生成 Text 对象」：题目写着"如图，在△ABC 中…"，
+  //    agent 该把三角形画出来，而不是把这句话贴成一个 Text。
+  //    自由画图里用户说「在图上写句『这是重心』」是合理需求，不该拦。
   const textObjs = objs.filter((o) => o.kind === 'text').map((o) => o.name);
-  if (textObjs.length) {
+  if (category && textObjs.length) {
     failures.push({
       check: 'no_text',
       detail: `存在文字对象 ${JSON.stringify(textObjs)}，题目文字不应生成 Text 对象，请删除这些行`,
