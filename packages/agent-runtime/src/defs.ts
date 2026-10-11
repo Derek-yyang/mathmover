@@ -59,6 +59,20 @@ export interface RuntimeListModels {
 }
 
 /**
+ * formatStdinInput 的附加上下文。只有走 stdin 协议的运行时需要——
+ * 例如 dsh 的 `execute` 帧要带 request_id / cwd / model / resume_session_id，
+ * 而不只是裸 prompt。
+ */
+export interface StdinContext {
+  /** 本次请求 id，回程帧按它对齐 */
+  requestId: string;
+  cwd?: string;
+  /** 选中的模型 id（对 dsh 是 `provider/model` 形式） */
+  model?: string;
+  resumeSessionId?: string;
+}
+
+/**
  * 「不指定，用 CLI 自己的配置」。永远排在模型清单最前。
  * 放在契约文件里，免得 defs.ts 为拿它去 import models.ts 造成循环依赖。
  */
@@ -156,7 +170,7 @@ export interface RuntimeDefinition {
    * claude 在有图时必须走 stream-json JSONL（Anthropic image 块）。
    * 设置了它且有图时，图片不再落临时文件。
    */
-  formatStdinInput?: (prompt: string, images?: ImageInput[]) => string;
+  formatStdinInput?: (prompt: string, images?: ImageInput[], ctx?: StdinContext) => string;
 }
 
 /** 宽松取值：路径不存在时返回 undefined 而不抛错。 */
@@ -535,35 +549,162 @@ export const codex: RuntimeDefinition = {
  * dsh-mathmover.patch.yml，不动用户 profile）。输出是纯文本：stdout 只有最终
  * assistant 消息（失败细节在 stderr、退出码非 0）。
  */
+/**
+ * 我们自带的 dsh profile（装了 JSONL 协议 bundle）。
+ *
+ * 2026-10-12 从「headless + prompt 走 argv 一次性」切到 stdio 协议：
+ * headless 的 app 不收模型参数、没有模型目录，选中的模型传不过去；而 stdio 的
+ * `execute` 帧带 `model: {provider, id}`，且有原生会话（session_id / resume）。
+ *
+ * 协议形状对齐 OpenDesign 的 `packages/dsh-runtime`（Apache-2.0）：
+ *   上行 execute/cancel，下行 ready/session/thinking/text/tool_call/
+ *   tool_result/usage/result/protocol_error。
+ */
+const DSH_PROFILE = 'mathmover';
+
+/**
+ * dsh 的模型 id 形如 `provider/model`（下行目录里也是这两段分开的）。
+ * 格式不对就返回 undefined——宁可不传模型让 profile 用自己的默认，也不瞎猜。
+ */
+function dshModelSelection(id: string | undefined): { provider: string; id: string } | undefined {
+  const s = (id ?? '').trim();
+  if (!s || s === 'default') return undefined;
+  const i = s.indexOf('/');
+  if (i <= 0 || i === s.length - 1) return undefined;
+  return { provider: s.slice(0, i), id: s.slice(i + 1) };
+}
+
+/** 解析 `--models` 吐的 JSONL（单帧 `{type:'models', models:[…]}`）。 */
+function parseDshModels(stdout: string): RuntimeModelOption[] | null {
+  for (const raw of stdout.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    let frame: unknown;
+    try { frame = JSON.parse(line); } catch { continue; }
+    const rec = pick(frame, 'type') === 'models' ? frame as { models?: unknown } : null;
+    if (!rec || !Array.isArray(rec.models)) continue;
+    const out: RuntimeModelOption[] = [];
+    for (const item of rec.models) {
+      const provider = pick(item, 'provider');
+      const id = pick(item, 'id');
+      if (typeof provider !== 'string' || typeof id !== 'string') continue;
+      const name = typeof pick(item, 'name') === 'string' && pick(item, 'name') ? pick(item, 'name') : id;
+      const providerName = typeof pick(item, 'provider_name') === 'string' && pick(item, 'provider_name')
+        ? pick(item, 'provider_name') : provider;
+      // id 保持 provider/model 形式——下发时由 dshModelSelection 拆回两段
+      out.push({ id: `${provider}/${id}`, label: `${name} · ${providerName}` });
+    }
+    return out.length ? out : null;
+  }
+  return null;
+}
+
 export const dsh: RuntimeDefinition = {
   id: 'dsh',
   displayName: 'DeepSeek Harness',
   executable: 'dsh',
   probeArgs: ['--version'],
-  // headless 无原生会话：多轮靠转写注入（buildTranscript），不再标"单轮"
-  recomposesHistory: true,
-  // dsh 没有任何图片入口（task 走 argv、headless 不读 stdin），但**这不是终点**：
-  // 走「落盘 + prompt 里给路径」让 agent 自己用读文件工具看（OpenDesign 同款兜底）。
+  // 协议有原生会话（session_id / resume_session_id），不再需要转写注入。
+  // 早先 headless 是一次性无会话，才靠 buildTranscript 补语境；现在重复注入会双份上下文。
+  recomposesHistory: false,
+  // 图片仍走「prompt 里给路径」：execute 帧的内容块形状未验证，先用已跑通的兜底。
   // 模型能不能看懂是模型的事——换多模态模型即可，这里不替用户判死。
   imageDelivery: 'prompt-path',
-  // task 走 argv 位置参数（headless 不读 stdin），超预算直接拒绝
-  maxPromptArgBytes: 24_000,
-  // 模型不可选：dsh 的模型由 profile 决定，launcher 层没有 --model（顶层 options
-  // 只有 --profile/--patch/--dump-config）。OpenDesign 的 `--profile X --models`
-  // 是他们 profile 里的插件提供的，不是 dsh 核心能力；我们用 --profile headless
-  // + dsh-mathmover.patch.yml（只加 MCP 插件），没有 models 插件。
-  // 所以这里只有「用 profile 自己的配置」一项，且不给手填入口——填了也传不进去。
+  // prompt 走 stdin 的 execute 帧（不再是 argv 位置参数），故无 argv 预算限制
+  promptViaStdin: true,
+  listModels: {
+    args: ['--profile', DSH_PROFILE, '--models'],
+    timeoutMs: 10_000,
+    parse: parseDshModels,
+  },
   fallbackModels: [DEFAULT_MODEL_OPTION],
-  supportsCustomModel: false,
-  buildArgs({ prompt, mcpConfigPath, extraArgs = [] }) {
-    // model 刻意不消费：无处可传（见上）。留参数是为了让契约统一。
+  supportsCustomModel: true,
+  buildArgs({ mcpConfigPath, extraArgs = [] }) {
+    // MCP 仍走 patch 叠插件（execute 帧的 mcp_servers 恒空数组，那是另一条通道）
     const patchPath = path.join(path.dirname(mcpConfigPath), 'dsh-mathmover.patch.yml');
-    return ['--patch', patchPath, '--profile', 'headless', prompt, ...extraArgs];
+    return ['--patch', patchPath, '--profile', DSH_PROFILE, '--stdio', ...extraArgs];
+  },
+  formatStdinInput(prompt, _images, ctx) {
+    const model = dshModelSelection(ctx?.model);
+    return JSON.stringify({
+      v: 1,
+      type: 'execute',
+      request_id: ctx?.requestId ?? 'request',
+      cwd: ctx?.cwd ?? process.cwd(),
+      prompt,
+      mcp_servers: [],
+      ...(ctx?.resumeSessionId ? { resume_session_id: ctx.resumeSessionId } : {}),
+      ...(model ? { model } : {}),
+    }) + '\n';
   },
   parseLine(line) {
-    // headless 正文是纯文本（没有 JSON 事件）；JSON 行反而透传 raw 便于诊断
-    if (parseJsonLine(line)) return { kind: 'raw', line };
-    return line.trim() ? { kind: 'text', text: line + '\n' } : null;
+    const e = parseJsonLine(line);
+    if (!e) return { kind: 'raw', line };
+    const type = String(e.type ?? '');
+    switch (type) {
+      case 'session': {
+        const sid = pick(e, 'session_id');
+        return sid ? { kind: 'session', sessionId: String(sid) } : null;
+      }
+      case 'text': {
+        const t = String(pick(e, 'content') ?? '');
+        return t ? { kind: 'text', text: t } : null;
+      }
+      case 'thinking': {
+        const t = String(pick(e, 'content') ?? '');
+        return t ? { kind: 'thinking', text: t } : null;
+      }
+      case 'tool_call': {
+        let input: unknown = pick(e, 'arguments');
+        if (typeof input === 'string') {
+          try { input = JSON.parse(input); } catch { input = { raw: input }; }
+        }
+        return {
+          kind: 'tool-call',
+          name: normalizeToolName(String(pick(e, 'name') ?? 'tool')),
+          toolCallId: String(pick(e, 'call_id') ?? ''),
+          input,
+        };
+      }
+      case 'tool_result':
+        return {
+          kind: 'tool-result',
+          toolCallId: String(pick(e, 'call_id') ?? ''),
+          output: pick(e, 'output'),
+          isError: Boolean(pick(e, 'is_error')),
+        };
+      case 'usage': {
+        const it = pick(e, 'input_tokens');
+        const ot = pick(e, 'output_tokens');
+        return {
+          kind: 'usage',
+          inputTokens: typeof it === 'number' ? it : undefined,
+          outputTokens: typeof ot === 'number' ? ot : undefined,
+        };
+      }
+      case 'result': {
+        const sid = pick(e, 'session_id');
+        const sessionId = sid ? String(sid) : undefined;
+        if (String(pick(e, 'status') ?? '') === 'failed') {
+          const err = pick(e, 'error');
+          const msg = String(pick(err, 'message') ?? pick(e, 'output') ?? 'dsh 运行失败');
+          return [{ kind: 'error', message: msg }, { kind: 'done', sessionId }];
+        }
+        return { kind: 'done', resultText: String(pick(e, 'output') ?? ''), sessionId };
+      }
+      case 'protocol_error':
+        return {
+          kind: 'error',
+          message: `dsh 协议错误 ${String(pick(e, 'code') ?? '')}: ${String(pick(e, 'message') ?? '')}`,
+        };
+      // 握手与目录帧不下发
+      case 'ready':
+      case 'probe':
+      case 'models':
+        return null;
+      default:
+        return { kind: 'raw', line };
+    }
   },
 };
 

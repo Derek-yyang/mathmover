@@ -147,18 +147,57 @@ describe('codex 解析（2026-10-09 真实输出校准）', () => {
   });
 });
 
-describe('dsh 解析（one-shot 纯文本，2026-10-09 真实校准）', () => {
-  it('非 JSON 行 → text（带换行）', () => {
-    expect(dsh.parseLine('画布是空的。')).toEqual({ kind: 'text', text: '画布是空的。\n' });
+describe('dsh 解析（stdio 协议帧 → AgentEvent）', () => {
+  it('session 帧带出会话 id（后续 resume 用）', () => {
+    expect(dsh.parseLine(J({ type: 'session', session_id: 's-1', resumed: false })))
+      .toEqual({ kind: 'session', sessionId: 's-1' });
   });
 
-  it('空行不下发', () => {
-    expect(dsh.parseLine('   ')).toBeNull();
+  it('text / thinking 帧 → 对应事件', () => {
+    expect(dsh.parseLine(J({ type: 'text', content: 'ok' }))).toEqual({ kind: 'text', text: 'ok' });
+    expect(dsh.parseLine(J({ type: 'thinking', content: '嗯' }))).toEqual({ kind: 'thinking', text: '嗯' });
   });
 
-  it('JSON 行透传 raw（便于诊断异常输出）', () => {
-    expect(dsh.parseLine(J({ text: '结果' }))).toMatchObject({ kind: 'raw' });
-    expect(dsh.parseLine('hello')).toMatchObject({ kind: 'text' });
+  it('tool_call 的 arguments 是 JSON 串，解开成对象', () => {
+    expect(dsh.parseLine(J({ type: 'tool_call', call_id: 'c1', name: 'ggb_apply', arguments: '{"commands":["A=(0,0)"]}' })))
+      .toMatchObject({ kind: 'tool-call', toolCallId: 'c1', input: { commands: ['A=(0,0)'] } });
+  });
+
+  it('tool_result 能标 isError', () => {
+    expect(dsh.parseLine(J({ type: 'tool_result', call_id: 'c1', name: 'ggb_apply', output: 'x', is_error: true })))
+      .toMatchObject({ kind: 'tool-result', toolCallId: 'c1', isError: true });
+  });
+
+  it('usage 帧带 token 数', () => {
+    expect(dsh.parseLine(J({ type: 'usage', input_tokens: 100, output_tokens: 2 })))
+      .toEqual({ kind: 'usage', inputTokens: 100, outputTokens: 2 });
+  });
+
+  it('result 成功 → done，带 resultText 与 session id', () => {
+    expect(dsh.parseLine(J({ type: 'result', status: 'completed', session_id: 's-1', output: 'ok', resume_rejected: false })))
+      .toEqual({ kind: 'done', resultText: 'ok', sessionId: 's-1' });
+  });
+
+  it('result 失败 → 先 error 再 done（不吞掉会话 id）', () => {
+    const out = dsh.parseLine(J({ type: 'result', status: 'failed', session_id: 's-1', error: { code: 'X', message: '炸了' }, resume_rejected: false }));
+    expect(Array.isArray(out)).toBe(true);
+    expect(out).toEqual([{ kind: 'error', message: '炸了' }, { kind: 'done', sessionId: 's-1' }]);
+  });
+
+  it('protocol_error → error', () => {
+    expect(dsh.parseLine(J({ type: 'protocol_error', code: 'BAD', message: '帧不合法' })))
+      .toMatchObject({ kind: 'error' });
+  });
+
+  it('握手与模型目录帧不下发（ready/probe/models）', () => {
+    expect(dsh.parseLine(J({ type: 'ready', runtime: 'open-design' }))).toBeNull();
+    expect(dsh.parseLine(J({ type: 'probe' }))).toBeNull();
+    expect(dsh.parseLine(J({ type: 'models', models: [] }))).toBeNull();
+  });
+
+  it('非 JSON 行退化为 raw，不抛错', () => {
+    expect(dsh.parseLine('画布是空的。')).toMatchObject({ kind: 'raw' });
+    expect(dsh.parseLine('   ')).toMatchObject({ kind: 'raw' });
   });
 });
 

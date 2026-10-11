@@ -1,0 +1,5 @@
+{"v":1,"type":"ready","runtime":"open-design","protocol_version":1,"plugin_version":"0.1.0","capabilities":{"session_resume":true,"session_cancel":true,"structured_events":true}}
+{"v":1,"type":"session","request_id":"sample","session_id":"od-1b5932fc-1584-49ea-a83e-3bad3eef96cc","resumed":false}
+{"v":1,"type":"text","request_id":"sample","content":"ok"}
+{"v":1,"type":"usage","request_id":"sample","provider":"deepseek-official","model":"deepseek-v4-flash","input_tokens":207,"output_tokens":2,"cache_read_tokens":7936}
+{"v":1,"type":"result","request_id":"sample","status":"completed","session_id":"od-1b5932fc-1584-49ea-a83e-3bad3eef96cc","output":"ok","stop_reason":"completed","resume_rejected":false}

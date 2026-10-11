@@ -12,6 +12,7 @@
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import type { AgentEvent, RuntimeDefinition } from './defs.ts';
 import { resolveSpawnTarget } from './resolve.ts';
 import { withClaudeSettingsEnv } from './claude-env.ts';
@@ -124,7 +125,12 @@ export function runAgent(opts: RunOptions): RunHandle {
   // prompt 通道：stdin 优先（绕 argv 长度上限），argv 模式直接关 stdin 防空等
   if (opts.def.promptViaStdin) {
     const payload = opts.def.formatStdinInput
-      ? opts.def.formatStdinInput(prompt, inlineImages)
+      ? opts.def.formatStdinInput(prompt, inlineImages, {
+          requestId: randomUUID(),
+          cwd: opts.cwd,
+          model: opts.model,
+          resumeSessionId: opts.resumeSessionId,
+        })
       : prompt;
     proc.stdin.write(payload);
   }

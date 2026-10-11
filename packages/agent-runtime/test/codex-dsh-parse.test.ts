@@ -1,9 +1,11 @@
 /**
- * Codex / dsh 解析回归（2026-10-09 真实输出样本重放）。
+ * Codex / dsh 解析回归（真实输出样本重放）。
  *
  * 夹具来自 scripts/diag-stream-calibrate.mjs <runtime> 的真实抓样：
  * - codex-stream-sample.jsonl：一次 ggb_get_state 调用 + 两句 agent_message（JSONL）
- * - dsh-output-sample.txt：one-shot 纯文本最终消息
+ * - dsh-stdio-sample.jsonl：stdio 协议一轮回路（ready/session/text/usage/result）
+ *   2026-10-12 抓自 `dsh --profile mathmover --stdio`；旧的 one-shot 纯文本样本
+ *   （dsh-output-sample.txt）随 headless 模式一起废弃。
  * 解析规则改动后重放防退化；抓新样本可直接覆盖夹具。
  */
 
@@ -55,19 +57,29 @@ describe('codex.parseLine — 真实样本重放', () => {
   });
 });
 
-describe('dsh.parseLine — 真实样本重放', () => {
-  const lines = fs.readFileSync(fixture('dsh-output-sample.txt'), 'utf-8').split('\n');
+describe('dsh.parseLine — stdio 协议真实样本重放', () => {
+  const lines = fs.readFileSync(fixture('dsh-stdio-sample.jsonl'), 'utf-8').split('\n').filter((l) => l.trim());
 
-  it('纯文本行 → text（带换行），空行不下发', () => {
+  it('真实回路映射：ready 静默、session 带出 id、text/usage 如实、result 收尾', () => {
     const events = lines.flatMap((l) => replay(dsh, l));
-    expect(events.length).toBeGreaterThan(0);
-    for (const e of events) {
-      expect(e.kind).toBe('text');
-      if (e.kind === 'text') expect(e.text.endsWith('\n')).toBe(true);
+    // ready 帧不下发（握手）
+    expect(events.some((e) => e.kind === 'raw')).toBe(false);
+    const kinds = events.map((e) => e.kind);
+    expect(kinds).toContain('session');
+    expect(kinds).toContain('text');
+    expect(kinds).toContain('usage');
+    expect(kinds).toContain('done');
+    // 正文与会话 id 一致（result 的 output 就是 text 帧的内容）
+    const text = events.find((e) => e.kind === 'text');
+    const done = events.find((e) => e.kind === 'done');
+    if (text?.kind === 'text' && done?.kind === 'done') {
+      expect(done.resultText).toBe(text.text);
+      expect(done.sessionId).toBe(events.find((e) => e.kind === 'session')?.kind === 'session'
+        ? (events.find((e) => e.kind === 'session') as { sessionId: string }).sessionId : '');
     }
   });
 
-  it('buildArgs 用 --patch 挂 MCP 补丁、--profile headless', () => {
+  it('buildArgs 走 --stdio 协议，prompt 不进 argv（stdin 的 execute 帧负责）', () => {
     // 路径故意与真实布局无关：这里锁的是「patch 跟着配置走」这条契约
     // （defs.ts 用 path.dirname(mcpConfigPath) 定位补丁），不是某个具体目录。
     const cfg = 'X:/any/dir/claude-mcp.json';
@@ -77,8 +89,30 @@ describe('dsh.parseLine — 真实样本重放', () => {
     expect(path.dirname(args[patchIdx + 1].replace(/\\/g, '/'))).toBe(path.dirname(cfg));
     expect(args[patchIdx + 1]).toMatch(/dsh-mathmover\.patch\.yml$/);
     expect(args).toContain('--profile');
-    expect(args[args.indexOf('--profile') + 1]).toBe('headless');
-    expect(args[args.length - 1]).toBe('你好');
+    expect(args[args.indexOf('--profile') + 1]).toBe('mathmover');
+    expect(args).toContain('--stdio');
+    // prompt 不在 argv 里（旧模式的位置参数已废弃）
+    expect(args).not.toContain('你好');
+  });
+
+  it('formatStdinInput 产出 execute 帧，模型拆成 {provider, id}', () => {
+    const payload = dsh.formatStdinInput?.('画个圆', [], {
+      requestId: 'r1', cwd: 'D:/x', model: 'prov/model-a', resumeSessionId: 's-9',
+    }) ?? '';
+    const frame = JSON.parse(payload.trim());
+    expect(frame).toMatchObject({
+      v: 1, type: 'execute', request_id: 'r1', cwd: 'D:/x',
+      prompt: '画个圆', resume_session_id: 's-9',
+      model: { provider: 'prov', id: 'model-a' },
+    });
+    expect(Array.isArray(frame.mcp_servers)).toBe(true);
+  });
+
+  it('模型 id 格式不对或为 default 时，帧里不带 model（让 profile 用默认）', () => {
+    const noModel = JSON.parse(dsh.formatStdinInput?.('x', [], { requestId: 'r', model: 'default' }) ?? '{}');
+    expect(noModel.model).toBeUndefined();
+    const badFormat = JSON.parse(dsh.formatStdinInput?.('x', [], { requestId: 'r', model: 'no-slash' }) ?? '{}');
+    expect(badFormat.model).toBeUndefined();
   });
 });
 
