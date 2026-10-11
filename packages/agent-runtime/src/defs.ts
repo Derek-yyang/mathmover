@@ -28,7 +28,7 @@ export type AgentEvent =
   | { kind: 'tool-result'; toolCallId: string; output?: unknown; isError?: boolean }
   | { kind: 'thinking'; text: string }
   | { kind: 'usage'; inputTokens?: number; outputTokens?: number }
-  | { kind: 'done'; resultText?: string; sessionId?: string }
+  | { kind: 'done'; resultText?: string; sessionId?: string; status?: 'completed' | 'cancelled' }
   | { kind: 'error'; message: string }
   | { kind: 'raw'; line: string };
 
@@ -178,6 +178,14 @@ export interface RuntimeDefinition {
    * 设置了它且有图时，图片不再落临时文件。
    */
   formatStdinInput?: (prompt: string, images?: ImageInput[], ctx?: StdinContext) => string;
+  /**
+   * 协议级取消：生成「取消这一次请求」的 stdin 载荷。
+   *
+   * 设了它就说明该运行时**支持优雅取消**——runAgent 的 cancel() 会先发这帧、
+   * 等运行时回一帧 `result: cancelled`（保住会话），超时才杀进程。
+   * 不设则退回直接杀进程：能停，但没有取消语义、会话也不干净。
+   */
+  formatCancelInput?: (requestId: string) => string;
 }
 
 /** 宽松取值：路径不存在时返回 undefined 而不抛错。 */
@@ -657,6 +665,8 @@ export const dsh: RuntimeDefinition = {
       ...(ctx?.reasoningEffort ? { reasoning_effort: ctx.reasoningEffort } : {}),
     }) + '\n';
   },
+  // 协议级取消：bundle 收到后 abort 本次请求并回 `result: cancelled`，会话可续
+  formatCancelInput: (requestId) => JSON.stringify({ v: 1, type: 'cancel', request_id: requestId }) + '\n',
   parseLine(line) {
     const e = parseJsonLine(line);
     if (!e) return { kind: 'raw', line };
@@ -705,12 +715,20 @@ export const dsh: RuntimeDefinition = {
       case 'result': {
         const sid = pick(e, 'session_id');
         const sessionId = sid ? String(sid) : undefined;
-        if (String(pick(e, 'status') ?? '') === 'failed') {
+        const status = String(pick(e, 'status') ?? '');
+        if (status === 'failed') {
           const err = pick(e, 'error');
           const msg = String(pick(err, 'message') ?? pick(e, 'output') ?? 'dsh 运行失败');
           return [{ kind: 'error', message: msg }, { kind: 'done', sessionId }];
         }
-        return { kind: 'done', resultText: String(pick(e, 'output') ?? ''), sessionId };
+        // cancelled 与 completed 都是「正常收尾」，但要分得开：
+        // 取消不是失败（会话还在），也不该被显示成跑完了。
+        return {
+          kind: 'done',
+          resultText: String(pick(e, 'output') ?? ''),
+          sessionId,
+          status: status === 'cancelled' ? 'cancelled' : 'completed',
+        };
       }
       case 'protocol_error':
         return {

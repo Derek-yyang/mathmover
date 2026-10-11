@@ -125,10 +125,13 @@ export function runAgent(opts: RunOptions): RunHandle {
   opts.onEvent({ kind: 'raw', line: `# 启动 ${opts.def.displayName}（${target.command.split(/[\\/]/).pop()}）` });
 
   // prompt 通道：stdin 优先（绕 argv 长度上限），argv 模式直接关 stdin 防空等
+  // requestId 提到外面：协议级取消要拿它对齐回程帧（按 id 命中本次请求）
+  const requestId = randomUUID();
+  const supportsCancelFrame = typeof opts.def.formatCancelInput === 'function';
   if (opts.def.promptViaStdin) {
     const payload = opts.def.formatStdinInput
       ? opts.def.formatStdinInput(prompt, inlineImages, {
-          requestId: randomUUID(),
+          requestId,
           cwd: opts.cwd,
           model: opts.model,
           reasoningEffort: opts.reasoningEffort,
@@ -137,7 +140,9 @@ export function runAgent(opts: RunOptions): RunHandle {
       : prompt;
     proc.stdin.write(payload);
   }
-  proc.stdin.end();
+  // 支持协议级取消的运行时**不关 stdin**——关了就没法再发 cancel 帧。
+  // 运行时跑完会自己收尾（dsh 侧是 exit(0) + 1 秒 forceExit 兜底）。
+  if (!supportsCancelFrame) proc.stdin.end();
 
   let sessionId: string | undefined = opts.sessionId;
   let buf = '';
@@ -150,6 +155,9 @@ export function runAgent(opts: RunOptions): RunHandle {
     for (const ev of Array.isArray(parsed) ? parsed : [parsed]) {
       if (ev.kind === 'session') sessionId = ev.sessionId;
       if (ev.kind === 'done') {
+        // 兜底：result 帧自带 session id。万一 session 帧丢了/晚到，
+        // resolved 的 sessionId 也不该是空——那会让多轮续接断掉。
+        if (ev.sessionId) sessionId = ev.sessionId;
         opts.onEvent({ ...ev, sessionId: ev.sessionId ?? sessionId });
       } else {
         opts.onEvent(ev);
@@ -218,6 +226,17 @@ export function runAgent(opts: RunOptions): RunHandle {
   return {
     done,
     cancel: () => {
+      // 协议级取消优先：发 cancel 帧让运行时自己收尾（回 result: cancelled、
+      // 保住会话可续）。只在它迟迟不退时才杀进程——杀早了就丢掉那帧，
+      // 会话也不干净。宽限取 3.5s，比 dsh 侧的 3s 取消宽限略长。
+      if (supportsCancelFrame && proc.stdin.writable) {
+        try {
+          proc.stdin.write(opts.def.formatCancelInput!(requestId));
+          const killTimer = setTimeout(() => { try { proc.kill(); } catch { /* 已退出 */ } }, 3_500);
+          killTimer.unref?.();
+          return;
+        } catch { /* stdin 已关等：落到下面直接杀 */ }
+      }
       try { proc.kill(); } catch { /* 已退出 */ }
     },
     proc,

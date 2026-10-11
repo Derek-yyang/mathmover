@@ -175,7 +175,12 @@ describe('dsh 解析（stdio 协议帧 → AgentEvent）', () => {
 
   it('result 成功 → done，带 resultText 与 session id', () => {
     expect(dsh.parseLine(J({ type: 'result', status: 'completed', session_id: 's-1', output: 'ok', resume_rejected: false })))
-      .toEqual({ kind: 'done', resultText: 'ok', sessionId: 's-1' });
+      .toEqual({ kind: 'done', resultText: 'ok', sessionId: 's-1', status: 'completed' });
+  });
+
+  it('result 取消 → done 标 cancelled（不是失败，会话还在）', () => {
+    expect(dsh.parseLine(J({ type: 'result', status: 'cancelled', session_id: 's-1', resume_rejected: false })))
+      .toMatchObject({ kind: 'done', sessionId: 's-1', status: 'cancelled' });
   });
 
   it('result 失败 → 先 error 再 done（不吞掉会话 id）', () => {
@@ -198,6 +203,16 @@ describe('dsh 解析（stdio 协议帧 → AgentEvent）', () => {
   it('非 JSON 行退化为 raw，不抛错', () => {
     expect(dsh.parseLine('画布是空的。')).toMatchObject({ kind: 'raw' });
     expect(dsh.parseLine('   ')).toMatchObject({ kind: 'raw' });
+  });
+
+  it('formatCancelInput 产出 cancel 帧，request_id 与 execute 对齐', () => {
+    const cancel = JSON.parse(dsh.formatCancelInput!('r-9').trim());
+    expect(cancel).toEqual({ v: 1, type: 'cancel', request_id: 'r-9' });
+  });
+
+  it('claude/codex 没有协议级取消（退回杀进程）', () => {
+    expect(claudeCode.formatCancelInput).toBeUndefined();
+    expect(codex.formatCancelInput).toBeUndefined();
   });
 });
 
