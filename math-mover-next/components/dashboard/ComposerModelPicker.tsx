@@ -7,8 +7,8 @@
  * assistant-ui 的分工是：ComposerModel 管「随手换」，ModelPicker（带厂商/上下文/
  * 价格/能力）管「选型对比」。我们是前者，且契约刻意不建模模型能力，所以只做轻的。
  */
-import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { Select } from 'radix-ui';
 
 export interface PickableModel {
   id: string;
@@ -19,7 +19,7 @@ export interface PickableModel {
 
 export interface ComposerModelPickerProps {
   models: PickableModel[];
-  /** 'live' = 真发现；'fallback' = 兜底提示，选项会标「·提示」 */
+  /** 'live' = 真发现；'fallback' = 兜底别名，菜单说明可用性取决于配置 */
   source?: 'live' | 'fallback';
   selectedId: string;
   onSelect: (id: string) => void;
@@ -27,93 +27,65 @@ export interface ComposerModelPickerProps {
   loading?: boolean;
 }
 
-/** 清单太长时只显示 name 部分；label 里的映射说明放第二行。 */
-function shortLabel(label: string): string {
-  return label.split('→')[0]?.trim() || label;
-}
-
-/** 映射说明（`→` 之后的部分）；没有映射则为空，只显示一行。 */
-function mappingDetail(label: string): string {
-  const i = label.indexOf('→');
-  return i < 0 ? '' : label.slice(i + 1).trim();
+/** 来源和映射说明留在菜单里；仅整理显示名，不改模型 ID。 */
+function modelPresentation(label: string) {
+  const [head, ...mapping] = label.split('→');
+  const suffix = head.trim().match(/\s*[（(]([^（）()]+)[）)]\s*$/);
+  const name = (suffix ? head.trim().slice(0, suffix.index) : head).trim();
+  const source = suffix?.[1];
+  const detail = [
+    source === 'config.toml' ? '来自 config.toml' : source === '用 CLI 自己的配置' ? '使用 Agent 的默认配置' : source,
+    mapping.join('→').trim(),
+  ].filter(Boolean).join(' · ');
+  return { name: name || label, detail };
 }
 
 export default function ComposerModelPicker({
   models, source, selectedId, onSelect, loading = false,
 }: ComposerModelPickerProps) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  // 外点关闭 + Escape
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  // 只有「默认」一项且不能手填 = 该 agent 没得选，整个控件不渲染（由调用方判）
   const current = models.find((m) => m.id === selectedId) ?? models[0];
-  const title = current ? current.label : '模型';
+  const { name } = modelPresentation(current?.label ?? '模型');
 
   return (
-    <div ref={rootRef} className="relative">
-      <button
+    <Select.Root value={current?.id ?? ''} onValueChange={onSelect} disabled={loading || models.length === 0}>
+      <Select.Trigger
         type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label="选择模型"
-        title={title}
-        disabled={loading || models.length === 0}
-        onClick={() => setOpen((v) => !v)}
-        className={`flex max-w-[13rem] items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-stone-600 transition-colors motion-reduce:transition-none hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 ${open ? 'bg-stone-100' : ''}`}
+        aria-label={`选择模型，当前：${name}`}
+        title={name}
+        className="group flex min-w-0 max-w-[13rem] items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-stone-600 transition-colors motion-reduce:transition-none hover:bg-stone-100 data-[state=open]:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span className="truncate">{loading ? '读取中…' : shortLabel(current?.label ?? '模型')}</span>
-        <ChevronDown aria-hidden className={`h-3 w-3 shrink-0 transition-transform motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <ul
-          role="listbox"
+        <Select.Value className="truncate">{loading ? '读取中…' : name}</Select.Value>
+        <Select.Icon asChild>
+          <ChevronDown aria-hidden className="h-3 w-3 shrink-0 transition-transform motion-reduce:transition-none group-data-[state=open]:rotate-180" />
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content
+          position="popper" side="top" align="start" sideOffset={4} collisionPadding={12}
           aria-label="模型列表"
-          className="absolute bottom-full left-0 z-30 mb-1 max-h-64 w-72 overflow-y-auto rounded-lg border border-stone-200 bg-white py-1 shadow-lg"
+          className="z-30 max-h-[var(--radix-select-content-available-height)] w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-stone-200 bg-white text-stone-700"
         >
-          {source === 'fallback' && (
-            <li className="px-3 py-1.5 text-[11px] leading-4 text-stone-500">
-              以下是常见别名，未在本机验证；选错了跑不起来请换回「默认」。
-            </li>
-          )}
-          {models.map((m) => (
-            <li key={m.id}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={m.id === selectedId}
-                onClick={() => { onSelect(m.id); setOpen(false); }}
-                className={`flex w-full items-start gap-2 px-3 py-1.5 text-left text-xs leading-5 hover:bg-stone-50 focus-visible:outline-2 focus-visible:outline-emerald-700 ${m.id === selectedId ? 'text-emerald-800' : 'text-stone-700'}`}
-              >
-                <Check aria-hidden className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${m.id === selectedId ? 'opacity-100' : 'opacity-0'}`} />
-                <span className="min-w-0">
-                  <span className="block truncate">{shortLabel(m.label)}</span>
-                  {mappingDetail(m.label) && (
-                    <span className="block truncate text-[11px] text-stone-500">{mappingDetail(m.label)}</span>
-                  )}
-                </span>
-                {source === 'fallback' && m.id !== 'default' && (
-                  <span className="ml-auto shrink-0 text-[11px] text-stone-400">提示</span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+          <Select.ScrollUpButton className="flex h-6 items-center justify-center"><ChevronUp aria-hidden className="h-3 w-3" /></Select.ScrollUpButton>
+          <Select.Viewport className="py-1">
+            <Select.Group>
+              {source === 'fallback' && <Select.Label className="px-3 py-1.5 text-[11px] leading-4 text-stone-600">以下为常用模型别名，可用性取决于当前配置。</Select.Label>}
+              {models.map(m => {
+                const { name: modelName, detail } = modelPresentation(m.label);
+                return <Select.Item key={m.id} value={m.id} textValue={modelName}
+                  className="relative flex cursor-default select-none items-start gap-2 py-1 pr-3 pl-9 text-xs leading-[18px] outline-none data-[highlighted]:bg-stone-100 data-[state=checked]:text-emerald-800">
+                  <Select.ItemIndicator className="absolute top-1.5 left-3"><Check aria-hidden className="h-3.5 w-3.5" /></Select.ItemIndicator>
+                  <span className="min-w-0 flex-1">
+                    <Select.ItemText className="block break-words">{modelName}</Select.ItemText>
+                    {detail && <span className="block break-words text-[11px] leading-[14px] text-stone-600">{detail}</span>}
+                  </span>
+                  {source === 'fallback' && m.id !== 'default' && <span className="shrink-0 text-xs text-stone-600">别名</span>}
+                </Select.Item>;
+              })}
+            </Select.Group>
+          </Select.Viewport>
+          <Select.ScrollDownButton className="flex h-6 items-center justify-center"><ChevronDown aria-hidden className="h-3 w-3" /></Select.ScrollDownButton>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
   );
 }
