@@ -37,6 +37,15 @@ export type ExecuteCommand = {
    * MathMover 扩展（上游帧没有此项）：随题的图片。
    * 交给 attachment 服务入库拿 ref，再拼进用户消息的内容块。
    * 形状对齐 @deepseek-ai/dsh-attachment 的 EncodedImageAttachment。
+   *
+   * **这条通路目前是备用，不是默认。** 2026-10-12 实测对照：
+   *   prompt-path（路径写进 prompt、agent 自己读）—— 大小图都行，模型读出了
+   *     完整题干与坐标；对 3066px 的图也正常。
+   *   inline（本字段）—— 被附件服务的 maxImageDimension=2000 挡住，大图直接失败。
+   * 结论：prompt-path 严格更优，故 agent-runtime 里 dsh 的 imageDelivery 留在
+   * 'prompt-path'。本字段留作退路——万一哪天读文件工具不再把图交给视觉模型、
+   * 或换了个不支持文件读图的模型，inline 是唯一确定的视觉输入通道。
+   * 它已实现且真机验过（小图模型能看懂），别当闲置代码删掉。
    */
   images?: Array<{ mediaType: string; data: string; name?: string }>;
 };

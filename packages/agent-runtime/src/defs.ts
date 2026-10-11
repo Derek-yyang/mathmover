@@ -634,7 +634,12 @@ export const dsh: RuntimeDefinition = {
   // 协议有原生会话（session_id / resume_session_id），不再需要转写注入。
   // 早先 headless 是一次性无会话，才靠 buildTranscript 补语境；现在重复注入会双份上下文。
   recomposesHistory: false,
-  // 图片仍走「prompt 里给路径」：execute 帧的内容块形状未验证，先用已跑通的兜底。
+  // 图片走「prompt 里给路径」，不用 execute 帧的 inline images —— 2026-10-12
+  // 实测对照过两条路，prompt-path **严格更优**：
+  //   prompt-path：大小图都行，模型读出了完整题干与坐标（连 3066px 的图也正常）
+  //   inline：被附件服务的 maxImageDimension=2000 挡住，大图直接失败
+  // 而且题目截图经常超 2000px。inline 通路已实现并验过（小图模型能看懂），
+  // 留在 protocol.ts 的 images 字段作退路，别当闲置代码删。
   // 模型能不能看懂是模型的事——换多模态模型即可，这里不替用户判死。
   imageDelivery: 'prompt-path',
   // prompt 走 stdin 的 execute 帧（不再是 argv 位置参数），故无 argv 预算限制
