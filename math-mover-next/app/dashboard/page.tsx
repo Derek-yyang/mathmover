@@ -13,6 +13,7 @@ import { beginGgbRestore } from '@/lib/ggb-graphics-state';
 import { attachGgbBridge } from '@/lib/ggb-bridge';
 import { agentFailure, agentResponseError } from '@/lib/agent-diagnostics';
 import { finishExecution, updateToolProgress, toolStepLabel } from '@/lib/agent-progress';
+import { metaFromToolCall, mergeRunMeta } from '@/lib/agent-run-meta';
 import {
   AgentChatMessage,
   ChatAttachment,
@@ -84,6 +85,9 @@ function DashboardContent() {
   }, []);
 
   // GGB 引擎 Hook
+  // 账本：已下发的构造指令清单。提到 useGgbSession 之前声明，
+  // 好让 onAuditCompleted 的闭包能读到（回调运行时它一定已初始化）。
+  const ledgerRef = useRef<string[]>([]);
   const {
     ggbApplet,
     sliders,
@@ -101,7 +105,20 @@ function DashboardContent() {
     exportGGB,
     exportPNG,
     exportHTML,
-  } = useGgbSession();
+  } = useGgbSession({
+    // 画布体检结果此前只留在 hook 内部，用户看到的一直是「本轮没有对象检查数据」。
+    // 这里写进最近一条助手消息的 meta，面板才有东西可显示。
+    onAuditCompleted: (audit) => {
+      setMessages(prev => {
+        const i = prev.map(m => m.role).lastIndexOf('assistant');
+        if (i < 0) return prev;
+        const next = [...prev];
+        next[i] = { ...prev[i], meta: { ...prev[i].meta,
+          auditResult: audit, commands: [...ledgerRef.current] } };
+        return next;
+      });
+    },
+  });
   const graphics = useGgbGraphics(ggbApplet);
   const syncGraphics = graphics.sync;
   const showAxes = graphics.axes === 'all';
@@ -129,7 +146,6 @@ function DashboardContent() {
     sessionIdRef.current = undefined;
   }, [activeRuntimeId]);
 
-  const ledgerRef = useRef<string[]>([]);
   useEffect(() => {
     ledgerRef.current = lastExecutedCommands;
   }, [lastExecutedCommands]);
@@ -347,7 +363,7 @@ function DashboardContent() {
           let ev: {
             kind?: string; text?: string; name?: string;
             sessionId?: string; message?: string; line?: string;
-            toolCallId?: unknown; isError?: unknown;
+            toolCallId?: unknown; isError?: unknown; input?: unknown;
           };
           try { ev = JSON.parse(raw); } catch { return; }
           switch (ev.kind) {
@@ -365,7 +381,14 @@ function DashboardContent() {
             case 'tool-call':
             case 'tool-result': {
               const now = Date.now();
-              if (ev.kind === 'tool-call') setLoadingStatusText(`正在${toolStepLabel(ev.name ?? '')}…`);
+              if (ev.kind === 'tool-call') {
+                setLoadingStatusText(`正在${toolStepLabel(ev.name ?? '')}…`);
+                // 标题/类别是工具**入参**，AgentToolStep 不记入参，只能从事件流抓。
+                const runMeta = metaFromToolCall(ev.name, ev.input);
+                if (Object.keys(runMeta).length) {
+                  patch(m => ({ ...m, meta: mergeRunMeta(m.meta, runMeta) }));
+                }
+              }
               else setLoadingStatusText('等待 Agent 回复…');
               patch(m => m.meta?.execution ? { ...m, meta: { ...m.meta,
                 execution: updateToolProgress(m.meta.execution, ev, now) } } : m);

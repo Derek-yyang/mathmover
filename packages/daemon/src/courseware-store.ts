@@ -9,7 +9,7 @@ import { CoursewareError, type CoursewareSummary } from '@mathmover/ggb-core';
 const { DatabaseSync, backup } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
 export interface CoursewareInput {
-  id: string; expectedRevision: number; title: string; category?: string | null;
+  id: string; expectedRevision: number; title: string;
   commands: string[]; messages: unknown[]; ggbBase64?: string;
   view?: { showAxes: boolean; showGrid: boolean; bounds?: [number, number, number, number] };
   runtimeId?: string; sessionId?: string; created_at?: string;
@@ -49,12 +49,15 @@ export class CoursewareStore {
       const version = Number(Object.values(this.db.prepare('PRAGMA user_version').get() ?? {})[0]);
       if (version > 1) throw new Error('课件库由较新版本创建，请升级程序');
       if (!version) this.db.exec(`BEGIN IMMEDIATE;
-        CREATE TABLE coursewares (id TEXT PRIMARY KEY, title TEXT NOT NULL, category TEXT,
+        CREATE TABLE coursewares (id TEXT PRIMARY KEY, title TEXT NOT NULL,
           created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL, deleted_at TEXT);
         CREATE TABLE revisions (id TEXT NOT NULL REFERENCES coursewares(id), revision INTEGER NOT NULL,
           payload TEXT NOT NULL, snapshot TEXT, saved_at TEXT NOT NULL, PRIMARY KEY(id, revision));
         CREATE INDEX recent_coursewares ON coursewares(updated_at DESC);
         PRAGMA user_version=1; COMMIT;`);
+      // 2026-10-11 移除 category 列——课件名不绑分类（产品不止题图→GGB 一条链路）。
+      // 旧库若已有该列，尽力删掉；旧版 SQLite 不支持 DROP COLUMN 就留着，它是惰性的。
+      try { this.db.exec('ALTER TABLE coursewares DROP COLUMN category'); } catch { /* 旧库/旧 SQLite：列惰性，可留 */ }
     } catch (e) { this.db.close(); throw e; }
   }
   private safeDirectory(relative: string): string {
@@ -151,12 +154,13 @@ export class CoursewareStore {
         runtimeId: input.runtimeId, sessionId: input.sessionId });
       const created = old?.created_at ?? (input.created_at && Number.isFinite(Date.parse(input.created_at)) ? input.created_at : now);
       const revision = input.expectedRevision + 1;
-      this.db.prepare(`INSERT INTO coursewares VALUES (?,?,?,?,?,?,NULL) ON CONFLICT(id) DO UPDATE SET
-        title=excluded.title,category=excluded.category,updated_at=excluded.updated_at,revision=excluded.revision`).run(
-          input.id, input.title.slice(0, 200), input.category ?? null, created, now, revision);
+      this.db.prepare(`INSERT INTO coursewares (id, title, created_at, updated_at, revision, deleted_at)
+        VALUES (?,?,?,?,?,NULL) ON CONFLICT(id) DO UPDATE SET
+        title=excluded.title,updated_at=excluded.updated_at,revision=excluded.revision`).run(
+          input.id, input.title.slice(0, 200), created, now, revision);
       this.db.prepare('INSERT INTO revisions VALUES (?,?,?,?,?)').run(input.id, revision, payload, snapshot, now);
       this.db.exec('COMMIT');
-      return { id: input.id, title: input.title.slice(0, 200), category: input.category ?? null, created_at: created, updated_at: now, revision, deleted_at: null };
+      return { id: input.id, title: input.title.slice(0, 200), created_at: created, updated_at: now, revision, deleted_at: null };
     } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
   rename(id: string, title: string, expectedRevision: number) {

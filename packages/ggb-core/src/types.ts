@@ -192,12 +192,13 @@ export interface RawApplyResult {
  * 跨进程课件库契约 —— daemon 的 SQLite 存储与前端客户端共用。
  *
  * **不是 GGB 领域**，暂寄此处（为它单开一个包为时过早）。
- * 字段与 coursewares 表一一对应；`category` 装 A/B/C/D。
+ * 字段与 coursewares 表一一对应。
+ * （2026-10-11 移除 category：课件名不绑分类——产品不止题图→GGB 一条链路，
+ *   那条只是核心应用场景。类别只留在消息 meta 上展示，不落到课件记录。）
  */
 export interface CoursewareSummary {
   id: string;
   title: string;
-  category: string | null;
   created_at: string;
   updated_at: string;
   revision: number;

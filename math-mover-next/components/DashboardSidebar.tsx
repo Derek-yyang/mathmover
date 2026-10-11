@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Search, PanelLeftClose, PanelLeftOpen, SquarePen, Settings2, MoreHorizontal, Edit2, Trash2, X, Check } from 'lucide-react';
-import { TYPE_MAP } from '@/lib/constants';
 import { libraryRequest, migrateLegacyHistory, renameCourseware, deleteCoursewares, type CoursewareSummary } from '@/lib/courseware-client';
 import { groupSidebarHistory } from '@/lib/sidebar-history';
 import { useSidebarState } from './dashboard/SidebarState';
@@ -16,7 +15,7 @@ import { useAgentRuntimeState } from './dashboard/AgentRuntimeState';
 
 const iconButton = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-200/60 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-emerald-700';
 const rowButton = 'flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-stone-800 hover:bg-stone-200/50 focus-visible:outline-2 focus-visible:outline-emerald-700';
-const titleOf = (item: CoursewareSummary) => item.title || TYPE_MAP[item.category || ''] || '未命名课件';
+const titleOf = (item: CoursewareSummary) => item.title || '未命名课件';
 
 export default function DashboardSidebar() {
   const pathname = usePathname();

@@ -370,6 +370,10 @@ export function createMcpServer(
       '**自由画图不要给 category**，硬套题目类别会得出无关的告警。',
     inputSchema: {
       commands: z.array(z.string()).min(1).describe('完整 GeoGebra 指令清单，每行一条（含 MODE: 首行可选、// 注释可选）'),
+      title: z.string().optional().describe(
+        '给这次构造起个短名（8 字以内为宜，如「抛物线与直线相交」）。' +
+        '用它当课件名展示；不给则回退到用户首条消息的截断。自由画图与做题都建议给。',
+      ),
       category: z.enum(['A', 'B', 'C', 'D']).optional().describe(
         '题目类别：**仅题图→GeoGebra 链路需要**（那时会多查类别结构）。' +
         '自由画图不给。不给则用账本里已登记的（get_expert_prompt 写入）；跨轮续接请直接传',
@@ -401,10 +405,11 @@ export function createMcpServer(
       });
 
       const r = await tools.apply(cleaned, { png: args?.png ?? true });
+      const title = typeof args?.title === 'string' ? args.title.trim().slice(0, 60) : '';
       const content: ToolContent = [
-        { type: 'text', text: category
+        { type: 'text', text: (title ? `已命名为「${title}」。` : '') + (category
           ? `已按类别 ${category} 校验并下发 ${cleaned.length} 行（剔除 ${dropped.size} 行）。`
-          : `已校验并下发 ${cleaned.length} 行（剔除 ${dropped.size} 行）。` },
+          : `已校验并下发 ${cleaned.length} 行（剔除 ${dropped.size} 行）。`) },
       ];
       if (dropped.size) {
         content.push({

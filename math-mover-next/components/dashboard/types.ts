@@ -71,9 +71,14 @@ export interface ChatAttachment {
 export interface AgentMeta {
   /** stopped = 用户主动打断；不要当错误呈现 */
   status?: 'generating' | 'completed' | 'error' | 'stopped';
+  /** agent 起的课件名（submit_construction 的 title 入参），优先级高于「首条消息截断」 */
+  title?: string;
+  /** 本轮类别：仅做题链路有值（get_expert_prompt / submit_construction 的 category 入参） */
   category?: string;
   categoryLabel?: string;
+  /** 本轮实际下发的构造指令清单 */
   commands?: string[];
+  /** 画布体检结果（useGgbSession 的 auditConstruction 产出） */
   auditResult?: AuditResult | null;
   errorMessage?: string;
   diagnostic?: AgentDiagnostic;

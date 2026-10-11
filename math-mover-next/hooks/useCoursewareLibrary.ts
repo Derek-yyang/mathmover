@@ -42,10 +42,11 @@ export function useCoursewareLibrary(options: Options) {
       if (!record.current && !(messageOverride?.length || o.messages.length || o.api.getAllObjectNames().length)) return;
       if (!messageOverride && dirty.current === saved.current && record.current) return;
       setStatus('saving'); setError(null);
+      // 自动名：首条用户消息截 40 字。agent 起的名（meta.title）只在用户没手改过时才盖上。
+      const autoTitle = (messageOverride ?? o.messages).find(m => m.role === 'user')?.content.trim().slice(0, 40) || '未命名课件';
       if (!record.current) {
-        const title = (messageOverride ?? o.messages).find(m => m.role === 'user')?.content.trim().slice(0, 40) || '未命名课件';
         const now = new Date().toISOString();
-        record.current = { id: crypto.randomUUID(), revision: 0, title, category: null, commands: [], messages: [], created_at: now, updated_at: now, deleted_at: null };
+        record.current = { id: crypto.randomUUID(), revision: 0, title: autoTitle, commands: [], messages: [], created_at: now, updated_at: now, deleted_at: null };
         setSummary(record.current);
       }
       const current = record.current;
@@ -54,7 +55,11 @@ export function useCoursewareLibrary(options: Options) {
       // During Agent execution preserve the last confirmed canvas checkpoint. Final/idle writes capture live state.
       const reuseCheckpoint = o.busy && !!current.ggbBase64;
       const ggbBase64 = reuseCheckpoint ? current.ggbBase64 : await captureGgb(o.api);
-      const next = { ...current, commands: reuseCheckpoint ? current.commands : [...o.commands.current], messages, ggbBase64,
+      // 课件名优先级：用户手改的 > agent 起的（submit_construction 的 title）> 首条消息截断。
+      // 「手改过」用「当前名 ≠ 自动名」判定——用户把名字改回去也仍是手改，宁可不让 agent 覆盖。
+      const agentTitle = (messageOverride ?? o.messages).find(m => m.meta?.title)?.meta?.title;
+      const title = current.title && current.title !== autoTitle ? current.title : (agentTitle || autoTitle);
+      const next = { ...current, title, commands: reuseCheckpoint ? current.commands : [...o.commands.current], messages, ggbBase64,
         view: reuseCheckpoint ? current.view : currentView(o.api, o.showAxes, o.showGrid), runtimeId: o.runtimeId, sessionId: o.sessionId.current };
       const result = await libraryRequest<CoursewareSummary>('', { ...next, expectedRevision: current.revision });
       record.current = { ...next, ...result }; saved.current = generation;

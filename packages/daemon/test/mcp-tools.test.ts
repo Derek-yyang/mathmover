@@ -102,6 +102,9 @@ describe('MCP 工具面', () => {
     // 收卷：commands 必填，category 必须可选——自由画图不该被要求给类别
     expect(describeTool(tools, 'submit_construction').required).toEqual(['commands']);
     expect(describeTool(tools, 'submit_construction').params).toContain('category');
+    // 命名：可选（agent 起的课件名）。必填会让 agent 为了过 schema 乱编名字。
+    expect(describeTool(tools, 'submit_construction').params).toContain('title');
+    expect(describeTool(tools, 'submit_construction').required).not.toContain('title');
     // 自由画图入口：零参数
     expect(describeTool(tools, 'get_drawing_pack').params).toEqual([]);
     // 取卡按名字批量拿
