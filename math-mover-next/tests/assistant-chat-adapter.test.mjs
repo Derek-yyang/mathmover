@@ -5,8 +5,20 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../lib/assistant-chat-adapter.ts', import.meta.url), 'utf8');
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ES2020 } }).outputText;
-const { toAssistantMessage, fromAssistantInput, assistantMessagePhase, canCopyAgentMessage } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+const { toAssistantMessage, fromAssistantInput, assistantMessagePhase, canCopyAgentMessage, historyBeforeUserMessage } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 const message = (meta = {}, role = 'assistant') => ({id:'stable-id',role,content:'$x^2$',createdAt:1000,meta});
+
+test('editing keeps only earlier turns and rejects missing or non-user targets without mutating history', () => {
+  const messages = Object.freeze([
+    Object.freeze({...message({}, 'user'), id:'u1'}), Object.freeze({...message(), id:'a1'}),
+    Object.freeze({...message({}, 'user'), id:'u2'}), Object.freeze({...message(), id:'a2'}),
+  ]);
+  assert.deepEqual(historyBeforeUserMessage(messages, 'u2'), messages.slice(0, 2));
+  assert.deepEqual(historyBeforeUserMessage(messages, 'u1'), []);
+  assert.equal(historyBeforeUserMessage(messages, 'deleted'), null);
+  assert.equal(historyBeforeUserMessage(messages, 'a1'), null);
+  assert.equal(messages.length, 4);
+});
 
 test('projection preserves identity and host metadata without mutating saved messages', () => {
   const original = Object.freeze(message(Object.freeze({commands:['A=(1,2)']})));
@@ -52,6 +64,23 @@ test('outgoing input preserves image-only questions and existing local image for
   const result = fromAssistantInput({content:[],attachments:[{id:'image-id',name:'question.png',file,contentType:'image/png',content:[{type:'image',image:'data:image/png;base64,eA=='}]}]});
   assert.equal(result.text, '');
   assert.deepEqual(result.attachments, [{id:'image-id',name:'question.png',contentType:'image/png',file,url:'data:image/png;base64,eA=='}]);
+});
+
+test('saved images project to official message attachments without changing the stored format', () => {
+  const image = Object.freeze({id:'saved-image', name:'题目.png', contentType:'image/png', url:'data:image/png;base64,eA=='});
+  const original = Object.freeze({...message({}, 'user'), attachments:Object.freeze([image])});
+  const projected = toAssistantMessage(original);
+  assert.deepEqual(projected.attachments, [{id:'saved-image', type:'image', name:'题目.png', contentType:'image/png',
+    status:{type:'complete'}, content:[{type:'image', image:image.url}]}]);
+  assert.equal(original.attachments[0], image);
+});
+
+test('unavailable legacy images are excluded from runtime previews and remain in host metadata', () => {
+  const original = {...message({}, 'user'), attachments:[{url:'',name:'旧图片.png',unavailable:true}, {url:'data:image/png;base64,eA=='}]};
+  const projected = toAssistantMessage(original);
+  assert.equal(projected.attachments.length, 1);
+  assert.equal(projected.attachments[0].id, 'stable-id-image-0');
+  assert.equal(projected.metadata.custom.mathmover, original);
 });
 
 test('text input joins only text parts and supports no attachments', () => {

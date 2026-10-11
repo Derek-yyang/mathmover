@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { AssistantRuntimeProvider, SimpleImageAttachmentAdapter, ThreadPrimitive, useExternalStoreRuntime, type AttachmentAdapter } from '@assistant-ui/react';
 import { ChevronDown, Loader2, Sparkles } from 'lucide-react';
 import type { AgentChatMessage, ChatAttachment } from './types';
@@ -26,6 +26,7 @@ interface AgentChatPanelProps {
   messages: AgentChatMessage[]; isLoading: boolean; sendDisabled?: boolean;
   conversationId?: string; loadingStatusText?: string;
   onSendMessage: (text: string, attachments: ChatAttachment[]) => void | Promise<void>;
+  onEditMessage?: (messageId: string, text: string, attachments: ChatAttachment[]) => void | Promise<void>;
   /** 停止当前这一轮（agent 正在跑时才用得上） */
   onStopRun?: () => void;
   runtimes?: RuntimeOption[];
@@ -34,12 +35,21 @@ interface AgentChatPanelProps {
   selectedEffort?: string; onSelectEffort?: (id: string) => void;
 }
 
+const reducedMotionQuery = '(prefers-reduced-motion: reduce)';
+const subscribeReducedMotion = (notify: () => void) => {
+  const query = window.matchMedia(reducedMotionQuery);
+  query.addEventListener('change', notify);
+  return () => query.removeEventListener('change', notify);
+};
+const getReducedMotion = () => window.matchMedia(reducedMotionQuery).matches;
+const getServerReducedMotion = () => true;
+
 function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusText = '等待 Agent 回复…',
-  onSendMessage, onStopRun, canAttachImages,
+  onSendMessage, onEditMessage, onStopRun, canAttachImages,
   models, modelSource, selectedModel, onSelectModel, supportsCustomModel,
   reasoningOptions, selectedEffort, onSelectEffort }: AgentChatPanelProps & {
     canAttachImages: boolean;
-    models?: PickableModel[];
+    models?: Array<PickableModel>;
     modelSource?: 'live' | 'fallback';
     supportsCustomModel?: boolean;
     reasoningOptions?: Array<{ id: string; label: string; default?: boolean }>;
@@ -48,6 +58,7 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [indexBrowsing, setIndexBrowsing] = useState(false);
+  const reducedMotion = useSyncExternalStore(subscribeReducedMotion, getReducedMotion, getServerReducedMotion);
   const turns = useMemo(() => conversationTurns(messages), [messages]);
   const imageAdapter = useMemo<AttachmentAdapter>(() => {
     const base = new SimpleImageAttachmentAdapter();
@@ -71,6 +82,12 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
   const runtime = useExternalStoreRuntime({
     messages, convertMessage: toAssistantMessage, isRunning: isLoading, isSendDisabled: sendDisabled,
     adapters: { attachments: imageAdapter },
+    onEdit: onEditMessage ? async message => {
+      if (isLoading || sendDisabled || !message.sourceId) return;
+      setIndexBrowsing(false);
+      const input = fromAssistantInput(message);
+      await onEditMessage(message.sourceId, input.text || (input.attachments.length ? '请根据题目图片构建动态图形。' : ''), input.attachments);
+    } : undefined,
     onNew: async message => {
       if (isLoading || sendDisabled) return;
       setIndexBrowsing(false);
@@ -79,11 +96,11 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
     },
   });
   return <AssistantRuntimeProvider runtime={runtime}>
-    <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col">
+    <ThreadPrimitive.Root className="aui-root flex min-h-0 flex-1 flex-col" style={{ '--composer-radius': '1rem', '--composer-padding': '8px' } as React.CSSProperties}>
       <div className="relative min-h-0 flex-1">
         <ThreadPrimitive.Viewport ref={viewportRef} autoScroll={!indexBrowsing} scrollToBottomOnRunStart={!indexBrowsing}
           tabIndex={0} role="region" aria-label="聊天消息"
-          className={`h-full overflow-y-auto overscroll-contain pl-4 ${turns.length > 1 ? 'pr-9' : 'pr-4'} pt-5 pb-3 select-text focus-visible:outline-2 focus-visible:outline-emerald-700`}>
+          className={`chat-scroll-viewport h-full overflow-x-hidden overflow-y-auto overscroll-contain pl-4 ${turns.length > 1 ? 'pr-9' : 'pr-4'} pt-5 pb-3 select-text focus-visible:outline-2 focus-visible:outline-emerald-700`}>
           {detectionError && <div className="mb-4"><AgentDiagnosticNotice diagnostic={detectionError} detecting={detecting} onRescan={() => void refreshRuntimes()} /></div>}
           <ThreadPrimitive.Empty>
             <div className="flex min-h-64 h-full flex-col items-center justify-center px-5 text-center">
@@ -94,7 +111,7 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
           </ThreadPrimitive.Empty>
           <div ref={contentRef} className="space-y-6"><ThreadPrimitive.Messages>{() => <AssistantChatMessage />}</ThreadPrimitive.Messages></div>
           {isLoading && !messages.some(msg => msg.meta?.execution?.status === 'running') && <p role="status" className="mt-3 flex items-center gap-2 text-xs text-stone-600"><Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />{loadingStatusText}</p>}
-          <ThreadPrimitive.ScrollToBottom onClick={() => setIndexBrowsing(false)} aria-label="回到最新" className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-stone-300 bg-white p-2 text-stone-700 hover:bg-stone-100 disabled:hidden focus-visible:outline-2 focus-visible:outline-emerald-700"><ChevronDown className="h-4 w-4" /></ThreadPrimitive.ScrollToBottom>
+          <ThreadPrimitive.ScrollToBottom behavior={reducedMotion ? 'instant' : 'smooth'} onClick={() => setIndexBrowsing(false)} aria-label="回到最新" className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-stone-300 bg-white p-2 text-stone-700 hover:bg-stone-100 disabled:hidden focus-visible:outline-2 focus-visible:outline-emerald-700"><ChevronDown className="h-4 w-4" /></ThreadPrimitive.ScrollToBottom>
         </ThreadPrimitive.Viewport>
         <ConversationIndex turns={turns} viewportRef={viewportRef} contentRef={contentRef} onNavigate={() => setIndexBrowsing(true)} />
       </div>
@@ -116,9 +133,9 @@ export default function AgentChatPanel(props: AgentChatPanelProps) {
   // 档位是**当前模型**的属性：换模型要跟着换，所以从选中项取，不从 agent 取。
   const selected = models.find((m) => m.id === (selectedModel || 'default')) ?? models[0];
   const reasoningOptions = selected?.reasoningOptions ?? [];
-  return <aside aria-label="数学助教" className="flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-[#E7E5E4] bg-[#FDFCF8]">
+  return <aside aria-label="对话" className="flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-[#E7E5E4] bg-[#FDFCF8]">
     <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[#E7E5E4] px-4">
-      <span className="shrink-0 text-sm font-semibold text-stone-800">数学助教</span>
+      <span className="shrink-0 text-sm font-semibold text-stone-800">对话</span>
       {runtimes.length > 0 && <select aria-label="选择 Agent" value={activeRuntimeId ?? ''} onChange={event => onSelectRuntime?.(event.target.value)} disabled={isLoading}
         className="min-w-0 max-w-40 rounded-lg border border-stone-200 bg-transparent px-2 py-1 text-xs text-stone-700 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-60">
         {runtimes.map(runtime => <option key={runtime.id} value={runtime.id} disabled={!runtime.usable}>{runtime.name}{runtime.usable ? '' : '（未安装）'}{runtime.authStatus === 'missing' ? '（未登录）' : ''}</option>)}
@@ -126,6 +143,6 @@ export default function AgentChatPanel(props: AgentChatPanelProps) {
     </div>
     <ImagePreviewProvider key={conversationId ?? 'new'}><ChatThread {...props} canAttachImages={canAttachImages}
       models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel} supportsCustomModel={supportsCustomModel}
-      reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort} /></ImagePreviewProvider>
+        reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort} /></ImagePreviewProvider>
   </aside>;
 }

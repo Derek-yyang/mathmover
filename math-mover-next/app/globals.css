@@ -3,6 +3,8 @@
    而 tailwindcss 装在 math-mover-next/node_modules（前端不进 workspace），会
    "Can't resolve 'tailwindcss'" 并拖垮 Turbopack。此路径等价于包的 style 入口。 */
 @import "../node_modules/tailwindcss/index.css";
+@import "../node_modules/tw-animate-css/dist/tw-animate.css";
+@import "../node_modules/tw-shimmer/src/index.css";
 
 /* 显式注册源文件目录：自动源检测曾单独漏掉 components/SettingsModal.tsx，
    导致其中的工具类（w-52 / w-[860px] 等）未编译进产物，布局宽度塌缩。 */
@@ -21,6 +23,21 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-secondary: var(--muted);
+  --color-secondary-foreground: var(--foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: white;
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--primary);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -36,6 +53,64 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Color tokens for the official assistant-ui elements. Layout lives upstream. */
+:root, .aui-root {
+  --primary: #047857;
+  --primary-foreground: #ffffff;
+  --muted: #f5f5f4;
+  --muted-foreground: #57534e;
+  --accent: #ecfdf5;
+  --accent-foreground: #065f46;
+  --destructive: #b91c1c;
+  --border: #e7e5e4;
+  --popover: #ffffff;
+}
+.aui-root, .aui-attachment-preview-dialog-content {
+  --background: #fdfcf8; --foreground: #292524;
+}
+/* Match Chinese and Latin body text to the host platform's UI fonts. */
+.aui-root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
+    "Noto Sans CJK SC", "Noto Sans SC", sans-serif;
+}
+.aui-root [data-slot="aui_assistant-message-content"],
+.aui-root .aui-user-message-content {
+  font-size: 15px;
+  line-height: 24px;
+}
+.aui-root .aui-md-p, .aui-root .aui-md-li { line-height: 24px; }
+.aui-md { min-width: 0; overflow-wrap: anywhere; }
+.aui-md .katex-display { max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.aui-md .katex-display > .katex { text-align: left; }
+.aui-md .katex { font-size: 1.05em; }
+
+/* Subtle native scrollbar for the conversation, scoped to its viewport. */
+.chat-scroll-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: #a8a29e transparent;
+}
+.chat-scroll-viewport:hover { scrollbar-color: #78716c transparent; }
+@supports selector(::-webkit-scrollbar) {
+  /* Standard scrollbar properties override WebKit sizing in Chromium. */
+  .chat-scroll-viewport, .chat-scroll-viewport:hover {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+  .chat-scroll-viewport::-webkit-scrollbar { width: 6px; }
+  .chat-scroll-viewport::-webkit-scrollbar-track { background: transparent; }
+  .chat-scroll-viewport::-webkit-scrollbar-thumb {
+    background: #a8a29e;
+    border-radius: 999px;
+  }
+  .chat-scroll-viewport::-webkit-scrollbar-thumb:hover { background: #78716c; }
+  .chat-scroll-viewport::-webkit-scrollbar-button { display: none; }
+}
+@media (forced-colors: active) {
+  .chat-scroll-viewport::-webkit-scrollbar-thumb { background: CanvasText; }
+  .chat-scroll-viewport::-webkit-scrollbar-thumb:hover { background: Highlight; }
 }
 
 /* Chat stays readable in a narrow panel; math, tables and code scroll locally. */

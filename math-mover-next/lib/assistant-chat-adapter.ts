@@ -23,6 +23,11 @@ export function toAssistantMessage(message: AgentChatMessage): ThreadMessageLike
   return {
     id: message.id, role: message.role, createdAt: new Date(message.createdAt),
     content: message.content ? [{ type: 'text', text: message.content }] : [],
+    attachments: message.attachments?.filter(image => !image.unavailable && image.url).map((image, index) => ({
+      id: image.id ?? `${message.id}-image-${index}`, type: 'image' as const,
+      name: image.name || '题目图片', contentType: image.contentType || 'image/png',
+      status: { type: 'complete' as const }, content: [{ type: 'image' as const, image: image.url }],
+    })),
     status: message.role === 'assistant'
       ? phase === 'error' ? { type: 'incomplete', reason: 'error' }
       : phase === 'stopped' ? { type: 'incomplete', reason: 'cancelled' }
@@ -42,4 +47,10 @@ export function fromAssistantInput(message: AppendMessage): { text: string; atta
         file: attachment.file, url: image?.type === 'image' ? image.image : '' };
     }),
   };
+}
+
+/** Editing continues from the turns before this user message. Unknown/stale IDs are rejected. */
+export function historyBeforeUserMessage(messages: AgentChatMessage[], messageId: string): AgentChatMessage[] | null {
+  const index = messages.findIndex(message => message.id === messageId);
+  return index >= 0 && messages[index].role === 'user' ? messages.slice(0, index) : null;
 }
