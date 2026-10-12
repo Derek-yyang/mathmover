@@ -17,7 +17,7 @@ import {
   liveModelIds,
 } from '../src/models.ts';
 import { claudeConfiguredModels } from '../src/claude-env.ts';
-import type { RuntimeDefinition } from '../src/defs.ts';
+import { codex, readCodexConfiguredModels, DEFAULT_MODEL_OPTION as DEF_DEFAULT, type RuntimeDefinition } from '../src/defs.ts';
 
 function def(overrides: Partial<RuntimeDefinition> = {}): RuntimeDefinition {
   return {
@@ -149,5 +149,54 @@ describe('claudeConfiguredModels 读 settings env', () => {
   it('空值的映射被跳过', () => {
     const home = withHome({ ANTHROPIC_DEFAULT_OPUS_MODEL: '   ' });
     expect(claudeConfiguredModels(home)).toEqual([]);
+  });
+});
+
+describe('codex 模型发现 — config.toml + model_catalog_json 目录', () => {
+  /** 造 ~/.codex：config.toml 正文 + 可选的目录文件（形状取自 cc-switch）。 */
+  function withCodexHome(config: string, catalog?: unknown): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-codex-home-'));
+    fs.mkdirSync(path.join(dir, '.codex'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.codex', 'config.toml'), config, 'utf-8');
+    if (catalog !== undefined) {
+      fs.writeFileSync(path.join(dir, '.codex', 'cc-switch-model-catalog.json'), JSON.stringify(catalog), 'utf-8');
+    }
+    return dir;
+  }
+
+  it('目录里的模型用 display_name 展示（与本机 TUI /model 一致，2026-10-12 实测）', () => {
+    const home = withCodexHome(
+      'model = "gpt-6.1-sol"\nmodel_catalog_json = "cc-switch-model-catalog.json"\n',
+      { models: [{ slug: 'gpt-6.1-sol', display_name: 'GPT-6.1-Sol', description: 'workhorse' }] },
+    );
+    expect(readCodexConfiguredModels(home)).toEqual([{ id: 'gpt-6.1-sol', label: 'GPT-6.1-Sol' }]);
+  });
+
+  it('已配好的模型不在目录里也补上（label 标明来源）', () => {
+    const home = withCodexHome(
+      'model = "custom-x"\nmodel_catalog_json = "cc-switch-model-catalog.json"\n',
+      { models: [{ slug: 'gpt-6.1-sol', display_name: 'GPT-6.1-Sol' }] },
+    );
+    expect(readCodexConfiguredModels(home)).toEqual([
+      { id: 'gpt-6.1-sol', label: 'GPT-6.1-Sol' },
+      { id: 'custom-x', label: 'custom-x（config.toml）' },
+    ]);
+  });
+
+  it('目录缺失/损坏：退回只列已配好的那个，宁缺勿编', () => {
+    const missing = withCodexHome('model = "gpt-6.1-sol"\nmodel_catalog_json = "gone.json"\n');
+    expect(readCodexConfiguredModels(missing)).toEqual([{ id: 'gpt-6.1-sol', label: 'gpt-6.1-sol（config.toml）' }]);
+    const broken = withCodexHome('model = "gpt-6.1-sol"\nmodel_catalog_json = "cc-switch-model-catalog.json"\n');
+    fs.writeFileSync(path.join(broken, '.codex', 'cc-switch-model-catalog.json'), '{oops', 'utf-8');
+    expect(readCodexConfiguredModels(broken)).toEqual([{ id: 'gpt-6.1-sol', label: 'gpt-6.1-sol（config.toml）' }]);
+  });
+
+  it('config 读不到 → 空数组（调用方降级到 fallback）', () => {
+    expect(readCodexConfiguredModels(path.join(os.tmpdir(), 'mm-no-such-home-xyz'))).toEqual([]);
+    expect(readCodexConfiguredModels(withCodexHome('nothing here\n'))).toEqual([]);
+  });
+
+  it('codex 的 fallback 只剩「默认」——硬编码假名会误导真实环境（已踩）', () => {
+    expect(codex.fallbackModels).toEqual([DEF_DEFAULT]);
   });
 });

@@ -578,20 +578,39 @@ function codexMcpArgs(mcpConfigPath: string): string[] {
  *   turn.completed（usage）。
  */
 /**
- * 读 ~/.codex/config.toml 里的 `model = "..."`。
+ * 读 ~/.codex/config.toml 的 `model = "..."` 与 `model_catalog_json = "..."`，
+ * 返回「目录里的模型 + 已配好的那个」。
  *
- * 只抠这一行，不引 TOML 依赖（配置格式稳定，正则够用）。
- * 自定义 provider 时实际可用模型集由端点决定，这里只知道「配好的那个」。
+ * 目录文件（如 cc-switch 写的 cc-switch-model-catalog.json）是本机 codex TUI
+ * 模型选择器实际展示的清单（2026-10-12 实测 `/model` 对照一致）：slug 作下发
+ * id，display_name 作展示名。自定义 provider 时可用集由端点决定，我们无从枚举——
+ * 目录缺失/损坏就退回只列已配好的那个，**宁缺勿编**（假名兜底曾误导过用户）。
  */
-function readCodexConfiguredModel(): RuntimeModelOption | null {
+export function readCodexConfiguredModels(home = process.env.HOME ?? process.env.USERPROFILE ?? ''): RuntimeModelOption[] {
   try {
-    const file = path.join(process.env.HOME ?? process.env.USERPROFILE ?? '', '.codex', 'config.toml');
-    const text = fs.readFileSync(file, 'utf-8');
-    const m = /^\s*model\s*=\s*["']([^"']+)["']/m.exec(text);
-    if (!m) return null;
-    return { id: m[1], label: `${m[1]}（config.toml）` };
+    const dir = path.join(home, '.codex');
+    const text = fs.readFileSync(path.join(dir, 'config.toml'), 'utf-8');
+    const configured = /^\s*model\s*=\s*["']([^"']+)["']/m.exec(text)?.[1]?.trim();
+    const catalogName = /^\s*model_catalog_json\s*=\s*["']([^"']+)["']/m.exec(text)?.[1]?.trim();
+    const out = new Map<string, RuntimeModelOption>();
+    if (catalogName) {
+      try {
+        const catalogPath = path.isAbsolute(catalogName) ? catalogName : path.join(dir, catalogName);
+        const raw = JSON.parse(fs.readFileSync(catalogPath, 'utf-8')) as { models?: unknown };
+        for (const item of Array.isArray(raw.models) ? raw.models : []) {
+          const slug = pick(item, 'slug');
+          if (typeof slug !== 'string' || !slug.trim()) continue;
+          const name = pick(item, 'display_name');
+          out.set(slug, { id: slug, label: typeof name === 'string' && name.trim() ? name.trim() : slug });
+        }
+      } catch { /* 目录坏了：退回只列已配好的那个 */ }
+    }
+    if (configured && !out.has(configured)) {
+      out.set(configured, { id: configured, label: `${configured}（config.toml）` });
+    }
+    return [...out.values()];
   } catch {
-    return null;
+    return [];
   }
 }
 
@@ -633,17 +652,16 @@ export const codex: RuntimeDefinition = {
   // 落盘后走 `-i <file>...`（buildArgs 消费 imagePaths）
   imageDelivery: 'argv-paths',
   authProbe: { args: ['login', 'status'], timeoutMs: 5000 },
-  // codex 的模型在 ~/.codex/config.toml（model = "..."）。自定义 provider 时实际
-  // 可用集由那个端点决定，我们无从枚举——所以发现只取「已配好的那个」，
-  // 其余交给 supportsCustomModel 手填。
+  // codex 的模型在 ~/.codex/config.toml：`model = "..."` 已配好的那个 + 换模型
+  // 工具维护的 `model_catalog_json` 目录（TUI /model 展示的即它）。自定义
+  // provider 时实际可用集由端点决定，无从枚举，其余交给 supportsCustomModel 手填。
   fetchModels: async (_bin, _env) => {
-    const m = readCodexConfiguredModel();
-    return m ? [m] : null;
+    const found = readCodexConfiguredModels();
+    return found.length ? found : null;
   },
-  fallbackModels: [
-    { id: 'gpt-5.6-luna', label: 'gpt-5.6-luna' },
-    { id: 'gpt-5.1-codex-mini', label: 'gpt-5.1-codex-mini' },
-  ],
+  // 兜底只剩「默认」：2026-10-12 实测本机 codex /model 只有目录里那一个模型，
+  // 硬编码假名（gpt-5.6-luna 等）纯误导。兜不出就如实给默认项。
+  fallbackModels: [DEFAULT_MODEL_OPTION],
   supportsCustomModel: true,
   buildArgs({ prompt, mcpConfigPath, resumeSessionId, imagePaths = [], extraArgs = [], model }) {
     // prompt 不进 argv：`-` 位置参数表示读 stdin（exec 与 exec resume 同语义）。
