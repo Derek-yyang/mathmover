@@ -101,10 +101,11 @@ describe('resolveModel —— fallback 不是真清单', () => {
     expect(resolveModel('dsh', 'whatever')).toEqual({ ok: true, model: 'whatever' });
   });
 
-  it('supportsCustomModel 时手填放行', () => {
+  it('手填的未知 id 也拒——产品裁决 2026-10-12：清单以 agent 配置为唯一真相，不留手填入口', () => {
     rememberLiveModels('claude-code', [{ id: 'known', label: 'K' }]);
-    expect(resolveModel('claude-code', 'hand-typed', { supportsCustomModel: true }))
-      .toEqual({ ok: true, model: 'hand-typed' });
+    const bad = resolveModel('claude-code', 'hand-typed');
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.reason).toContain('改该 Agent 自己的配置');
   });
 
   it('liveModelIds 反映缓存', () => {

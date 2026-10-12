@@ -48,6 +48,9 @@ export function liveModelIds(agentId: string): string[] {
 /**
  * 校验用户选的模型 id。
  *
+ * 模型清单以 agent 自己的配置为唯一真相（产品裁决 2026-10-12：**不留手填入口**，
+ * 想换模型就改 agent 配置，清单自然跟着变）。
+ *
  * - `'default'` 恒放行（= 不传 --model）
  * - 有 live 缓存时：必须在 live 清单里，否则拒绝
  * - 无 live 缓存时：放行（我们无从判断，别替用户判死）——但调用方应先跑一次发现
@@ -55,18 +58,16 @@ export function liveModelIds(agentId: string): string[] {
 export function resolveModel(
   agentId: string,
   modelId: string | null | undefined,
-  opts: { supportsCustomModel?: boolean } = {},
 ): { ok: true; model?: string } | { ok: false; reason: string } {
   const id = typeof modelId === 'string' ? modelId.trim() : '';
   if (!id || id === DEFAULT_MODEL_OPTION.id) return { ok: true };
   const known = liveModels.get(agentId);
   if (!known) return { ok: true, model: id };           // 没清单可对，别瞎拦
   if (known.has(id)) return { ok: true, model: id };
-  if (opts.supportsCustomModel) return { ok: true, model: id };   // 允许手填
   return {
     ok: false,
     reason: `模型「${id}」不在本机该 Agent 的可用清单里（共 ${known.size} 个）。`
-      + `可选：${[...known.keys()].slice(0, 8).join('、')}`,
+      + `可选：${[...known.keys()].slice(0, 8).join('、')}。想用别的模型请改该 Agent 自己的配置。`,
   };
 }
 

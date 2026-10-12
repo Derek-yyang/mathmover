@@ -186,7 +186,7 @@ export async function POST(req: Request): Promise<Response> {
     await listAgentModels(def, target).catch(() => null);
   }
   if (typeof body.model === 'string' && body.model.trim()) {
-    const resolved = resolveModel(def.id, body.model, { supportsCustomModel: def.supportsCustomModel });
+    const resolved = resolveModel(def.id, body.model);
     if (!resolved.ok) {
       return new Response(
         line({ kind: 'error', message: resolved.reason }),
@@ -310,7 +310,6 @@ export async function GET(): Promise<Response> {
       authStatus: d.authStatus,
       authMessage: d.authMessage,
       canAttachImages: d.def.imageDelivery != null,
-      supportsCustomModel: d.def.supportsCustomModel !== false,
       models,
     };
   }));

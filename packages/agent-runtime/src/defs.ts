@@ -267,8 +267,6 @@ export interface RuntimeDefinition {
   ) => Promise<RuntimeReasoningOption[] | null>;
   /** 兜底提示。UI 显示用，下发前须对 live 清单校验。 */
   fallbackModels?: RuntimeModelOption[];
-  /** false = 不给「手填模型名」入口（模型由 profile/配置定，填了也传不进去）。 */
-  supportsCustomModel?: boolean;
   /**
    * 图片递送通道——**只描述「CLI 怎么收图」，不描述「模型能不能看懂」**。
    *
@@ -463,7 +461,6 @@ export const claudeCode: RuntimeDefinition = {
     })));
   },
   fallbackModels: CLAUDE_FALLBACK_MODELS,
-  supportsCustomModel: true,
   buildArgs({ prompt, mcpConfigPath, sessionId, resumeSessionId, extraArgs = [], model, reasoningEffort }) {
     // prompt 不进 argv：经 stdin 传 JSONL（input-format 必须与 output-format 配对）。
     // --allowedTools=mcp__mathmover__* 让自家 MCP 工具免权限分类直通：
@@ -745,7 +742,8 @@ export const codex: RuntimeDefinition = {
   authProbe: { args: ['login', 'status'], timeoutMs: 5000 },
   // codex 的模型在 ~/.codex/config.toml：`model = "..."` 已配好的那个 + 换模型
   // 工具维护的 `model_catalog_json` 目录（TUI /model 展示的即它）。自定义
-  // provider 时实际可用集由端点决定，无从枚举，其余交给 supportsCustomModel 手填。
+  // provider 时实际可用集由端点决定，无从枚举——清单就是 agent 配置的全部；
+  // 想用别的模型就改 agent 配置（产品裁决 2026-10-12：不留手填入口）。
   fetchModels: async (_bin, _env) => {
     const found = readCodexConfiguredModels();
     return found.length ? found : null;
@@ -753,7 +751,6 @@ export const codex: RuntimeDefinition = {
   // 兜底只剩「默认」：2026-10-12 实测本机 codex /model 只有目录里那一个模型，
   // 硬编码假名（gpt-5.6-luna 等）纯误导。兜不出就如实给默认项。
   fallbackModels: [DEFAULT_MODEL_OPTION],
-  supportsCustomModel: true,
   buildArgs({ prompt, mcpConfigPath, resumeSessionId, imagePaths = [], extraArgs = [], model, reasoningEffort }) {
     // prompt 不进 argv：`-` 位置参数表示读 stdin（exec 与 exec resume 同语义）。
     // 布局要点（实测踩坑）：`-i` 是变长旗标，图片后必须 `--` 终结否则吞 prompt；
@@ -949,7 +946,6 @@ export const dsh: RuntimeDefinition = {
     parse: parseDshModels,
   },
   fallbackModels: [DEFAULT_MODEL_OPTION],
-  supportsCustomModel: true,
   buildArgs({ mcpConfigPath, extraArgs = [] }) {
     // MCP 仍走 patch 叠插件（execute 帧的 mcp_servers 恒空数组，那是另一条通道）
     const patchPath = path.join(path.dirname(mcpConfigPath), 'dsh-mathmover.patch.yml');

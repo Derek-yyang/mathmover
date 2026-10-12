@@ -21,8 +21,6 @@ export interface RuntimeOption {
   authStatus?: 'ok' | 'missing' | 'unknown'; authMessage?: string; canAttachImages?: boolean;
   /** 该 agent 可选的模型（发现或兜底）。缺省/空 = 没得选，UI 藏掉模型控件。 */
   models?: { list: PickableModel[]; source?: 'live' | 'fallback' };
-  /** false = 模型由 profile/配置定，手填也传不进去（dsh）。 */
-  supportsCustomModel?: boolean;
 }
 interface AgentChatPanelProps {
   messages: AgentChatMessage[]; isLoading: boolean; sendDisabled?: boolean;
@@ -48,12 +46,11 @@ const getServerReducedMotion = () => true;
 
 function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusText = '等待 Agent 回复…',
   onSendMessage, onEditMessage, onStopRun, canAttachImages,
-  models, modelSource, selectedModel, onSelectModel, supportsCustomModel,
+  models, modelSource, selectedModel, onSelectModel,
   reasoningOptions, selectedEffort, onSelectEffort }: AgentChatPanelProps & {
     canAttachImages: boolean;
     models?: Array<PickableModel>;
     modelSource?: 'live' | 'fallback';
-    supportsCustomModel?: boolean;
     reasoningOptions?: Array<{ id: string; label: string; default?: boolean }>;
   }) {
   const { detecting, detectionError, refreshRuntimes } = useAgentRuntimeState();
@@ -118,7 +115,7 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
         <ConversationIndex turns={turns} viewportRef={viewportRef} contentRef={contentRef} onNavigate={() => setIndexBrowsing(true)} />
       </div>
       <AssistantChatComposer canAttachImages={canAttachImages} isLoading={isLoading} onStopRun={onStopRun} getAttachmentCount={() => runtime.thread.composer.getState().attachments.length}
-        models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel} supportsCustomModel={supportsCustomModel}
+        models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel}
         reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort} />
     </ThreadPrimitive.Root>
   </AssistantRuntimeProvider>;
@@ -127,11 +124,11 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
 export default function AgentChatPanel(props: AgentChatPanelProps) {
   const { runtimes = [], activeRuntimeId, onSelectRuntime, isLoading, conversationId, selectedModel, onSelectModel, selectedEffort, onSelectEffort } = props;
   const canAttachImages = runtimes.find(runtime => runtime.id === activeRuntimeId)?.canAttachImages !== false;
-  // 模型清单跟着当前 agent 走。只有「默认」一项且不能手填时视为没得选（UI 藏控件）。
+  // 模型清单跟着当前 agent 走。只有「默认」一项时视为没得选（UI 藏控件）——
+  // 清单以 agent 配置为唯一真相，不留手填入口（产品裁决 2026-10-12）。
   const active = runtimes.find(runtime => runtime.id === activeRuntimeId);
   const models = active?.models?.list ?? [];
   const modelSource = active?.models?.source;
-  const supportsCustomModel = active?.supportsCustomModel !== false;
   // 档位是**当前模型**的属性：换模型要跟着换，所以从选中项取，不从 agent 取。
   const selected = models.find((m) => m.id === (selectedModel || 'default')) ?? models[0];
   const reasoningOptions = selected?.reasoningOptions ?? [];
@@ -144,7 +141,7 @@ export default function AgentChatPanel(props: AgentChatPanelProps) {
       </select>}
     </div>
     <ImagePreviewProvider key={conversationId ?? 'new'}><ChatThread {...props} canAttachImages={canAttachImages}
-      models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel} supportsCustomModel={supportsCustomModel}
+      models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel}
         reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort} /></ImagePreviewProvider>
   </aside>;
 }
