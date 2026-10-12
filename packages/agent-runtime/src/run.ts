@@ -14,7 +14,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import type { AgentEvent, RuntimeDefinition } from './defs.ts';
-import { resolveSpawnTarget } from './resolve.ts';
+import { resolveRuntimeTarget } from './resolve.ts';
 import { withClaudeSettingsEnv } from './claude-env.ts';
 import { materializeImages, toImagePathNote, toImageUndeliveredNote, type ImageInput } from './images.ts';
 
@@ -45,6 +45,13 @@ export interface RunOptions {
    * 不设则不启用。
    */
   inactivityTimeoutMs?: number;
+  /**
+   * **首输出**硬顶（毫秒）：从启动到第一条实质输出（正文/思考/工具）的绝对时限。
+   * 与 inactivityTimeoutMs 的区别：传输心跳/状态帧（session、raw、usage）**不**顺延
+   * 本项——只刷状态不干活的挂死才兜得住（对齐 OpenDesign 的 firstOutputTimeoutMs）。
+   * 不设则不启用。
+   */
+  firstOutputTimeoutMs?: number;
   onEvent: (e: AgentEvent) => void;
 }
 
@@ -106,9 +113,10 @@ export function runAgent(opts: RunOptions): RunHandle {
   });
 
   // 不经 shell：参数走 argv 数组，避免命令注入（见 resolve.ts）。
-  // resolveSpawnTarget 把 npm 的 .cmd shim 解析成真实入口，**prefixArgs 必须一起带**——
+  // resolveRuntimeTarget 按 executable + fallbackBins 逐名解析（分叉兼容），
+  // .cmd shim 解析成真实入口，**prefixArgs 必须一起带**——
   // .js 入口的场景 command 是 node、脚本路径在 prefixArgs 里，丢了它等于 spawn 空 node。
-  const target = resolveSpawnTarget(opts.def.executable)
+  const target = resolveRuntimeTarget(opts.def)
     ?? { command: opts.def.executable, prefixArgs: [] as string[], label: opts.def.executable };
 
   // claude --restricted 会忽略 settings.json 的 env 块（自定义通道的认证在那），
@@ -148,11 +156,31 @@ export function runAgent(opts: RunOptions): RunHandle {
   let buf = '';
   let stderrBuf = '';
 
+  // 首输出硬顶：启动即上膛，第一发实质输出解除；状态帧不顺延（语义见 RunOptions）
+  let firstOutputTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearFirstOutput = () => {
+    if (firstOutputTimer !== undefined) {
+      clearTimeout(firstOutputTimer);
+      firstOutputTimer = undefined;
+    }
+  };
+  if (opts.firstOutputTimeoutMs && opts.firstOutputTimeoutMs > 0) {
+    firstOutputTimer = setTimeout(() => {
+      opts.onEvent({ kind: 'error', message: `agent 首输出超时（${opts.firstOutputTimeoutMs}ms 内无实质输出）` });
+      try { proc.kill(); } catch { /* 已退出 */ }
+    }, opts.firstOutputTimeoutMs);
+  }
+
+  // 实质输出才算数：text/thinking/tool 是干活；session/raw/usage 是状态与心跳，
+  // 不解除首输出硬顶（见 RunOptions.firstOutputTimeoutMs）
+  const SUBSTANTIVE_KINDS = new Set(['text', 'text-delta', 'thinking', 'tool-call', 'tool-result']);
+
   const emitLine = (line: string) => {
     if (!line.trim()) return;
     const parsed = opts.def.parseLine(line);
     if (!parsed) return;
     for (const ev of Array.isArray(parsed) ? parsed : [parsed]) {
+      if (SUBSTANTIVE_KINDS.has(ev.kind)) clearFirstOutput();
       if (ev.kind === 'session') sessionId = ev.sessionId;
       if (ev.kind === 'done') {
         // 兜底：result 帧自带 session id。万一 session 帧丢了/晚到，
@@ -203,6 +231,7 @@ export function runAgent(opts: RunOptions): RunHandle {
     proc.on('error', (e) => {
       clearTimeout(killTimer);
       clearTimeout(wallTimer);
+      clearFirstOutput();
       opts.onEvent({ kind: 'error', message: `启动 ${opts.def.displayName} 失败: ${e.message}` });
       materialized.cleanup();
       resolve({ exitCode: null, sessionId });
@@ -210,6 +239,7 @@ export function runAgent(opts: RunOptions): RunHandle {
     proc.on('close', (code) => {
       clearTimeout(killTimer);
       clearTimeout(wallTimer);
+      clearFirstOutput();
       if (buf.trim()) drainOut('\n');   // stdout 残留的最后一行（没换行结尾的）
       const tail = stderrBuf.trim();
       if (tail && code !== 0) {

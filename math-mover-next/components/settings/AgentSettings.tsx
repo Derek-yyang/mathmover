@@ -36,6 +36,7 @@ function AgentRow({ runtime, selected, disabled, onSelect }: {
           <p className="mt-1 break-words text-xs leading-5 text-stone-600">
             {runtime.usable ? runtime.version || '版本信息未提供' : '未检测到命令行程序'}
           </p>
+          {runtime.versionWarning && <p className="mt-1 break-words text-xs leading-5 text-amber-800">{runtime.versionWarning}</p>}
         </div>
         <button type="button" className={action + (selected ? ' flex shrink-0 items-center gap-1.5 text-emerald-800 disabled:opacity-100' : ' shrink-0 text-stone-700 hover:bg-stone-100')}
           disabled={disabled || selected || !runtime.usable} onClick={onSelect}

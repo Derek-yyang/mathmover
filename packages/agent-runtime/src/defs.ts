@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { formatClaudeStreamJsonInput, type ImageInput } from './images.ts';
 import { claudeConfiguredModels } from './claude-env.ts';
+import { getCapabilities } from './capabilities.ts';
 
 /** 归一后的事件——前端 useChat 与上层编排都只认这个。 */
 export type AgentEvent =
@@ -87,6 +88,80 @@ export const DEFAULT_MODEL_OPTION: RuntimeModelOption = {
   id: 'default',
   label: '默认（用 CLI 自己的配置）',
 };
+
+/**
+ * 版本策略（对齐 OpenDesign 的 RuntimeVersionPolicy）。
+ *
+ * 外部 CLI 会升级、会分叉、旗标会漂移。本构建只对**实测过的版本**负责：
+ * - 探不到可用版本 → fail-closed（requireVersion），拒启好过带着错旗标跑出神秘错误
+ *   （dsh rc 流改协议参数是血泪史）。
+ * - 版本在支持线外 → 仍可用，但给警告——rc 流比我们的发布节奏快，逐个点名会让
+ *   按我们安装说明装的用户周周见警告；用发布线正则把「同一线上」的警告消掉，
+ *   线外的照样提（匹配线 ≠ 删除检查）。
+ */
+export interface RuntimeVersionPolicy {
+  /** 本构建实测过的精确版本串 */
+  supportedVersions: string[];
+  /**
+   * 发布线匹配（如 rc 流）。**不许带 g 旗标**——RegExp.test 有状态，
+   * 同一版本会在支持/未验证之间来回跳。
+   */
+  supportedVersionPattern?: RegExp;
+  /** 版本探不出来或解析失败时拒启。 */
+  requireVersion: true;
+  /** 归一化版本串（取 "2.1.296 (Claude Code)" 里的 "2.1.296"）；null = 不可用。 */
+  parse?: (raw: string) => string | null;
+}
+
+/**
+ * 能力旗标的值拒绝探针声明（对齐 OpenDesign 的 hiddenCapabilityFlags）。
+ * 原理、判定规则与布尔旗标禁区见 capabilities.ts。这里只描述「探哪些旗标」。
+ *
+ * 与 OpenDesign 单一前缀的差异：同一个旗标在不同子命令下支持集可能不同
+ * （codex 的 exec resume 比 exec 窄，实测踩过），所以是**一组探针上下文**，
+ * 每个上下文按自己的前缀/后缀独立盘问、独立记录能力键。
+ */
+export interface RuntimeHiddenCapabilityProbe {
+  /** 探针调用前置参数，如 `['-p']` / `['exec', 'resume']`——旗标挂在哪个子命令下就填哪个。 */
+  probeArgsPrefix: string[];
+  /**
+   * 探针调用尾置参数（OpenDesign 原版没有的适配）。codex 的 resume 子命令
+   * 会把空 stdin 当线程读取而挂死，必须补上假线程 id 与 prompt 位置参数
+   * 让校验走完（2026-10-12 实测）。
+   */
+  probeArgsSuffix?: string[];
+  /** 旗标串 → 能力键（同 capabilityFlags 的形状）。 */
+  flags: Record<string, string>;
+}
+
+export interface RuntimeHiddenCapabilities {
+  probes: RuntimeHiddenCapabilityProbe[];
+}
+
+/** 假线程 id：UUID 形状合法（能过格式校验），查不到记录（钉在查找阶段报错）。 */
+export const PROBE_FAKE_THREAD_ID = '00000000-0000-4000-8000-000000000000';
+
+/** 从 CLI 的版本行里抠出版本串（semver 形态，允许 -rc.x 后缀）。 */
+export function extractSemverish(raw: string): string | null {
+  const m = raw.trim().match(/\d+\.\d+\.\d+(?:-[\w.]+)?/);
+  return m ? m[0] : null;
+}
+
+/**
+ * 该运行时是否自带原生会话（多轮靠它的会话机制，**绝不**再注入转写——
+ * 双重上下文会让模型复读历史，OpenDesign agy -c 教训）。
+ *
+ * 三种会话语法的分类学（对齐 OpenDesign）：
+ * - `resumesSessionViaCli`         CLI 旗标续接。specify-style（默认）：我方铸
+ *                                  会话 id 传给 CLI（claude `--session-id`）；
+ *   `capturesSessionIdFromStream`  capture-style：CLI 自铸 id、我方从流里捕获
+ *                                  （codex `thread.started`）。
+ * - `resumesSessionViaProfileStdio` profile-stdio 线协议带会话 id（dsh），
+ *                                  无 CLI resume 旗标。
+ */
+export function resumesSession(def: Pick<RuntimeDefinition, 'resumesSessionViaCli' | 'resumesSessionViaProfileStdio'>): boolean {
+  return def.resumesSessionViaCli === true || def.resumesSessionViaProfileStdio === true;
+}
 
 export interface RuntimeDefinition {
   /** 稳定 id，用于日志与前端展示 */
@@ -186,6 +261,39 @@ export interface RuntimeDefinition {
    * 不设则退回直接杀进程：能停，但没有取消语义、会话也不干净。
    */
   formatCancelInput?: (requestId: string) => string;
+  /**
+   * 版本策略：实测版本 + 发布线 + 探不出版本时拒启。不设 = 不做版本门。
+   * 详见 RuntimeVersionPolicy。
+   */
+  versionPolicy?: RuntimeVersionPolicy;
+  /**
+   * PATH 解析失败时的兜底可执行名（按序试）——CLI 的兼容分叉（如 openclaude，
+   * 对齐 OpenDesign 的 claude 定义）不用写包装脚本就能被发现。
+   */
+  fallbackBins?: string[];
+  /**
+   * 值拒绝探针：探 `--help` 里看不到、或想按子命令分别确认的**带值**旗标。
+   * 探测结果缓存在 capabilities.ts，buildArgs 据它决定传不传旗标。
+   */
+  hiddenCapabilityFlags?: RuntimeHiddenCapabilities;
+  /** 原生会话续接（CLI 旗标式）；分类学见 resumesSession()。 */
+  resumesSessionViaCli?: boolean;
+  /** capture-style：会话 id 由 CLI 自铸、从输出流捕获（codex thread.started）。 */
+  capturesSessionIdFromStream?: boolean;
+  /** profile-stdio 线协议带会话 id（dsh），无 CLI resume 旗标。 */
+  resumesSessionViaProfileStdio?: boolean;
+  /**
+   * watchdog 分级（对齐 OpenDesign）：静默超时的 per-agent 推荐值——
+   * CLI 合法地长时间不吐字（长思考、慢代理）时可放宽。环境变量
+   * MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS 仍优先于本值。
+   */
+  inactivityTimeoutMs?: number;
+  /**
+   * 首输出硬顶：从启动到第一条实质输出（text/thinking/tool）的绝对时限。
+   * 传输心跳/状态帧**不**顺延它——只在刷状态不干活的挂死才有意义区分。
+   * 不设 = 不启用。环境变量 MATHMOVER_AGENT_FIRST_OUTPUT_TIMEOUT_MS 优先。
+   */
+  firstOutputTimeoutMs?: number;
 }
 
 /** 宽松取值：路径不存在时返回 undefined 而不抛错。 */
@@ -244,7 +352,36 @@ export const claudeCode: RuntimeDefinition = {
   id: 'claude-code',
   displayName: 'Claude Code',
   executable: 'claude',
+  // CLI 分叉兼容：claude 不在 PATH 时按序试 openclaude（对齐 OpenDesign 的
+  // claude 定义；单二进制装法的用户见 Gitlawb/openclaude）。分叉的旗标集可能
+  // 不同，靠下面的值拒绝探针兜。
+  fallbackBins: ['openclaude'],
   probeArgs: ['--version'],
+  // 实测版本 2.1.296；发布线 2.x 内的更新不再逐一警告。
+  versionPolicy: {
+    supportedVersions: ['2.1.296'],
+    supportedVersionPattern: /^2\./,
+    requireVersion: true,
+    parse: extractSemverish,
+  },
+  // 会话旗标续接，specify-style（--session-id 我方铸 id；capturesSessionIdFromStream 不设）
+  resumesSessionViaCli: true,
+  // 值拒绝探针（对齐 OpenDesign 的 hiddenCapabilityFlags；假值与判定规则见
+  // capabilities.ts）：会话/模型三个带值旗标在分叉或旧版本上可能不存在，
+  // 认不出来就摘掉它们而不是死在未知旗标上（会话旗标摘掉 = 降级单轮，仍可跑）。
+  hiddenCapabilityFlags: {
+    probes: [{
+      probeArgsPrefix: ['-p'],
+      flags: {
+        '--session-id': 'sessionFlag',
+        '--resume': 'resumeFlag',
+        '--model': 'modelFlag',
+      },
+    }],
+  },
+  // 静默超时推荐值（慢代理下长工具往返的保护）；首输出硬顶防「连着只刷状态不干活」
+  inactivityTimeoutMs: 180_000,
+  firstOutputTimeoutMs: 300_000,
   requiresVerbose: true,
   promptViaStdin: true,
   // 图片与文本统一走 stream-json JSONL 输入行（Anthropic image 块）
@@ -275,10 +412,15 @@ export const claudeCode: RuntimeDefinition = {
       '--restricted',
       '--allowedTools=mcp__mathmover__*',
     ];
-    if (sessionId) args.push('--session-id', sessionId);
-    if (resumeSessionId) args.push('--resume', resumeSessionId);
+    // 会话/模型旗标按探针结果取舍：探针证实「不认识」才摘（摘了降级单轮/默认模型，
+    // 仍可跑）；没探过（如绕过 detect 直调）维持现状照传——误传顶多死在
+    // 未知旗标上，那是今天的行为；误摘才是新问题（静默丢会话）。
+    const caps = getCapabilities('claude-code');
+    const pass = (key: string) => caps?.[key] !== false;
+    if (sessionId && pass('sessionFlag')) args.push('--session-id', sessionId);
+    if (resumeSessionId && pass('resumeFlag')) args.push('--resume', resumeSessionId);
     // --model 收别名（opus/fable/…）或全名；不设 = 用 CLI 自己的配置
-    if (model) args.push('--model', model);
+    if (model && pass('modelFlag')) args.push('--model', model);
     return [...args, ...extraArgs];
   },
   parseLine(line) {
@@ -458,6 +600,35 @@ export const codex: RuntimeDefinition = {
   displayName: 'Codex',
   executable: 'codex',
   probeArgs: ['--version'],
+  // 实测版本 0.162.1；0.x 发布线内不逐一警告（pre-1.0 次版本仍可能变旗标，
+  // 由下面的值拒绝探针与 fail-closed 兜底）。
+  versionPolicy: {
+    supportedVersions: ['0.162.1'],
+    supportedVersionPattern: /^0\./,
+    requireVersion: true,
+    parse: extractSemverish,
+  },
+  // 会话旗标续接 + capture-style：thread_id 由 CLI 自铸、我方从 thread.started 捕获
+  resumesSessionViaCli: true,
+  capturesSessionIdFromStream: true,
+  // `--model` 是带值旗标，exec 与 exec resume 的旗标集不同（resume 更窄，
+  // 实测没有 --sandbox/--approve-for-me 等）——两个前缀分别探、分别确认。
+  // resume 探针必须带假线程 id 与 prompt 位置参数：不带位置参数时它把空 stdin
+  // 当线程读取而挂死（2026-10-12 实测）。
+  hiddenCapabilityFlags: {
+    probes: [
+      // exec：`-` 是 prompt 读 stdin 的哨兵，配空 stdin 快速走完解析
+      { probeArgsPrefix: ['exec'], probeArgsSuffix: ['-'], flags: { '--model': 'modelFlag' } },
+      // exec resume：必须带假线程 id 与 prompt 位置参数，否则把空 stdin 当线程读取而挂死
+      {
+        probeArgsPrefix: ['exec', 'resume'],
+        probeArgsSuffix: [PROBE_FAKE_THREAD_ID, 'p'],
+        flags: { '--model': 'resumeModelFlag' },
+      },
+    ],
+  },
+  inactivityTimeoutMs: 180_000,
+  firstOutputTimeoutMs: 300_000,
   promptViaStdin: true,
   // 落盘后走 `-i <file>...`（buildArgs 消费 imagePaths）
   imageDelivery: 'argv-paths',
@@ -479,13 +650,17 @@ export const codex: RuntimeDefinition = {
     // 布局要点（实测踩坑）：`-i` 是变长旗标，图片后必须 `--` 终结否则吞 prompt；
     // 而 `--` 之后全是位置参数——所以旗标必须排在 `--` 前面，prompt 哨兵放最末。
     const head = resumeSessionId ? ['exec', 'resume', resumeSessionId] : ['exec'];
+    // --model 必须在 `--` 之前（它是旗标，不是位置参数）。
+    // exec 与 exec resume 的旗标集不同，按各自探针结果取舍（规则同 claude：
+    // 证实不认识才摘，没探过照传）。
+    const caps = getCapabilities('codex');
+    const modelCap = resumeSessionId ? 'resumeModelFlag' : 'modelFlag';
     return [
       ...head,
       '--json',
       '--skip-git-repo-check',
       '-c', 'sandbox_mode="read-only"',
-      // --model 必须在 `--` 之前（它是旗标，不是位置参数）
-      ...(model ? ['--model', model] : []),
+      ...(model && caps?.[modelCap] !== false ? ['--model', model] : []),
       ...codexMcpArgs(mcpConfigPath),
       ...extraArgs,
       ...(imagePaths.length ? ['-i', ...imagePaths, '--'] : []),
@@ -631,6 +806,19 @@ export const dsh: RuntimeDefinition = {
   displayName: 'DeepSeek Harness',
   executable: 'dsh',
   probeArgs: ['--version'],
+  // rc 流版本比发布节奏快（0.1.1-rc.x），点名单个 rc 会让用户周周见警告——
+  // 发布线正则钉在 0.1.x-rc 流（跨小版本可能换协议，该警告），线外照样提。
+  versionPolicy: {
+    supportedVersions: ['0.1.1-rc.1'],
+    supportedVersionPattern: /^0\.1\.\d+-rc\.\d+$/,
+    requireVersion: true,
+    parse: extractSemverish,
+  },
+  // 会话走 profile-stdio 线协议（session_id / resume_session_id 帧），无 CLI 旗标
+  resumesSessionViaProfileStdio: true,
+  // 慢代理下长思考可静默数分钟（曾撞 3 分钟路由超时），静默阈值比 claude/codex 宽
+  inactivityTimeoutMs: 300_000,
+  firstOutputTimeoutMs: 300_000,
   // 协议有原生会话（session_id / resume_session_id），不再需要转写注入。
   // 早先 headless 是一次性无会话，才靠 buildTranscript 补语境；现在重复注入会双份上下文。
   recomposesHistory: false,

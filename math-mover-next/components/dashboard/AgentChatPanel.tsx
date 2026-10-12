@@ -16,6 +16,8 @@ import { conversationTurns } from '@/lib/conversation-index';
 
 export interface RuntimeOption {
   id: string; name: string; version: string | null; usable: boolean;
+  /** 版本策略警告（未验证版本/拒启原因）；没问题不带。 */
+  versionWarning?: string;
   authStatus?: 'ok' | 'missing' | 'unknown'; authMessage?: string; canAttachImages?: boolean;
   /** 该 agent 可选的模型（发现或兜底）。缺省/空 = 没得选，UI 藏掉模型控件。 */
   models?: { list: PickableModel[]; source?: 'live' | 'fallback' };

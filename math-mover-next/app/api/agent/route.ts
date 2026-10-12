@@ -23,7 +23,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, runAgent, resolveSpawnTarget, buildTranscript, validateImages, listAgentModels, resolveModel, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { RUNTIMES, runAgent, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 import { agentRequestHistory } from '@/lib/agent-request-history';
 
 /**
@@ -104,18 +104,18 @@ const SYSTEM_BRIEF = `你在 MathMover 工作台里当 GeoGebra 画图助手。
  *
  * 未指定 id 时取注册顺序第一个**当前可解析**的（仅用于首次进入的默认值）。
  */
-function findRuntime(id?: string): { def: RuntimeDefinition; target: NonNullable<ReturnType<typeof resolveSpawnTarget>> } | null {
+function findRuntime(id?: string): { def: RuntimeDefinition; target: NonNullable<ReturnType<typeof resolveRuntimeTarget>> } | null {
   const wanted = id?.trim();
 
   if (wanted) {
     const def = RUNTIMES.find((r) => r.id === wanted);
     if (!def) return null;                       // 不认识的 id：失败，不猜
-    const target = resolveSpawnTarget(def.executable);
+    const target = resolveRuntimeTarget(def);    // 主可执行名 + fallbackBins 分叉兼容
     return target ? { def, target } : null;      // 选了但起不来：失败，不降级
   }
 
   for (const def of RUNTIMES) {
-    const target = resolveSpawnTarget(def.executable);
+    const target = resolveRuntimeTarget(def);
     if (target) return { def, target };
   }
   return null;
@@ -203,7 +203,9 @@ export async function POST(req: Request): Promise<Response> {
 
   // Only fresh edited native sessions need a retained transcript. Resumed sessions
   // already own their history and must not receive duplicate context.
-  const priorTurns = agentRequestHistory(body, def.recomposesHistory);
+  // resumesSession() 闸双重上下文（OpenDesign agy -c 教训）：即使某个 def 误把
+  // recomposesHistory 和原生会话同时打开，也绝不注入转写。
+  const priorTurns = agentRequestHistory(body, def.recomposesHistory && !resumesSession(def));
   const transcript = priorTurns.length ? buildTranscript(priorTurns) : '';
   const composedPrompt = transcript
     ? `${SYSTEM_BRIEF}\n\n---\n\n## 此前的对话（供延续语境，不要复述）\n${transcript}\n\n---\n\n用户现在说：\n${prompt}`
@@ -225,8 +227,10 @@ export async function POST(req: Request): Promise<Response> {
     reasoningEffort: typeof body.reasoningEffort === 'string' && body.reasoningEffort.trim()
       ? body.reasoningEffort.trim().slice(0, 32) : undefined,
     env: { MATHMOVER_WINDOW_ID: body.windowId ?? '' },
-    // 长任务保护：**静默**超时（不是墙钟），见 run.ts
-    inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? 180_000),
+    // 长任务保护：**静默**超时与**首输出**硬顶（语义见 run.ts / defs.ts）。
+    // per-agent 推荐值在定义上，环境变量仍优先（运维要压测时不用改代码）。
+    inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? def.inactivityTimeoutMs ?? 180_000),
+    firstOutputTimeoutMs: Number(process.env.MATHMOVER_AGENT_FIRST_OUTPUT_TIMEOUT_MS ?? def.firstOutputTimeoutMs ?? 0),
     onEvent: (e) => sink(e),
   });
 
@@ -289,6 +293,7 @@ export async function GET(): Promise<Response> {
       name: d.def.displayName,
       version: d.version,
       usable: d.usable,
+      versionWarning: d.versionWarning,
       authStatus: d.authStatus,
       authMessage: d.authMessage,
       canAttachImages: d.def.imageDelivery != null,

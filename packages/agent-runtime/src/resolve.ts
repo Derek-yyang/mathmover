@@ -117,3 +117,19 @@ export function resolveSpawnTarget(name: string): SpawnTarget | null {
 export function clearResolveCache(): void {
   cache.clear();
 }
+
+/**
+ * 按「主可执行名 + 兜底分叉名」（fallbackBins，对齐 OpenDesign）解析 spawn 目标：
+ * 逐名试 resolveSpawnTarget，取第一个解析出的。分叉（如 openclaude）旗标集
+ * 可能不同——能不能用由值拒绝探针（capabilities.ts）另判，这里只管找得到。
+ */
+export function resolveRuntimeTarget(def: {
+  executable: string;
+  fallbackBins?: string[];
+}): SpawnTarget | null {
+  for (const name of [def.executable, ...(def.fallbackBins ?? [])]) {
+    const target = resolveSpawnTarget(name);
+    if (target) return target;
+  }
+  return null;
+}

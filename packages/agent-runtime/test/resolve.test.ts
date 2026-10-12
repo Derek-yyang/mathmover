@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { clearResolveCache, resolveSpawnTarget } from '../src/resolve.ts';
+import { clearResolveCache, resolveRuntimeTarget, resolveSpawnTarget } from '../src/resolve.ts';
 
 const IS_WIN = process.platform === 'win32';
 const dirs: string[] = [];
@@ -90,5 +90,33 @@ describe('resolveSpawnTarget', () => {
     const target = resolveSpawnTarget('ghost');
     expect(target).not.toBeNull();
     expect(target!.prefixArgs).toEqual([]); // 没解析出 js 入口
+  });
+});
+
+describe('resolveRuntimeTarget — fallbackBins 分叉兼容（对齐 OpenDesign）', () => {
+  it.runIf(IS_WIN)('主名不在 PATH → 试兜底名（如 openclaude）', () => {
+    fakeBin({
+      'fallbackcli.cmd': 'node "%dp0%\\fallbackcli.js" %*\r\n',
+      'fallbackcli.js': 'console.log(1)\n',
+    });
+    const target = resolveRuntimeTarget({ executable: 'mm-not-here-abc', fallbackBins: ['fallbackcli'] });
+    expect(target).not.toBeNull();
+    expect(target!.label).toBe('fallbackcli');
+  });
+
+  it.runIf(IS_WIN)('主名在 → 主名优先，兜底不越位', () => {
+    fakeBin({
+      'primarycli.cmd': 'node "%dp0%\\primarycli.js" %*\r\n',
+      'primarycli.js': 'console.log(1)\n',
+      'fallbackcli.cmd': 'node "%dp0%\\fallbackcli.js" %*\r\n',
+      'fallbackcli.js': 'console.log(1)\n',
+    });
+    const target = resolveRuntimeTarget({ executable: 'primarycli', fallbackBins: ['fallbackcli'] });
+    expect(target!.label).toBe('primarycli');
+  });
+
+  it('都没有 → null，不瞎猜', () => {
+    expect(resolveRuntimeTarget({ executable: 'mm-not-here-abc', fallbackBins: ['mm-not-here-def'] })).toBeNull();
+    expect(resolveRuntimeTarget({ executable: 'mm-not-here-abc' })).toBeNull();
   });
 });
