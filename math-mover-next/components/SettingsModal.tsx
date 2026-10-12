@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import AgentSettings from './settings/AgentSettings';
+import ByokSettings from './settings/ByokSettings';
 
 const quietButton = 'rounded-lg px-3 py-2 text-sm font-medium hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed';
 
@@ -28,6 +29,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
         <AgentSettings />
+        <ByokSettings />
       </div>
     </div>
   </dialog>;

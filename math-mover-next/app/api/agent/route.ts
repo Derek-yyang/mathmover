@@ -23,8 +23,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, runAgent, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { RUNTIMES, runAgent, runByokAgent, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 import { agentRequestHistory } from '@/lib/agent-request-history';
+import { connectMcpTools } from '@/lib/byok-mcp';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -144,6 +145,8 @@ export async function POST(req: Request): Promise<Response> {
     history?: TranscriptTurn[];
     /** 题目图片（发题拿动图的感知侧） */
     images?: unknown;
+    /** BYOK 内置通路的端点配置（来自浏览器设置，经回环传来，不落盘） */
+    byok?: { baseUrl?: string; apiKey?: string; model?: string };
   };
   if (body.windowId) {
     if (!/^[a-zA-Z0-9_-]{1,100}$/.test(body.windowId)) return Response.json({ error: '窗口 ID 无效' }, { status: 400 });
@@ -161,31 +164,50 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  const picked = findRuntime(body.runtimeId);
-  if (!picked) {
+  // BYOK 内置构造通路：不需要本机 agent CLI（对齐 OpenDesign 的 byok-tools 模式），
+  // 模型端点/密钥来自浏览器设置、经回环传入。它的「agent 配置」就是那个设置表单。
+  const isByok = body.runtimeId === 'byok';
+  let byokCfg: { baseUrl: string; apiKey: string; model: string } | null = null;
+  if (isByok) {
+    const cfg = body.byok ?? {};
+    const baseUrl = (cfg.baseUrl ?? '').trim();
+    const model = (cfg.model ?? '').trim();
+    if (!/^https?:\/\//i.test(baseUrl) || !model) {
+      return new Response(
+        line({ kind: 'error', message: '内置构造 Agent 尚未配置：请在设置里填写 API 端点与模型。' }),
+        { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
+      );
+    }
+    byokCfg = { baseUrl, apiKey: (cfg.apiKey ?? '').trim(), model };
+  }
+
+  const picked = isByok ? null : findRuntime(body.runtimeId);
+  if (!picked && !isByok) {
     const wanted = body.runtimeId?.trim();
     const message = wanted
       ? `你选的 agent（${wanted}）当前不可用：要么没安装，要么起不来。` +
         `请在面板里换一个已安装的，或先安装该 CLI。（不会自动降级到别的 agent）`
-      : '本机没有可用的 agent CLI。请安装 Claude Code / Codex / dsh 其一。';
+      : '本机没有可用的 agent CLI。请安装 Claude Code / Codex / dsh 其一，或在设置里配置内置构造 Agent（BYOK）。';
     return new Response(
       line({ kind: 'error', message }),
       { status: 503, headers: { 'content-type': 'application/x-ndjson' } },
     );
   }
-  const { def, target } = picked;
+  const def = picked?.def;
+  const target = picked?.target;
 
   // 模型：先跑一次发现（把 live 清单记进缓存），再校验用户的选择。
   // 不校验会出现「UI 显示了一个模型，实际跑不了」——fallbackModels 只是提示，
   // 不是真清单（见 agent-runtime/src/models.ts）。
   // 推理档位同理：清单取自 agent 自己的配置，有清单就校验。
+  // BYOK 的模型在设置表单里，不走清单校验。
   let model: string | undefined;
   const effort = typeof body.reasoningEffort === 'string' && body.reasoningEffort.trim()
     ? body.reasoningEffort.trim().slice(0, 32) : undefined;
-  if ((typeof body.model === 'string' && body.model.trim()) || effort) {
-    await listAgentModels(def, target).catch(() => null);
+  if (def && ((typeof body.model === 'string' && body.model.trim()) || effort)) {
+    await listAgentModels(def, target ?? def.executable).catch(() => null);
   }
-  if (typeof body.model === 'string' && body.model.trim()) {
+  if (def && typeof body.model === 'string' && body.model.trim()) {
     const resolved = resolveModel(def.id, body.model);
     if (!resolved.ok) {
       return new Response(
@@ -195,7 +217,7 @@ export async function POST(req: Request): Promise<Response> {
     }
     model = resolved.model;
   }
-  if (effort) {
+  if (def && effort) {
     const checked = resolveEffort(def.id, model ?? 'default', effort);
     if (!checked.ok) {
       return new Response(
@@ -214,12 +236,20 @@ export async function POST(req: Request): Promise<Response> {
       { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
     );
   }
+  if (isByok && checked.images.length) {
+    return new Response(
+      line({ kind: 'error', message: '内置构造 Agent（BYOK）暂不支持图片，请用文字描述题目。' }),
+      { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
+    );
+  }
 
   // Only fresh edited native sessions need a retained transcript. Resumed sessions
   // already own their history and must not receive duplicate context.
   // resumesSession() 闸双重上下文（OpenDesign agy -c 教训）：即使某个 def 误把
   // recomposesHistory 和原生会话同时打开，也绝不注入转写。
-  const priorTurns = agentRequestHistory(body, def.recomposesHistory && !resumesSession(def));
+  // BYOK 无原生会话（每次都是新对话），照 recomposesHistory 语义注入前序。
+  const priorTurns = agentRequestHistory(body,
+    isByok || (def ? def.recomposesHistory === true && !resumesSession(def) : false));
   const transcript = priorTurns.length ? buildTranscript(priorTurns) : '';
   const composedPrompt = transcript
     ? `${SYSTEM_BRIEF}\n\n---\n\n## 此前的对话（供延续语境，不要复述）\n${transcript}\n\n---\n\n用户现在说：\n${prompt}`
@@ -229,8 +259,41 @@ export async function POST(req: Request): Promise<Response> {
   const queued: AgentEvent[] = [];
   let sink: (e: AgentEvent) => void = (e) => queued.push(e);
 
-  const handle = runAgent({
-    def,
+  let handle: {
+    done: Promise<{ exitCode: number | null; sessionId?: string }>;
+    cancel: () => void;
+    proc: unknown;
+  };
+  if (isByok && byokCfg) {
+    // 真工具经 MCP stdio（与真实 agent 同一条链路）；连不上就明着失败
+    let mcp: Awaited<ReturnType<typeof connectMcpTools>>;
+    try {
+      mcp = await connectMcpTools({
+        scriptPath: path.join(REPO_ROOT, 'packages/daemon/src/mcp-stdio.ts'),
+        env: { MATHMOVER_DAEMON_URL: DAEMON_URL, MATHMOVER_WINDOW_ID: body.windowId ?? '' },
+      });
+    } catch (e) {
+      return new Response(
+        line({ kind: 'error', message: `内置构造 Agent 启动失败：${e instanceof Error ? e.message : String(e)}` }),
+        { status: 503, headers: { 'content-type': 'application/x-ndjson' } },
+      );
+    }
+    const run = runByokAgent({
+      prompt: composedPrompt,
+      baseUrl: byokCfg.baseUrl,
+      apiKey: byokCfg.apiKey,
+      model: byokCfg.model,
+      tools: mcp.tools,
+      onEvent: (e) => sink(e),
+    });
+    handle = {
+      done: run.done,
+      cancel: () => { run.cancel(); mcp.close(); },
+      proc: {},   // 无子进程可拒启；占位满足流层的统一形状
+    };
+  } else {
+  handle = runAgent({
+    def: def!,
     prompt: composedPrompt,
     mcpConfigPath: MCP_CONFIG_PATH,
     cwd: REPO_ROOT,
@@ -242,16 +305,17 @@ export async function POST(req: Request): Promise<Response> {
     env: { MATHMOVER_WINDOW_ID: body.windowId ?? '' },
     // 长任务保护：**静默**超时与**首输出**硬顶（语义见 run.ts / defs.ts）。
     // per-agent 推荐值在定义上，环境变量仍优先（运维要压测时不用改代码）。
-    inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? def.inactivityTimeoutMs ?? 180_000),
-    firstOutputTimeoutMs: Number(process.env.MATHMOVER_AGENT_FIRST_OUTPUT_TIMEOUT_MS ?? def.firstOutputTimeoutMs ?? 0),
+    inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? def!.inactivityTimeoutMs ?? 180_000),
+    firstOutputTimeoutMs: Number(process.env.MATHMOVER_AGENT_FIRST_OUTPUT_TIMEOUT_MS ?? def!.firstOutputTimeoutMs ?? 0),
     onEvent: (e) => sink(e),
   });
+  }
 
   // 拒启（如 prompt 超 argv 预算）：明着 400，不要拿 200 + 流内错误糊弄
   if (!handle.proc) {
     const first = queued.find((e) => e.kind === 'error');
     return new Response(
-      line({ kind: 'error', message: first?.kind === 'error' ? first.message : `启动 ${def.displayName} 被拒绝` }),
+      line({ kind: 'error', message: first?.kind === 'error' ? first.message : `启动 ${def!.displayName} 被拒绝` }),
       { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
     );
   }
@@ -302,7 +366,13 @@ export async function GET(req: Request): Promise<Response> {
     const listingPromises = new Map(RUNTIMES.map((def) => [def.id,
       listAgentModels(def, resolveRuntimeTarget(def) ?? def.executable).catch(() => null)]));
     const runs = await detectRuntimes();
-    const detected = await Promise.all(runs.map(async (d) => {
+    // 显式宽类型：BYOK 合成条目不在 def 的字面量 id 联合里
+    const detected: Array<{
+      id: string; name: string; version: string | null; usable: boolean;
+      versionWarning?: string; authStatus?: string; authMessage?: string;
+      canAttachImages: boolean;
+      models?: { list: Array<{ id: string; label: string }>; source: string };
+    }> = await Promise.all(runs.map(async (d) => {
       let models: { list: Array<{ id: string; label: string }>; source: string } | undefined;
       if (d.usable) {
         const listing = await listingPromises.get(d.def.id);
@@ -320,6 +390,18 @@ export async function GET(req: Request): Promise<Response> {
         models,
       };
     }));
+    // BYOK 内置通路恒在：不依赖本机 CLI（配置在浏览器设置里，检测只报「已内置」）
+    detected.push({
+      id: 'byok',
+      name: '内置构造 Agent（BYOK）',
+      version: '直连 API · 无需安装',
+      usable: true,
+      versionWarning: undefined,
+      authStatus: undefined,
+      authMessage: undefined,
+      canAttachImages: false,
+      models: { list: [{ id: 'default', label: '默认（用设置里配置的模型）' }], source: 'live' },
+    });
     detectionCache = { at: Date.now(), runtimes: detected };
   }
 
