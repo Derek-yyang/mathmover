@@ -22,10 +22,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { libraryToken } from '../../../../packages/daemon/src/data-directory.ts';
+import { libraryToken, dataDirectory } from '../../../../packages/daemon/src/data-directory.ts';
 import { RUNTIMES, runAgent, runByokAgent, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 import { agentRequestHistory } from '@/lib/agent-request-history';
 import { connectMcpTools } from '@/lib/byok-mcp';
+import { loadByokConfig, isByokRunnable, maskByokConfig } from '@/lib/byok-store';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -145,8 +146,6 @@ export async function POST(req: Request): Promise<Response> {
     history?: TranscriptTurn[];
     /** 题目图片（发题拿动图的感知侧） */
     images?: unknown;
-    /** BYOK 内置通路的端点配置（来自浏览器设置，经回环传来，不落盘） */
-    byok?: { baseUrl?: string; apiKey?: string; model?: string };
   };
   if (body.windowId) {
     if (!/^[a-zA-Z0-9_-]{1,100}$/.test(body.windowId)) return Response.json({ error: '窗口 ID 无效' }, { status: 400 });
@@ -164,21 +163,16 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  // BYOK 内置构造通路：不需要本机 agent CLI（对齐 OpenDesign 的 byok-tools 模式），
-  // 模型端点/密钥来自浏览器设置、经回环传入。它的「agent 配置」就是那个设置表单。
+  // BYOK 内置构造通路：不需要本机 agent CLI（对齐 OpenDesign 的 byok-tools 模式）。
+  // 端点/密钥/模型来自**应用数据目录的配置仓**（key 由本机应用保管、完整值
+  // 永不回传界面），请求体不再携带——与桌面化形态一致。
   const isByok = body.runtimeId === 'byok';
-  let byokCfg: { baseUrl: string; apiKey: string; model: string } | null = null;
-  if (isByok) {
-    const cfg = body.byok ?? {};
-    const baseUrl = (cfg.baseUrl ?? '').trim();
-    const model = (cfg.model ?? '').trim();
-    if (!/^https?:\/\//i.test(baseUrl) || !model) {
-      return new Response(
-        line({ kind: 'error', message: '内置构造 Agent 尚未配置：请在设置里填写 API 端点与模型。' }),
-        { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
-      );
-    }
-    byokCfg = { baseUrl, apiKey: (cfg.apiKey ?? '').trim(), model };
+  const byokCfg = isByok ? loadByokConfig(dataDirectory()) : null;
+  if (isByok && !isByokRunnable(byokCfg)) {
+    return new Response(
+      line({ kind: 'error', message: '内置构造 Agent 尚未配置：请在设置里填写 API 端点与模型。' }),
+      { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
+    );
   }
 
   const picked = isByok ? null : findRuntime(body.runtimeId);
@@ -390,15 +384,19 @@ export async function GET(req: Request): Promise<Response> {
         models,
       };
     }));
-    // BYOK 内置通路恒在：不依赖本机 CLI（配置在浏览器设置里，检测只报「已内置」）
+    // BYOK 内置通路恒在：不依赖本机 CLI。配置状态如实反映（未配置 → 选择器标出）
+    const byokRaw = loadByokConfig(dataDirectory());
+    const byokView = maskByokConfig(byokRaw);
     detected.push({
       id: 'byok',
       name: '内置构造 Agent（BYOK）',
       version: '直连 API · 无需安装',
       usable: true,
       versionWarning: undefined,
-      authStatus: undefined,
-      authMessage: undefined,
+      authStatus: isByokRunnable(byokRaw) ? 'ok' : 'missing',
+      authMessage: byokView.baseUrl && byokView.model
+        ? (byokView.apiKeyConfigured ? `已配置（•••• ${byokView.apiKeyTail}）` : '已配置（本地端点，无密钥）')
+        : '未配置端点与模型，请在设置里填写',
       canAttachImages: false,
       models: { list: [{ id: 'default', label: '默认（用设置里配置的模型）' }], source: 'live' },
     });

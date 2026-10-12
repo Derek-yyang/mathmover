@@ -1,8 +1,10 @@
 /**
  * BYOK 构造通路的 LLM 工具循环（对齐 OpenDesign 的 byok-tools 模式）。
  *
- * 锁住：tool_calls 循环（执行→回喂→再请求）、正文按轮成块、HTTP 错误如实报、
- * 轮次上限防失控、cancel 优雅收尾、未知工具不炸。fetch 全部打桩，零网络。
+ * 锁住：SSE 流式（text-delta 逐块、tool_call 增量拼装）、非流式回落、
+ * tool_calls 循环（执行→回喂→再请求）、HTTP 错误如实报、**轮次用尽优雅
+ * 收尾（对齐 OpenDesign：已吐正文保留、不发 error）**、cancel、未知工具。
+ * fetch 全部打桩，零网络。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runByokAgent, type ByokTool } from '../src/byok.ts';
@@ -21,20 +23,56 @@ const tool: ByokTool = {
   execute: async (args) => ({ content: `applied:${JSON.stringify(args)}` }),
 };
 
-function mockFetch(replies: Array<() => unknown>) {
+/** 非流式 JSON 应答桩（回落路径）。 */
+function mockJsonFetch(replies: Array<() => unknown>) {
   let call = 0;
   return vi.fn(async () => {
     const reply = replies[Math.min(call++, replies.length - 1)]();
-    return { ok: true, status: 200, json: async () => reply } as Response;
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => 'application/json' },
+      json: async () => reply,
+    } as unknown as Response;
+  });
+}
+
+/** SSE 应答桩：每个元素是一次补全的 data 行序列。 */
+function mockSseFetch(rounds: string[][]) {
+  let call = 0;
+  return vi.fn(async () => {
+    const lines = rounds[Math.min(call++, rounds.length - 1)];
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const enc = new TextEncoder();
+        for (const l of lines) controller.enqueue(enc.encode(l + '\n'));
+        controller.close();
+      },
+    });
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => 'text/event-stream' },
+      body: stream,
+    } as unknown as Response;
   });
 }
 
 describe('runByokAgent 工具循环', () => {
-  it('tool_calls 循环：执行→role:tool 回喂→再请求→正文收尾', async () => {
+  it('SSE 流式：text-delta 逐块、tool_call 增量拼装、回喂后收尾', async () => {
     const seen: unknown[] = [];
-    vi.stubGlobal('fetch', mockFetch([
-      () => ({ choices: [{ message: { tool_calls: [{ id: 'c1', type: 'function', function: { name: 'ggb_apply', arguments: '{"commands":["A=(0,0)"]}' } }] } }] }),
-      () => ({ choices: [{ message: { content: '画好了' } }] }),
+    vi.stubGlobal('fetch', mockSseFetch([
+      [
+        'data: {"choices":[{"delta":{"content":"先看"}}]}',
+        'data: {"choices":[{"delta":{"content":"画板"}}]}',
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"ggb_","arguments":"{\\"comm"}}]}}]}',
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"apply","arguments":"ands\\":[\\"A=(0,0)\\"]}"}}]}}]}',
+        'data: [DONE]',
+      ],
+      [
+        'data: {"choices":[{"delta":{"content":"画好了"}}]}',
+        'data: [DONE]',
+      ],
     ]));
     const run = runByokAgent({
       prompt: '画个点', baseUrl: 'http://localhost:1/v1', apiKey: 'k', model: 'm',
@@ -43,39 +81,53 @@ describe('runByokAgent 工具循环', () => {
     });
     const r = await run.done;
     expect(r.exitCode).toBe(0);
+    // 正文按 delta 逐块
+    expect(events.filter(e => e.kind === 'text-delta').map(e => e.text)).toEqual(['先看', '画板', '画好了']);
+    // tool_call 跨帧拼装（name 与 arguments 都是增量）
     expect(seen).toEqual([{ commands: ['A=(0,0)'] }]);
-    expect(events.map(e => e.kind)).toEqual(['raw', 'tool-call', 'tool-result', 'text', 'done']);
+    expect(events.find(e => e.kind === 'tool-call')).toMatchObject({ name: 'ggb_apply', toolCallId: 'c1' });
     expect(events.find(e => e.kind === 'done')).toMatchObject({ status: 'completed' });
-    const fetchMock = globalThis.fetch as ReturnType<typeof mockFetch>;
-    const secondBody = JSON.parse(((fetchMock.mock.calls[1] as unknown[])[1] as { body: string }).body);
-    expect(secondBody.messages.at(-1)).toMatchObject({ role: 'tool', tool_call_id: 'c1', content: 'ok' });
+  });
+
+  it('非流式回落：正文成块 text 事件', async () => {
+    vi.stubGlobal('fetch', mockJsonFetch([
+      () => ({ choices: [{ message: { content: '一次性正文' } }] }),
+    ]));
+    const run = runByokAgent({ prompt: 'x', baseUrl: 'http://localhost:1/v1', apiKey: '', model: 'm', tools: [], onEvent: (e) => events.push(e as never) });
+    expect((await run.done).exitCode).toBe(0);
+    expect(events.find(e => e.kind === 'text')).toMatchObject({ text: '一次性正文' });
   });
 
   it('HTTP 错误如实报状态码与片段', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, statusText: 'Unauthorized', text: async () => 'bad key' }) as Response));
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false, status: 401, statusText: 'Unauthorized', headers: { get: () => 'application/json' }, text: async () => 'bad key',
+    })) as never);
     const run = runByokAgent({ prompt: 'x', baseUrl: 'http://localhost:1/v1', apiKey: '', model: 'm', tools: [], onEvent: (e) => events.push(e as never) });
     expect((await run.done).exitCode).toBeNull();
     expect(events.find(e => e.kind === 'error')).toMatchObject({ message: expect.stringContaining('401') });
   });
 
   it('未知工具不炸：报错结果回喂后继续循环', async () => {
-    vi.stubGlobal('fetch', mockFetch([
+    vi.stubGlobal('fetch', mockJsonFetch([
       () => ({ choices: [{ message: { tool_calls: [{ id: 'c1', type: 'function', function: { name: 'ghost_tool', arguments: '{}' } }] } }] }),
       () => ({ choices: [{ message: { content: 'ok' } }] }),
     ]));
     const run = runByokAgent({ prompt: 'x', baseUrl: 'http://localhost:1/v1', apiKey: '', model: 'm', tools: [tool], onEvent: (e) => events.push(e as never) });
     expect((await run.done).exitCode).toBe(0);
-    const result = events.find(e => e.kind === 'tool-result');
-    expect(result).toMatchObject({ isError: true });
+    expect(events.find(e => e.kind === 'tool-result')).toMatchObject({ isError: true });
   });
 
-  it('工具往返超过上限 → 报错收尾（防失控循环）', async () => {
-    vi.stubGlobal('fetch', mockFetch([
-      () => ({ choices: [{ message: { tool_calls: [{ id: 'c', type: 'function', function: { name: 'ggb_apply', arguments: '{}' } }] } }] }),
-    ]));
+  it('轮次用尽：优雅收尾——已吐正文保留、**不发 error**（对齐 OpenDesign）', async () => {
+    vi.stubGlobal('fetch', mockSseFetch([[
+      'data: {"choices":[{"delta":{"content":"做到一半"}}]}',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c","function":{"name":"ggb_apply","arguments":"{}"}}]}}]}',
+      'data: [DONE]',
+    ]]));
     const run = runByokAgent({ prompt: 'x', baseUrl: 'http://localhost:1/v1', apiKey: '', model: 'm', tools: [tool], maxRounds: 2, onEvent: (e) => events.push(e as never) });
-    expect((await run.done).exitCode).toBeNull();
-    expect(events.find(e => e.kind === 'error')).toMatchObject({ message: expect.stringContaining('上限') });
+    const r = await run.done;
+    expect(r.exitCode).toBe(0);
+    expect(events.some(e => e.kind === 'error')).toBe(false);
+    expect(events.find(e => e.kind === 'done')).toMatchObject({ status: 'completed', resultText: '做到一半' });
   });
 
   it('cancel 优雅收尾为 cancelled', async () => {

@@ -12,7 +12,6 @@ import { useGgbGraphics } from '@/hooks/useGgbGraphics';
 import { beginGgbRestore } from '@/lib/ggb-graphics-state';
 import { attachGgbBridge } from '@/lib/ggb-bridge';
 import { agentFailure, agentResponseError } from '@/lib/agent-diagnostics';
-import { loadByokConfig } from '@/lib/byok-config';
 import { finishExecution, updateToolProgress, toolStepLabel } from '@/lib/agent-progress';
 import { metaFromToolCall, mergeRunMeta } from '@/lib/agent-run-meta';
 import {
@@ -374,8 +373,6 @@ function DashboardContent() {
             model: selectedModel !== 'default' ? selectedModel : undefined,
             reasoningEffort: selectedEffort || undefined,
             images: imagePayloads.length ? imagePayloads : undefined,
-            // BYOK 内置通路：浏览器里的端点配置随请求经回环带给本机服务，不落盘
-            byok: activeRuntimeId === 'byok' ? loadByokConfig() : undefined,
             // 本轮之前保留的对话；编辑时用于重建新会话，dsh 用它延续语境。
             // 带图轮次在转写里只留占位（转写注入是纯文本通道）。
             history: priorMessages
