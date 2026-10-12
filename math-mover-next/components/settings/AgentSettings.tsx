@@ -4,7 +4,7 @@ import { useId, useState } from 'react';
 import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react';
 import { useAgentRuntimeState } from '../dashboard/AgentRuntimeState';
 import type { RuntimeOption } from '../dashboard/AgentChatPanel';
-import { agentGuide, groupAgents } from '@/lib/agent-settings';
+import { agentGuide, groupAgents, INSTALL_STEPS, INSTALL_PATH_HINT } from '@/lib/agent-settings';
 import AgentDiagnosticNotice from '../dashboard/AgentDiagnosticNotice';
 
 const action = 'rounded-lg px-3 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-50';
@@ -14,9 +14,9 @@ function GuideLink({ id, name, install = false }: { id: string; name: string; in
   const guide = agentGuide(id);
   if (!guide) return null;
   return (
-    <a className={link} href={guide.docsUrl} target="_blank" rel="noopener noreferrer"
-      aria-label={`${name} ${install ? '安装说明' : '配置文档'}（新窗口打开）`}>
-      {install ? '安装说明' : '配置文档'}<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+    <a className={link} href={install ? guide.installUrl : guide.docsUrl} target="_blank" rel="noopener noreferrer"
+      aria-label={`${name} ${install ? '安装页' : '配置文档'}（新窗口打开）`}>
+      {install ? '安装' : '配置文档'}<ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
     </a>
   );
 }
@@ -115,18 +115,24 @@ export default function AgentSettings() {
           <summary onClick={event => { event.preventDefault(); setUnavailableOpen(!open); }}
             className="flex cursor-pointer list-none items-center gap-2 rounded py-1 text-sm font-medium text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 [&::-webkit-details-marker]:hidden">
             <ChevronDown className={'h-4 w-4 ' + (open ? '' : '-rotate-90')} aria-hidden="true" />
-            未检测到 <span className="text-stone-600">{groups.unavailable.length}</span>
+            可安装 <span className="text-stone-600">{groups.unavailable.length}</span>
           </summary>
           <div className="mt-2">
-            <p className="text-sm leading-6 text-stone-600">按官方说明安装，并在 Agent 中配置账号与模型。确认命令行程序可运行后，回到这里刷新检测。</p>
+            <ol className="list-decimal space-y-1 pl-5 text-sm leading-6 text-stone-600">
+              {INSTALL_STEPS.map(step => <li key={step}>{step}</li>)}
+            </ol>
             <ul className="mt-3 divide-y divide-stone-200">
               {groups.unavailable.map(runtime => (
                 <li key={runtime.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <span className="min-w-0 break-words text-sm font-medium text-stone-800">{runtime.name}</span>
-                  <GuideLink id={runtime.id} name={runtime.name} install />
+                  <span className="flex shrink-0 items-center gap-4">
+                    <GuideLink id={runtime.id} name={runtime.name} install />
+                    <GuideLink id={runtime.id} name={runtime.name} />
+                  </span>
                 </li>
               ))}
             </ul>
+            <p className="mt-3 rounded-lg bg-stone-100 px-3 py-2 text-xs leading-5 text-stone-600">{INSTALL_PATH_HINT}</p>
           </div>
         </details>
       )}
