@@ -110,6 +110,7 @@ export function runAgent(opts: RunOptions): RunHandle {
     extraArgs: opts.extraArgs,
     imagePaths: materialized.paths,
     model: opts.model,
+    reasoningEffort: opts.reasoningEffort,
   });
 
   // 不经 shell：参数走 argv 数组，避免命令注入（见 resolve.ts）。

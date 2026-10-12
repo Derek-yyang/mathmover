@@ -13,11 +13,12 @@ import {
   DEFAULT_MODEL_OPTION,
   listAgentModels,
   rememberLiveModels,
+  resolveEffort,
   resolveModel,
   liveModelIds,
 } from '../src/models.ts';
-import { claudeConfiguredModels } from '../src/claude-env.ts';
-import { codex, readCodexConfiguredModels, DEFAULT_MODEL_OPTION as DEF_DEFAULT, type RuntimeDefinition } from '../src/defs.ts';
+import { claudeConfiguredModels, claudeDefaultEffort } from '../src/claude-env.ts';
+import { codex, readCodexConfiguredModels, parseClaudeEffortValues, DEFAULT_MODEL_OPTION as DEF_DEFAULT, type RuntimeDefinition } from '../src/defs.ts';
 
 function def(overrides: Partial<RuntimeDefinition> = {}): RuntimeDefinition {
   return {
@@ -198,5 +199,102 @@ describe('codex 模型发现 — config.toml + model_catalog_json 目录', () =>
 
   it('codex 的 fallback 只剩「默认」——硬编码假名会误导真实环境（已踩）', () => {
     expect(codex.fallbackModels).toEqual([DEF_DEFAULT]);
+  });
+
+  it('档位清单取自目录的 supported_reasoning_levels，默认标记取 config 的 model_reasoning_effort', () => {
+    const home = withCodexHome(
+      'model = "gpt-6.1-sol"\nmodel_reasoning_effort = "high"\nmodel_catalog_json = "cc-switch-model-catalog.json"\n',
+      { models: [{ slug: 'gpt-6.1-sol', display_name: 'GPT-6.1-Sol', default_reasoning_level: 'low',
+        supported_reasoning_levels: [
+          { effort: 'low', description: 'Fast responses' },
+          { effort: 'medium', description: 'Balanced' },
+          { effort: 'high', description: 'Deeper' },
+        ] }] },
+    );
+    const [m] = readCodexConfiguredModels(home);
+    expect(m!.reasoningOptions?.map((o) => o.id)).toEqual(['low', 'medium', 'high']);
+    // 用户 config 里实际生效的 high 被标默认，不是目录的 low
+    expect(m!.reasoningOptions?.find((o) => o.default)?.id).toBe('high');
+  });
+
+  it('config 档位不在该模型档位集里 → 退回目录的 default_reasoning_level', () => {
+    const home = withCodexHome(
+      'model = "gpt-6.1-sol"\nmodel_reasoning_effort = "ultra"\nmodel_catalog_json = "cc-switch-model-catalog.json"\n',
+      { models: [{ slug: 'gpt-6.1-sol', default_reasoning_level: 'low',
+        supported_reasoning_levels: [{ effort: 'low' }, { effort: 'high' }] }] },
+    );
+    expect(readCodexConfiguredModels(home)[0]!.reasoningOptions?.find((o) => o.default)?.id).toBe('low');
+  });
+
+  it('目录里没有档位信息 → 不造档位（选择器自然不出现）', () => {
+    const home = withCodexHome(
+      'model = "gpt-6.1-sol"\nmodel_catalog_json = "cc-switch-model-catalog.json"\n',
+      { models: [{ slug: 'gpt-6.1-sol', display_name: 'GPT-6.1-Sol' }] },
+    );
+    expect(readCodexConfiguredModels(home)[0]!.reasoningOptions).toBeUndefined();
+  });
+});
+
+describe('claude 推理档位 — 枚举与默认都取自 agent 自己的配置', () => {
+  it('parseClaudeEffortValues 解析假值报错的 Valid values 枚举（实测 2.1.296 形状）', () => {
+    const text = "Warning: Unknown --effort value 'bogus' — ignoring it and using the default effort. " +
+      'Valid values: low, medium, high, xhigh, max.\n' +
+      'Error: Input must be provided either through stdin or as a prompt argument when using --print';
+    expect(parseClaudeEffortValues(text)).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
+    expect(parseClaudeEffortValues('error: unexpected argument')).toBeNull();
+    expect(parseClaudeEffortValues('')).toBeNull();
+  });
+
+  it('默认档读 settings 的 effortLevel（local 覆盖全局）', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-claude-effort-'));
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.claude', 'settings.json'), JSON.stringify({ effortLevel: 'high' }));
+    expect(claudeDefaultEffort(dir)).toBe('high');
+    fs.writeFileSync(path.join(dir, '.claude', 'settings.local.json'), JSON.stringify({ effortLevel: 'max' }));
+    expect(claudeDefaultEffort(dir)).toBe('max');
+    expect(claudeDefaultEffort(path.join(os.tmpdir(), 'mm-no-such-home-xyz'))).toBeNull();
+  });
+});
+
+describe('listAgentModels 合并运行时级档位 + resolveEffort 校验', () => {
+  const fake = (extra: Partial<RuntimeDefinition> = {}) => ({
+    id: 'fake-cli',
+    displayName: 'Fake',
+    executable: 'no-such-bin',
+    probeArgs: ['--version'],
+    parseLine: () => null,
+    buildArgs: () => [],
+    ...extra,
+  }) as unknown as RuntimeDefinition;
+
+  it('没自带档位的行（含默认行）合并运行时级档位；模型自带的以模型为准', async () => {
+    const def = fake({
+      fetchModels: async () => [
+        { id: 'plain', label: 'Plain' },
+        { id: 'rich', label: 'Rich', reasoningOptions: [{ id: 'own', label: 'own' }] },
+      ],
+      fetchReasoningOptions: async () => [{ id: 'low', label: 'low', default: true }],
+    });
+    const listing = await listAgentModels(def, 'no-such-bin');
+    const byId = new Map(listing.models.map((m) => [m.id, m]));
+    expect(byId.get('default')!.reasoningOptions).toEqual([{ id: 'low', label: 'low', default: true }]);
+    expect(byId.get('plain')!.reasoningOptions).toEqual([{ id: 'low', label: 'low', default: true }]);
+    expect(byId.get('rich')!.reasoningOptions).toEqual([{ id: 'own', label: 'own' }]);
+    // 共享常量不被污染
+    expect(DEF_DEFAULT.reasoningOptions).toBeUndefined();
+  });
+
+  it('resolveEffort：有清单按清单拦，没清单/手填模型/没缓存不拦', async () => {
+    const def = fake({
+      fetchModels: async () => [{ id: 'rich', label: 'Rich', reasoningOptions: [{ id: 'low', label: 'low' }, { id: 'high', label: 'high' }] }],
+    });
+    await listAgentModels(def, 'no-such-bin');
+    expect(resolveEffort('fake-cli', 'rich', 'high').ok).toBe(true);
+    const bad = resolveEffort('fake-cli', 'rich', 'ultra');
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.reason).toContain('low、high');
+    expect(resolveEffort('fake-cli', 'hand-typed', 'ultra').ok).toBe(true);   // 手填模型：放行
+    expect(resolveEffort('never-seen', 'rich', 'ultra').ok).toBe(true);       // 没缓存：放行
+    expect(resolveEffort('fake-cli', 'rich', '').ok).toBe(true);              // 不传：放行
   });
 });

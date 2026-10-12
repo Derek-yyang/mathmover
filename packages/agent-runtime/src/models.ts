@@ -17,6 +17,7 @@ import {
   type RuntimeDefinition,
   type RuntimeModelOption,
   type RuntimeModelSource,
+  type RuntimeReasoningOption,
 } from './defs.ts';
 
 export { DEFAULT_MODEL_OPTION };
@@ -69,6 +70,29 @@ export function resolveModel(
   };
 }
 
+/**
+ * 校验推理档位。档位清单**取自 agent 自己的配置**（见 RuntimeReasoningOption）：
+ * - 无 live 缓存 / 该模型没档位清单：不过问（别替用户判死）
+ * - 手填的模型不在清单里：放行（同 resolveModel 对手填的态度）
+ * - 有清单但档位不在其中：拒绝——UI 显示了一个跑不了的档位是 bug
+ */
+export function resolveEffort(
+  agentId: string,
+  modelId: string | null | undefined,
+  effort: string | null | undefined,
+): { ok: true } | { ok: false; reason: string } {
+  const id = typeof effort === 'string' ? effort.trim() : '';
+  if (!id) return { ok: true };
+  const known = liveModels.get(agentId);
+  if (!known) return { ok: true };
+  const model = known.get((typeof modelId === 'string' && modelId.trim()) || DEFAULT_MODEL_OPTION.id);
+  const options = model?.reasoningOptions;
+  if (!options?.length) return { ok: true };
+  return options.some((o) => o.id === id)
+    ? { ok: true }
+    : { ok: false, reason: `推理档位「${id}」不在该模型的档位清单里：${options.map((o) => o.id).join('、')}` };
+}
+
 /** 跑 `listModels.args` 并解析。失败返回 null（不是抛错——失败要能降级到下一层）。 */
 function runListModels(
   def: RuntimeDefinition,
@@ -111,13 +135,24 @@ export async function listAgentModels(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ModelListing> {
   const target = asSpawn(spawn);
+  // 运行时级档位（claude --effort 这类与模型无关的会话旗标）：发现一次，
+  // 下面合并进没自带档位的行。模型自带的（codex 目录 / dsh --models）以模型为准。
+  let runtimeReasoning: RuntimeReasoningOption[] | null = null;
+  if (def.fetchReasoningOptions) {
+    try {
+      runtimeReasoning = await def.fetchReasoningOptions(target, env);
+    } catch { /* 探不出档位就不出档位选择，不影响模型清单 */ }
+  }
   const withDefault = (models: RuntimeModelOption[], source: RuntimeModelSource, reason?: string): ModelListing => {
     const seen = new Set<string>();
     const merged: RuntimeModelOption[] = [];
     for (const m of [DEFAULT_MODEL_OPTION, ...models]) {
       if (!m || seen.has(m.id)) continue;
       seen.add(m.id);
-      merged.push(m);
+      // DEFAULT_MODEL_OPTION 是共享常量——合并档位时克隆，绝不改原对象
+      merged.push(m.reasoningOptions?.length || !runtimeReasoning?.length
+        ? m
+        : { ...m, reasoningOptions: runtimeReasoning });
     }
     if (source === 'live') rememberLiveModels(def.id, merged);
     return { models: merged, source, reason };
@@ -130,7 +165,7 @@ export async function listAgentModels(
     // 2) 自定义发现
     if (def.fetchModels) {
       try {
-        const models = await def.fetchModels(target.command, env);
+        const models = await def.fetchModels(target, env);
         if (models?.length) return withDefault(models, 'live', `listModels 失败：${r.error}`);
       } catch { /* 继续降级 */ }
     }
@@ -140,7 +175,7 @@ export async function listAgentModels(
   // 2) 自定义发现
   if (def.fetchModels) {
     try {
-      const models = await def.fetchModels(target.command, env);
+      const models = await def.fetchModels(target, env);
       if (models?.length) return withDefault(models, 'live');
     } catch (e) {
       return withDefault(def.fallbackModels ?? [], 'fallback', e instanceof Error ? e.message : String(e));

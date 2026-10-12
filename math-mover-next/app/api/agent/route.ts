@@ -23,7 +23,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, runAgent, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { RUNTIMES, runAgent, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 import { agentRequestHistory } from '@/lib/agent-request-history';
 
 /**
@@ -178,9 +178,14 @@ export async function POST(req: Request): Promise<Response> {
   // 模型：先跑一次发现（把 live 清单记进缓存），再校验用户的选择。
   // 不校验会出现「UI 显示了一个模型，实际跑不了」——fallbackModels 只是提示，
   // 不是真清单（见 agent-runtime/src/models.ts）。
+  // 推理档位同理：清单取自 agent 自己的配置，有清单就校验。
   let model: string | undefined;
-  if (typeof body.model === 'string' && body.model.trim()) {
+  const effort = typeof body.reasoningEffort === 'string' && body.reasoningEffort.trim()
+    ? body.reasoningEffort.trim().slice(0, 32) : undefined;
+  if ((typeof body.model === 'string' && body.model.trim()) || effort) {
     await listAgentModels(def, target).catch(() => null);
+  }
+  if (typeof body.model === 'string' && body.model.trim()) {
     const resolved = resolveModel(def.id, body.model, { supportsCustomModel: def.supportsCustomModel });
     if (!resolved.ok) {
       return new Response(
@@ -189,6 +194,15 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
     model = resolved.model;
+  }
+  if (effort) {
+    const checked = resolveEffort(def.id, model ?? 'default', effort);
+    if (!checked.ok) {
+      return new Response(
+        line({ kind: 'error', message: checked.reason }),
+        { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
+      );
+    }
   }
 
   // 题目图片：这里只校验载荷。递送通道分流、prompt 说明、argv 预算守卫都归
@@ -224,8 +238,7 @@ export async function POST(req: Request): Promise<Response> {
     resumeSessionId: body.sessionId || undefined,
     images: checked.images,
     model,
-    reasoningEffort: typeof body.reasoningEffort === 'string' && body.reasoningEffort.trim()
-      ? body.reasoningEffort.trim().slice(0, 32) : undefined,
+    reasoningEffort: effort,
     env: { MATHMOVER_WINDOW_ID: body.windowId ?? '' },
     // 长任务保护：**静默**超时与**首输出**硬顶（语义见 run.ts / defs.ts）。
     // per-agent 推荐值在定义上，环境变量仍优先（运维要压测时不用改代码）。

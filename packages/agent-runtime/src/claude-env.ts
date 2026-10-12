@@ -79,6 +79,25 @@ export function claudeConfiguredModels(homeDir?: string): RuntimeModelOption[] {
   return out;
 }
 
+/**
+ * settings 的全局推理档位默认（`effortLevel`，settings.local.json 覆盖）。
+ * 这是 agent 自己配置里生效的档位——UI 的默认标记取它，不自造默认。
+ * 读不到返回 null（UI 不标默认，让 agent 用自己的内置默认）。
+ */
+export function claudeDefaultEffort(homeDir?: string): string | null {
+  const home = homeDir ?? os.homedir();
+  const dir = path.join(home, '.claude');
+  const read = (file: string): string | null => {
+    try {
+      const v = (JSON.parse(fs.readFileSync(file, 'utf-8')) as { effortLevel?: unknown })?.effortLevel;
+      return typeof v === 'string' && v.trim() ? v.trim() : null;
+    } catch {
+      return null;
+    }
+  };
+  return read(path.join(dir, 'settings.local.json')) ?? read(path.join(dir, 'settings.json'));
+}
+
 /** 把 settings env 填进 spawn 环境：processEnv 显式设置的优先，settings 只补空缺。 */
 export function withClaudeSettingsEnv(
   processEnv: NodeJS.ProcessEnv | Record<string, string | undefined>,

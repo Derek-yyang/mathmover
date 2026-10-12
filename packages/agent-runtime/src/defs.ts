@@ -16,9 +16,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { formatClaudeStreamJsonInput, type ImageInput } from './images.ts';
-import { claudeConfiguredModels } from './claude-env.ts';
-import { getCapabilities } from './capabilities.ts';
+import { claudeConfiguredModels, claudeDefaultEffort } from './claude-env.ts';
+import { getCapabilities, HIDDEN_FLAG_PROBE_VALUE } from './capabilities.ts';
 
 /** 归一后的事件——前端 useChat 与上层编排都只认这个。 */
 export type AgentEvent =
@@ -39,6 +40,19 @@ export type AgentEvent =
  * 对齐 OpenDesign 的 RuntimeModelOption：**不建模模型能力**（没有 vision / reasoning
  * 等能力标志）。模型能不能看图、推理多深，是用户选型的事，不该由代码判死。
  */
+/**
+ * 推理档位选项。**清单永远取自各家 agent 自己的配置**，不自造统一档位：
+ *   claude —— CLI `--effort` 报错里的 `Valid values:` 枚举 + settings 的 effortLevel 默认
+ *   codex  —— 模型目录的 supported_reasoning_levels + config 的 model_reasoning_effort 默认
+ *   dsh    —— `--models` 自带的 reasoning_options
+ */
+export interface RuntimeReasoningOption {
+  id: string;
+  label: string;
+  /** 默认档位（= agent 自己配置里生效的那个），UI 预选标记 */
+  default?: boolean;
+}
+
 export interface RuntimeModelOption {
   id: string;
   label: string;
@@ -46,7 +60,7 @@ export interface RuntimeModelOption {
    * 该模型支持的推理档位（如 off/low/high/max）。可选——不是所有运行时都有。
    * 这是**运行参数**不是模型能力标志，用户选了就随 execute 帧下发。
    */
-  reasoningOptions?: Array<{ id: string; label: string; default?: boolean }>;
+  reasoningOptions?: RuntimeReasoningOption[];
 }
 
 /**
@@ -193,6 +207,12 @@ export interface RuntimeDefinition {
      * 定义自己决定怎么翻成 argv（dsh 无处可传，忽略）。
      */
     model?: string;
+    /**
+     * 推理档位（来源是各家自己的档位清单，见 RuntimeReasoningOption）。
+     * 不设 = 不传，让 agent 用自己的配置默认。翻译各走各家：
+     * claude `--effort` / codex `-c model_reasoning_effort=…` / dsh 走 execute 帧。
+     */
+    reasoningEffort?: string;
   }): string[];
   /**
    * 把一行 stdout 归一成事件（一行可能含多块 → 数组）；
@@ -228,7 +248,23 @@ export interface RuntimeDefinition {
    * 三者都没有 = 该运行时不做模型选择。
    */
   listModels?: RuntimeListModels;
-  fetchModels?: (resolvedBin: string, env: NodeJS.ProcessEnv) => Promise<RuntimeModelOption[] | null>;
+  /**
+   * 自定义模型发现。收完整的 spawn 目标（.cmd shim 解析后 command 是 node、
+   * 脚本在 prefixArgs 里——只传命令名会 spawn 空 node）。
+   */
+  fetchModels?: (
+    spawn: { command: string; prefixArgs?: string[] },
+    env: NodeJS.ProcessEnv,
+  ) => Promise<RuntimeModelOption[] | null>;
+  /**
+   * 运行时级档位发现（档位与模型无关时用，如 claude 的 `--effort` 是会话旗标）。
+   * listAgentModels 会把它合并到没自带档位的行（默认行、兜底行）；
+   * 模型自带 reasoningOptions（codex 目录 / dsh --models）时以模型的为准。
+   */
+  fetchReasoningOptions?: (
+    spawn: { command: string; prefixArgs?: string[] },
+    env: NodeJS.ProcessEnv,
+  ) => Promise<RuntimeReasoningOption[] | null>;
   /** 兜底提示。UI 显示用，下发前须对 live 清单校验。 */
   fallbackModels?: RuntimeModelOption[];
   /** false = 不给「手填模型名」入口（模型由 profile/配置定，填了也传不进去）。 */
@@ -348,6 +384,17 @@ const CLAUDE_FALLBACK_MODELS: RuntimeModelOption[] = [
   { id: 'claude-haiku-4-5', label: 'claude-haiku-4-5' },
 ];
 
+/**
+ * 解析 claude `--effort` 假值报错里的档位枚举——**枚举是 agent 自己给的**，不自造。
+ * 实测形状（2.1.296）：
+ *   Warning: Unknown --effort value 'bogus' — ignoring it and using the default effort.
+ *   Valid values: low, medium, high, xhigh, max.
+ */
+export function parseClaudeEffortValues(text: string): string[] | null {
+  const m = /Valid values:\s*([a-z0-9]+(?:\s*,\s*[a-z0-9]+)*)/i.exec(text);
+  return m ? m[1].split(/\s*,\s*/).filter(Boolean) : null;
+}
+
 export const claudeCode: RuntimeDefinition = {
   id: 'claude-code',
   displayName: 'Claude Code',
@@ -376,6 +423,7 @@ export const claudeCode: RuntimeDefinition = {
         '--session-id': 'sessionFlag',
         '--resume': 'resumeFlag',
         '--model': 'modelFlag',
+        '--effort': 'effortFlag',
       },
     }],
   },
@@ -395,9 +443,28 @@ export const claudeCode: RuntimeDefinition = {
     const found = claudeConfiguredModels();
     return found.length ? found : null;
   },
+  /**
+   * 档位枚举从 CLI 自己的假值报错里解析（Valid values: …），默认档取 settings
+   * 的 effortLevel——都是 agent 自己的配置，不自造统一档位表。
+   */
+  fetchReasoningOptions: (spawn) => {
+    const r = spawnSync(
+      spawn.command,
+      [...(spawn.prefixArgs ?? []), '-p', '--effort', HIDDEN_FLAG_PROBE_VALUE],
+      { encoding: 'utf-8', timeout: 15_000, windowsHide: true, input: '' },
+    );
+    const values = parseClaudeEffortValues(`${r.stdout ?? ''}\n${r.stderr ?? ''}`);
+    if (!values?.length) return Promise.resolve(null);
+    const fallback = claudeDefaultEffort();
+    return Promise.resolve(values.map((id) => ({
+      id,
+      label: id,
+      ...(id === fallback ? { default: true } : {}),
+    })));
+  },
   fallbackModels: CLAUDE_FALLBACK_MODELS,
   supportsCustomModel: true,
-  buildArgs({ prompt, mcpConfigPath, sessionId, resumeSessionId, extraArgs = [], model }) {
+  buildArgs({ prompt, mcpConfigPath, sessionId, resumeSessionId, extraArgs = [], model, reasoningEffort }) {
     // prompt 不进 argv：经 stdin 传 JSONL（input-format 必须与 output-format 配对）。
     // --allowedTools=mcp__mathmover__* 让自家 MCP 工具免权限分类直通：
     // auto 模式下每次工具调用要过 LLM 安全分类器，分类器抖动会拒工具（实测踩过），
@@ -421,6 +488,8 @@ export const claudeCode: RuntimeDefinition = {
     if (resumeSessionId && pass('resumeFlag')) args.push('--resume', resumeSessionId);
     // --model 收别名（opus/fable/…）或全名；不设 = 用 CLI 自己的配置
     if (model && pass('modelFlag')) args.push('--model', model);
+    // --effort 是会话旗标（low/medium/high/xhigh/max）；不设 = 用 settings 的 effortLevel
+    if (reasoningEffort && pass('effortFlag')) args.push('--effort', reasoningEffort);
     return [...args, ...extraArgs];
   },
   parseLine(line) {
@@ -592,6 +661,8 @@ export function readCodexConfiguredModels(home = process.env.HOME ?? process.env
     const text = fs.readFileSync(path.join(dir, 'config.toml'), 'utf-8');
     const configured = /^\s*model\s*=\s*["']([^"']+)["']/m.exec(text)?.[1]?.trim();
     const catalogName = /^\s*model_catalog_json\s*=\s*["']([^"']+)["']/m.exec(text)?.[1]?.trim();
+    // 用户 config 里实际生效的档位（agent 自己的配置 = 默认标记的来源）
+    const configEffort = /^\s*model_reasoning_effort\s*=\s*["']([^"']+)["']/m.exec(text)?.[1]?.trim();
     const out = new Map<string, RuntimeModelOption>();
     if (catalogName) {
       try {
@@ -601,7 +672,27 @@ export function readCodexConfiguredModels(home = process.env.HOME ?? process.env
           const slug = pick(item, 'slug');
           if (typeof slug !== 'string' || !slug.trim()) continue;
           const name = pick(item, 'display_name');
-          out.set(slug, { id: slug, label: typeof name === 'string' && name.trim() ? name.trim() : slug });
+          // 档位清单取目录的 supported_reasoning_levels（TUI「Select Model and Effort」即它）
+          const options = new Map<string, RuntimeReasoningOption>();
+          const levels = pick(item, 'supported_reasoning_levels');
+          if (Array.isArray(levels)) {
+            for (const lv of levels) {
+              const effort = pick(lv, 'effort');
+              if (typeof effort !== 'string' || !effort.trim()) continue;
+              options.set(effort, { id: effort, label: effort });
+            }
+          }
+          // 默认标记优先用户 config 的 model_reasoning_effort（实际生效的那个），
+          // 不在该模型的档位集里才退回目录的 default_reasoning_level
+          const entryDefault = pick(item, 'default_reasoning_level');
+          const marker = configEffort && options.has(configEffort) ? configEffort
+            : typeof entryDefault === 'string' && options.has(entryDefault) ? entryDefault : null;
+          if (marker) options.get(marker)!.default = true;
+          out.set(slug, {
+            id: slug,
+            label: typeof name === 'string' && name.trim() ? name.trim() : slug,
+            ...(options.size ? { reasoningOptions: [...options.values()] } : {}),
+          });
         }
       } catch { /* 目录坏了：退回只列已配好的那个 */ }
     }
@@ -663,7 +754,7 @@ export const codex: RuntimeDefinition = {
   // 硬编码假名（gpt-5.6-luna 等）纯误导。兜不出就如实给默认项。
   fallbackModels: [DEFAULT_MODEL_OPTION],
   supportsCustomModel: true,
-  buildArgs({ prompt, mcpConfigPath, resumeSessionId, imagePaths = [], extraArgs = [], model }) {
+  buildArgs({ prompt, mcpConfigPath, resumeSessionId, imagePaths = [], extraArgs = [], model, reasoningEffort }) {
     // prompt 不进 argv：`-` 位置参数表示读 stdin（exec 与 exec resume 同语义）。
     // 布局要点（实测踩坑）：`-i` 是变长旗标，图片后必须 `--` 终结否则吞 prompt；
     // 而 `--` 之后全是位置参数——所以旗标必须排在 `--` 前面，prompt 哨兵放最末。
@@ -678,6 +769,8 @@ export const codex: RuntimeDefinition = {
       '--json',
       '--skip-git-repo-check',
       '-c', 'sandbox_mode="read-only"',
+      // 推理档位走 config 同名键（-c 在 exec / exec resume 两侧都收）
+      ...(reasoningEffort ? ['-c', `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`] : []),
       ...(model && caps?.[modelCap] !== false ? ['--model', model] : []),
       ...codexMcpArgs(mcpConfigPath),
       ...extraArgs,

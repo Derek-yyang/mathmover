@@ -94,6 +94,24 @@ describe('buildArgs 闸门：证实不认识才摘，没探过照传', () => {
     const resumed = codex.buildArgs({ prompt: 'p', mcpConfigPath: 'x.json', resumeSessionId: 't1', model: 'gpt-x' });
     expect(resumed).toContain('--model');
   });
+
+  it('推理档位翻译：claude --effort / codex -c model_reasoning_effort（不设 = 用 agent 自己的配置）', () => {
+    // claude：照传（没探过）；探针证实不认识 --effort 时摘掉
+    expect(claudeCode.buildArgs({ prompt: 'p', mcpConfigPath: 'x.json', reasoningEffort: 'high' }))
+      .toContain('--effort');
+    setCapabilities('claude-code', { effortFlag: false });
+    const dropped = claudeCode.buildArgs({ prompt: 'p', mcpConfigPath: 'x.json', reasoningEffort: 'high' });
+    expect(dropped).not.toContain('--effort');
+    clearCapabilities();
+    expect(claudeCode.buildArgs({ prompt: 'p', mcpConfigPath: 'x.json' })).not.toContain('--effort');
+
+    // codex：config 同名键，exec 与 exec resume 都带上；不设不加键
+    const fresh = codex.buildArgs({ prompt: 'p', mcpConfigPath: 'x.json', reasoningEffort: 'xhigh' });
+    expect(fresh).toContain('model_reasoning_effort="xhigh"');
+    const resumed = codex.buildArgs({ prompt: 'p', mcpConfigPath: 'x.json', resumeSessionId: 't1', reasoningEffort: 'xhigh' });
+    expect(resumed).toContain('model_reasoning_effort="xhigh"');
+    expect(codex.buildArgs({ prompt: 'p', mcpConfigPath: 'x.json' }).some((a) => a.includes('model_reasoning_effort'))).toBe(false);
+  });
 });
 
 describe('resumesSession — 会话语法分类学', () => {
