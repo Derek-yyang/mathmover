@@ -13,6 +13,7 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 const IS_WIN = process.platform === 'win32';
@@ -122,14 +123,76 @@ export function clearResolveCache(): void {
  * 按「主可执行名 + 兜底分叉名」（fallbackBins，对齐 OpenDesign）解析 spawn 目标：
  * 逐名试 resolveSpawnTarget，取第一个解析出的。分叉（如 openclaude）旗标集
  * 可能不同——能不能用由值拒绝探针（capabilities.ts）另判，这里只管找得到。
+ *
+ * 解析顺序（对齐 OpenDesign 的 inspectAgentExecutableResolution）：
+ *   1. 显式覆盖 `*_BIN` 环境变量（CLAUDE_BIN / CODEX_BIN / DSH_BIN）——
+ *      用户明示的选择，指哪打哪；**坏了如实不可用**，绝不静默回退 PATH
+ *      （宁可报“没检测到”，也不悄悄换成另一个二进制）
+ *   2. PATH（executable + fallbackBins 逐名）
+ *   3. Codex 桌面 app bundle（macOS 专属兜底，排最低——npm/Homebrew 装的永远优先）
  */
+const AGENT_BIN_ENV_KEYS: Record<string, string> = {
+  'claude-code': 'CLAUDE_BIN',
+  codex: 'CODEX_BIN',
+  dsh: 'DSH_BIN',
+};
+
+/** 该 agent 的 *_BIN 环境变量名（诊断/引导 UI 用）。 */
+export function agentBinEnvKey(id?: string): string | null {
+  return (id && AGENT_BIN_ENV_KEYS[id]) || null;
+}
+
+/** 把一个已存在的文件路径变成 spawn 目标（.cmd shim 解析同主逻辑）；不存在 → null。 */
+function spawnTargetFromFile(filePath: string, label: string): SpawnTarget | null {
+  if (!fs.existsSync(filePath)) return null;
+  if (IS_WIN) {
+    if (/\.(exe|com)$/i.test(filePath)) return { command: filePath, prefixArgs: [], label };
+    if (/\.(cmd|bat)$/i.test(filePath)) {
+      const entry = findEntryInCmdShim(filePath);
+      if (entry?.kind === 'exe') return { command: entry.path, prefixArgs: [], label };
+      if (entry?.kind === 'js') return { command: process.execPath, prefixArgs: [entry.path], label };
+      return { command: filePath, prefixArgs: [], label };
+    }
+    return { command: filePath, prefixArgs: [], label };
+  }
+  return { command: filePath, prefixArgs: [], label };
+}
+
+/**
+ * Codex 桌面 app bundle 的内置 CLI（macOS 专属：`Codex.app/Contents/Resources/codex`；
+ * Windows 没有对应的独立安装形态）。只装了 app 没装 CLI 的用户靠它被发现。
+ * 导出供测试断言候选路径——顺序错了不该默默回归。
+ */
+export function codexAppBundleCandidates(): string[] {
+  if (process.platform !== 'darwin') return [];
+  const home = os.homedir();
+  const suffix = path.join('Codex.app', 'Contents', 'Resources', 'codex');
+  return [path.join(home, 'Applications', suffix), path.join('/Applications', suffix)];
+}
+
+function codexAppBundleTarget(id: string | undefined): SpawnTarget | null {
+  if (id !== 'codex') return null;
+  for (const candidate of codexAppBundleCandidates()) {
+    const target = spawnTargetFromFile(candidate, 'codex');
+    if (target) return target;
+  }
+  return null;
+}
+
 export function resolveRuntimeTarget(def: {
+  id?: string;
   executable: string;
   fallbackBins?: string[];
 }): SpawnTarget | null {
+  const envKey = agentBinEnvKey(def.id);
+  const override = envKey ? process.env[envKey]?.trim() : undefined;
+  if (override) {
+    // 显式选择不做 PATH 回退：指错了就如实不可用（不静默换二进制）
+    return spawnTargetFromFile(path.resolve(override), def.executable);
+  }
   for (const name of [def.executable, ...(def.fallbackBins ?? [])]) {
     const target = resolveSpawnTarget(name);
     if (target) return target;
   }
-  return null;
+  return codexAppBundleTarget(def.id);
 }

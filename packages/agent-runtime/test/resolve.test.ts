@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { clearResolveCache, resolveRuntimeTarget, resolveSpawnTarget } from '../src/resolve.ts';
+import { clearResolveCache, resolveRuntimeTarget, resolveSpawnTarget, agentBinEnvKey, codexAppBundleCandidates } from '../src/resolve.ts';
 
 const IS_WIN = process.platform === 'win32';
 const dirs: string[] = [];
@@ -118,5 +118,46 @@ describe('resolveRuntimeTarget — fallbackBins 分叉兼容（对齐 OpenDesign
   it('都没有 → null，不瞎猜', () => {
     expect(resolveRuntimeTarget({ executable: 'mm-not-here-abc', fallbackBins: ['mm-not-here-def'] })).toBeNull();
     expect(resolveRuntimeTarget({ executable: 'mm-not-here-abc' })).toBeNull();
+  });
+});
+
+describe('resolveRuntimeTarget — *_BIN 显式覆盖（对齐 OpenDesign 的 AGENT_BIN_ENV_KEYS）', () => {
+  const saved: Record<string, string | undefined> = {};
+  const setEnv = (key: string, value: string | undefined) => {
+    if (!(key in saved)) saved[key] = process.env[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+    clearResolveCache();
+  };
+  afterEach(() => {
+    for (const [key, value] of Object.entries(saved)) setEnv(key, value);
+    for (const key of Object.keys(saved)) delete saved[key];
+    clearResolveCache();
+  });
+
+  it('键名映射：claude-code/codex/dsh → CLAUDE_BIN/CODEX_BIN/DSH_BIN', () => {
+    expect(agentBinEnvKey('claude-code')).toBe('CLAUDE_BIN');
+    expect(agentBinEnvKey('codex')).toBe('CODEX_BIN');
+    expect(agentBinEnvKey('dsh')).toBe('DSH_BIN');
+    expect(agentBinEnvKey('unknown')).toBeNull();
+    expect(codexAppBundleCandidates()).toEqual([]);   // Windows 无 app bundle 形态
+  });
+
+  it('覆盖优先于 PATH；指向 .cmd 时照常解析 shim 入口', () => {
+    const dir = fakeBin({
+      'ovrcli.cmd': 'node "%dp0%\\ovrcli.js" %*\r\n',
+      'ovrcli.js': 'console.log(1)\n',
+    });
+    setEnv('CLAUDE_BIN', path.join(dir, 'ovrcli.cmd'));
+    const target = resolveRuntimeTarget({ id: 'claude-code', executable: 'mm-not-here-abc' });
+    expect(target).not.toBeNull();
+    expect(target!.command).toBe(process.execPath);
+    expect(target!.prefixArgs).toEqual([path.join(dir, 'ovrcli.js')]);
+  });
+
+  it('覆盖指错：如实不可用，绝不静默回退 PATH（用户明示的选择坏了要暴露）', () => {
+    fakeBin({ 'pathcli.cmd': 'node "%dp0%\\pathcli.js" %*\r\n', 'pathcli.js': 'console.log(1)\n' });
+    setEnv('CLAUDE_BIN', path.join(os.tmpdir(), 'mm-no-such-bin-xyz'));
+    expect(resolveRuntimeTarget({ id: 'claude-code', executable: 'pathcli' })).toBeNull();
   });
 });
