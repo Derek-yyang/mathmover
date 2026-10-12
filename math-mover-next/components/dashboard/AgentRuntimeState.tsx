@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { RuntimeOption } from './AgentChatPanel';
 import { agentFailure, agentResponseError, type AgentDiagnostic } from '@/lib/agent-diagnostics';
+import { purgeLegacyByokKey } from '@/lib/byok-config';
 
 interface AgentRuntimeState {
   runtimes: RuntimeOption[];
@@ -63,6 +64,7 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try { setActiveRuntimeId(localStorage.getItem('mm.agentId') || undefined); } catch {}
+    purgeLegacyByokKey();   // localStorage 时代的 BYOK 残键（可能含 key 本体）进台即清
     void refreshRuntimes({ fresh: false });
     return () => { pending.current?.abort(); pending.current = null; };
   }, [refreshRuntimes]);

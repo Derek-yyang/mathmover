@@ -13,6 +13,16 @@ export interface ByokConfigView {
   apiKeyTail: string;
 }
 
+/**
+ * 一次性迁移清理：localStorage 时代（密钥迁入应用数据目录之前）的 `mm.byok`
+ * 残键可能含完整 key 本体——进工作台即清除，不等设置页打开。
+ */
+export function purgeLegacyByokKey(): void {
+  try {
+    localStorage.removeItem('mm.byok');
+  } catch { /* 隐私模式等读不了 localStorage：跳过 */ }
+}
+
 export async function fetchByokConfig(): Promise<ByokConfigView> {
   const res = await fetch('/api/byok');
   if (!res.ok) throw new Error(`读取 BYOK 配置失败（HTTP ${res.status}）`);

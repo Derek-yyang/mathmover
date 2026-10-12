@@ -10,6 +10,11 @@ const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKi
 const { loadByokConfig, saveByokConfig, maskByokConfig, isByokRunnable } =
   await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 
+const cfgSource = readFileSync(new URL('../lib/byok-config.ts', import.meta.url), 'utf8');
+const cfgCode = ts.transpileModule(cfgSource, { compilerOptions: { module: ts.ModuleKind.ES2020 } }).outputText;
+const { purgeLegacyByokKey } =
+  await import('data:text/javascript;base64,' + Buffer.from(cfgCode).toString('base64'));
+
 const tmp = () => mkdtempSync(path.join(os.tmpdir(), 'mm-byok-store-'));
 
 test('保存后读回一致；掩码只给尾 4 位，完整 key 不出仓', () => {
@@ -49,4 +54,17 @@ test('掩码与可跑判定：缺端点或模型不可跑；本地端点无 key 
   assert.equal(isByokRunnable({ baseUrl: 'http://x/v1', apiKey: '', model: 'm' }), true);
   assert.equal(isByokRunnable({ baseUrl: 'ftp://x', apiKey: '', model: 'm' }), false);
   assert.deepEqual(maskByokConfig(null), { baseUrl: '', model: '', apiKeyConfigured: false, apiKeyTail: '' });
+});
+
+test('purgeLegacyByokKey 清掉 localStorage 时代的 mm.byok 残键（可能含 key 本体）', () => {
+  const removed = [];
+  globalThis.localStorage = { removeItem: (k) => removed.push(k) };
+  purgeLegacyByokKey();
+  assert.deepEqual(removed, ['mm.byok']);
+  delete globalThis.localStorage;
+});
+
+test('purgeLegacyByokKey 在 localStorage 不可读时静默跳过', () => {
+  delete globalThis.localStorage;
+  assert.doesNotThrow(() => purgeLegacyByokKey());
 });
