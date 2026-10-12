@@ -35,7 +35,7 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
     pending.current?.abort();
     const controller = new AbortController();
     pending.current = controller;
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 30000);
     setDetecting(true);
     setDetectionError(null);
     try {
@@ -53,7 +53,7 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
       setActiveRuntimeId(previous => previous ?? list.find(item => item.usable)?.id ?? list[0]?.id);
     } catch (error) {
       if (pending.current === controller) setDetectionError(agentFailure({
-        stage: 'detect', message: controller.signal.aborted ? '检测等待超过 20 秒。' : error instanceof Error ? error.message : String(error),
+        stage: 'detect', message: controller.signal.aborted ? '检测等待超过 30 秒。' : error instanceof Error ? error.message : String(error),
       }));
     } finally {
       clearTimeout(timeout);

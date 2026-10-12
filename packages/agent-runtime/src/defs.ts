@@ -469,7 +469,8 @@ export const claudeCode: RuntimeDefinition = {
       { timeoutMs: 15_000, input: '' },
     );
     const values = parseClaudeEffortValues(`${r.stdout ?? ''}\n${r.stderr ?? ''}`);
-    const result = !values?.length ? null : values.map((id) => ({
+    if (!values?.length) return null;   // 失败不入缓存：并发挤兑下的超时不该被记住
+    const result = values.map((id) => ({
       id,
       label: id,
       ...(id === claudeDefaultEffort() ? { default: true } : {}),
@@ -979,7 +980,9 @@ export const dsh: RuntimeDefinition = {
   promptViaStdin: true,
   listModels: {
     args: ['--profile', DSH_PROFILE, '--models'],
-    timeoutMs: 10_000,
+    // dsh 的 --models 要整个 runtime/profile 起来才吐目录，冷启动本来就慢，
+    // 探测风暴下再放宽些（曾被挤过 10s 超时而误降级成只剩「默认」）
+    timeoutMs: 20_000,
     parse: parseDshModels,
   },
   fallbackModels: [DEFAULT_MODEL_OPTION],

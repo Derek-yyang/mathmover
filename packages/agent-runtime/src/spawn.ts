@@ -9,6 +9,28 @@
 
 import { spawn } from 'node:child_process';
 
+/**
+ * 全局并发闸门：探测风暴会同时拉起十几个 agent CLI 冷启动（每个都是一整个
+ * node 进程），Windows 上互相挤兑反而更慢，弱一点的探针（如 dsh --models）
+ * 还会被拖过自己的超时而误降级（2026-10-12 实测）。限 4 路并发：既不 thrash，
+ * 又比串行快得多。
+ */
+let active = 0;
+const waiting: Array<() => void> = [];
+const CONCURRENCY_LIMIT = 6;
+
+function acquire(): Promise<void> | void {
+  if (active < CONCURRENCY_LIMIT) { active += 1; return; }
+  return new Promise<void>((resolve) => {
+    waiting.push(() => { active += 1; resolve(); });
+  });
+}
+
+function release(): void {
+  active -= 1;
+  waiting.shift()?.();
+}
+
 export interface CaptureResult {
   stdout: string;
   stderr: string;
@@ -22,7 +44,7 @@ export function spawnCapture(
   args: string[],
   opts: { timeoutMs?: number; input?: string; env?: NodeJS.ProcessEnv } = {},
 ): Promise<CaptureResult> {
-  return new Promise((resolve) => {
+  const run = (): Promise<CaptureResult> => new Promise((resolve) => {
     let settled = false;
     const done = (result: CaptureResult) => {
       if (settled) return;
@@ -63,4 +85,8 @@ export function spawnCapture(
       try { proc.stdin?.end(); } catch { /* stdin 不可写 */ }
     }
   });
+  return (async () => {
+    await acquire();
+    try { return await run(); } finally { release(); }
+  })();
 }
