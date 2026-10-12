@@ -234,6 +234,49 @@ describe('codex 模型发现 — config.toml + model_catalog_json 目录', () =>
     );
     expect(readCodexConfiguredModels(home)[0]!.reasoningOptions).toBeUndefined();
   });
+
+  /** cc-switch 按账号缓存的官方模型目录（桌面端「推荐模型集」的出处）。 */
+  function withCcSwitch(home: string, accounts: unknown): string {
+    const dir = path.join(home, '.cc-switch');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'codex-official-models.json'), JSON.stringify(accounts), 'utf-8');
+    return home;
+  }
+
+  it('cc-switch 官方目录：与桌面端「推荐模型集」一致（跟着 ccswitch 走）', () => {
+    const home = withCcSwitch(withCodexHome('model = "gpt-6-luna"\n'), {
+      'account-1': {
+        client_version: '0.162.0',
+        models: [
+          { slug: 'gpt-6.1-sol', display_name: 'GPT-6.1-Sol', default_reasoning_level: 'low',
+            supported_reasoning_levels: [{ effort: 'low', description: 'x' }, { effort: 'high', description: 'y' }] },
+          { slug: 'gpt-6-luna', display_name: 'GPT-6-Luna', default_reasoning_level: 'medium',
+            supported_reasoning_levels: ['low', 'medium', 'high'] },
+        ],
+      },
+    });
+    const models = readCodexConfiguredModels(home);
+    expect(models.map((m) => m.id)).toEqual(['gpt-6.1-sol', 'gpt-6-luna']);
+    // 对象与纯字符串两种 levels 形状都能吃；默认标记取条目的 default
+    expect(models[0]!.reasoningOptions?.map((o) => o.id)).toEqual(['low', 'high']);
+    expect(models[1]!.reasoningOptions?.find((o) => o.default)?.id).toBe('medium');
+    // config 配的那个就在目录里：去重后只留一条（不重复补列）
+    expect(models.filter((m) => m.id === 'gpt-6-luna').length).toBe(1);
+  });
+
+  it('三源合并去重：官方目录先到先得，config 的 model 兜底补列', () => {
+    const home = withCcSwitch(
+      withCodexHome('model = "solo"\nmodel_catalog_json = "cc-switch-model-catalog.json"\n', {
+        models: [{ slug: 'gpt-6.1-sol', display_name: 'GPT-6.1-Sol（别处来的）' }, { slug: 'extra', display_name: 'Extra' }],
+      }),
+      { 'account-1': { models: [{ slug: 'gpt-6.1-sol', display_name: 'GPT-6.1-Sol' }] } },
+    );
+    const models = readCodexConfiguredModels(home);
+    expect(models.map((m) => m.id)).toEqual(['gpt-6.1-sol', 'extra', 'solo']);
+    // 冲突时官方目录先到先得
+    expect(models[0]!.label).toBe('GPT-6.1-Sol');
+    expect(models.at(-1)!.label).toBe('solo（config.toml）');
+  });
 });
 
 describe('claude 推理档位 — 枚举与默认都取自 agent 自己的配置', () => {

@@ -644,13 +644,17 @@ function codexMcpArgs(mcpConfigPath: string): string[] {
  *   turn.completed（usage）。
  */
 /**
- * 读 ~/.codex/config.toml 的 `model = "..."` 与 `model_catalog_json = "..."`，
- * 返回「目录里的模型 + 已配好的那个」。
+ * 读 codex 的模型清单。**跟着 cc-switch 走**（产品裁决 2026-10-12：与桌面端
+ * 保持一致——cc-switch 是 codex 模型接入的配置工具，桌面端「推荐模型集」即它
+ * 按账号缓存的官方模型目录）。三个来源合并去重（slug 为准，先到先得）：
+ *   1. ~/.cc-switch/codex-official-models.json —— 官方模型目录缓存，
+ *      条目带 supported_reasoning_levels / default_reasoning_level
+ *   2. config 引用的 model_catalog_json（若有）
+ *   3. config 的 `model =` 已配好的那个（不在前两者也补上，label 标明来源）
  *
- * 目录文件（如 cc-switch 写的 cc-switch-model-catalog.json）是本机 codex TUI
- * 模型选择器实际展示的清单（2026-10-12 实测 `/model` 对照一致）：slug 作下发
- * id，display_name 作展示名。自定义 provider 时可用集由端点决定，我们无从枚举——
- * 目录缺失/损坏就退回只列已配好的那个，**宁缺勿编**（假名兜底曾误导过用户）。
+ * 档位默认标记取 config 的 model_reasoning_effort（实际生效的那个），
+ * 不在该模型档位集才退回条目的 default_reasoning_level。
+ * 宁缺勿编：都读不到就只列已配好的那个——目录不捏。
  */
 export function readCodexConfiguredModels(home = process.env.HOME ?? process.env.USERPROFILE ?? ''): RuntimeModelOption[] {
   try {
@@ -661,38 +665,54 @@ export function readCodexConfiguredModels(home = process.env.HOME ?? process.env
     // 用户 config 里实际生效的档位（agent 自己的配置 = 默认标记的来源）
     const configEffort = /^\s*model_reasoning_effort\s*=\s*["']([^"']+)["']/m.exec(text)?.[1]?.trim();
     const out = new Map<string, RuntimeModelOption>();
+
+    const addEntry = (item: unknown) => {
+      const slug = pick(item, 'slug');
+      if (typeof slug !== 'string' || !slug.trim() || out.has(slug)) return;
+      const name = pick(item, 'display_name');
+      // 档位清单取条目的 supported_reasoning_levels（桌面端底部档位条即它）。
+      // 兼容 [{effort, description}] 与纯字符串两种形状。
+      const options = new Map<string, RuntimeReasoningOption>();
+      const levels = pick(item, 'supported_reasoning_levels');
+      if (Array.isArray(levels)) {
+        for (const lv of levels) {
+          const effort = typeof lv === 'string' ? lv : pick(lv, 'effort');
+          if (typeof effort !== 'string' || !effort.trim()) continue;
+          options.set(effort, { id: effort, label: effort });
+        }
+      }
+      // 默认标记优先用户 config 的 model_reasoning_effort（实际生效的那个），
+      // 不在该模型的档位集里才退回条目的 default_reasoning_level
+      const entryDefault = pick(item, 'default_reasoning_level');
+      const marker = configEffort && options.has(configEffort) ? configEffort
+        : typeof entryDefault === 'string' && options.has(entryDefault) ? entryDefault : null;
+      if (marker) options.get(marker)!.default = true;
+      out.set(slug, {
+        id: slug,
+        label: typeof name === 'string' && name.trim() ? name.trim() : slug,
+        ...(options.size ? { reasoningOptions: [...options.values()] } : {}),
+      });
+    };
+
+    // 1. cc-switch 缓存的官方模型目录（按账号缓存的映射，多账号合并去重）
+    try {
+      const raw = JSON.parse(fs.readFileSync(path.join(home, '.cc-switch', 'codex-official-models.json'), 'utf-8'));
+      for (const account of Object.values(raw ?? {}) as Array<{ models?: unknown }>) {
+        const models = pick(account, 'models');
+        if (Array.isArray(models)) for (const m of models) addEntry(m);
+      }
+    } catch { /* cc-switch 不在/没缓存：退回下面的来源 */ }
+
+    // 2. config 引用的目录（换模型工具写给 codex 的当前目录）
     if (catalogName) {
       try {
         const catalogPath = path.isAbsolute(catalogName) ? catalogName : path.join(dir, catalogName);
         const raw = JSON.parse(fs.readFileSync(catalogPath, 'utf-8')) as { models?: unknown };
-        for (const item of Array.isArray(raw.models) ? raw.models : []) {
-          const slug = pick(item, 'slug');
-          if (typeof slug !== 'string' || !slug.trim()) continue;
-          const name = pick(item, 'display_name');
-          // 档位清单取目录的 supported_reasoning_levels（TUI「Select Model and Effort」即它）
-          const options = new Map<string, RuntimeReasoningOption>();
-          const levels = pick(item, 'supported_reasoning_levels');
-          if (Array.isArray(levels)) {
-            for (const lv of levels) {
-              const effort = pick(lv, 'effort');
-              if (typeof effort !== 'string' || !effort.trim()) continue;
-              options.set(effort, { id: effort, label: effort });
-            }
-          }
-          // 默认标记优先用户 config 的 model_reasoning_effort（实际生效的那个），
-          // 不在该模型的档位集里才退回目录的 default_reasoning_level
-          const entryDefault = pick(item, 'default_reasoning_level');
-          const marker = configEffort && options.has(configEffort) ? configEffort
-            : typeof entryDefault === 'string' && options.has(entryDefault) ? entryDefault : null;
-          if (marker) options.get(marker)!.default = true;
-          out.set(slug, {
-            id: slug,
-            label: typeof name === 'string' && name.trim() ? name.trim() : slug,
-            ...(options.size ? { reasoningOptions: [...options.values()] } : {}),
-          });
-        }
+        if (Array.isArray(raw.models)) for (const m of raw.models) addEntry(m);
       } catch { /* 目录坏了：退回只列已配好的那个 */ }
     }
+
+    // 3. config 的 model 行（已配好的那个始终在列）
     if (configured && !out.has(configured)) {
       out.set(configured, { id: configured, label: `${configured}（config.toml）` });
     }
