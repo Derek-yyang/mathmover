@@ -50,10 +50,10 @@ describe('firstOutputTimeoutMs — 首输出硬顶', () => {
 
   it('实质输出一出即解除：其后长静默不误杀', async () => {
     const events = await collect({
-      def: fakeDef({}, 'console.log("text:hi"); setTimeout(() => {}, 1200)'),
+      def: fakeDef({}, 'console.log("text:hi"); setTimeout(() => {}, 3000)'),
       prompt: 'x',
       mcpConfigPath: 'x.json',
-      firstOutputTimeoutMs: 400,
+      firstOutputTimeoutMs: 1500,
     });
     expect(events.some((e) => e.kind === 'text')).toBe(true);
     expect(events.some((e) => e.kind === 'error')).toBe(false);
@@ -61,11 +61,11 @@ describe('firstOutputTimeoutMs — 首输出硬顶', () => {
 
   it('状态帧不顺延硬顶：刷心跳不干活照样超时', async () => {
     const events = await collect({
-      // 第一拍同步吐出（躲开 node 冷启动的时序抖动），之后每 60ms 一拍
-      def: fakeDef({}, 'let n = 0; console.log("beat:" + (n++)); const t = setInterval(() => console.log("beat:" + (n++)), 60); setTimeout(() => clearInterval(t), 3000)'),
+      // 第一拍同步吐出（躲开 node 冷启动的时序抖动），之后每 100ms 一拍
+      def: fakeDef({}, 'let n = 0; console.log("beat:" + (n++)); const t = setInterval(() => console.log("beat:" + (n++)), 100); setTimeout(() => clearInterval(t), 5000)'),
       prompt: 'x',
       mcpConfigPath: 'x.json',
-      firstOutputTimeoutMs: 500,
+      firstOutputTimeoutMs: 1500,
     });
     // 心跳一直在刷（session 帧），但没有实质输出
     expect(events.some((e) => e.kind === 'session')).toBe(true);

@@ -288,31 +288,40 @@ export async function POST(req: Request): Promise<Response> {
   });
 }
 
+/** 探测结果缓存：探测要 spawn 各家 CLI（冷启动数秒），页面加载/设置面板会反复问。
+ *  TTL 60 秒；「刷新检测」带 ?fresh=1 强制重探。画布健康检查不缓存。 */
+let detectionCache: { at: number; runtimes: unknown[] } | null = null;
+
 /** 健康检查：有哪些 agent 可用 + 画布是否连着。 */
-export async function GET(): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
   const { detectRuntimes, listAgentModels } = await import('@mathmover/agent-runtime');
-  const detected = await Promise.all(detectRuntimes().map(async (d) => {
-    // 模型清单：能用的才探（claude/codex 读配置文件，很快；有 listModels 的才 spawn）。
-    // 探失败不影响运行时本身可用——只是模型下拉没得选。
-    let models: { list: Array<{ id: string; label: string }>; source: string } | undefined;
-    if (d.usable) {
-      try {
-        const listing = await listAgentModels(d.def, d.target ?? d.def.executable);
-        models = { list: listing.models, source: listing.source };
-      } catch { /* 不带模型清单，前端据 hides 控件 */ }
-    }
-    return {
-      id: d.def.id,
-      name: d.def.displayName,
-      version: d.version,
-      usable: d.usable,
-      versionWarning: d.versionWarning,
-      authStatus: d.authStatus,
-      authMessage: d.authMessage,
-      canAttachImages: d.def.imageDelivery != null,
-      models,
-    };
-  }));
+  const fresh = new URL(req.url).searchParams.has('fresh');
+  if (fresh || !detectionCache || Date.now() - detectionCache.at > 60_000) {
+    // 清单发现与探测**并行**发：两边都含 CLI 冷启动（秒级），串行会让墙钟翻倍
+    // （实测 14s → 并行后≈单阶段）。探失败不影响运行时本身可用——只是没得选。
+    const listingPromises = new Map(RUNTIMES.map((def) => [def.id,
+      listAgentModels(def, resolveRuntimeTarget(def) ?? def.executable).catch(() => null)]));
+    const runs = await detectRuntimes();
+    const detected = await Promise.all(runs.map(async (d) => {
+      let models: { list: Array<{ id: string; label: string }>; source: string } | undefined;
+      if (d.usable) {
+        const listing = await listingPromises.get(d.def.id);
+        if (listing) models = { list: listing.models, source: listing.source };
+      }
+      return {
+        id: d.def.id,
+        name: d.def.displayName,
+        version: d.version,
+        usable: d.usable,
+        versionWarning: d.versionWarning,
+        authStatus: d.authStatus,
+        authMessage: d.authMessage,
+        canAttachImages: d.def.imageDelivery != null,
+        models,
+      };
+    }));
+    detectionCache = { at: Date.now(), runtimes: detected };
+  }
 
   let canvasConnected = false;
   try {
@@ -326,7 +335,7 @@ export async function GET(): Promise<Response> {
     ok: true,
     daemon: DAEMON_URL,
     canvasConnected,
-    runtimes: detected,
+    runtimes: detectionCache?.runtimes ?? [],
     activeRuntime: RUNTIMES[0].id,
   });
 }

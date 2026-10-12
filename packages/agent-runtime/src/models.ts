@@ -11,7 +11,6 @@
  * 实际跑不了」——OpenDesign 的注释原话：don't trust any value present in the
  * static fallback。
  */
-import { spawnSync } from 'node:child_process';
 import {
   DEFAULT_MODEL_OPTION,
   type RuntimeDefinition,
@@ -19,6 +18,7 @@ import {
   type RuntimeModelSource,
   type RuntimeReasoningOption,
 } from './defs.ts';
+import { spawnCapture } from './spawn.ts';
 
 export { DEFAULT_MODEL_OPTION };
 
@@ -94,20 +94,18 @@ export function resolveEffort(
     : { ok: false, reason: `推理档位「${id}」不在该模型的档位清单里：${options.map((o) => o.id).join('、')}` };
 }
 
-/** 跑 `listModels.args` 并解析。失败返回 null（不是抛错——失败要能降级到下一层）。 */
-function runListModels(
+/** 跑 `listModels.args` 并解析。失败返回错误对象（不是抛错——失败要能降级到下一层）。 */
+async function runListModels(
   def: RuntimeDefinition,
   spawn: { command: string; prefixArgs?: string[] },
   env: NodeJS.ProcessEnv,
-): { models: RuntimeModelOption[] } | { error: string } {
+): Promise<{ models: RuntimeModelOption[] } | { error: string }> {
   const spec = def.listModels!;
-  const r = spawnSync(spawn.command, [...(spawn.prefixArgs ?? []), ...spec.args], {
-    encoding: 'utf-8',
-    timeout: spec.timeoutMs ?? 8000,
+  const r = await spawnCapture(spawn.command, [...(spawn.prefixArgs ?? []), ...spec.args], {
+    timeoutMs: spec.timeoutMs ?? 8000,
     env,
-    windowsHide: true,
   });
-  if (r.status !== 0) return { error: `exit ${r.status}${r.error ? ` (${r.error.message})` : ''}` };
+  if (r.failed || r.status !== 0) return { error: `exit ${r.status ?? 'spawn failed'}` };
   try {
     const parsed = spec.parse(r.stdout ?? '');
     return parsed && parsed.length ? { models: parsed } : { error: '解析结果为空' };
@@ -161,7 +159,7 @@ export async function listAgentModels(
 
   // 1) CLI 自带的 models 子命令
   if (def.listModels) {
-    const r = runListModels(def, target, env);
+    const r = await runListModels(def, target, env);
     if ('models' in r) return withDefault(r.models, 'live');
     // 2) 自定义发现
     if (def.fetchModels) {

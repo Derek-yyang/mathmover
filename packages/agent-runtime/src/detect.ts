@@ -5,10 +5,10 @@
  * 探测失败不抛错——返回 usable=false，上层据此提示用户装哪个。
  */
 
-import { spawnSync } from 'node:child_process';
 import { RUNTIMES, type RuntimeDefinition, type RuntimeVersionPolicy } from './defs.ts';
 import { resolveRuntimeTarget, type SpawnTarget } from './resolve.ts';
 import { classifyHiddenProbeOutput, HIDDEN_FLAG_PROBE_VALUE, setCapabilities } from './capabilities.ts';
+import { spawnCapture } from './spawn.ts';
 
 export interface DetectedRuntime {
   def: RuntimeDefinition;
@@ -95,78 +95,70 @@ export function versionGate(
 
 /**
  * 值拒绝探针执行（声明见 defs.ts 的 hiddenCapabilityFlags；判定规则见
- * capabilities.ts）。每个探针上下文 × 每个旗标一次 spawnSync，空 stdin、
+ * capabilities.ts）。每个探针上下文 × 每个旗标一次 spawn，**并行**、空 stdin、
  * 限时、零 token——报错形状本身就是答案。
  */
-function probeHiddenCapabilities(def: RuntimeDefinition, target: SpawnTarget): Record<string, boolean> {
+async function probeHiddenCapabilities(def: RuntimeDefinition, target: SpawnTarget): Promise<Record<string, boolean>> {
   const spec = def.hiddenCapabilityFlags;
   if (!spec) return {};
   const caps: Record<string, boolean> = {};
-  for (const probe of spec.probes) {
-    for (const [flag, key] of Object.entries(probe.flags)) {
-      let output = '';
-      try {
-        const r = spawnSync(
-          target.command,
-          [...target.prefixArgs, ...probe.probeArgsPrefix, flag, HIDDEN_FLAG_PROBE_VALUE, ...(probe.probeArgsSuffix ?? [])],
-          { encoding: 'utf-8', timeout: 10_000, windowsHide: true, input: '', maxBuffer: 1024 * 1024 },
-        );
-        output = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
-      } catch {
-        /* spawn 失败：空输出 → 按无证据判 false */
-      }
-      caps[key] = classifyHiddenProbeOutput(output);
-    }
-  }
+  const probes = spec.probes.flatMap((probe) =>
+    Object.entries(probe.flags).map(([flag, key]) => ({ probe, flag, key })));
+  await Promise.all(probes.map(async ({ probe, flag, key }) => {
+    const r = await spawnCapture(
+      target.command,
+      [...target.prefixArgs, ...probe.probeArgsPrefix, flag, HIDDEN_FLAG_PROBE_VALUE, ...(probe.probeArgsSuffix ?? [])],
+      { timeoutMs: 10_000, input: '' },
+    );
+    caps[key] = classifyHiddenProbeOutput(`${r.stdout ?? ''}\n${r.stderr ?? ''}`);
+  }));
   return caps;
 }
 
-export function detectRuntimes(candidates: RuntimeDefinition[] = RUNTIMES): DetectedRuntime[] {
-  const out: DetectedRuntime[] = [];
-
-  for (const def of candidates) {
+/**
+ * 探测本机装了哪些 agent CLI。**异步并行**：一个 agent 的版本/登录/能力探针
+ * 与各 agent 之间同时发——探测全是 CLI 冷启动（数秒级），串行 + spawnSync 曾把
+ * GET 拖到 44 秒还冻住整个服务（2026-10-12 实测回归），探测绝不许阻塞事件循环。
+ */
+export async function detectRuntimes(candidates: RuntimeDefinition[] = RUNTIMES): Promise<DetectedRuntime[]> {
+  return Promise.all(candidates.map(async (def): Promise<DetectedRuntime> => {
     let version: string | null = null;
     let usable = false;
     let versionWarning: string | undefined;
     let authStatus: DetectedRuntime['authStatus'];
     let authMessage: string | undefined;
-    let target: SpawnTarget | null = null;
+    const target = resolveRuntimeTarget(def);
+    const bin = target?.command ?? def.executable;
+    const prefix = target?.prefixArgs ?? [];
 
-    try {
-      target = resolveRuntimeTarget(def);
-      const r = spawnSync(
-        target?.command ?? def.executable,
-        [...(target?.prefixArgs ?? []), ...def.probeArgs],
-        { encoding: 'utf-8', timeout: 15_000, windowsHide: true },
-      );
-      const text = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim();
-      // 版本串取第一行前 60 字符，避免把整段帮助文本带出去
-      const rawLine = text ? text.split('\n')[0].trim().slice(0, 60) : null;
-      const gate = versionGate(def.versionPolicy, rawLine, r.status === 0);
-      version = gate.version;
-      usable = gate.usable;
-      versionWarning = gate.warning;
+    if (!target) return { def, version: null, usable: false, authMessage: undefined };
 
-      // 登录预检与值拒绝探针：只给能跑的 CLI 发。拒启（fail-closed）就不探了。
-      if (usable && def.authProbe) {
-        const a = spawnSync(
-          target?.command ?? def.executable,
-          [...(target?.prefixArgs ?? []), ...def.authProbe.args],
-          { encoding: 'utf-8', timeout: def.authProbe.timeoutMs ?? 5_000, windowsHide: true },
-        );
-        const cls = classifyAuth(a.status, `${a.stdout ?? ''}${a.stderr ?? ''}`);
-        authStatus = cls.status;
-        authMessage = cls.message;
-      }
-      if (usable && def.hiddenCapabilityFlags && target) {
-        setCapabilities(def.id, probeHiddenCapabilities(def, target));
-      }
-    } catch {
-      // 不在 PATH 上，或无法启动
+    // 三路探测并行发；版本门在收尾统一判（fail-closed 只看版本探不探得出）
+    const [versionProbe, authProbe, hiddenCaps] = await Promise.all([
+      spawnCapture(bin, [...prefix, ...def.probeArgs], { timeoutMs: 15_000 }),
+      def.authProbe
+        ? spawnCapture(bin, [...prefix, ...def.authProbe.args], { timeoutMs: def.authProbe.timeoutMs ?? 5_000 })
+        : Promise.resolve(null),
+      def.hiddenCapabilityFlags
+        ? probeHiddenCapabilities(def, target)
+        : Promise.resolve(null),
+    ]);
+
+    const text = `${versionProbe.stdout ?? ''}${versionProbe.stderr ?? ''}`.trim();
+    // 版本串取第一行前 60 字符，避免把整段帮助文本带出去
+    const rawLine = text ? text.split('\n')[0].trim().slice(0, 60) : null;
+    const gate = versionGate(def.versionPolicy, rawLine, versionProbe.status === 0);
+    version = gate.version;
+    usable = gate.usable;
+    versionWarning = gate.warning;
+
+    if (usable && authProbe) {
+      const cls = classifyAuth(authProbe.status, `${authProbe.stdout ?? ''}${authProbe.stderr ?? ''}`);
+      authStatus = cls.status;
+      authMessage = cls.message;
     }
+    if (usable && hiddenCaps) setCapabilities(def.id, hiddenCaps);
 
-    out.push({ def, version, usable, versionWarning, authStatus, authMessage, target: target ?? undefined });
-  }
-
-  return out;
+    return { def, version, usable, versionWarning, authStatus, authMessage, target };
+  }));
 }

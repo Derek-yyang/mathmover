@@ -16,10 +16,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { formatClaudeStreamJsonInput, type ImageInput } from './images.ts';
 import { claudeConfiguredModels, claudeDefaultEffort } from './claude-env.ts';
 import { getCapabilities, HIDDEN_FLAG_PROBE_VALUE } from './capabilities.ts';
+import { spawnCapture } from './spawn.ts';
 
 /** 归一后的事件——前端 useChat 与上层编排都只认这个。 */
 export type AgentEvent =
@@ -393,6 +393,19 @@ export function parseClaudeEffortValues(text: string): string[] | null {
   return m ? m[1].split(/\s*,\s*/).filter(Boolean) : null;
 }
 
+/** 探针结果缓存键：路径 + 二进制 mtime（原地升级自动失效）。 */
+function spawnFingerprint(spawn: { command: string; prefixArgs?: string[] }): string {
+  const parts = [spawn.command, ...(spawn.prefixArgs ?? [])];
+  try {
+    return parts.map((p) => `${p}:${fs.statSync(p).mtimeMs}`).join('|');
+  } catch {
+    return parts.join('|');
+  }
+}
+
+/** claude 档位枚举缓存：枚举是 CLI 的固有属性，探一次即可（发消息路径也会过这里）。 */
+const claudeEffortCache = new Map<string, RuntimeReasoningOption[] | null>();
+
 export const claudeCode: RuntimeDefinition = {
   id: 'claude-code',
   displayName: 'Claude Code',
@@ -444,21 +457,25 @@ export const claudeCode: RuntimeDefinition = {
   /**
    * 档位枚举从 CLI 自己的假值报错里解析（Valid values: …），默认档取 settings
    * 的 effortLevel——都是 agent 自己的配置，不自造统一档位表。
+   * 结果按二进制指纹缓存（这探针是一次 CLI 冷启动，不能每次清单都跑）。
    */
-  fetchReasoningOptions: (spawn) => {
-    const r = spawnSync(
+  fetchReasoningOptions: async (spawn) => {
+    const key = spawnFingerprint(spawn);
+    const cached = claudeEffortCache.get(key);
+    if (cached !== undefined) return cached;
+    const r = await spawnCapture(
       spawn.command,
       [...(spawn.prefixArgs ?? []), '-p', '--effort', HIDDEN_FLAG_PROBE_VALUE],
-      { encoding: 'utf-8', timeout: 15_000, windowsHide: true, input: '' },
+      { timeoutMs: 15_000, input: '' },
     );
     const values = parseClaudeEffortValues(`${r.stdout ?? ''}\n${r.stderr ?? ''}`);
-    if (!values?.length) return Promise.resolve(null);
-    const fallback = claudeDefaultEffort();
-    return Promise.resolve(values.map((id) => ({
+    const result = !values?.length ? null : values.map((id) => ({
       id,
       label: id,
-      ...(id === fallback ? { default: true } : {}),
-    })));
+      ...(id === claudeDefaultEffort() ? { default: true } : {}),
+    }));
+    claudeEffortCache.set(key, result);
+    return result;
   },
   fallbackModels: CLAUDE_FALLBACK_MODELS,
   buildArgs({ prompt, mcpConfigPath, sessionId, resumeSessionId, extraArgs = [], model, reasoningEffort }) {

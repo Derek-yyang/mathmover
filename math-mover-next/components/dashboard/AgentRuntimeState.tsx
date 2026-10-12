@@ -29,7 +29,9 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const pending = useRef<AbortController | null>(null);
 
-  const refreshRuntimes = useCallback(async () => {
+  // fresh（默认）= 强制重探——「刷新检测」按钮的语义；初始加载传 { fresh: false }
+  // 吃服务端 60 秒缓存，页面反复打开不再等一轮 CLI 冷启动。
+  const refreshRuntimes = useCallback(async (options?: { fresh?: boolean }) => {
     pending.current?.abort();
     const controller = new AbortController();
     pending.current = controller;
@@ -37,7 +39,7 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
     setDetecting(true);
     setDetectionError(null);
     try {
-      const response = await fetch('/api/agent', { signal: controller.signal });
+      const response = await fetch(options?.fresh === false ? '/api/agent' : '/api/agent?fresh=1', { signal: controller.signal });
       if (!response.ok) throw new Error(`HTTP ${response.status}：${agentResponseError(await response.text())}`);
       const data = await response.json();
       if (!response.ok || !Array.isArray(data.runtimes) || data.runtimes.some((item: RuntimeOption) =>
@@ -61,7 +63,7 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try { setActiveRuntimeId(localStorage.getItem('mm.agentId') || undefined); } catch {}
-    void refreshRuntimes();
+    void refreshRuntimes({ fresh: false });
     return () => { pending.current?.abort(); pending.current = null; };
   }, [refreshRuntimes]);
 
