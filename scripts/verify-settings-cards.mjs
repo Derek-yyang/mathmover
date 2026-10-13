@@ -28,6 +28,12 @@ try {
 
   await openSettings();
 
+  // 0. 左侧分区导航壳 + 品牌图标
+  const nav = page.getByRole('navigation', { name: '设置分区' });
+  await nav.getByRole('button', { name: '模型与提供商', exact: true }).waitFor();
+  await nav.getByRole('button', { name: '帮助与快捷键', exact: true }).waitFor();
+  await nav.getByRole('button', { name: '关于', exact: true }).waitFor();
+
   // 1. 双 Tab：默认「本机 CLI」，BYOK 不在 CLI 列表里
   const cliTab = page.getByRole('tab', { name: /^本机 CLI/ });
   const providerTab = page.getByRole('tab', { name: 'API 提供商', exact: true });
@@ -38,6 +44,7 @@ try {
   // 2. 卡片信息设计：名称 + 官方来源副标题 + 版本 + 状态芯片 + 测试/使用
   await page.getByText('Anthropic 官方 CLI').first().waitFor();
   await page.getByText('OpenAI 官方 CLI').first().waitFor();
+  assert.ok(await page.locator('[data-brand-icon]').count() >= 2, 'brand marks rendered on cards');
   assert.ok(await chip().count() >= 2, 'status chips rendered');
   await page.getByRole('button', { name: '测试 Claude Code' }).waitFor();
 
@@ -81,13 +88,22 @@ try {
   await page.getByRole('heading', { name: '内置构造 Agent（BYOK）' }).waitFor();
   await page.getByRole('button', { name: '测试 内置构造 Agent（BYOK）' }).waitFor();
 
+  // 8. 分区导航：帮助与快捷键 / 关于 各有真实内容，返回后 Tab 仍在
+  await nav.getByRole('button', { name: '帮助与快捷键', exact: true }).click();
+  await page.getByText('工作台的实际交互行为速查').waitFor();
+  await nav.getByRole('button', { name: '关于', exact: true }).click();
+  await page.getByText('数据与密钥', { exact: true }).first().waitFor();
+  await nav.getByRole('button', { name: '模型与提供商', exact: true }).click();
+  await page.getByRole('tab', { name: 'API 提供商', exact: true }).waitFor();
+
   await mkdir(new URL('../spike-out/verify-settings/', import.meta.url), { recursive: true });
   await page.screenshot({ path: new URL('../spike-out/verify-settings/providers-tab.png', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
-  await page.keyboard.press('Home');
+  await page.getByRole('tab', { name: /^本机 CLI/ }).click();
+  await page.waitForTimeout(300);   // 等边框过渡收尾，避免截到中间帧
   await page.screenshot({ path: new URL('../spike-out/verify-settings/cli-tab.png', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
 
   assert.equal(errors.length, 0, `browser errors: ${errors.join('; ')}`);
-  console.log(JSON.stringify({ dualTabs: true, byokInProviderTab: true, cardSubtitles: true, statusChips: true,
+  console.log(JSON.stringify({ navShell: true, brandIcons: true, dualTabs: true, byokInProviderTab: true, cardSubtitles: true, statusChips: true,
     modelAtAGlance: true, sharedModelState: true, effortRow: true, testButton: true,
     installCollapsed: true, tabKeyboard: true, browserErrors: errors.length }));
 } finally {

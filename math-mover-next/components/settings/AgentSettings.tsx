@@ -11,7 +11,8 @@
  */
 
 import { useId, useState } from 'react';
-import { Check, ChevronDown, ExternalLink, Loader2, SquareTerminal } from 'lucide-react';
+import { Check, ChevronDown, ExternalLink, Loader2 } from 'lucide-react';
+import { BrandIcon } from './BrandIcon';
 import { useAgentRuntimeState } from '../dashboard/AgentRuntimeState';
 import type { RuntimeOption } from '../dashboard/AgentChatPanel';
 import { agentGuide, groupAgents, INSTALL_STEPS, INSTALL_PATH_HINT } from '@/lib/agent-settings';
@@ -121,7 +122,7 @@ function AgentCard({ runtime, selected }: { runtime: RuntimeOption; selected: bo
     <li className={`rounded-xl border transition-colors motion-reduce:transition-none ${selected ? 'border-emerald-700/40 bg-emerald-50/50' : 'border-stone-200 bg-white hover:border-stone-300'}`}>
       <div className="flex flex-wrap items-start gap-3 p-4">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-700" aria-hidden="true">
-          <SquareTerminal className="h-4.5 w-4.5" />
+          <BrandIcon id={runtime.id} />
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-baseline gap-x-2">
