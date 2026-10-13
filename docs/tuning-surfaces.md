@@ -15,19 +15,20 @@
 
 分四层，按"离出图多近"排序。
 
-## 先分清两条链路
+## 一条链路，题目是增强
 
-产品是 **agent 驱动的 GeoGebra 画图工作台**；题图→GGB 是其中一条链路（需求最大），
-不是产品本身。两条链路的入口不同，**要调的东西也不同**：
+产品是 **agent 驱动的 GeoGebra 画图工作台**——一条链路：把用户意图变成 GeoGebra 构造。
+题目图片只是输入形态，碰到时多拿一套建模知识（`get_expert_prompt`），不是换链路。
+**要调的东西随「取了哪些知识包」而不同**：
 
-| | 入口 | 用到哪些变量 |
+| 场景 | 取什么 | 用到哪些变量 |
 |---|---|---|
-| **自由画图**（用户让你画/改图） | `get_drawing_pack` | `generation-rules` + `ggb-basics` + **全库 18 张卡** + 工具描述 |
-| **做题**（用户发了题目图片/题面） | `get_expert_prompt` | 上面全部 + **4 份 SKILL 的 8 步建模方法论** + 本类清单 |
+| 一般画图/改图 | `get_drawing_pack` | `generation-rules` + `ggb-basics` + **全库 18 张卡** + 工具描述 |
+| 发了题目图片/题面 | 上面 + `get_expert_prompt` | 再加 **4 份 SKILL 的 8 步建模方法论** + 本类清单 |
 
-判据侧也随之分流：`submit_construction` 的 `category_structure`（A 要函数、B 要多边形/圆…）
-**只在做题链路查**；自由画图不给 category，只做行级剔除与动点自洽。
-所以调 SKILL 的 8 步**只会影响做题**，调 `ggb-basics` 或卡库**两条链路都受影响**。
+判据侧也随之：`submit_construction` 的 `category_structure`（A 要函数、B 要多边形/圆…）
+**只在给了 category 时查**（题目建模的交卷才带）；不给就只做行级剔除与动点自洽。
+所以调 SKILL 的 8 步**只影响取了增强的场景**，调 `ggb-basics` 或卡库**全都影响**。
 
 ---
 

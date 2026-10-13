@@ -175,8 +175,8 @@ export interface SopIndexEntry {
 
 /**
  * 全库写法卡清单——**18 张全给，不按类别裁剪**。
- * 自由画图走这条：agent 看清单挑卡即可，不必先声明题目类别。
- * 做题另走 buildCatalog（带流程步骤号、只列本类引用的卡）。
+ * 画图基础包（assembleDrawingPack）用这条：agent 看清单挑卡即可。
+ * 碰到题目图片另走 buildCatalog（带流程步骤号、只列本类引用的卡）——那是增强，不是换模式。
  */
 export function buildCardIndex(rootDir: string): SopIndexEntry[] {
   return fs.readdirSync(path.join(rootDir, 'skills', 'shared', 'sops'))
@@ -187,11 +187,10 @@ export function buildCardIndex(rootDir: string): SopIndexEntry[] {
 }
 
 /**
- * 自由画图的基础包：公共约定 + 通用 GGB 写法，**不含专家建模流程**。
+ * 画图基础包：公共约定 + 通用 GGB 写法，**不含题目建模流程**。
  *
- * 产品定位是 agent 驱动的 GeoGebra 画图工作台；题图→GGB 只是其中一条链路，
- * 那条链路才需要 A/B/C/D 的 8 步方法论（assembleSkill）。平时 chat 画图，
- * 模型自身能力 + 本包 + 写法卡就够。
+ * 一条链路：把用户意图变成 GeoGebra 构造。本包人人都先取；
+ * 碰到题目图片/题面时另取 assembleSkill（8 步建模方法，题目增强）。
  */
 export function assembleDrawingPack(rootDir: string): { text: string; characters: number } {
   const text = [
@@ -254,7 +253,7 @@ export function loadSopCards(
  * 命令约束后缀（与校验白名单同源）。
  *
  * `category` 决定列 2D 还是 2D+3D：A/B/C 只做二维故只列 2D，D 类给全。
- * **不给类别时两种都列**——自由画图可能是二维也可能是三维，不该按做题分类裁剪。
+ * **不给类别时两种都列**——画图可能二维也可能三维，不该按题目类别裁剪。
  */
 export function buildAllowedCommandsSuffix(category: string | undefined, names: WhitelistNames): string {
   const views: Array<'2d' | '3d'> = category && category !== 'D' ? ['2d'] : ['2d', '3d'];

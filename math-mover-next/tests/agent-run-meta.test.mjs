@@ -32,8 +32,8 @@ test('category 入参带上显示名', () => {
   assert.equal(m.categoryLabel, CATEGORY_LABEL.B);
 });
 
-test('自由画图不给 category 时，meta 不带 category', () => {
-  // 这正是两条链路的分野：submit_construction 在自由画图下只给 commands
+test('不给 category 时，meta 不带 category', () => {
+  // category 是可选增强：不给就不写，不从会话残留里凑
   const m = metaFromToolCall('submit_construction', { commands: ['A=(0,0)'] });
   assert.equal(m.category, undefined);
   assert.equal(m.categoryLabel, undefined);

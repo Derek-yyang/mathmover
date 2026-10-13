@@ -34,9 +34,9 @@ describe('semanticCheck', () => {
     expect(r.failures.find((f) => f.check === 'no_text')!.detail).toContain('msg');
   });
 
-  it('no_text 只在做题链路查——自由画图加说明文字不该被拦', () => {
-    // 同一段文本对照：做题链路（给 category）抓，自由画图（不给）放行。
-    // 「在图上写句『这是重心』」是自由画图的合理需求，不该撞上"题目文字不应生成 Text"。
+  it('no_text 只在给了 category 时查——纯画图加说明文字不该被拦', () => {
+    // 同一段文本对照：给 category（题目建模）抓，不给（纯画图）放行。
+    // 「在图上写句『这是重心』」是纯画图的合理需求，不该撞上"题目文字不应生成 Text"。
     const text = 'A = Point(0, 0)\nnote = Text("这是重心")';
     expect(semanticCheck('B', text, { knownCommandLower: KNOWN }).failures.some((f) => f.check === 'no_text')).toBe(true);
     expect(semanticCheck(undefined, text, { knownCommandLower: KNOWN }).failures.some((f) => f.check === 'no_text')).toBe(false);
@@ -74,21 +74,21 @@ describe('checkLines', () => {
 describe('category_structure 按需启用', () => {
   const bare = 'A = Point(0, 0)\nB = Point(1, 1)';
 
-  it('自由画图不给类别时，不套题目类别结构', () => {
-    // 「画两个点」不该被要求"缺函数对象"——那只是做题链路的要求
+  it('不给类别时，不套题目类别结构', () => {
+    // 「画两个点」不该被要求"缺函数对象"——那只是题目建模的要求
     const r = semanticCheck(undefined, bare, { knownCommandLower: KNOWN });
     expect(r.failures.some((f) => f.check === 'category_structure')).toBe(false);
   });
 
-  it('做题给了类别时照旧查结构', () => {
+  it('给了类别时照旧查结构', () => {
     const r = semanticCheck('A', bare, { knownCommandLower: KNOWN });
     expect(r.failures.some((f) => f.check === 'category_structure')).toBe(true);
   });
 
   it('动点自洽与类别无关，恒查', () => {
-    // 不给 category（自由画图）也必须抓 free_param / orphan_slider——
-    // 动点自洽对两条链路都适用。文字残留则已改为按链路分流，
-    // 见「no_text 只在做题链路查」那条。
+    // 不给 category（纯画图）也必须抓 free_param / orphan_slider——
+    // 动点自洽对画图与题目建模都适用。文字残留则已改为按 category 分流，
+    // 见「no_text 只在给了 category 时查」那条。
     const fp = semanticCheck(undefined, 'f = Function(t^2, -3, 3)\nP = (t, f(t))', { knownCommandLower: KNOWN });
     expect(fp.failures.some((f) => f.check === 'free_param')).toBe(true);
     const os = semanticCheck(undefined, 'f = Function(x^2, -3, 3)\ns = Slider(0, 1, 0.1)', { knownCommandLower: KNOWN });

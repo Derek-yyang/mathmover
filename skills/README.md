@@ -16,10 +16,10 @@ skill 的编号流程始终完整加载，模型仍直接读取原题文字/图�
 
 ```text
 画图基础包 assembleDrawingPack：公共约定 + 通用 GGB 写法
-  → get_drawing_pack 给「自由画图」用，附全库写法卡清单（不按类别裁剪）
+  → get_drawing_pack 是画图基础包，附全库写法卡清单（不按类别裁剪）
 
 专家包 assembleSkill：公共约定 + 通用 GGB 写法 + 专家步骤（{{SOP:*}} 只留指路行）
-  → get_expert_prompt 给「题图→GeoGebra」用，附本类清单（带流程步骤号）
+  → get_expert_prompt 是题目增强（发题图/题面时取），附本类清单（带流程步骤号）
 ```
 
 产品定位是 agent 驱动的 GeoGebra 画图工作台，题图→GGB 只是其中一条链路——

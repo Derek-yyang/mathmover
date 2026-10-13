@@ -94,12 +94,12 @@ describe('buildAllowedCommandsSuffix', () => {  const names = loadWhitelist(REPO
   });
 });
 
-describe('自由画图入口（非做题链路）', () => {
+describe('画图基础包（全库清单）', () => {
   it('全库卡清单不按类别裁剪，也不带流程步骤号', () => {
     const index = buildCardIndex(REPO_ROOT);
     expect(index.length).toBe(18);
     const names = index.map((c) => c.name);
-    // 做题时 A 类拿不到的三维卡，自由画图也该看得到
+    // 题目增强时 A 类拿不到的三维卡，基础包也该看得到
     expect(names).toContain('3d-frame');
     expect(names).toContain('polyhedron-section');
     for (const c of index) {
@@ -122,7 +122,7 @@ describe('自由画图入口（非做题链路）', () => {
     const both = buildAllowedCommandsSuffix(undefined, names);
     expect(both).toContain('构造命令:');
     expect(both).toContain('3D 构造命令:');
-    // 对照：A/B/C 做题链路仍只列 2D
+    // 对照：A/B/C 题目增强仍只列 2D
     expect(buildAllowedCommandsSuffix('A', names)).not.toContain('3D 构造命令');
     expect(buildAllowedCommandsSuffix('D', names)).toContain('3D 构造命令');
   });

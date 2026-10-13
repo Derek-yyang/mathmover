@@ -28,9 +28,9 @@ export function toolBaseName(name: unknown): string {
 
 /**
  * 抽出这次工具调用带来的元数据。只认两个入口：
- * - `get_expert_prompt` 的 `category`（做题链路判类）
+ * - `get_expert_prompt` 的 `category`（题目增强判类）
  * - `submit_construction` 的 `category` / `title`（收卷时的类别与命名）
- * 自由画图走 `submit_construction` 时不给 category，那就不写。
+ * `submit_construction` 不给 category（纯画图/改图），那就不写。
  */
 export function metaFromToolCall(name: unknown, input: unknown): Partial<AgentMeta> {
   const base = toolBaseName(name);

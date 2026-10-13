@@ -93,11 +93,11 @@ describe('MCP 工具面', () => {
     ]);
   });
 
-  it('必填参数钉死：做题入口要类别、自由画图入口不要', async () => {
+  it('必填参数钉死：题目增强要类别、基础包不要', async () => {
     const client = await openClient();
     const { tools } = await client.listTools();
 
-    // 做题入口：category 必填——改回可选会让 agent 不分类就拿 skill
+    // 题目增强：category 必填——改回可选会让 agent 不判类就拿 skill
     expect(describeTool(tools, 'get_expert_prompt').required).toEqual(['category']);
     // 收卷：**没有 commands 参数**（唯一入口是工作稿文件），category 必须可选
     expect(describeTool(tools, 'submit_construction').params).not.toContain('commands');
@@ -106,7 +106,7 @@ describe('MCP 工具面', () => {
     // 命名：可选（agent 起的课件名）。必填会让 agent 为了过 schema 乱编名字。
     expect(describeTool(tools, 'submit_construction').params).toContain('title');
     expect(describeTool(tools, 'submit_construction').required).not.toContain('title');
-    // 自由画图入口：零参数
+    // 画图基础包：零参数
     expect(describeTool(tools, 'get_drawing_pack').params).toEqual([]);
     // 取卡按名字批量拿
     expect(describeTool(tools, 'get_sop_cards').required).toEqual(['names']);
@@ -142,16 +142,16 @@ describe('MCP 工具面', () => {
 
     expect(texts.some((t) => t.includes('共同输出约定'))).toBe(true);
     expect(texts.some((t) => t.includes('通用 GGB 写法'))).toBe(true);
-    // 自由画图可能是三维，命令约束不能按做题分类裁剪成只有 2D
+    // 画图可能是三维，命令约束不能按题目类别裁剪成只有 2D
     expect(texts.some((t) => t.includes('3D 构造命令'))).toBe(true);
-    // 专家 8 步建模方法论只属于做题链路
+    // 专家 8 步建模方法论只在题目增强里
     expect(texts.some((t) => t.includes('## 1. 清点对象'))).toBe(false);
 
     const meta = JSON.parse(texts[texts.length - 1]);
     expect(meta.mode).toBe('drawing');
     expect(meta.cards).toBe(18);
     expect(meta.catalog).toHaveLength(18);
-    // 全库清单不按类别裁剪：做题时 A 类拿不到的三维卡也该看得到
+    // 全库清单不按类别裁剪：题目增强时 A 类拿不到的三维卡也该看得到
     const names = meta.catalog.map((c: { name: string }) => c.name);
     expect(names).toContain('3d-frame');
     expect(names).toContain('function-object');

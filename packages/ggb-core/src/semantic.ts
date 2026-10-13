@@ -155,13 +155,13 @@ export function checkLines(text: string, knownCommandLower: Set<string>): LineCh
 /**
  * 语义自查。
  *
- * `category` 只在**做题链路**给出（题图→GGB）：那时额外查 category_structure
+ * `category` 是可选增强参数（题目建模的交卷才给）：给了才额外查 category_structure
  * （A 要函数、B 要多边形/圆…）**与 no_text**（题面文字该画出来，不是贴上去）。
- * 自由画图不给类别，这两条都不跑——「画条线段」被要求"缺函数对象"是废话，
+ * 不给则这两条都不跑——「画条线段」被要求"缺函数对象"是废话，
  * 「在图上写句说明」被要求"删掉文字对象"同样是废话。
- * 恒跑的只剩语法率与动点自洽（两类链路都适用）。
+ * 恒跑的只剩语法率与动点自洽（画图与题目建模都适用）。
  *
- * 2026-10-11：no_text 此前归在「恒跑」里，会误伤自由画图——用户要一段说明文字
+ * 2026-10-11：no_text 此前归在「恒跑」里，会误伤纯画图——用户要一段说明文字
  * 是合理的（标签另说，产品约定是 ShowLabel/SetLabelMode 挂在对象上，不用 Text）。
  */
 export function semanticCheck(
@@ -187,10 +187,10 @@ export function semanticCheck(
     });
   }
 
-  // 2) 残留文字对象 —— **只在做题链路查**（与 category_structure 同款门控）。
+  // 2) 残留文字对象 —— **只在给了 category 时查**（与 category_structure 同款门控）。
   //    规则本意是「题面文字不应生成 Text 对象」：题目写着"如图，在△ABC 中…"，
   //    agent 该把三角形画出来，而不是把这句话贴成一个 Text。
-  //    自由画图里用户说「在图上写句『这是重心』」是合理需求，不该拦。
+  //    纯画图时用户说「在图上写句『这是重心』」是合理需求，不该拦。
   const textObjs = objs.filter((o) => o.kind === 'text').map((o) => o.name);
   if (category && textObjs.length) {
     failures.push({
