@@ -357,11 +357,12 @@ function DashboardContent() {
             images: imagePayloads.length ? imagePayloads : undefined,
             // 本轮之前保留的对话；编辑时用于重建新会话，dsh 用它延续语境。
             // 带图轮次在转写里只留占位（转写注入是纯文本通道）。
+            // 纯图消息内容为空，但有附件——不能被 content 滤掉。
             history: priorMessages
-              .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content)
+              .filter((m) => (m.role === 'user' || m.role === 'assistant') && (m.content || m.attachments?.length))
               .map((m) => ({
                 role: m.role,
-                content: m.content + (m.attachments?.length ? ` [附题目图 ${m.attachments.length} 张]` : ''),
+                content: (m.content || '（只发了题目图片）') + (m.attachments?.length ? ` [附题目图 ${m.attachments.length} 张]` : ''),
               })),
           }),
         });

@@ -43,7 +43,10 @@ export function useCoursewareLibrary(options: Options) {
       if (!messageOverride && dirty.current === saved.current && record.current) return;
       setStatus('saving'); setError(null);
       // 自动名：首条用户消息截 40 字。agent 起的名（meta.title）只在用户没手改过时才盖上。
-      const autoTitle = (messageOverride ?? o.messages).find(m => m.role === 'user')?.content.trim().slice(0, 40) || '未命名课件';
+      // 纯图发题（没打字）：叫「题目图片」，别让空内容掉进「未命名课件」。
+      const firstUser = (messageOverride ?? o.messages).find(m => m.role === 'user');
+      const autoTitle = firstUser?.content.trim().slice(0, 40)
+        || (firstUser?.attachments?.length ? '题目图片' : '未命名课件');
       if (!record.current) {
         const now = new Date().toISOString();
         record.current = { id: crypto.randomUUID(), revision: 0, title: autoTitle, commands: [], messages: [], created_at: now, updated_at: now, deleted_at: null };

@@ -150,7 +150,9 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const prompt = (body.text ?? '').trim();
-  if (!prompt) {
+  // 纯图发题是自然动作：只附图片、不打字也放行（图片校验在后，细节错在这里之后拦）。
+  const hasImages = Array.isArray(body.images) && body.images.length > 0;
+  if (!prompt && !hasImages) {
     return new Response(line({ kind: 'error', message: '内容为空' }), {
       status: 400,
       headers: { 'content-type': 'application/x-ndjson' },
@@ -239,9 +241,11 @@ export async function POST(req: Request): Promise<Response> {
   const priorTurns = agentRequestHistory(body,
     isByok || (def ? def.recomposesHistory === true && !resumesSession(def) : false));
   const transcript = priorTurns.length ? buildTranscript(priorTurns) : '';
+  // 纯图发题（没打字）：不伪造用户话语，如实说只发了图片。
+  const userTurn = prompt || '（只发了题目图片，没写文字——请直接看图理解题意并作图）';
   const composedPrompt = transcript
-    ? `${SYSTEM_BRIEF}\n\n---\n\n## 此前的对话（供延续语境，不要复述）\n${transcript}\n\n---\n\n用户现在说：\n${prompt}`
-    : `${SYSTEM_BRIEF}\n\n---\n\n用户现在说：\n${prompt}`;
+    ? `${SYSTEM_BRIEF}\n\n---\n\n## 此前的对话（供延续语境，不要复述）\n${transcript}\n\n---\n\n用户现在说：\n${userTurn}`
+    : `${SYSTEM_BRIEF}\n\n---\n\n用户现在说：\n${userTurn}`;
 
   // 流建立前到的事件先排队（runAgent 启动时就会吐「# 启动 …」）
   const queued: AgentEvent[] = [];

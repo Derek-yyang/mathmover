@@ -7,7 +7,7 @@
 
 const rows: Array<{ term: string; detail: string }> = [
   { term: '发送', detail: 'Enter 发送，Shift + Enter 换行。' },
-  { term: '题目图片', detail: '粘贴、拖入或点图片按钮上传，一次最多 4 张，单张不超过 6 MB，支持 PNG / JPEG / WebP / GIF。' },
+  { term: '题目图片', detail: '粘贴、拖入或点图片按钮上传，一次最多 4 张，单张不超过 6 MB，支持 PNG / JPEG / WebP / GIF。**只发图、不打字也可以**——agent 直接看图理解题意作图。' },
   { term: '模型与推理档位', detail: '聊天区工具栏与本设置页都能改，两处是同一份状态，改哪边都同步。' },
   { term: '切换 Agent', detail: '不自动切换、不会静默降级；换 Agent 时会话不跨 Agent 延续。' },
   { term: '没装 Agent', detail: '在「API 提供商」里配置内置构造 Agent（BYOK），填一个 OpenAI 兼容端点即可生成课件。' },

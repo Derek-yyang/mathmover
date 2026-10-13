@@ -85,13 +85,13 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
       if (isLoading || sendDisabled || !message.sourceId) return;
       setIndexBrowsing(false);
       const input = fromAssistantInput(message);
-      await onEditMessage(message.sourceId, input.text || (input.attachments.length ? '请根据题目图片构建动态图形。' : ''), input.attachments);
+      await onEditMessage(message.sourceId, input.text, input.attachments);
     } : undefined,
     onNew: async message => {
       if (isLoading || sendDisabled) return;
       setIndexBrowsing(false);
       const input = fromAssistantInput(message);
-      await onSendMessage(input.text || (input.attachments.length ? '请根据题目图片构建动态图形。' : ''), input.attachments);
+      await onSendMessage(input.text, input.attachments);
     },
   });
   return <AssistantRuntimeProvider runtime={runtime}>
