@@ -149,33 +149,10 @@ function DashboardContent() {
 
   // 模型选择按 agent 分别记（localStorage）。**不进课件记录**——模型是「怎么跑」的，
   // 不是「跑出了什么」；跟着课件走会让历史课件在换模型后语义混乱。
-  const [modelByAgent, setModelByAgent] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem('mathmover_model_by_agent') ?? '{}') as Record<string, string>; }
-    catch { return {}; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('mathmover_model_by_agent', JSON.stringify(modelByAgent)); } catch { /* 隐私模式等，丢选择不影响使用 */ }
-  }, [modelByAgent]);
-  const selectedModel = (activeRuntimeId && modelByAgent[activeRuntimeId]) || 'default';
-  const handleSelectModel = useCallback((id: string) => {
-    if (!activeRuntimeId) return;
-    setModelByAgent(prev => ({ ...prev, [activeRuntimeId]: id }));
-  }, [activeRuntimeId]);
+  // 状态升入 AgentRuntimeState：设置卡片与聊天区 composer 选择器写同一份。
+  const { selectedModel, selectedEffort, selectModel: handleSelectModel, selectEffort: handleSelectEffort } = useAgentRuntimeState();
 
-  // 推理档位按「agent + 模型」记：换个模型档位集就变了，不能跟着 agent 走。
-  // 用 JSON 一层套娃当 key，避免 `agent/model` 里的斜杠歧义。
-  const effortKey = JSON.stringify([activeRuntimeId ?? '', selectedModel]);
-  const [effortByModel, setEffortByModel] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem('mathmover_effort_by_model') ?? '{}') as Record<string, string>; }
-    catch { return {}; }
-  });
-  useEffect(() => {
-    try { localStorage.setItem('mathmover_effort_by_model', JSON.stringify(effortByModel)); } catch { /* 隐私模式等 */ }
-  }, [effortByModel]);
-  const selectedEffort = effortByModel[effortKey];
-  const handleSelectEffort = useCallback((id: string) => {
-    setEffortByModel(prev => ({ ...prev, [JSON.stringify([activeRuntimeId ?? '', selectedModel])]: id }));
-  }, [activeRuntimeId, selectedModel]);
+
 
   useEffect(() => {
     ledgerRef.current = lastExecutedCommands;

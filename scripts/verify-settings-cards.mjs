@@ -1,0 +1,95 @@
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import { chromium } from 'playwright';
+
+// 设置卡片重构（2026-10-13 评审后）的验收：双 Tab、卡片信息设计（模型一眼可见）、
+// 状态芯片、连接测试、设置与聊天区共写同一份模型状态、BYOK 归位 API 提供商 Tab。
+// agent 检测走真实接口（真版本/真芯片）；仅 /api/agent/test 打桩（避免真跑 CLI 探测）。
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const context = await browser.newContext({ viewport: { width: 1544, height: 900 } });
+const page = await context.newPage();
+const errors = [];
+page.on('pageerror', (error) => errors.push(error.message));
+const chip = () => page.locator('li .rounded-full', { hasText: /已登录|未登录|起不来|已安装|已配置|未配置/ });
+const openSettings = async () => {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await page.getByRole('button', { name: '设置', exact: true }).click({ timeout: 2_000 }).catch(() => {});
+    if (await page.getByRole('tab', { name: /^本机 CLI/ }).count()) return;
+    await page.waitForTimeout(500);
+  }
+  throw new Error('设置弹窗未打开');
+};
+
+try {
+  await page.route('**/api/coursewares**', (route) => route.fulfill({ json: { records: [] } }));
+  await page.route('**/api/agent/test', (route) => route.fulfill({ json: { ok: true, status: 'ready', message: '就绪 · 已登录（验收桩）' } }));
+  await page.goto('http://localhost:3000/dashboard', { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.getByRole('textbox', { name: '题目描述' }).waitFor({ timeout: 60_000 });
+
+  await openSettings();
+
+  // 1. 双 Tab：默认「本机 CLI」，BYOK 不在 CLI 列表里
+  const cliTab = page.getByRole('tab', { name: /^本机 CLI/ });
+  const providerTab = page.getByRole('tab', { name: 'API 提供商', exact: true });
+  await cliTab.waitFor();
+  assert.equal(await cliTab.getAttribute('aria-selected'), 'true', 'CLI tab active by default');
+  assert.equal(await page.getByRole('heading', { name: '内置构造 Agent（BYOK）' }).count(), 0, 'BYOK lives in the provider tab, not the CLI list');
+
+  // 2. 卡片信息设计：名称 + 官方来源副标题 + 版本 + 状态芯片 + 测试/使用
+  await page.getByText('Anthropic 官方 CLI').first().waitFor();
+  await page.getByText('OpenAI 官方 CLI').first().waitFor();
+  assert.ok(await chip().count() >= 2, 'status chips rendered');
+  await page.getByRole('button', { name: '测试 Claude Code' }).waitFor();
+
+  // 3. 模型一眼可见：非选中卡也有「模型 …」行
+  const glance = page.locator('li p', { hasText: /^模型 / });
+  assert.ok(await glance.count() >= 1, 'model-at-a-glance on non-selected cards');
+
+  // 4. 选中卡：模型/档位行内可改，且与聊天区 composer 写同一份状态
+  // 锚定 /^使用 / 排除「当前使用」；点任意一张可选卡即可（都是真数据）
+  await page.getByRole('button', { name: /^使用 / }).first().click();
+  const composerTrigger = page.getByRole('button', { name: /^选择模型与推理档位/ });
+  const before = (await composerTrigger.getAttribute('aria-label'));
+  const modelSelect = page.getByRole('combobox', { name: '选择模型' });
+  await modelSelect.waitFor();
+  const options = await modelSelect.locator('option').all();
+  assert.ok(options.length >= 2, 'model select populated');
+  await modelSelect.selectOption({ index: Math.min(1, options.length - 1) });
+  await page.waitForTimeout(300);
+  const after = (await composerTrigger.getAttribute('aria-label'));
+  assert.notEqual(before, after, 'settings model select writes the same state as the composer picker');
+  // 档位行：有档位清单出选择器，没有则如实写「由 Agent 配置决定」
+  const effortSelect = page.getByRole('combobox', { name: '选择推理档位' });
+  const effortText = page.getByText('由 Agent 配置决定', { exact: true });
+  assert.ok((await effortSelect.count()) + (await effortText.count()) >= 1, 'effort row present (select or honest fallback)');
+
+  // 5. 连接测试：结果行可见
+  await page.getByRole('button', { name: '测试 Claude Code' }).click();
+  await page.getByRole('status').filter({ hasText: '就绪 · 已登录（验收桩）' }).first().waitFor({ timeout: 10_000 });
+
+  // 6. 安装向导收进折叠组；全装齐时该组如实不出现
+  const installGroup = page.getByText(/^可安装/).first();
+  const hasInstallGroup = await installGroup.isVisible().catch(() => false);
+  if (hasInstallGroup) {
+    assert.ok(!(await page.getByText('点「安装」打开官方安装页').first().isVisible().catch(() => false)),
+      'install wizard collapsed when agents are detected');
+  }
+
+  // 7. Tab 键盘切换 + BYOK 卡片在 API 提供商里（含测试按钮与密钥掩码语义）
+  await cliTab.focus();
+  await page.keyboard.press('End');
+  await page.getByRole('heading', { name: '内置构造 Agent（BYOK）' }).waitFor();
+  await page.getByRole('button', { name: '测试 内置构造 Agent（BYOK）' }).waitFor();
+
+  await mkdir(new URL('../spike-out/verify-settings/', import.meta.url), { recursive: true });
+  await page.screenshot({ path: new URL('../spike-out/verify-settings/providers-tab.png', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
+  await page.keyboard.press('Home');
+  await page.screenshot({ path: new URL('../spike-out/verify-settings/cli-tab.png', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
+
+  assert.equal(errors.length, 0, `browser errors: ${errors.join('; ')}`);
+  console.log(JSON.stringify({ dualTabs: true, byokInProviderTab: true, cardSubtitles: true, statusChips: true,
+    modelAtAGlance: true, sharedModelState: true, effortRow: true, testButton: true,
+    installCollapsed: true, tabKeyboard: true, browserErrors: errors.length }));
+} finally {
+  await browser.close();
+}

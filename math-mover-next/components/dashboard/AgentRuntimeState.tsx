@@ -16,7 +16,17 @@ interface AgentRuntimeState {
   busy: boolean;
   setBusy: (busy: boolean) => void;
   selectRuntime: (id: string) => void;
-  refreshRuntimes: () => Promise<void>;
+  refreshRuntimes: (options?: { fresh?: boolean }) => Promise<void>;
+  /** 当前 agent 的模型选择。聊天区 composer 选择器与设置卡片写同一份状态。 */
+  selectedModel: string;
+  /** 当前「agent + 模型」的推理档位；undefined = 用 agent 配置的默认档。 */
+  selectedEffort: string | undefined;
+  selectModel: (id: string) => void;
+  selectEffort: (id: string) => void;
+  /** 某 agent 当前的模型 id（设置卡片「一眼可见」用，不要求它是活跃 agent） */
+  modelFor: (agentId: string) => string;
+  /** 某「agent + 模型」当前的档位 id（undefined = 默认档） */
+  effortFor: (agentId: string, modelId: string) => string | undefined;
 }
 
 const AgentRuntimeContext = createContext<AgentRuntimeState | null>(null);
@@ -87,7 +97,43 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  return <AgentRuntimeContext.Provider value={{ runtimes, activeRuntimeId, detecting, detectionError, runtimeFailures, recordFailure, clearFailure, busy, setBusy, selectRuntime, refreshRuntimes }}>
+  // 模型选择按 agent 分别记（localStorage 键与历史一致）。**不进课件记录**——
+  // 模型是「怎么跑」，不是「跑出了什么」；跟着课件走会让历史课件语义混乱。
+  const [modelByAgent, setModelByAgent] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('mathmover_model_by_agent') ?? '{}') as Record<string, string>; }
+    catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('mathmover_model_by_agent', JSON.stringify(modelByAgent)); } catch { /* 隐私模式等，丢选择不影响使用 */ }
+  }, [modelByAgent]);
+  const selectedModel = (activeRuntimeId && modelByAgent[activeRuntimeId]) || 'default';
+  const selectModel = useCallback((id: string) => {
+    if (!activeRuntimeId) return;
+    setModelByAgent(prev => ({ ...prev, [activeRuntimeId]: id }));
+  }, [activeRuntimeId]);
+
+  // 推理档位按「agent + 模型」记：换个模型档位集就变了，不能跟着 agent 走。
+  // 用 JSON 一层套娃当 key，避免 `agent/model` 里的斜杠歧义。
+  const effortKey = JSON.stringify([activeRuntimeId ?? '', selectedModel]);
+  const [effortByModel, setEffortByModel] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('mathmover_effort_by_model') ?? '{}') as Record<string, string>; }
+    catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('mathmover_effort_by_model', JSON.stringify(effortByModel)); } catch { /* 隐私模式等 */ }
+  }, [effortByModel]);
+  const selectedEffort = effortByModel[effortKey];
+  const selectEffort = useCallback((id: string) => {
+    setEffortByModel(prev => ({ ...prev, [JSON.stringify([activeRuntimeId ?? '', selectedModel])]: id }));
+  }, [activeRuntimeId, selectedModel]);
+
+  const modelFor = useCallback((agentId: string) => modelByAgent[agentId] || 'default', [modelByAgent]);
+  const effortFor = useCallback(
+    (agentId: string, modelId: string) => effortByModel[JSON.stringify([agentId, modelId])],
+    [effortByModel],
+  );
+
+  return <AgentRuntimeContext.Provider value={{ runtimes, activeRuntimeId, detecting, detectionError, runtimeFailures, recordFailure, clearFailure, busy, setBusy, selectRuntime, refreshRuntimes, selectedModel, selectedEffort, selectModel, selectEffort, modelFor, effortFor }}>
     {children}
   </AgentRuntimeContext.Provider>;
 }

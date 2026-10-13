@@ -4,6 +4,8 @@ export interface AgentGuide {
   docsUrl: string;
   installUrl: string;
   configure: string;
+  /** 卡片副标题：来源说明（名字下的小字） */
+  subtitle: string;
 }
 
 const guides: Record<string, AgentGuide> = {
@@ -11,16 +13,25 @@ const guides: Record<string, AgentGuide> = {
     docsUrl: 'https://code.claude.com/docs/en/setup',
     installUrl: 'https://www.npmjs.com/package/@anthropic-ai/claude-code',
     configure: '在终端打开 Claude Code，按其指引登录或配置模型服务。MathMover 沿用该 Agent 的配置。',
+    subtitle: 'Anthropic 官方 CLI',
   },
   codex: {
     docsUrl: 'https://developers.openai.com/codex/cli/',
     installUrl: 'https://github.com/openai/codex',
     configure: '在终端打开 Codex，完成登录或模型服务配置。模型与账号由 Codex 自身管理。',
+    subtitle: 'OpenAI 官方 CLI',
   },
   dsh: {
     docsUrl: 'https://github.com/deepseek-ai/deepseek-harness#run',
     installUrl: 'https://github.com/deepseek-ai/deepseek-harness',
     configure: '按 DeepSeek Harness 官方文档配置模型服务与凭据。MathMover 不代管其模型或密钥。',
+    subtitle: 'DeepSeek 官方 CLI',
+  },
+  byok: {
+    docsUrl: 'https://platform.openai.com/docs/api-reference/chat',
+    installUrl: 'https://platform.openai.com/docs/api-reference/chat',
+    configure: '任何 OpenAI 兼容端点均可（含本地代理）。端点与模型在此配置，密钥由本机 MathMover 保管。',
+    subtitle: '直连 OpenAI 兼容端点 · 无需安装',
   },
 };
 

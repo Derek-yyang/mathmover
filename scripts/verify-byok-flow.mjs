@@ -53,11 +53,12 @@ try {
   await page.goto('http://localhost:3000/dashboard', { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.getByRole('textbox', { name: '题目描述' }).waitFor({ timeout: 60_000 });
 
-  // A1. 设置表单：填端点/模型（可选填 key）并保存
+  // A1. 设置表单：开设置 → 切「API 提供商」Tab → 填端点/模型并保存
   const byokHeading = page.getByRole('heading', { name: '内置构造 Agent（BYOK）' });
   for (let attempt = 0; attempt < 4 && !(await byokHeading.count()); attempt++) {
-    await page.getByRole('button', { name: '设置', exact: true }).click();
-    await byokHeading.waitFor({ timeout: 3_000 }).catch(() => {});
+    await page.getByRole('button', { name: '设置', exact: true }).click({ timeout: 2_000 }).catch(() => {});
+    await page.getByRole('tab', { name: 'API 提供商', exact: true }).click({ timeout: 2_000 }).catch(() => {});
+    await byokHeading.waitFor({ timeout: 2_000 }).catch(() => {});
   }
   await byokHeading.waitFor({ timeout: 10_000 });
   await page.getByPlaceholder('https://api.openai.com/v1 或 http://127.0.0.1:15721/v1').fill(`http://127.0.0.1:${llmPort}/v1`);
