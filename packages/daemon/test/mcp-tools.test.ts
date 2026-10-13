@@ -126,11 +126,13 @@ describe('MCP 工具面', () => {
     const submit = describeTool(tools, 'submit_construction').description;
     const cards = describeTool(tools, 'get_sop_cards').description;
 
-    expect(drawing).toContain('自由画图');          // 指路：非做题走这里
-    expect(expert).toContain('题图');               // 指路：做题专用
-    expect(expert).toContain('分类标准');           // 分类学随工具下发
-    expect(submit).toContain('自由画图不要给');      // 防止硬套题目类别
-    expect(cards).toContain('不要凭记忆编指令');    // 防幻觉的核心纪律
+    expect(drawing).toContain('基础包');             // 一条链路的起点，不是「画图模式入口」
+    expect(drawing).toContain('题目增强');           // 指路：发了题图再取增强
+    expect(expert).toContain('题目增强');            // 增强能力，不是「专用链路」
+    expect(expert).toContain('分类标准');            // 分类学随工具下发
+    expect(expert).toContain('传给 submit_construction');  // 提示交卷时同 category 一并传
+    expect(submit).toContain('给了 category');        // category 是本次入参，不是模式
+    expect(cards).toContain('不要凭记忆编指令');     // 防幻觉的核心纪律
   });
 
   it('get_drawing_pack 实跑：通用写法 + 全库清单，不含专家流程', async () => {
@@ -172,17 +174,16 @@ describe('MCP 工具面', () => {
     expect(meta.catalog.every((c: { step: string }) => typeof c.step === 'string')).toBe(true);
   });
 
-  it('两个入口互不污染：画图包会清掉账本里的题目类别', async () => {
+  it('category 是本次入参，不跨调用残留（无会话账本）', async () => {
     const client = await openClient();
-    // 先做题，账本记下 A 类
+    // 先取题目增强（category 用来选知识包），再画图
     await client.callTool({ name: 'get_expert_prompt', arguments: { category: 'A' } });
-    // 再自由画图
     await client.callTool({ name: 'get_drawing_pack', arguments: {} });
-    // 写工作稿后收卷（工作稿是唯一入口，不再接受 commands 参数）
     await client.callTool({
       name: 'write_construction',
       arguments: { commands: ['A = (0, 0)', 'B = (1, 1)'] },
     });
+    // 不传 category → 不做类别结构检查（哪怕上面取过 A 类知识包）
     const r = await client.callTool({ name: 'submit_construction', arguments: { png: false } });
     expect(textBlocks(r).some((t) => t.includes('已按类别 A'))).toBe(false);
     expect(textBlocks(r).some((t) => t.includes('已校验并下发'))).toBe(true);

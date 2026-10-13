@@ -9,7 +9,7 @@
  *    页面断开时如实报 GGB_SESSION_DEAD，不假装画布还在。
  *  - SOP 工具面（P1→P1.6）：get_expert_prompt 取流程+清单、get_sop_cards 按需取卡、
  *    submit_construction 收卷（校验剔除后下发 + 明细回传）。
- *    category 由会话账本自动记（get_expert_prompt 写入，submit_construction 取用）。
+ *    category 是 submit_construction 的可选增强（多查一层结构），不进会话账本。
  *    分类由 agent 自己判——调 get_expert_prompt 时亮出 category，即完成分类+取材两件事。
  */
 
@@ -130,9 +130,9 @@ export function createMcpServer(
   const server = new McpServer({ name: info.name, version: info.version });
   const rootDir = opts.rootDir ?? process.cwd();
 
-  // 会话账本：category 归属（get_expert_prompt 写，submit_construction 读）。
-  // 会话 = 一个 daemon 进程（签名不带 sessionId），进程级单份即"会话账本"。
-  const ledger: { category?: string; reason?: string; at?: number } = {};
+  // 一条链路：把用户意图变成 GeoGebra 构造。题目图片只是输入形态，碰到时多拿
+  // 一套建模知识（get_expert_prompt），不是「换模式」。无会话级 category 账本——
+  // category 只在 submit_construction 上作为本次交卷的可选增强（多查一层结构）。
 
   server.registerTool('ggb_get_state', {
     title: '读取 GeoGebra 画布当前状态',
@@ -207,37 +207,32 @@ export function createMcpServer(
 
   server.registerTool('ggb_reset', {
     title: '清空画布',
-    description: '清空当前 GeoGebra 构造。会同时清空账本。谨慎调用。',
+    description: '清空当前 GeoGebra 构造。谨慎调用。',
     inputSchema: {},
   }, async () => {
     try {
       await tools.reset();
-      ledger.category = undefined;
-      ledger.reason = undefined;
       return { content: [{ type: 'text', text: '画布已清空。' }], isError: false };
     } catch (e) {
       return errContent(e);
     }
   });
 
-  // ── 画图工具面 ────────────────────────────────────────────────
-  // 产品定位是 agent 驱动的 GeoGebra 画图工作台。自由画图走 get_drawing_pack；
-  // 只有「拿题图转 GeoGebra」这条链路才需要 A/B/C/D 专家流程（get_expert_prompt）。
+  // ── 知识供给 ────────────────────────────────────────────────
+  // 一条链路：画图。get_drawing_pack 是人人要的基础包；碰到题目图片/题面时
+  // 另取 get_expert_prompt 拿一套建模知识（增强，不是换模式）。
 
   server.registerTool('get_drawing_pack', {
     title: '取画图基础包 + 全库写法卡清单',
     description:
-      '**自由画图（用户没给题目图）从这里开始**。一次给两样：① 画图基础包——公共输出约定、' +
+      '**画图的基础包，先取这个**。一次给两样：① 画图基础包——公共输出约定、' +
       '每题必用的 GGB 通用写法（MODE/视图/点/线/标签/样式）、严格语法约束（2D+3D 全列）；' +
       '② 全库写法卡清单（不按类别裁剪，含每张卡的一句话说明与适用输入）。' +
       '清单只是目录，具体写法要另外用 get_sop_cards 取；不确定怎么写就取，别凭印象编。\n' +
-      '**只有「拿题图转 GeoGebra」才需要专家建模流程**——那种任务改调 get_expert_prompt 并给出题目类别。',
+      '**用户发了题目图片/题面**时，在此之外再取 get_expert_prompt（**题目增强**——多一套建模方法，不是换模式）。',
     inputSchema: {},
   }, async () => {
     try {
-      // 自由画图：清掉可能残留的题目类别，免得 submit_construction 误套类别结构检查
-      ledger.category = undefined;
-      ledger.reason = undefined;
       const { text, characters } = assembleDrawingPack(rootDir);
       const suffix = buildAllowedCommandsSuffix(undefined, loadWhitelist(rootDir).names);
       const index = buildCardIndex(rootDir);
@@ -263,14 +258,14 @@ export function createMcpServer(
   });
 
   server.registerTool('get_expert_prompt', {
-    title: '取专家建模流程 + 本类写法卡清单',
+    title: '取题目建模方法 + 本类写法卡清单（增强）',
     description:
-      '**题图→GeoGebra 专用**：用户发了题目图片/题面、要把题目变成动图时才调这个，' +
-      '平时自由画图请用 get_drawing_pack。一次取两样——① 专家 skill（8 步建模流程、' +
-      '每题必用的 GGB 通用写法、严格语法约束）；② 本类的写法卡清单（一句话说明 + 适用输入 + 挂在流程第几步）。' +
+      '**题目增强**：用户发了题目图片/题面、要把题目变成动图时取这个（平时画图用 get_drawing_pack 即可）。' +
+      '一次取两样——① 专家 skill（8 步建模流程、每题必用的 GGB 通用写法、严格语法约束）；' +
+      '② 本类的写法卡清单（一句话说明 + 适用输入 + 挂在流程第几步）。' +
       '清单只是目录，具体写法要另外用 get_sop_cards 取；不确定怎么写就取，别凭印象编。' +
-      'category 由你根据题目自己判（没有单独的分类步骤，调本工具即完成分类）；' +
-      '中途发现判错了就换个 category 再调一次，覆盖账本即可。\n分类标准：\n' + CATEGORY_TAXONOMY,
+      'category 由你根据题目自己判，只决定取哪套建模知识；交卷时若这张图是题目建的，' +
+      '把同一 category 传给 submit_construction 多查一层结构。\n分类标准：\n' + CATEGORY_TAXONOMY,
     inputSchema: {
       category: z.enum(['A', 'B', 'C', 'D']).describe(
         '题目类别（必填，你来判）：A 函数与图像 / B 平面几何 / C 解析几何 / D 立体几何',
@@ -280,8 +275,6 @@ export function createMcpServer(
     try {
       const category = args?.category;
       if (!category) return errContent(new Error('必须给出 category（A/B/C/D）——由你根据题目判定'));
-      ledger.category = category;
-      ledger.at = Date.now();
       const { text, metadata } = assembleSkill(category, rootDir);
       const suffix = buildAllowedCommandsSuffix(category, loadWhitelist(rootDir).names);
       const catalog = buildCatalog(category, rootDir);
@@ -345,8 +338,7 @@ export function createMcpServer(
       '收卷动作：提交工作稿 `construction.ggb.txt` 的完整清单。自动做两层检查并把失败明细回传给你自行决定改不改' +
       '（不会替你重生成）：① 行级——语法/未知命令的行剔除后下发，明细列出；' +
       '② 语义级——动点自洽（free_param / orphan_slider）恒查；' +
-      '若是题图→GeoGebra，再按类别查结构（A 要函数/方程、B 要多边形/圆、C 要圆锥曲线、D 要 3D）。' +
-      '**自由画图不要给 category**，硬套题目类别会得出无关的告警。' +
+      '给了 category 再按类别查结构（A 要函数/方程、B 要多边形/圆、C 要圆锥曲线、D 要 3D）。' +
       '**先用 ggb_apply 边构边看，最后收卷**。',
     inputSchema: {
       title: z.string().optional().describe(
@@ -356,15 +348,14 @@ export function createMcpServer(
         '不给则回退到用户首条消息的截断。',
       ),
       category: z.enum(['A', 'B', 'C', 'D']).optional().describe(
-        '题目类别：**仅题图→GeoGebra 链路需要**（那时会多查类别结构）。' +
-        '自由画图不给。不给则用账本里已登记的（get_expert_prompt 写入）；跨轮续接请直接传',
+        '**可选增强**：这张图是按题目建模的（用过 get_expert_prompt）就带上，会多查一层类别结构；' +
+        '纯画图/改图不给，硬套只会得到无关告警。',
       ),
       png: z.boolean().optional().describe('返回结果是否附带画布截图，默认 true'),
     },
   }, async (args) => {
     try {
-      const category = args?.category ?? ledger.category;
-      if (args?.category) ledger.category = args.category;
+      const category = args?.category;
       const source = tools.readConstruction();
       const rawLines = source.flatMap((c) => String(c).split('\n'));
       const { knownLower } = loadWhitelist(rootDir);
