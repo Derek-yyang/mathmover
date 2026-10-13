@@ -7,7 +7,7 @@
 @import "../node_modules/tw-shimmer/src/index.css";
 
 /* 显式注册源文件目录：自动源检测曾单独漏掉 components/SettingsModal.tsx，
-   导致其中的工具类（w-52 / w-[860px] 等）未编译进产物，布局宽度塌缩。 */
+   导致其中的工具类（w-52 / w-[840px] 等）未编译进产物，布局宽度塌缩。 */
 @source "../app";
 @source "../components";
 @source "../lib";
@@ -52,7 +52,11 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* DESIGN.md 字体系统：Inter + Noto Sans SC；未安装时逐级落到平台 UI 字栈
+     （与下方 .aui-root 的中英文回退一致），零字体加载、无 FOUT。 */
+  font-family: Inter, "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
+    "Noto Sans CJK SC", sans-serif;
 }
 
 /* Color tokens for the official assistant-ui elements. Layout lives upstream. */

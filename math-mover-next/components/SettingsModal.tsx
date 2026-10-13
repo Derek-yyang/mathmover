@@ -50,7 +50,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     if (event.target !== event.currentTarget) return;
     const rect = event.currentTarget.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
-  }} className="settings-dialog font-sans m-auto h-[640px] max-h-[90dvh] w-[840px] max-w-[calc(100%-32px)] overflow-hidden rounded-2xl bg-[#FDFCF8] p-0 text-stone-800 shadow-2xl backdrop:bg-stone-900/40">
+  }} className="m-auto h-[640px] max-h-[90dvh] w-[840px] max-w-[calc(100%-32px)] overflow-hidden rounded-2xl bg-[#FDFCF8] p-0 text-stone-800 shadow-2xl backdrop:bg-stone-900/40">
     <div className="flex h-full flex-col">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 px-6 py-4">
         <h2 id="settings-title" className="text-lg font-semibold">设置</h2>

@@ -83,7 +83,7 @@ function ModelSelects({ runtime }: { runtime: RuntimeOption }) {
     <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
       <label className="block min-w-40 flex-1 text-xs font-medium text-stone-600">
         模型
-        <span className="ml-1.5 font-normal text-stone-500">{runtime.models?.source === 'live' ? '来自实时发现' : '兜底提示'}</span>
+        <span className="ml-1.5 font-normal text-stone-600">{runtime.models?.source === 'live' ? '来自实时发现' : '兜底提示'}</span>
         <select className={selectControl} aria-label="选择模型" value={current?.id ?? 'default'}
           onChange={event => selectModel(event.target.value)}>
           {models.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
@@ -92,11 +92,11 @@ function ModelSelects({ runtime }: { runtime: RuntimeOption }) {
       {effort ? (
         <label className="block min-w-40 flex-1 text-xs font-medium text-stone-600">
           推理档位
-          <span className="ml-1.5 font-normal text-stone-500">{effort.pinned ? '' : '（默认）'}</span>
+          <span className="ml-1.5 font-normal text-stone-600">{effort.pinned ? '' : '（默认）'}</span>
           <select className={selectControl} aria-label="选择推理档位" value={effort.option.id}
             onChange={event => selectEffort(event.target.value)}>
             {(current?.reasoningOptions ?? []).map(o => (
-              <option key={o.id} value={o.id}>{o.label}{o.default ? '（默认）' : ''}</option>
+              <option key={o.id} value={o.id}>{o.label}</option>
             ))}
           </select>
         </label>
@@ -124,9 +124,12 @@ function AgentCard({ runtime, selected }: { runtime: RuntimeOption; selected: bo
           <SquareTerminal className="h-4.5 w-4.5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-stone-900">
-            {runtime.name}
-            {guide && <span className="ml-2 text-xs font-normal text-stone-500">· {guide.subtitle}</span>}
+          <p className="flex flex-wrap items-baseline gap-x-2">
+            <span className="min-w-0 truncate text-base font-semibold text-stone-900">{runtime.name}</span>
+            {guide && <span className="text-xs font-medium text-stone-600">· {guide.subtitle}</span>}
+            {runtime.models && runtime.models.list.length > 1 && (
+              <span className="inline-flex shrink-0 items-center rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-700">多种模型</span>
+            )}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-stone-600">
             <span className="tabular-nums">{runtime.version || '版本信息未提供'}</span>
@@ -157,7 +160,7 @@ function AgentCard({ runtime, selected }: { runtime: RuntimeOption; selected: bo
           {failure && <div className="mt-3"><AgentDiagnosticNotice diagnostic={failure} historical
             detecting={detecting} onRescan={() => void refreshRuntimes()} /></div>}
           {!runtime.usable && <p className="mt-3 text-sm text-amber-900">当前选择暂未检测到。请安装或检查环境后刷新；不会自动切换。</p>}
-          <p className="mt-3 text-sm leading-6 text-stone-600">{guide?.configure ?? '请在该 Agent 中完成账号与模型配置，再回到聊天区使用。'}</p>
+          <p className="mt-3 max-w-[68ch] text-sm leading-6 text-stone-600">{guide?.configure ?? '请在该 Agent 中完成账号与模型配置，再回到聊天区使用。'}</p>
           <div className="mt-2"><GuideLink id={runtime.id} name={runtime.name} install={!runtime.usable} /></div>
         </div>
       )}
@@ -183,7 +186,7 @@ export default function AgentSettings() {
 
   return (
     <div>
-      <p className="text-sm leading-6 text-stone-600">选择本机的第三方 Agent 来生成课件。模型、账号和密钥由对应 Agent 管理。</p>
+      <p className="max-w-[68ch] text-sm leading-6 text-stone-600">选择本机的第三方 Agent 来生成课件。模型、账号和密钥由对应 Agent 管理。</p>
 
       {detectionError && <div className="mt-4"><AgentDiagnosticNotice diagnostic={detectionError}
         detecting={detecting} onRescan={() => void refreshRuntimes()} /></div>}
@@ -199,7 +202,7 @@ export default function AgentSettings() {
       </div>}
 
       <section aria-label="已检测到的 Agent" className="mt-5">
-        <h3 className="mb-3 text-sm font-medium text-stone-800">已检测到 <span className="ml-1 text-stone-600">{detected.length}</span></h3>
+        <h3 className="mb-3 text-sm font-medium text-stone-800">已检测到 <span className="ml-1 font-semibold tabular-nums text-stone-900">{detected.length}</span></h3>
         {detecting && !runtimes.length ? (
           <ul className="space-y-3" aria-label="正在查找已安装的 Agent">
             {[0, 1, 2].map(i => (
@@ -246,12 +249,12 @@ export default function AgentSettings() {
                 </li>
               ))}
             </ul>
-            <p className="mt-3 rounded-lg bg-stone-100 px-3 py-2 text-xs leading-5 text-stone-600">{INSTALL_PATH_HINT}</p>
+            <p className="mt-3 max-w-[68ch] rounded-lg bg-stone-100 px-3 py-2 text-xs leading-5 text-stone-600">{INSTALL_PATH_HINT}</p>
           </div>
         </details>
       )}
 
-      <p className="mt-6 border-t border-stone-200 pt-4 text-xs leading-5 text-stone-600">
+      <p className="mt-6 max-w-[68ch] border-t border-stone-200 pt-4 text-xs leading-5 text-stone-600">
         检测仅确认命令行程序可运行，不代表已登录或模型服务可用；点「测试」可分别确认。选择立即生效，不会自动切换到其他 Agent。
       </p>
     </div>

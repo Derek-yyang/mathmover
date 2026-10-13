@@ -27,6 +27,7 @@ export default function ByokSettings() {
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [test, setTest] = useState<TestState>({ running: false });
 
@@ -55,7 +56,7 @@ export default function ByokSettings() {
 
   return (
     <div>
-      <p className="text-sm leading-6 text-stone-600">不安装任何 agent CLI 也能生成课件：填一个 OpenAI 兼容端点、密钥和模型即可。</p>
+      <p className="mt-1 max-w-[68ch] text-sm leading-6 text-stone-600">不安装任何 agent CLI 也能生成课件：填一个 OpenAI 兼容端点、密钥和模型即可。</p>
 
       <div className={`mt-4 rounded-xl border transition-colors motion-reduce:transition-none ${selected ? 'border-emerald-700/40 bg-emerald-50/50' : 'border-stone-200 bg-white hover:border-stone-300'}`}>
         <div className="flex flex-wrap items-start gap-3 p-4">
@@ -63,9 +64,9 @@ export default function ByokSettings() {
             <KeyRound className="h-4.5 w-4.5" />
           </span>
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-sm font-semibold text-stone-900">
-              内置构造 Agent（BYOK）
-              <span className="ml-2 text-xs font-normal text-stone-500">· 直连 OpenAI 兼容端点 · 无需安装</span>
+            <h3 className="flex flex-wrap items-baseline gap-x-2 text-base font-semibold text-stone-900">
+              <span className="min-w-0 truncate">内置构造 Agent（BYOK）</span>
+              <span className="text-xs font-medium text-stone-600">· 直连 OpenAI 兼容端点 · 无需安装</span>
             </h3>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-stone-600">
               <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${configured ? 'bg-emerald-100 text-emerald-900' : 'bg-stone-200 text-stone-700'}`}>
@@ -107,22 +108,25 @@ export default function ByokSettings() {
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button type="button" className={action + ' bg-emerald-700 text-white hover:bg-emerald-800'}
+              disabled={saving}
               onClick={() => {
+                setSaving(true);
                 void saveByokConfig({ baseUrl, model, apiKey }).then((v) => {
                   setView(v);
                   setApiKey('');
                   setSaved(true);
                   setError('');
-                }).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+                }).catch((e) => setError(e instanceof Error ? e.message : String(e)))
+                  .finally(() => setSaving(false));
               }}>
-              保存
+              {saving ? '保存中…' : '保存'}
             </button>
             <p role="status" className="flex items-center gap-1.5 text-sm text-stone-600">
               {saved && <><Check className="h-4 w-4 text-emerald-700" aria-hidden="true" />已保存</>}
               {!saved && (configured ? '密钥由本机 MathMover 保管，不进课件备份。' : '填好端点与模型后生效。')}
             </p>
           </div>
-          <p className="mt-3 text-xs leading-5 text-stone-600">
+          <p className="mt-3 max-w-[68ch] text-xs leading-5 text-stone-600">
             任何 OpenAI 兼容端点均可（含本地代理）。端点与模型在此配置，密钥只存应用数据目录、界面只显尾 4 位。
           </p>
           {error && <p role="alert" className="mt-2 text-sm leading-5 text-amber-900">{error}</p>}
