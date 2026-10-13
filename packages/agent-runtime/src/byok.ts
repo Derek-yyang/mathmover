@@ -10,7 +10,7 @@
  * 对齐 OpenDesign 的三条（2026-10-13）：
  *  1. **流式**：请求 stream:true，正文按 SSE delta 逐块吐（text-delta 事件），
  *     tool_call 的增量片段同样拼装；端点不支持流式时回落非流式 JSON。
- *  2. **轮次上限 3**（其 MAX_BYOK_TOOL_LOOPS=3）：超限**优雅收尾**——已吐的
+ *  2. **轮次上限**（见 maxRounds 默认值）：超限**优雅收尾**——已吐的
  *     正文保留、不发 error（他们的原话：close the stream gracefully）。
  *  3. 图片输入不支持（他们同样未做，输出向媒体工具另论）。
  */
@@ -35,7 +35,12 @@ export interface ByokAgentOptions {
   model: string;
   tools: ByokTool[];
   systemPrompt?: string;
-  /** 工具往返上限（对齐 OpenDesign MAX_BYOK_TOOL_LOOPS=3） */
+  /**
+   * 工具往返上限。默认 5：做题主路径要 get_expert_prompt → get_sop_cards →
+   * submit_construction → 看体检结果自检，四个依赖步之后才轮到收尾，3 会卡死
+   * 自检；5 给正常路径留一次修正空间，跑飞防线意义不变（跑飞是十几个来回）。
+   * OpenDesign 的 MAX_BYOK_TOOL_LOOPS=3 适配的是浅链路媒体工具，不照搬。
+   */
   maxRounds?: number;
   /** 单次补全的超时；默认 120s（慢代理下的长思考） */
   requestTimeoutMs?: number;
@@ -109,7 +114,7 @@ async function consumeSse(body: ReadableStream<Uint8Array>, onEvent: (e: AgentEv
 
 export function runByokAgent(opts: ByokAgentOptions): ByokRunHandle {
   const abort = new AbortController();
-  const maxRounds = opts.maxRounds ?? 3;
+  const maxRounds = opts.maxRounds ?? 5;
   const requestTimeoutMs = opts.requestTimeoutMs ?? 120_000;
   const base = opts.baseUrl.trim().replace(/\/+$/, '');
   const toolsPayload = opts.tools.map((t) => ({
