@@ -23,6 +23,7 @@ import {
 import { useCoursewareLibrary } from '@/hooks/useCoursewareLibrary';
 import type { CoursewareRecord } from '@/lib/courseware-client';
 import { historyBeforeUserMessage } from '@/lib/assistant-chat-adapter';
+import { createStreamTextBatch } from '@/lib/stream-text-batch';
 
 export default function Dashboard() {
   return (
@@ -133,7 +134,7 @@ function DashboardContent() {
   // 传输用 NDJSON（自己的事件模型），不套 AI SDK 的 UI message stream：
   // AgentChatPanel 本来就是受控组件，直接消费更少代码，也免去与 ai 包的版本耦合。
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
-  const { runtimes, activeRuntimeId, selectRuntime: handleSelectRuntime, busy: isLoading, setBusy: setIsLoading, recordFailure, clearFailure } = useAgentRuntimeState();
+  const { runtimes, activeRuntimeId, busy: isLoading, setBusy: setIsLoading, recordFailure, clearFailure } = useAgentRuntimeState();
   const sessionIdRef = useRef<string | undefined>(undefined);
   // 当前这一轮的取消句柄。用户点「停止」→ abort fetch → 流被取消 →
   // route 的 ReadableStream.cancel() 杀掉 agent 子进程（见 app/api/agent/route.ts）。
@@ -151,8 +152,6 @@ function DashboardContent() {
   // 不是「跑出了什么」；跟着课件走会让历史课件在换模型后语义混乱。
   // 状态升入 AgentRuntimeState：设置卡片与聊天区 composer 选择器写同一份。
   const { selectedModel, selectedEffort, selectModel: handleSelectModel, selectEffort: handleSelectEffort } = useAgentRuntimeState();
-
-
 
   useEffect(() => {
     ledgerRef.current = lastExecutedCommands;
@@ -211,9 +210,9 @@ function DashboardContent() {
           markDirty();
         },
         // 执行委托给 useGgbSession，避免两条执行路径导致状态不同步
-        applyCommands: async (commands) => {
-          await executeCommandsRef.current(commands);
-          ledgerRef.current = commands;
+        applyCommands: async ({ commands, incremental, ledger }) => {
+          await executeCommandsRef.current(commands, { incremental: incremental === true });
+          ledgerRef.current = ledger ?? commands;
           return { applied: commands, failedFirstPass: [] };
         },
         wsUrl: process.env.NEXT_PUBLIC_MATHMOVER_WS_URL || 'ws://127.0.0.1:8787',
@@ -300,8 +299,14 @@ function DashboardContent() {
       setLoadingStatusText('等待 Agent 回复…');
 
       // 流式累积到助手气泡上
-      const patch = (fn: (m: AgentChatMessage) => AgentChatMessage) =>
+      const applyPatch = (fn: (m: AgentChatMessage) => AgentChatMessage) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? fn(m) : m)));
+      const textBatch = createStreamTextBatch(text => applyPatch(m => ({ ...m, content: (m.content ?? '') + text })));
+      const patch = (fn: (m: AgentChatMessage) => AgentChatMessage) => {
+        // Tool/error/final state must never overtake buffered text.
+        textBatch.flush();
+        applyPatch(fn);
+      };
 
       let sawDone = false;
       let sawError = false;
@@ -385,10 +390,10 @@ function DashboardContent() {
           switch (ev.kind) {
             case 'text-delta':
               streamedText = true;
-              patch(m => ({ ...m, content: (m.content ?? '') + (ev.text ?? '') }));
+              textBatch.push(ev.text ?? '');
               break;
             case 'text':
-              if (!streamedText) patch(m => ({ ...m, content: (m.content ?? '') + (ev.text ?? '') }));
+              if (!streamedText) textBatch.push(ev.text ?? '');
               streamedText = false;
               break;
             case 'session':
@@ -448,7 +453,7 @@ function DashboardContent() {
         setLoadingStatusText('准备就绪');
       }
     },
-    [isLoading, activeRuntimeId, setIsLoading, recordFailure, clearFailure, messages, canSend, flush, windowId],
+    [isLoading, activeRuntimeId, selectedModel, selectedEffort, setIsLoading, recordFailure, clearFailure, messages, canSend, flush, windowId],
   );
 
   const handleEditMessage = useCallback(async (messageId: string, text: string, attachments: ChatAttachment[]) => {
@@ -464,6 +469,9 @@ function DashboardContent() {
       >
         <ControlDeck
           title={displayedTitle}
+          editorId={courseware.editorId}
+          onRename={courseware.renameTitle}
+          renameDisabled={isLoading || !courseware.canSend || !ggbApplet}
           saveStatusText={{ idle: '', dirty: '尚未保存', saving: '保存中…', saved: '已保存到本地', error: '保存／恢复失败', restoring: '恢复中…' }[courseware.status]}
           sliders={sliders}
           showAxes={showAxes}
@@ -499,6 +507,7 @@ function DashboardContent() {
         <AgentChatPanel
           messages={messages}
           conversationId={courseware.summary?.id}
+          editorId={courseware.editorId}
           isLoading={isLoading}
           sendDisabled={!courseware.canSend}
           loadingStatusText={loadingStatusText}
@@ -511,7 +520,6 @@ function DashboardContent() {
           onSelectModel={handleSelectModel}
           selectedEffort={selectedEffort}
           onSelectEffort={handleSelectEffort}
-          onSelectRuntime={handleSelectRuntime}
         />
       </ResizableChatRegion>
 

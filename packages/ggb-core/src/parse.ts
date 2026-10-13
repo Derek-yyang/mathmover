@@ -19,15 +19,37 @@ import type { GgbCommand, Mode, ParsedCommands } from './types.ts';
 /** 定义行：`E = ...`、`f(x) = ...`、`A := ...`。属性行/SetXxx/MODE 不匹配。 */
 const DEF_LINE = /^\s*([A-Za-z][A-Za-z0-9_]*)\s*(?:\([^)]*\))?\s*(:?=)/;
 
-/** 属性行：SetColor(f, ...) / ShowLabel(A, true) / SetLineThickness(...) 等 */
-const PROP_LINE = /^\s*(?:Set\w+|Show\w+|SetTooltip|SetColor|SetFilling|SetLineThickness|SetPointStyle|SetCaption|SetVisible|SetTrace)\s*\(/;
-
 const MODE_LINE = /^\s*MODE\s*:/i;
 const COMMENT_LINE = /^\s*\/\//;
 
 /** 归一化送入 evalCommand 的文本：反转义 GeoGebra 的 \" 序列 */
 export function normalizeCommandText(raw: string): string {
   return raw.replace(/\\"/g, '"').trim();
+}
+
+/**
+ * 属性行解析：命令头 + 目标对象名。
+ * 例：`SetColor(f, "#FF0000")` → `{ head: 'SetColor', target: 'f' }`
+ *
+ * 命令头集合与 PROP_LINE 一致（含 SetCaption/SetVisible/SetTrace）；
+ * diff.ts 的 PROP_TARGET 与它是同源语义，改这里两边都对。
+ */
+const PROP_HEAD_TARGET =
+  /^\s*(Set\w+|Show\w+|SetTooltip|SetColor|SetFilling|SetLineThickness|SetPointStyle|SetCaption|SetVisible|SetTrace)\s*\(\s*([A-Za-z][A-Za-z0-9_]*)/;
+
+export function parsePropertyLine(raw: string): { head: string; target: string } | null {
+  const m = PROP_HEAD_TARGET.exec(raw.trim());
+  if (!m) return null;
+  return { head: m[1], target: m[2] };
+}
+
+/**
+ * 属性行判定 —— **假失败陷阱的公共判据**。
+ * `evalCommand('SetColor(...)')` 成功也返回 false（case-01 教训），
+ * 判成败必须走这里，不能看返回值。
+ */
+export function isPropertyLine(raw: string): boolean {
+  return parsePropertyLine(raw) !== null;
 }
 
 export function classifyLine(raw: string): { kind: GgbCommand['kind']; name: string | null } {
@@ -40,9 +62,9 @@ export function classifyLine(raw: string): { kind: GgbCommand['kind']; name: str
   if (def) {
     return { kind: def[2] === ':=' ? 'colon-def' : 'definition', name: def[1] };
   }
-  if (PROP_LINE.test(line)) {
-    const target = line.match(/\(\s*([A-Za-z][A-Za-z0-9_]*)/);
-    return { kind: 'property', name: target ? target[1] : null };
+  const prop = parsePropertyLine(line);
+  if (prop) {
+    return { kind: 'property', name: prop.target };
   }
   return { kind: 'unknown', name: null };
 }

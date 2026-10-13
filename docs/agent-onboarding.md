@@ -30,8 +30,11 @@ CLI（Claude Code / Codex / dsh）；本组改动把这道门槛从三个方向�
   引用资源（courseware-store.createBackup），byok.json 天然不在备份包里。
 - **流式**（对齐 OpenDesign 的 SSE BYOK）：请求 `stream:true`，正文按 delta 逐块
   转 text-delta 事件、tool_call 增量片段拼装；端点不支持流式时回落非流式 JSON。
-- **轮次上限 3**（其 MAX_BYOK_TOOL_LOOPS=3）：超限**优雅收尾**——已吐正文保留、
-  不发 error（他们的原话：close the stream gracefully）。
+- **轮次上限 5**：单次请求内工具往返的上限（跑飞防烧阀值），超限**优雅收尾**——
+  已吐正文保留、不发 error（OpenDesign 原话：close the stream gracefully）。
+  为什么不是 OpenDesign 的 3：我们的做题主路径是 get_expert_prompt → get_sop_cards
+  → submit_construction → 看体检结果自检，四步依赖之后才轮到收尾，3 会卡死自检；
+  5 给正常路径留一次修正空间。跑飞是十几个来回，5 与 3 的防线意义相同。
 - **图片输入不支持**（OpenDesign 同样未做；其 BYOK 工具是输出向的媒体生成）。
   未配置端点/模型时如实 400 拒发。
 - **模型清单**：BYOK 的「agent 配置」就是设置表单——与「清单以 agent 配置为
@@ -45,7 +48,7 @@ CLI（Claude Code / Codex / dsh）；本组改动把这道门槛从三个方向�
   （byok-store.test.mjs）。
 - 浏览器/API 验收：`node scripts/verify-byok-flow.mjs`——掩码 GET、设置表单
   保存（尾 4 位回显、key 本体不出仓）、选择器切换，完整 BYOK 循环直打
-  /api/agent（SSE 事件流、mcp-stdio 工具闭环 8 工具、结果回喂、未配置 400），
+  /api/agent（SSE 事件流、mcp-stdio 工具闭环 9 工具、结果回喂、未配置 400），
   结束还原配置。工具只用只读 ggb_get_state，不写画布、不写课件库、不调真实模型。
 - UI 发送路径的画布前置（未连接画板拒发 503）是既有正确行为；headless 页
   画布不连 daemon，故验收在 API 段覆盖循环、浏览器段覆盖表单。

@@ -73,19 +73,28 @@ export function createHttpServer(tools: GgbTools, opts: HttpApiOptions): http.Se
         return json(res, 200, await activeTools.getState({ png }));
       }
 
-      // 全量写入
+      // 写入：commands 缺省时由 tools 读工作稿 construction.ggb.txt
       if (url.pathname === '/api/apply' && req.method === 'POST') {
-        const body = (await readBody(req)) as { commands?: string[]; png?: boolean };
-        if (!Array.isArray(body.commands)) {
-          return json(res, 400, { error: '缺少 commands 数组' });
+        const body = (await readBody(req)) as { commands?: string[]; png?: boolean; incremental?: boolean };
+        if (body.commands !== undefined && !Array.isArray(body.commands)) {
+          return json(res, 400, { error: 'commands 必须是数组' });
         }
-        return json(res, 200, await activeTools.apply(body.commands, { png: body.png ?? true }));
+        return json(res, 200, await activeTools.apply(body.commands, {
+          png: body.png ?? true,
+          incremental: body.incremental,
+        }));
       }
 
-      // 比较两份清单
-      if (url.pathname === '/api/diff' && req.method === 'POST') {
-        const body = (await readBody(req)) as { before?: string[]; after?: string[] };
-        return json(res, 200, tools.diff(body.before ?? [], body.after ?? []));
+      // 工作稿读写（BYOK 等无原生文件能力的 agent 走这条）
+      if (url.pathname === '/api/construction' && req.method === 'GET') {
+        return json(res, 200, activeTools.readConstruction());
+      }
+      if (url.pathname === '/api/construction' && req.method === 'PUT') {
+        const body = (await readBody(req)) as { commands?: string[] };
+        if (!Array.isArray(body.commands) || body.commands.length === 0) {
+          return json(res, 400, { error: '缺少 commands 数组' });
+        }
+        return json(res, 200, { file: activeTools.writeConstruction(body.commands) });
       }
 
       // 清空

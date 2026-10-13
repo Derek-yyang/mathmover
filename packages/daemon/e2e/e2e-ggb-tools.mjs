@@ -21,6 +21,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GgbBridgeClient } from '../src/bridge-client.ts';
 import { GgbTools, buildBoardState, writeConstructionFile, DEFAULT_TOOLS_CONFIG } from '../src/tools.ts';
+import { diffCommands } from '@mathmover/ggb-core';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
@@ -154,9 +155,9 @@ async function main() {
     s.audit.findings.length ? JSON.stringify(s.audit.findings) : '');
   check('MODE:2D 被识别', s.mode === '2D');
 
-  // ── 6. ggb_diff：说清改了什么 ─────────────────────────────────
+  // ── 6. diff（apply 内部用来「说清改了什么」）────────────────────
   const v2 = DEMO_COMMANDS.map((c) => (c.includes('Point(f, 0.5)') ? 'D = Point(f, 0.75)' : c));
-  const d = tools.diff(DEMO_COMMANDS, v2);
+  const d = diffCommands(DEMO_COMMANDS, v2);
   check('diff 抓到 D 的改动', d.entries.some((e) => e.name === 'D' && e.op === 'changed'),
     d.summary);
 

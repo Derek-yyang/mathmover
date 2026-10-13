@@ -88,8 +88,8 @@ describe('MCP 工具面', () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       'get_drawing_pack', 'get_expert_prompt', 'get_sop_cards',
-      'ggb_apply', 'ggb_diff', 'ggb_get_state', 'ggb_reset',
-      'submit_construction',
+      'ggb_apply', 'ggb_get_state', 'ggb_reset',
+      'read_construction', 'submit_construction', 'write_construction',
     ]);
   });
 
@@ -99,8 +99,9 @@ describe('MCP 工具面', () => {
 
     // 做题入口：category 必填——改回可选会让 agent 不分类就拿 skill
     expect(describeTool(tools, 'get_expert_prompt').required).toEqual(['category']);
-    // 收卷：commands 必填，category 必须可选——自由画图不该被要求给类别
-    expect(describeTool(tools, 'submit_construction').required).toEqual(['commands']);
+    // 收卷：**没有 commands 参数**（唯一入口是工作稿文件），category 必须可选
+    expect(describeTool(tools, 'submit_construction').params).not.toContain('commands');
+    expect(describeTool(tools, 'submit_construction').required).not.toContain('category');
     expect(describeTool(tools, 'submit_construction').params).toContain('category');
     // 命名：可选（agent 起的课件名）。必填会让 agent 为了过 schema 乱编名字。
     expect(describeTool(tools, 'submit_construction').params).toContain('title');
@@ -109,6 +110,12 @@ describe('MCP 工具面', () => {
     expect(describeTool(tools, 'get_drawing_pack').params).toEqual([]);
     // 取卡按名字批量拿
     expect(describeTool(tools, 'get_sop_cards').required).toEqual(['names']);
+    // 工作稿是唯一入口：ggb_apply 无 commands；读零参，写必带 commands（可选 apply 联动下发）
+    expect(describeTool(tools, 'ggb_apply').params).not.toContain('commands');
+    expect(describeTool(tools, 'read_construction').params).toEqual([]);
+    expect(describeTool(tools, 'write_construction').required).toEqual(['commands']);
+    expect(describeTool(tools, 'write_construction').params).toContain('apply');
+    expect(describeTool(tools, 'write_construction').required).not.toContain('apply');
   });
 
   it('关键引导语在（删了会让 agent 行为漂移）', async () => {
@@ -171,11 +178,12 @@ describe('MCP 工具面', () => {
     await client.callTool({ name: 'get_expert_prompt', arguments: { category: 'A' } });
     // 再自由画图
     await client.callTool({ name: 'get_drawing_pack', arguments: {} });
-    // 此时收卷不该再套 A 类结构检查——回执不再出现「按类别 A」
-    const r = await client.callTool({
-      name: 'submit_construction',
-      arguments: { commands: ['A = (0, 0)', 'B = (1, 1)'], png: false },
+    // 写工作稿后收卷（工作稿是唯一入口，不再接受 commands 参数）
+    await client.callTool({
+      name: 'write_construction',
+      arguments: { commands: ['A = (0, 0)', 'B = (1, 1)'] },
     });
+    const r = await client.callTool({ name: 'submit_construction', arguments: { png: false } });
     expect(textBlocks(r).some((t) => t.includes('已按类别 A'))).toBe(false);
     expect(textBlocks(r).some((t) => t.includes('已校验并下发'))).toBe(true);
   });

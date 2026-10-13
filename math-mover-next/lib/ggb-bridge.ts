@@ -23,7 +23,12 @@ interface Bridge {
   version: 1;
   ping(): boolean;
   getState(): Promise<RawState>;
-  apply(commands: string[]): Promise<RawApplyResult>;
+  /**
+   * @param commands 要执行的行。增量模式下只是**新增行**（页面不清屏）
+   * @param incremental true = 不清空画布，把新行叠加上去（对象逐个出现）
+   * @param ledger 增量时的**完整**账本（唯一真源）；缺省 = commands
+   */
+  apply(payload: { commands: string[]; incremental?: boolean; ledger?: string[] }): Promise<RawApplyResult>;
   reset(): void;
   setLedger(commands: string[]): void;
 }
@@ -157,7 +162,7 @@ export function attachGgbBridge(
   opts: {
     getLedger: () => string[];
     onLedgerChange?: (commands: string[]) => void;
-    applyCommands?: (commands: string[]) => Promise<{
+    applyCommands?: (payload: { commands: string[]; incremental?: boolean; ledger?: string[] }) => Promise<{
       applied: string[];
       failedFirstPass: string[];
     }>;
@@ -171,24 +176,31 @@ export function attachGgbBridge(
     version: 1,
     ping: () => true,
     getState: () => collectState(api, opts.getLedger(), generation),
-    apply: async (commands: string[]) => {
+    apply: async (payload) => {
+      const commands = payload.commands ?? [];
+      const incremental = payload.incremental === true;
+      // 账本永远是完整清单：增量时页面只执行新行，但真源必须是全量
+      const ledger = payload.ledger ?? commands;
       const t0 = performance.now();
       let applied: string[] = [];
       let failedFirstPass: string[] = [];
 
       if (opts.applyCommands) {
         // 委托给宿主既有的执行路径（保持业务状态单一来源）
-        const r = await opts.applyCommands(commands);
+        const r = await opts.applyCommands({ commands, incremental, ledger });
         applied = r.applied;
         failedFirstPass = r.failedFirstPass;
       } else {
         // 桥自带的最小实现（无宿主时兜底）
-        try { api.newConstruction(); } catch {}
-        try {
-          if (typeof api.setPerspective === 'function') api.setPerspective('G');
-          if (typeof api.setAxesVisible === 'function') api.setAxesVisible(true, true);
-          if (typeof api.setGridVisible === 'function') api.setGridVisible(true);
-        } catch {}
+        // 增量模式**不清屏**——新对象直接叠在现有图上，这是「一点点长出来」的关键
+        if (!incremental) {
+          try { api.newConstruction(); } catch {}
+          try {
+            if (typeof api.setPerspective === 'function') api.setPerspective('G');
+            if (typeof api.setAxesVisible === 'function') api.setAxesVisible(true, true);
+            if (typeof api.setGridVisible === 'function') api.setGridVisible(true);
+          } catch {}
+        }
 
         /**
          * ⚠「假失败」陷阱（2026-10-09 实测）：
@@ -233,13 +245,13 @@ export function attachGgbBridge(
       }
 
       generation += 1;
-      opts.onLedgerChange?.(commands);
+      opts.onLedgerChange?.(ledger);
 
       return {
         applied,
         failedFirstPass,
         durationMs: Math.round(performance.now() - t0),
-        state: await collectState(api, commands, generation),
+        state: await collectState(api, ledger, generation),
       };
     },
     reset: () => {
@@ -298,9 +310,11 @@ export function attachGgbBridge(
           case 'getState':
             reply(await bridge.getState());
             break;
-          case 'apply':
-            reply(await bridge.apply((msg.args as { commands: string[] })?.commands ?? []));
+          case 'apply': {
+            const a = (msg.args ?? {}) as { commands?: string[]; incremental?: boolean; ledger?: string[] };
+            reply(await bridge.apply({ commands: a.commands ?? [], incremental: a.incremental, ledger: a.ledger }));
             break;
+          }
           case 'reset':
             bridge.reset();
             reply(true);

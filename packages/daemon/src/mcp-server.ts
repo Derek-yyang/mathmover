@@ -152,21 +152,18 @@ export function createMcpServer(
   });
 
   server.registerTool('ggb_apply', {
-    title: '全量替换 GeoGebra 构造',
+    title: '应用构造工作稿到画布',
     description:
-      '用一份**完整的 GeoGebra 指令清单**替换当前画布。这是唯一写入方式——不做增量补丁。' +
-      '请输出更新后的全量清单（未修改的对象保持原名原定义不变），而不是只给变化的行。' +
-      '执行后返回新状态、体检结果，以及相对上一版的改动说明（可用于向用户汇报"改了什么"）。',
+      '把工作稿 `construction.ggb.txt` 下发到画布。**没有别的入口**——像改代码一样' +
+      '编辑该文件（真 CLI 用原生编辑能力；BYOK 用 write_construction），改完调本工具生效。' +
+      '返回新状态、体检结果，以及相对上一版的改动说明。' +
+      '**边构边调**：每完成一段就 apply 一次，用户能看着图一点点长出来，而不是等很久一次出全图。',
     inputSchema: {
-      commands: z.array(z.string()).min(1).describe(
-        'GeoGebra 指令清单，每行一条。形如 "A = (0, 0)"、"f = Line(A, B)"、"SetColor(f, \\"#FF0000\\")"。' +
-        '可含 MODE:2D 或 MODE:3D 首行、// 注释行（注释不会下发）。',
-      ),
       png: z.boolean().optional().describe('返回结果是否附带画布截图，默认 true。'),
     },
   }, async (args) => {
     try {
-      const r = await tools.apply(args?.commands ?? [], { png: args?.png ?? true });
+      const r = await tools.apply(undefined, { png: args?.png ?? true });
       const content: ToolContent = [
         { type: 'text', text: describeDiff(r.diff) },
         { type: 'text', text: describeState(r.state) },
@@ -182,6 +179,12 @@ export function createMcpServer(
             '确认无误后再向用户汇报；若不对，重新提交完整清单。',
         });
       }
+      if ((r as { incremental?: boolean }).incremental) {
+        content.unshift({
+          type: 'text',
+          text: '本次为增量应用（未清屏，新对象直接叠加在现有图上）。',
+        });
+      }
       if (r.failedFirstPass.length > 0) {
         content.push({
           type: 'text',
@@ -191,36 +194,12 @@ export function createMcpServer(
       }
       content.push({ type: 'text', text: JSON.stringify({
         diff: r.diff, applied: r.applied.length, failedFirstPass: r.failedFirstPass,
-        durationMs: r.durationMs,
+        durationMs: r.durationMs, incremental: (r as { incremental?: boolean }).incremental ?? false,
       }, null, 2) });
       if (r.state.png.base64) {
         content.push({ type: 'image', data: r.state.png.base64, mimeType: 'image/png' });
       }
       return { content, isError: false };
-    } catch (e) {
-      return errContent(e);
-    }
-  });
-
-  server.registerTool('ggb_diff', {
-    title: '比较两份 GeoGebra 指令清单',
-    description:
-      '计算两份指令清单的语义差异（按对象名对齐，不按行号），返回中文改动摘要。' +
-      '不触动画布。适合在向用户说明"我改了什么"之前自查，或比较历史版本。',
-    inputSchema: {
-      before: z.array(z.string()).describe('改动前的指令清单'),
-      after: z.array(z.string()).describe('改动后的指令清单'),
-    },
-  }, async (args) => {
-    try {
-      const d = tools.diff(args?.before ?? [], args?.after ?? []);
-      return {
-        content: [
-          { type: 'text', text: describeDiff(d) },
-          { type: 'text', text: JSON.stringify(d, null, 2) },
-        ],
-        isError: false,
-      };
     } catch (e) {
       return errContent(e);
     }
@@ -363,13 +342,13 @@ export function createMcpServer(
   server.registerTool('submit_construction', {
     title: '提交构造（收卷：校验剔除后下发）',
     description:
-      '收卷动作：提交**完整** GeoGebra 指令清单。自动做两层检查并把失败明细回传给你自行决定改不改' +
+      '收卷动作：提交工作稿 `construction.ggb.txt` 的完整清单。自动做两层检查并把失败明细回传给你自行决定改不改' +
       '（不会替你重生成）：① 行级——语法/未知命令的行剔除后下发，明细列出；' +
       '② 语义级——动点自洽（free_param / orphan_slider）恒查；' +
       '若是题图→GeoGebra，再按类别查结构（A 要函数/方程、B 要多边形/圆、C 要圆锥曲线、D 要 3D）。' +
-      '**自由画图不要给 category**，硬套题目类别会得出无关的告警。',
+      '**自由画图不要给 category**，硬套题目类别会得出无关的告警。' +
+      '**先用 ggb_apply 边构边看，最后收卷**。',
     inputSchema: {
-      commands: z.array(z.string()).min(1).describe('完整 GeoGebra 指令清单，每行一条（含 MODE: 首行可选、// 注释可选）'),
       title: z.string().optional().describe(
         '给这个任务起个短名（8 字以内为宜）。**概括用户第一条消息要做什么**，' +
         '不是概括你画成了什么——标题命名的是「请求」，多轮微调后也不该变。' +
@@ -386,7 +365,8 @@ export function createMcpServer(
     try {
       const category = args?.category ?? ledger.category;
       if (args?.category) ledger.category = args.category;
-      const rawLines = (args?.commands ?? []).flatMap((c) => String(c).split('\n'));
+      const source = tools.readConstruction();
+      const rawLines = source.flatMap((c) => String(c).split('\n'));
       const { knownLower } = loadWhitelist(rootDir);
 
       // ① 行级：剔除语法无效行 + 未知命令行（宁可放过的是可解析行；这类行下发必败）
@@ -445,6 +425,57 @@ export function createMcpServer(
     } catch (e) {
       return errContent(e);
     }
+  });
+
+  // BYOK 等无原生文件能力的 agent 走这两个工具读写工作稿；
+  // 真 CLI（claude/codex/dsh）直接用自带的 Read/Edit，不必调它们。
+  server.registerTool('read_construction', {
+    title: '读构造工作稿',
+    description:
+      '读取当前构造工作稿 `construction.ggb.txt` 的内容（每行一条 GeoGebra 指令）。' +
+      '真 CLI 有原生读文件能力，直接读文件即可；本工具给没有文件能力的 agent 用。',
+    inputSchema: {},
+  }, async () => {
+    const lines = tools.readConstruction();
+    return {
+      content: [{
+        type: 'text',
+        text: lines.length
+          ? lines.join('\n')
+          : '（工作稿为空——画布上还没有构造）',
+      }],
+      isError: false,
+    };
+  });
+
+  server.registerTool('write_construction', {
+    title: '写构造工作稿',
+    description:
+      '用完整清单**覆盖**工作稿 `construction.ggb.txt`。真 CLI 有原生编辑能力，直接改文件即可；' +
+      '本工具给没有文件能力的 agent（BYOK）用。' +
+      'apply:true = 写完顺手下发画布（省一轮 ggb_apply）；默认只写草稿不下发。',
+    inputSchema: {
+      commands: z.array(z.string()).min(1).describe('完整 GeoGebra 指令清单，每行一条（含 MODE: 首行可选、// 注释可选）'),
+      apply: z.boolean().optional().describe('写完是否顺手下发画布，默认 false。BYOK 建议 true——省一轮 ggb_apply。'),
+    },
+  }, async (args) => {
+    const commands = (args?.commands ?? []).map((c) => String(c));
+    const file = tools.writeConstruction(commands);
+    if (args?.apply) {
+      const r = await tools.apply(undefined, { png: true });
+      return {
+        content: [
+          { type: 'text', text: `工作稿已写入 ${commands.length} 行并下发画布。` },
+          { type: 'text', text: describeDiff(r.diff) },
+          { type: 'text', text: describeState(r.state) },
+        ],
+        isError: false,
+      };
+    }
+    return {
+      content: [{ type: 'text', text: `工作稿已写入 ${commands.length} 行${file ? `（${file}）` : ''}。要生效请调 ggb_apply()。` }],
+      isError: false,
+    };
   });
 
   return server;

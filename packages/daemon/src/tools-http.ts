@@ -14,14 +14,18 @@ import { libraryToken } from './data-directory.ts';
 
 export interface ToolsLike {
   getState(opts?: { png?: boolean }): Promise<BoardState>;
-  apply(commands: string[], opts?: { png?: boolean }): Promise<{
+  /** commands 不传 = daemon 读工作稿 construction.ggb.txt */
+  apply(commands?: string[], opts?: { png?: boolean; incremental?: boolean }): Promise<{
     state: BoardState;
     diff: DiffResult;
     applied: string[];
     failedFirstPass: string[];
     durationMs: number;
+    incremental?: boolean;
+    unconfirmed?: boolean;
   }>;
-  diff(before: string[], after: string[]): Promise<DiffResult> | DiffResult;
+  readConstruction(): Promise<string[]> | string[];
+  writeConstruction(commands: string[]): Promise<string> | string;
   reset(): Promise<void>;
   ping(): boolean;
 }
@@ -48,13 +52,16 @@ export function createHttpBackedTools(daemonUrl: string): ToolsLike {
     async apply(commands, opts = {}) {
       return call('/api/apply', {
         method: 'POST',
-        body: JSON.stringify({ commands, png: opts.png !== false }),
+        body: JSON.stringify({ commands, png: opts.png !== false, incremental: opts.incremental }),
       });
     },
-    async diff(before, after) {
-      return call('/api/diff', {
-        method: 'POST',
-        body: JSON.stringify({ before, after }),
+    async readConstruction() {
+      return call('/api/construction', { method: 'GET' });
+    },
+    async writeConstruction(commands) {
+      return call('/api/construction', {
+        method: 'PUT',
+        body: JSON.stringify({ commands }),
       });
     },
     async reset() {

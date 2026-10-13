@@ -3,7 +3,7 @@ import http from 'node:http';
 import { chromium } from 'playwright';
 
 // BYOK 验收分两段：
-//  A. 浏览器 UI：设置表单保存（密钥进应用数据目录、界面只显示尾 4 位）+ 选择器切换；
+//  A. 浏览器 UI：设置表单保存（密钥进应用数据目录、界面只显示尾 4 位）+ 设置页切换 Agent；
 //  B. API 集成：配置写入 /api/byok 后直打 /api/agent 跑完整 BYOK 循环——路由分支、
 //     mcp-stdio 工具闭环、SSE 流式事件、轮次语义。工具只用只读的 ggb_get_state，
 //     不写画布、不写课件库、不调真实模型（假 LLM 端点在本脚本内起）。
@@ -76,11 +76,12 @@ try {
     assert.equal(afterSave.apiKeyTail, '4321', 'tail reflected back');
     assert.ok(!(await (await fetch(byokUrl)).text()).includes('test-key'), 'masked view never leaks the key body');
   }
+  // A2. 设置页能切到内置构造 Agent，聊天标题只展示当前名称
+  const useByok = page.getByRole('button', { name: '使用 内置构造 Agent（BYOK）', exact: true });
+  if (await useByok.count()) await useByok.click();
   await page.getByRole('button', { name: '关闭设置' }).click();
-
-  // A2. 选择器能切到内置构造 Agent
-  const sel = page.getByRole('combobox', { name: '选择 Agent' });
-  await sel.selectOption({ label: '内置构造 Agent（BYOK）' });
+  await page.locator('span[aria-label="当前 Agent：内置构造 Agent（BYOK）"]').waitFor();
+  assert.equal(await page.getByRole('combobox', { name: '选择 Agent' }).count(), 0);
 
   // B. API 集成：完整 BYOK 循环（配置来自服务端配置仓，请求体不带 key）
   const res = await fetch('http://localhost:3000/api/agent', {
@@ -99,7 +100,7 @@ try {
   // LLM 侧闭环：工具声明齐全、回喂 role:'tool'、请求不携带鉴权 key 之外还带 stream:true
   assert.equal(calls.length, 2, 'two completions (tool round + final)');
   const toolNames = (calls[0].tools ?? []).map((t) => t.function?.name);
-  for (const name of ['ggb_get_state', 'ggb_apply', 'submit_construction']) {
+  for (const name of ['ggb_get_state', 'ggb_apply', 'submit_construction', 'read_construction', 'write_construction']) {
     assert.ok(toolNames.includes(name), `tools declared: ${name}`);
   }
   assert.equal(calls[0].stream, true, 'completions requested as a stream');

@@ -5,12 +5,13 @@
  *
  * 三条不变量（已裁定）：
  *  1. commands[] 是唯一真源；objects/sliders/png/audit 全是派生，现场重算不持久化
- *  2. 读写不对称：写 = 全量指令清单；读 = 结构摘要 + 画布 PNG + 上轮 audit
+ *  2. 读写不对称：写 = 全量指令清单（或对象级轻改的落账结果）；读 = 结构摘要 + 画布 PNG + 上轮 audit
  *  3. 校验不拦路：无效行剔除后照常下发，明细回传给 agent 自行决定
  *
- * 另借鉴 OpenDesign 的「受管工作目录」：每次调用把当前构造写成
- * <cwd>/construction.ggb.txt。agent 用自带的读文件能力就知道画布上有什么，
- * **连 MCP 都不必调**；要改才调 ggb_apply。
+ * 另借鉴 OpenDesign 的「受管工作目录」：当前构造落在
+ * <cwd>/construction.ggb.txt —— **agent 的可编辑工作稿**。像改代码一样改它，
+ * 改完调 ggb_apply()（不带参数）生效。**getState 不回写文件**：那会冲掉 agent
+ * 改到一半的草稿；只在 apply / reset 后回写。
  */
 
 import fs from 'node:fs';
@@ -116,13 +117,19 @@ export function buildBoardState(raw: RawState, cfg: ToolsConfig): BoardState {
   };
 }
 
-/** 把当前构造写进受管工作目录，让 agent 可用原生读文件能力看到。 */
+/**
+ * 把当前构造写进受管工作目录 —— **agent 的工作稿**，可直接编辑。
+ *
+ * 与 codex/claude 的受管工作目录同构：文件就是当前构造的可编辑形态。
+ * agent 用原生 Read/Edit 改它（像改代码），改完调 `ggb_apply()`（不带参数）生效。
+ * daemon 在 apply/reset 后回写规范化后的清单。
+ */
 export function writeConstructionFile(cfg: ToolsConfig, commands: string[]): string {
   const file = path.join(cfg.workdir, 'construction.ggb.txt');
   const body = [
-    '# MathMover 当前 GeoGebra 构造（由 daemon 自动写入，勿手改）',
-    '# 这是「真源」——画布上的一切都由下面这些行决定。',
-    '# 修改请调 ggb_apply 工具，直接改本文件无效。',
+    '# MathMover 当前 GeoGebra 构造草稿',
+    '# 像改代码一样直接编辑这个文件；改完调 ggb_apply()（不带参数）应用到画布。',
+    '# 建议每完成一段就 apply 一次——用户能看着图一点点长出来。',
     '',
     ...commands,
     '',
@@ -134,6 +141,35 @@ export function writeConstructionFile(cfg: ToolsConfig, commands: string[]): str
   } catch {
     return '';
   }
+}
+
+const CONSTRUCTION_FILE = 'construction.ggb.txt';
+
+/** 读工作稿（去掉 `#` 头注释与首尾空行；行中 `//` 注释与空行保留）。文件不存在返回 []。 */
+export function readConstructionFile(cfg: ToolsConfig): string[] {
+  try {
+    const body = fs.readFileSync(path.join(cfg.workdir, CONSTRUCTION_FILE), 'utf8');
+    const lines = body.split('\n').map((l) => l.replace(/\r$/, ''));
+    const mid = lines.filter((l) => !l.trimStart().startsWith('#'));
+    while (mid.length > 0 && !mid[0].trim()) mid.shift();
+    while (mid.length > 0 && !mid[mid.length - 1].trim()) mid.pop();
+    return mid;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 纯追加判定：`after` 以 `before` 为前缀、只在后面加了行。
+ * 成立则页面只需执行新增行（不清屏），对象逐个冒出来——首图的渐进感就靠它。
+ */
+export function pureAppendDelta(before: string[], after: string[]): string[] | null {
+  if (before.length === 0) return null;
+  if (after.length <= before.length) return null;
+  for (let i = 0; i < before.length; i++) {
+    if (before[i].trim() !== after[i].trim()) return null;
+  }
+  return after.slice(before.length);
 }
 
 export class GgbTools {
@@ -154,18 +190,16 @@ export class GgbTools {
     }
   }
 
-  /** 读当前状态（含体检）。 */
+  /** 读当前状态（含体检）。**不回写工作稿**——那会冲掉 agent 改到一半的草稿。 */
   async getState(opts: { png?: boolean } = {}): Promise<BoardState> {
     this.requireLive();
     const raw = await this.bridge.call<RawState>('getState', undefined, GETSTATE_TIMEOUT_MS);
-    const state = buildBoardState(raw, { ...this.cfg, includePng: opts.png ?? this.cfg.includePng });
-    writeConstructionFile(this.cfg, state.commands);
-    return state;
+    return buildBoardState(raw, { ...this.cfg, includePng: opts.png ?? this.cfg.includePng });
   }
 
   /**
-   * 全量覆盖画布（唯一的写语义）。
-   * 返回新状态 + 相对上一版的 diff —— diff 就是「说清改了什么」。
+   * 覆盖画布。`commands` 不传 = 读工作稿 `construction.ggb.txt`（agent 像改代码
+   * 一样改完后调用）。纯追加时自动走增量（页面不清屏，对象逐个出现），否则全量回放。
    *
    * **超时语义**：apply 要等 GeoGebra 就绪 + 回放 + 体检，首次调用可能很慢。
    * 超时**不等于失败**——构造很可能已经生效。此时不抛错，而是：
@@ -173,18 +207,28 @@ export class GgbTools {
    *   ② 标记 degraded + 'apply-timeout-unconfirmed'
    *   ③ 返回已知部分结果，让 agent 自行核对，而不是被骗着重做一遍
    */
-  async apply(commands: string[], opts: { png?: boolean } = {}): Promise<{
+  async apply(commands?: string[], opts: { png?: boolean; incremental?: boolean } = {}): Promise<{
     state: BoardState;
     diff: DiffResult;
     applied: string[];
     failedFirstPass: string[];
     durationMs: number;
+    /** true = 本次走纯追加增量（页面未清屏，对象逐个出现） */
+    incremental?: boolean;
     /** true = 本次结果未被完整确认，见 state.degradedReasons */
     unconfirmed?: boolean;
   }> {
     this.requireLive();
+    const list = commands ?? readConstructionFile(this.cfg);
+    if (list.length === 0) {
+      throw new Error('没有可下发的指令：请传 commands，或先编辑 construction.ggb.txt');
+    }
     const before = this.bridge.snapshot?.commands ?? [];
     const includePng = opts.png ?? this.cfg.includePng;
+
+    const delta = opts.incremental === false ? null : pureAppendDelta(before, list);
+    const useIncremental = opts.incremental === true || (opts.incremental !== false && delta !== null);
+    const sendList = useIncremental && delta ? delta : list;
 
     try {
       const result = await this.bridge.call<{
@@ -192,7 +236,12 @@ export class GgbTools {
         failedFirstPass: string[];
         durationMs: number;
         state: RawState;
-      }>('apply', { commands }, APPLY_TIMEOUT_MS);
+      }>('apply', {
+        commands: sendList,
+        incremental: useIncremental,
+        // 增量时页面只执行新行，但账本必须是完整清单（唯一真源）
+        ledger: useIncremental && delta ? list : undefined,
+      }, useIncremental ? GETSTATE_TIMEOUT_MS : APPLY_TIMEOUT_MS);
 
       const state = buildBoardState(result.state, { ...this.cfg, includePng });
       const diff = diffCommands(before, result.state.commands);
@@ -204,6 +253,7 @@ export class GgbTools {
         applied: result.applied,
         failedFirstPass: result.failedFirstPass,
         durationMs: result.durationMs,
+        incremental: useIncremental || undefined,
       };
     } catch (e) {
       const msg = String(e instanceof Error ? e.message : e);
@@ -217,7 +267,7 @@ export class GgbTools {
         state = buildBoardState(raw, { ...this.cfg, includePng });
       } catch {
         state = buildBoardState(
-          { commands, names: [], objects: {}, sliders: [], png: null, pngSource: 'none', generation: -1 },
+          { commands: list, names: [], objects: {}, sliders: [], png: null, pngSource: 'none', generation: -1 },
           { ...this.cfg, includePng: false },
         );
       }
@@ -232,7 +282,7 @@ export class GgbTools {
       return {
         state,
         diff: diffCommands(before, state.commands),
-        applied: commands,
+        applied: list,
         failedFirstPass: [],
         durationMs: APPLY_TIMEOUT_MS,
         unconfirmed: true,
@@ -240,9 +290,14 @@ export class GgbTools {
     }
   }
 
-  /** 只算两份清单的差异，不碰画布。 */
-  diff(before: string[], after: string[]): DiffResult {
-    return diffCommands(before, after);
+  /** 读工作稿（供 BYOK 等无原生文件能力的 agent 走工具面）。 */
+  readConstruction(): string[] {
+    return readConstructionFile(this.cfg);
+  }
+
+  /** 写工作稿（不下发画布——下发请再调 apply）。 */
+  writeConstruction(commands: string[]): string {
+    return writeConstructionFile(this.cfg, commands);
   }
 
   /** 清空画布。 */

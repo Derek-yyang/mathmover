@@ -58,7 +58,7 @@ test('interruption or stream end leaves unmatched work unconfirmed', () => {
     assert.equal(ended.steps[0].status, 'unconfirmed');
   }
   run = finish(run, 'error', 3000);
-  run = update(run, { kind: 'tool-call', toolCallId: 'b', name: 'ggb_diff' }, 4000);
+  run = update(run, { kind: 'tool-call', toolCallId: 'b', name: 'ggb_reset' }, 4000);
   assert.equal(run.steps[1].status, 'unconfirmed');
 });
 
