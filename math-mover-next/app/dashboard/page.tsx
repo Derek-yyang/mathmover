@@ -11,6 +11,7 @@ import { useGgbSession } from '@/hooks/useGgbSession';
 import { useGgbGraphics } from '@/hooks/useGgbGraphics';
 import { beginGgbRestore } from '@/lib/ggb-graphics-state';
 import { attachGgbBridge } from '@/lib/ggb-bridge';
+import type { GgbConnectionStatus } from '@/lib/ggb-connection';
 import { agentFailure, agentResponseError } from '@/lib/agent-diagnostics';
 import { finishExecution, updateToolProgress, toolStepLabel } from '@/lib/agent-progress';
 import { metaFromToolCall, mergeRunMeta } from '@/lib/agent-run-meta';
@@ -24,6 +25,8 @@ import { useCoursewareLibrary } from '@/hooks/useCoursewareLibrary';
 import type { CoursewareRecord } from '@/lib/courseware-client';
 import { historyBeforeUserMessage } from '@/lib/assistant-chat-adapter';
 import { createStreamTextBatch } from '@/lib/stream-text-batch';
+import { agentSendBlock } from '@/lib/agent-send-readiness';
+import { openSettings } from '@/lib/settings-navigation';
 
 export default function Dashboard() {
   return (
@@ -92,14 +95,10 @@ function DashboardContent() {
   const ledgerRef = useRef<string[]>([]);
   const {
     ggbApplet,
-    sliders,
     lastExecutedCommands,
     restoreCommandLedger,
-    refreshSliders,
     handleAppletReady,
     executeCommands,
-    setSliderValue,
-    toggleSliderAnimation,
     setAxesVisible,
     setGridVisible,
     resetView,
@@ -134,7 +133,7 @@ function DashboardContent() {
   // 传输用 NDJSON（自己的事件模型），不套 AI SDK 的 UI message stream：
   // AgentChatPanel 本来就是受控组件，直接消费更少代码，也免去与 ai 包的版本耦合。
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
-  const { runtimes, activeRuntimeId, busy: isLoading, setBusy: setIsLoading, recordFailure, clearFailure } = useAgentRuntimeState();
+  const { runtimes, activeRuntimeId, detecting, detectionError, busy: isLoading, setBusy: setIsLoading, recordFailure, clearFailure } = useAgentRuntimeState();
   const sessionIdRef = useRef<string | undefined>(undefined);
   // 当前这一轮的取消句柄。用户点「停止」→ abort fetch → 流被取消 →
   // route 的 ReadableStream.cancel() 杀掉 agent 子进程（见 app/api/agent/route.ts）。
@@ -176,7 +175,6 @@ function DashboardContent() {
         try { ggbApplet.setBase64!(record.ggbBase64!, () => { clearTimeout(timeout); resolve(); }); }
         catch (error) { clearTimeout(timeout); reject(error); }
       }); } finally { finishRestore(); }
-      refreshSliders(ggbApplet);
     } else if (record?.commands.length) await executeCommands(record.commands);
     else clearConstruction();
     // A complete snapshot already owns its axis visibility, styles and range.
@@ -189,13 +187,17 @@ function DashboardContent() {
     // Hook state may update its old command ledger during snapshot loading; the persisted one wins.
     ledgerRef.current = record?.commands ?? [];
     restoreCommandLedger(record?.commands ?? []);
-  }, [ggbApplet, activeRuntimeId, refreshSliders, restoreCommandLedger, executeCommands, clearConstruction, setAxesVisible, setGridVisible, syncGraphics]);
+  }, [ggbApplet, activeRuntimeId, restoreCommandLedger, executeCommands, clearConstruction, setAxesVisible, setGridVisible, syncGraphics]);
   const courseware = useCoursewareLibrary({ api: ggbApplet, messages, commands: ledgerRef, busy: isLoading,
     runtimeId: activeRuntimeId, sessionId: sessionIdRef, showAxes, showGrid, onRestore: restoreCourseware });
   const displayedTitle = courseware.summary?.title ?? currentTitle;
   const { windowId, markDirty, flush, canSend } = courseware;
-  const bridgeCleanup = useRef<(() => void) | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<GgbConnectionStatus>('loading');
+  const sendBlock = agentSendBlock({ connection: connectionStatus, detecting,
+    detectionFailed: !!detectionError, active: runtimes.find(runtime => runtime.id === activeRuntimeId) });
+  const bridgeCleanup = useRef<ReturnType<typeof attachGgbBridge> | null>(null);
   useEffect(() => () => bridgeCleanup.current?.(), []);
+  const reconnectBridge = useCallback(() => bridgeCleanup.current?.reconnect(), []);
 
   // applet 就绪：挂桥，让 agent 够得着这块画布
   const handleAppletReadyWithBridge = useCallback(
@@ -204,6 +206,7 @@ function DashboardContent() {
       bridgeCleanup.current?.();
       bridgeCleanup.current = attachGgbBridge(api, {
         windowId,
+        onConnectionChange: setConnectionStatus,
         getLedger: () => ledgerRef.current,
         onLedgerChange: (commands) => {
           ledgerRef.current = commands;
@@ -229,6 +232,7 @@ function DashboardContent() {
 
   // 导出处理
   const handleExport = (type: CoursewareExportFormat) => {
+    if (courseware.isRestoring || !ggbApplet) return;
     setExportError(null);
     const safeTitle = displayedTitle.replace(/[\\/:*?"<>|]/g, '_');
     if (type === 'html') {
@@ -269,7 +273,7 @@ function DashboardContent() {
 
   const handleSendMessage = useCallback(
     async (text: string, attachments: ChatAttachment[], editMessageId?: string) => {
-      if (isLoading || abortRef.current || !canSend) return;
+      if (isLoading || abortRef.current || !canSend || sendBlock) return;
       const priorMessages = editMessageId ? historyBeforeUserMessage(messages, editMessageId) : messages;
       if (!priorMessages || (!text.trim() && !attachments.length)) return;
       // An edited turn must not resume the CLI session containing the superseded replies.
@@ -454,7 +458,7 @@ function DashboardContent() {
         setLoadingStatusText('准备就绪');
       }
     },
-    [isLoading, activeRuntimeId, selectedModel, selectedEffort, setIsLoading, recordFailure, clearFailure, messages, canSend, flush, windowId],
+    [isLoading, activeRuntimeId, selectedModel, selectedEffort, setIsLoading, recordFailure, clearFailure, messages, canSend, sendBlock, flush, windowId],
   );
 
   const handleEditMessage = useCallback(async (messageId: string, text: string, attachments: ChatAttachment[]) => {
@@ -470,19 +474,19 @@ function DashboardContent() {
       >
         <ControlDeck
           title={displayedTitle}
+          connectionStatus={connectionStatus}
+          onReconnect={reconnectBridge}
           editorId={courseware.editorId}
           onRename={courseware.renameTitle}
           renameDisabled={isLoading || !courseware.canSend || !ggbApplet}
-          saveStatusText={{ idle: '', dirty: '尚未保存', saving: '保存中…', saved: '已保存到本地', error: '保存／恢复失败', restoring: '恢复中…' }[courseware.status]}
-          sliders={sliders}
+          boardDisabled={courseware.isRestoring || !ggbApplet}
+          saveStatusText={courseware.isOpening ? undefined : courseware.saveStatusText}
           showAxes={showAxes}
           axesMixed={graphics.axes === 'mixed'}
           showGrid={showGrid}
           settingsOpen={graphics.settingsOpen}
           onToggleSettings={ggbApplet ? graphics.toggleSettings : undefined}
           isFullscreen={isFullscreen}
-          onSliderChange={setSliderValue}
-          onToggleAnimation={toggleSliderAnimation}
           onToggleAxes={handleToggleAxes}
           onToggleGrid={handleToggleGrid}
           onResetView={resetView}
@@ -500,7 +504,7 @@ function DashboardContent() {
             </button>
           </div>
         )}
-        <CanvasStage onAppletReady={handleAppletReadyWithBridge} />
+        <CanvasStage onAppletReady={handleAppletReadyWithBridge} blocked={courseware.isRestoring} opening={courseware.isOpening} />
       </div>
 
       {/* 右侧 Agent 智能体对话面板 */}
@@ -510,7 +514,10 @@ function DashboardContent() {
           conversationId={courseware.summary?.id}
           editorId={courseware.editorId}
           isLoading={isLoading}
-          sendDisabled={!courseware.canSend}
+          sendDisabled={!courseware.canSend || !!sendBlock}
+          sendBlock={sendBlock}
+          onReconnectBoard={reconnectBridge}
+          onOpenSettings={openSettings}
           loadingStatusText={loadingStatusText}
           onSendMessage={handleSendMessage}
           onEditMessage={handleEditMessage}

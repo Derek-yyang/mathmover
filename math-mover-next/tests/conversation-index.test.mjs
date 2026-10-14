@@ -5,8 +5,21 @@ import ts from 'typescript';
 
 const code = ts.transpileModule(readFileSync(new URL('../lib/conversation-index.ts', import.meta.url), 'utf8'),
   { compilerOptions: { module: ts.ModuleKind.ES2020 } }).outputText;
-const { conversationTurns, readingTurnIndex } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+const { conversationTurns, readingTurnIndex, createConversationTurnSelector } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 const message = (id, role, content = '', attachments) => ({ id, role, content, attachments, createdAt: 1 });
+
+test('streaming assistant deltas reuse the index; edits, new turns and switching refresh it', () => {
+  const select = createConversationTurnSelector();
+  const user = message('u', 'user', '题目');
+  const initial = select([user, message('a', 'assistant', '第一段')]);
+  assert.equal(select([user, message('a', 'assistant', '第二段')]), initial);
+  const edited = select([{ ...user, content: '新题目' }]);
+  assert.notEqual(edited, initial);
+  assert.equal(edited[0].preview, '新题目');
+  assert.equal(select([user, message('u2', 'user', '下一题')]).length, 2);
+  assert.deepEqual(select([]), []);
+  assert.equal(select([message('u', 'user', '另一个会话')])[0].preview, '另一个会话');
+});
 
 test('only user questions create markers, in stable conversation order', () => {
   const input = [message('system', 'system'), message('user"[]1', 'user', '第一题'), message('a', 'assistant'),

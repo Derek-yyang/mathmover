@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode, type PointerEvent } from 'react';
 import { chatWidthForKey, chatWidthLimits, clampChatWidth, DEFAULT_CHAT_WIDTH } from '@/lib/chat-panel-width';
+import { signalBoardResizePreview } from '@/lib/board-resize-preview';
 
 export default function ResizableChatRegion({ children, disabled = false }: { children: ReactNode; disabled?: boolean }) {
   const regionRef = useRef<HTMLDivElement>(null);
@@ -19,6 +20,7 @@ export default function ResizableChatRegion({ children, disabled = false }: { ch
     const drag = dragRef.current;
     if (!drag) return;
     dragRef.current = null;
+    signalBoardResizePreview('chat', false);
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
     frameRef.current = 0;
     setWidth(cancel ? drag.startWidth : pendingWidthRef.current);
@@ -98,6 +100,7 @@ export default function ResizableChatRegion({ children, disabled = false }: { ch
           event.currentTarget.setPointerCapture(event.pointerId);
           dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width };
           pendingWidthRef.current = width;
+          signalBoardResizePreview('chat', true);
           setDragging(true);
         }}
         onPointerMove={handleMove}

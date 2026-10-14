@@ -13,6 +13,7 @@
  */
 
 import type { GeoGebraApi } from '@/components/dashboard/types';
+import { connectGgbDaemon, type GgbConnectionStatus } from './ggb-connection';
 // 页面侧与 daemon 共用同一份原始状态契约。只走 /types 子路径，不从整包引
 // （barrel 会把 sop/whitelist 连同 node:fs 拖进浏览器产物）。
 import type { RawState, RawApplyResult } from '@mathmover/ggb-core/types';
@@ -168,8 +169,9 @@ export function attachGgbBridge(
     }>;
     wsUrl?: string;
     windowId?: string;
+    onConnectionChange?: (status: GgbConnectionStatus) => void;
   },
-): () => void {
+) {
   let generation = 0;
 
   const bridge: Bridge = {
@@ -268,29 +270,11 @@ export function attachGgbBridge(
   (window as unknown as Record<string, unknown>)[BRIDGE_KEY] = bridge;
 
   // —— WebSocket 通道：daemon 反向调用 ——
-  let ws: WebSocket | null = null;
-  let closed = false;
-
-  const connect = async () => {
-    if (closed) return;
-    let bindingToken: string | undefined;
-    try {
-      if (opts.windowId) {
-        const response = await fetch('/api/coursewares/windows', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ windowId: opts.windowId }) });
-        if (!response.ok) throw new Error('窗口绑定失败');
-        bindingToken = (await response.json()).bindingToken;
-        if (closed) return;
-      }
-      ws = new WebSocket(opts.wsUrl ?? 'ws://127.0.0.1:8787');
-    } catch {
-      setTimeout(connect, 2000);
-      return;
-    }
-    const socket = ws;
-    socket.onopen = () => {
-      socket.send(JSON.stringify({ type: 'hello', version: 1, windowId: opts.windowId, bindingToken }));
-    };
-    socket.onmessage = async (ev) => {
+  const connection = connectGgbDaemon({
+    windowId: opts.windowId,
+    wsUrl: opts.wsUrl ?? 'ws://127.0.0.1:8787',
+    onStatus: opts.onConnectionChange,
+    onMessage: async (ev, socket) => {
       let msg: { id?: string; op?: string; args?: unknown } = {};
       try {
         msg = JSON.parse(String(ev.data));
@@ -325,18 +309,12 @@ export function attachGgbBridge(
       } catch (e) {
         fail(String(e instanceof Error ? e.message : e));
       }
-    };
-    socket.onclose = () => {
-      if (ws === socket) ws = null;
-      if (!closed) setTimeout(connect, 2000); // 自动重连
-    };
-    socket.onerror = () => socket.close();
-  };
-  connect();
+    },
+  });
 
-  return () => {
-    closed = true;
-    ws?.close();
-    delete (window as unknown as Record<string, unknown>)[BRIDGE_KEY];
-  };
+  return Object.assign(() => {
+    connection.close();
+    const globals = window as unknown as Record<string, unknown>;
+    if (globals[BRIDGE_KEY] === bridge) delete globals[BRIDGE_KEY];
+  }, { reconnect: connection.reconnect });
 }

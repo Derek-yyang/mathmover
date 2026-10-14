@@ -5,6 +5,9 @@ import { ensureGGBLoaded, GGB_CODEBASE } from '@/lib/ggb-runtime';
 import { resizeAppletPreservingView, resizedViewBounds } from '@/lib/ggb-view-resize';
 import { ggbClientEventType, isRestoringGgb, readGgbGraphics } from '@/lib/ggb-graphics-state';
 import { registerGgbSettingsPanel } from '@/lib/ggb-settings-refresh';
+import { createLiveResize } from '@/lib/live-resize';
+import { BOARD_RESIZE_PREVIEW_EVENT } from '@/lib/board-resize-preview';
+import { attachGgbGridRenderer } from '@/lib/ggb-grid-renderer';
 
 type GeoGebraApi = any;
 
@@ -62,13 +65,18 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
 
     let cancelled = false;
     setLoadError(false);
-    let resizeFrame = 0;
     let lastSize: { width: number; height: number } | null = null;
     let internalResizeFrame = 0;
     let previousView: unknown = null;
     let adjustingView = false;
     let graphicsMode: '2D' | '3D' = '2D';
     let releaseSettingsPanel: (() => void) | undefined;
+    let releaseGridRenderer: (() => void) | undefined;
+    const previewSources = new Set<string>();
+    let previewFrame = 0;
+    let previewNode: HTMLElement | null = null;
+    let previewBase: { width: number; height: number } | null = null;
+    let previewOriginal: { transform: string; transformOrigin: string; pointerEvents: string; inert: boolean } | null = null;
     const readView = () => { try { return apiRef.current?.getViewProperties?.(1); } catch { return null; } };
     const viewSize = (value: unknown) => {
       try { const parsed = typeof value === 'string' ? JSON.parse(value) : value as { width?: number; height?: number } | null;
@@ -109,17 +117,78 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
       if (width <= 0 || height <= 0) return;
       if (lastSize?.width === width && lastSize.height === height) return;
 
-      resizeAppletPreservingView(api, width, height);
+      // External resizing already preserves the view. Do not schedule a second
+      // coordinate correction from the synchronous events emitted by setSize.
+      if (internalResizeFrame) cancelAnimationFrame(internalResizeFrame);
+      internalResizeFrame = 0;
+      adjustingView = true;
+      try { resizeAppletPreservingView(api, width, height); }
+      finally { adjustingView = false; previousView = readView(); }
       lastSize = { width, height };
     };
 
-    const scheduleResize = () => {
-      if (!cancelled && !resizeFrame) {
-        resizeFrame = requestAnimationFrame(() => {
-          resizeFrame = 0;
-          resizeApplet();
-        });
+    const restorePreviewStyles = () => {
+      if (previewNode && previewOriginal) {
+        previewNode.style.transform = previewOriginal.transform;
+        previewNode.style.transformOrigin = previewOriginal.transformOrigin;
+        previewNode.style.pointerEvents = previewOriginal.pointerEvents;
+        previewNode.inert = previewOriginal.inert;
       }
+      previewNode = null;
+      previewBase = null;
+      previewOriginal = null;
+    };
+    const applyResizePreview = () => {
+      previewFrame = 0;
+      if (cancelled || previewSources.size === 0) return;
+      if (!previewNode) {
+        previewNode = container.querySelector<HTMLElement>('.applet_scaler')
+          ?? container.querySelector<HTMLElement>('.GeoGebraFrame');
+        if (!previewNode) return;
+        const rect = previewNode.getBoundingClientRect();
+        previewBase = { width: lastSize?.width ?? rect.width, height: lastSize?.height ?? rect.height };
+        previewOriginal = { transform: previewNode.style.transform,
+          transformOrigin: previewNode.style.transformOrigin, pointerEvents: previewNode.style.pointerEvents,
+          inert: previewNode.inert };
+      }
+      const width = stage.clientWidth, height = stage.clientHeight;
+      if (!previewBase || width <= 0 || height <= 0 || previewBase.width <= 0 || previewBase.height <= 0) return;
+      previewNode.style.transformOrigin = '0 0';
+      previewNode.style.transform = `scale(${width / previewBase.width}, ${height / previewBase.height})`;
+      previewNode.style.pointerEvents = 'none';
+      previewNode.inert = true;
+    };
+    const schedulePreview = () => {
+      if (!previewFrame) previewFrame = requestAnimationFrame(applyResizePreview);
+    };
+    const onResizePreview = (event: Event) => {
+      const detail = (event as CustomEvent<{ source?: string; active?: boolean }>).detail;
+      if (!detail?.source) return;
+      if (detail.active) {
+        previewSources.add(detail.source);
+        liveResize.cancel();
+        schedulePreview();
+        return;
+      }
+      previewSources.delete(detail.source);
+      if (previewSources.size) return;
+      if (previewFrame) cancelAnimationFrame(previewFrame);
+      previewFrame = requestAnimationFrame(() => {
+        previewFrame = 0;
+        restorePreviewStyles();
+        liveResize.cancel();
+        resizeApplet();
+      });
+    };
+    window.addEventListener(BOARD_RESIZE_PREVIEW_EVENT, onResizePreview);
+
+    // Follow boundary motion with a compositor-scaled snapshot; perform one
+    // exact GeoGebra resize when all active sidebar drags/transitions finish.
+    const liveResize = createLiveResize(resizeApplet);
+    const scheduleResize = () => {
+      if (cancelled) return;
+      if (previewSources.size) schedulePreview();
+      else liveResize.schedule();
     };
 
     // 观察独立外层：注入节点会被 GeoGebra 写入固定尺寸，不能拿它做测量源。
@@ -149,6 +218,7 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
             if (cancelled) return;
             apiRef.current = api;
             window.ggbApplet = api; // 确保全局句柄可用（注意清理）
+            releaseGridRenderer = attachGgbGridRenderer(container);
             resizeApplet();
             releaseSettingsPanel = registerGgbSettingsPanel(api, () =>
               container.querySelector<HTMLElement>('.PropertiesViewW')?.offsetWidth ?? 0);
@@ -176,8 +246,12 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
     return () => {
       cancelled = true;
       resizeObserver.disconnect();
+      window.removeEventListener(BOARD_RESIZE_PREVIEW_EVENT, onResizePreview);
+      if (previewFrame) cancelAnimationFrame(previewFrame);
+      restorePreviewStyles();
       releaseSettingsPanel?.();
-      if (resizeFrame) cancelAnimationFrame(resizeFrame);
+      releaseGridRenderer?.();
+      liveResize.cancel();
       if (internalResizeFrame) cancelAnimationFrame(internalResizeFrame);
       apiRef.current?.unregisterClientListener?.(onViewChanged);
       container.replaceChildren();
@@ -201,7 +275,7 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
   }, [ggbBase64]);
 
   return (
-    <div ref={stageRef} className="relative h-full w-full min-h-0 min-w-0 overflow-hidden bg-white">
+    <div ref={stageRef} className="geogebra-stage relative h-full w-full min-h-0 min-w-0 overflow-hidden bg-white">
       <div
         ref={containerRef}
         className="absolute inset-0 h-full! w-full! overflow-hidden bg-white"

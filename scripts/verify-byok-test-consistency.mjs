@@ -1,0 +1,128 @@
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { chromium } from 'playwright';
+
+// All requests are fixtures; no real credential/config write or endpoint probe.
+const out = 'spike-out/byok-test-consistency';
+await mkdir(out, { recursive: true });
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errors = [], tests = [], saves = [];
+let config = { baseUrl: 'https://old.fixture.invalid/v1', model: 'fixture-model', apiKey: 'fixture-original-key' };
+const view = () => ({ baseUrl: config.baseUrl, model: config.model, apiKeyConfigured: !!config.apiKey, apiKeyTail: config.apiKey.slice(-4) });
+let holdLoad = true, releaseLoad, saveMode = 'fast', releaseSave, holdTest = false, releaseTest;
+page.on('pageerror', error => errors.push(error.message));
+await page.route('**/api/agent**', async route => {
+  const req = route.request();
+  if (req.method() === 'GET') return route.fulfill({ json: { runtimes: [] } });
+  assert.equal(new URL(req.url()).pathname, '/api/agent/test', 'no model generation');
+  assert.deepEqual(req.postDataJSON(), { runtimeId: 'byok' }, 'test does not transmit draft values/keys');
+  const tested = { baseUrl: config.baseUrl, model: config.model };
+  tests.push(tested);
+  if (holdTest) await new Promise(resolve => { releaseTest = resolve; });
+  await route.fulfill({ json: { ok: true, message: `已保存配置可达：${tested.baseUrl}` } }).catch(() => {});
+});
+await page.route('**/api/byok', async route => {
+  if (route.request().method() === 'GET') {
+    if (holdLoad) await new Promise(resolve => { releaseLoad = resolve; });
+    return route.fulfill({ json: view() });
+  }
+  const body = route.request().postDataJSON();
+  saves.push({ baseUrl: body.baseUrl, model: body.model, replacingKey: !!body.apiKey });
+  if (saveMode === 'hold') await new Promise(resolve => { releaseSave = resolve; });
+  if (saveMode === 'fail') return route.fulfill({ status: 503, json: { error: 'fixture save failed' } });
+  config = { baseUrl: body.baseUrl.trim(), model: body.model.trim(), apiKey: body.apiKey.trim() || config.apiKey };
+  return route.fulfill({ json: view() });
+});
+await page.route('**/api/coursewares**', route => route.fulfill({ json: { records: [], capabilities: { archive: true, permanentDelete: true } } }));
+await page.routeWebSocket('ws://127.0.0.1:8787', socket => socket.onMessage(() => {}));
+const panel = page.getByRole('tabpanel', { name: 'API 提供商', exact: true });
+const endpoint = panel.getByRole('textbox', { name: 'API 端点', exact: true });
+const model = panel.getByRole('textbox', { name: '模型', exact: true });
+const key = panel.locator('input[type=password]');
+const test = panel.getByRole('button', { name: '测试 内置构造 Agent（BYOK）', exact: true });
+const save = panel.getByRole('button', { name: '保存', exact: true });
+const result = panel.getByRole('status').filter({ hasText: '测试结果：' });
+const dirty = panel.getByText('配置已修改，请先保存再测试。', { exact: true });
+const wait = async predicate => {
+  for (let i = 0; i < 200 && !predicate(); i++) await new Promise(resolve => setTimeout(resolve, 20));
+  assert(predicate(), 'fixture request arrived');
+};
+const testSaved = async () => {
+  assert(await test.isEnabled());
+  await test.click();
+  await result.waitFor();
+};
+try {
+  await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard`);
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('tab', { name: 'API 提供商', exact: true }).click();
+  await panel.getByText('正在读取配置…', { exact: true }).waitFor();
+  assert(await test.isDisabled()); assert(await save.isDisabled()); assert(await endpoint.isDisabled());
+  await wait(() => !!releaseLoad); holdLoad = false; releaseLoad();
+  await page.waitForFunction(() => document.querySelector('#settings-panel-providers input[type=url]')?.value === 'https://old.fixture.invalid/v1');
+  await page.addStyleTag({ content: 'nextjs-portal {display:none !important;}' });
+  await testSaved();
+  assert.equal(tests[0].baseUrl, config.baseUrl);
+  assert.equal(await key.inputValue(), '', 'stored key is never echoed');
+  await endpoint.fill('https://new.fixture.invalid/v1');
+  await dirty.waitFor();
+  assert.equal(await result.count(), 0);
+  assert(await test.isDisabled());
+  const hint = await test.getAttribute('aria-describedby');
+  assert(hint && await page.locator(`[id="${hint}"]`).textContent() === '配置已修改，请先保存再测试。');
+  await page.screenshot({ path: `${out}/unsaved.png` });
+  assert.equal(tests.length, 1); assert.equal(saves.length, 0);
+  saveMode = 'fail'; await save.click();
+  await panel.getByRole('alert').waitFor();
+  assert.equal(await endpoint.inputValue(), 'https://new.fixture.invalid/v1');
+  assert(await test.isDisabled());
+  await dirty.waitFor();
+  saveMode = 'hold'; await save.click();
+  await panel.getByRole('button', { name: '保存中…', exact: true }).waitFor();
+  assert(await endpoint.isDisabled()); assert(await model.isDisabled()); assert(await key.isDisabled());
+  assert(await test.isDisabled());
+  await wait(() => !!releaseSave); releaseSave();
+  await panel.getByText('已保存', { exact: true }).waitFor();
+  assert.equal(config.apiKey, 'fixture-original-key', 'blank key preserves existing credential');
+  assert.equal(await panel.getByRole('alert').count(), 0);
+  await testSaved();
+  assert.equal(tests.at(-1).baseUrl, 'https://new.fixture.invalid/v1');
+  await page.screenshot({ path: `${out}/saved-test.png` });
+  await model.fill('new-model');
+  assert.equal(await result.count(), 0); assert(await test.isDisabled());
+  await model.fill(config.model);
+  assert(await test.isEnabled(), 'reverting to saved values enables test without redundant save');
+  assert.equal(await result.count(), 0);
+  holdTest = true; await test.click();
+  await wait(() => !!releaseTest);
+  assert(await save.isDisabled(), 'save cannot race a running test');
+  await key.fill('fixture-replacement-key');
+  await dirty.waitFor();
+  assert(await test.isDisabled()); assert(await save.isEnabled());
+  // Revert the edit and let the obsolete response arrive. It must stay discarded.
+  await key.fill('');
+  holdTest = false; releaseTest();
+  await page.waitForTimeout(200);
+  assert.equal(await result.count(), 0, 'late response cannot restore an invalidated result');
+  await testSaved();
+  await key.fill('fixture-replacement-key');
+  assert.equal(await result.count(), 0); assert(await test.isDisabled());
+  saveMode = 'fast'; await save.click();
+  await panel.getByText('已保存', { exact: true }).waitFor();
+  assert.equal(await key.inputValue(), '');
+  assert.equal(config.apiKey, 'fixture-replacement-key');
+  await testSaved();
+  await page.getByRole('tab', { name: /^本机 CLI/ }).click();
+  await page.getByRole('tab', { name: 'API 提供商', exact: true }).click();
+  await result.waitFor();
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  config = { baseUrl: '', model: '', apiKey: '' };
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('tab', { name: 'API 提供商', exact: true }).click();
+  await panel.getByText('请先填写并保存 API 端点与模型。', { exact: true }).waitFor();
+  assert(await test.isDisabled(), 'unconfigured provider cannot be tested');
+  assert.deepEqual(errors, []);
+  await writeFile(`${out}/results.json`, JSON.stringify({ tests, saves, dirtyEditsBlocked: true, lateResultsDiscarded: true, saveFailureKeepsDraft: true, errors }, null, 2));
+  console.log('PASS: only saved config is tested; edits clear results; failed/pending saves stay blocked; pending tests invalidate; keys remain masked.');
+} finally { await browser.close(); }

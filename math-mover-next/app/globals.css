@@ -91,30 +91,31 @@ body {
 .aui-md .katex-display > .katex { text-align: left; }
 .aui-md .katex { font-size: 1.05em; }
 
-/* Subtle native scrollbar for the conversation, scoped to its viewport. */
-.chat-scroll-viewport {
+/* Subtle native scrollbars for conversation and settings viewports. */
+.chat-scroll-viewport, .settings-scroll-viewport {
   scrollbar-width: thin;
   scrollbar-color: #a8a29e transparent;
 }
-.chat-scroll-viewport:hover { scrollbar-color: #78716c transparent; }
+.chat-scroll-viewport:hover, .settings-scroll-viewport:hover { scrollbar-color: #78716c transparent; }
 @supports selector(::-webkit-scrollbar) {
   /* Standard scrollbar properties override WebKit sizing in Chromium. */
-  .chat-scroll-viewport, .chat-scroll-viewport:hover {
+  .chat-scroll-viewport, .chat-scroll-viewport:hover,
+  .settings-scroll-viewport, .settings-scroll-viewport:hover {
     scrollbar-width: auto;
     scrollbar-color: auto;
   }
-  .chat-scroll-viewport::-webkit-scrollbar { width: 6px; }
-  .chat-scroll-viewport::-webkit-scrollbar-track { background: transparent; }
-  .chat-scroll-viewport::-webkit-scrollbar-thumb {
+  .chat-scroll-viewport::-webkit-scrollbar, .settings-scroll-viewport::-webkit-scrollbar { width: 6px; }
+  .chat-scroll-viewport::-webkit-scrollbar-track, .settings-scroll-viewport::-webkit-scrollbar-track { background: transparent; }
+  .chat-scroll-viewport::-webkit-scrollbar-thumb, .settings-scroll-viewport::-webkit-scrollbar-thumb {
     background: #a8a29e;
     border-radius: 999px;
   }
-  .chat-scroll-viewport::-webkit-scrollbar-thumb:hover { background: #78716c; }
-  .chat-scroll-viewport::-webkit-scrollbar-button { display: none; }
+  .chat-scroll-viewport::-webkit-scrollbar-thumb:hover, .settings-scroll-viewport::-webkit-scrollbar-thumb:hover { background: #78716c; }
+  .chat-scroll-viewport::-webkit-scrollbar-button, .settings-scroll-viewport::-webkit-scrollbar-button { display: none; }
 }
 @media (forced-colors: active) {
-  .chat-scroll-viewport::-webkit-scrollbar-thumb { background: CanvasText; }
-  .chat-scroll-viewport::-webkit-scrollbar-thumb:hover { background: Highlight; }
+  .chat-scroll-viewport::-webkit-scrollbar-thumb, .settings-scroll-viewport::-webkit-scrollbar-thumb { background: CanvasText; }
+  .chat-scroll-viewport::-webkit-scrollbar-thumb:hover, .settings-scroll-viewport::-webkit-scrollbar-thumb:hover { background: Highlight; }
 }
 
 /* Chat stays readable in a narrow panel; math, tables and code scroll locally. */
@@ -212,8 +213,25 @@ body {
   transition: opacity 140ms ease-out 60ms, visibility 0s;
 }
 
+/* GeoGebra mutates a large DOM subtree during a resize. Keep its layout and
+   paint invalidation inside the fixed-size stage so side-panel transitions
+   don't force unrelated dashboard content through the same layout pass. */
+.geogebra-stage { contain: layout paint; }
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-sidebar, .sidebar-expanded-clip, .sidebar-expanded, .sidebar-rail {
+    transition: none !important;
+  }
+  /* Radix collapsibles expose their keyframe name through data-state. Keep the
+     reduced-motion guarantee independent of utility generation and ensure a
+     large tool trace never animates height, blur, or staggered children. */
+  .aui-tool-group-content,
+  .aui-tool-group-content > div,
+  .aui-tool-group-content > div > *,
+  .aui-tool-fallback-content,
+  .aui-tool-fallback-content > div,
+  .aui-tool-fallback-content > div > * {
+    animation: none !important;
     transition: none !important;
   }
 }

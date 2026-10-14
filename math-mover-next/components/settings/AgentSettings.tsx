@@ -6,11 +6,11 @@
  * 信息设计目标：老师两秒回答「在用哪个 agent、跑什么模型、能不能跑通」。
  *   卡片 = 徽标 + 名称 + 官方来源副标题 + 版本 · 状态芯片 + 测试 + 使用；
  *   模型/档位行内可改（与聊天区 composer 选择器写同一份状态）；
- *   选中卡展开配置指引与失败诊断；安装向导收进折叠组。
+ *   选中卡展示模型与失败诊断；配置帮助与安装向导按需展开。
  * 诚实文案全部保留——那是这套界面的信任资产。
  */
 
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { Check, ChevronDown, ExternalLink, Loader2 } from 'lucide-react';
 import { BrandIcon } from './BrandIcon';
 import { useAgentRuntimeState } from '../dashboard/AgentRuntimeState';
@@ -81,7 +81,7 @@ function ModelSelects({ runtime }: { runtime: RuntimeOption }) {
   const current = models.find(m => m.id === selectedModel) ?? models[0];
   const effort = effortDisplay(current?.reasoningOptions as EffortOption[] | undefined, selectedEffort);
   return (
-    <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
+    <div className="flex flex-wrap gap-x-6 gap-y-3">
       <label className="block min-w-40 flex-1 text-xs font-medium text-stone-600">
         模型
         <span className="ml-1.5 font-normal text-stone-600">{runtime.models?.source === 'live' ? '来自实时发现' : '兜底提示'}</span>
@@ -112,7 +112,6 @@ function ModelSelects({ runtime }: { runtime: RuntimeOption }) {
 }
 
 function AgentCard({ runtime, selected }: { runtime: RuntimeOption; selected: boolean }) {
-  const detailsId = useId();
   const guide = agentGuide(runtime.id);
   const { runtimeFailures, detecting, refreshRuntimes, busy, selectRuntime } = useAgentRuntimeState();
   const failure = runtimeFailures.get(runtime.id);
@@ -145,24 +144,27 @@ function AgentCard({ runtime, selected }: { runtime: RuntimeOption; selected: bo
             className={action + ' text-stone-700 hover:bg-stone-100'}>
             {test.running ? <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />测试中…</> : '测试'}
           </button>
-          <button type="button"
-            className={action + (selected ? ' flex items-center gap-1.5 text-emerald-800' : ' text-stone-700 hover:bg-stone-100')}
-            disabled={busy || detecting || selected || !runtime.usable}
-            onClick={() => selectRuntime(runtime.id)}
-            aria-label={(selected ? '当前使用 ' : '使用 ') + runtime.name}
-            aria-expanded={selected} aria-controls={selected ? detailsId : undefined}>
-            {selected ? <><Check className="h-4 w-4" aria-hidden="true" />当前使用</> : '使用'}
-          </button>
+          {selected ? <span aria-label={`当前使用 ${runtime.name}`}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-emerald-800">
+            <Check className="h-4 w-4" aria-hidden="true" />当前使用
+          </span> : <button type="button" className={action + ' text-stone-700 hover:bg-stone-100'}
+            disabled={busy || detecting || !runtime.usable} onClick={() => selectRuntime(runtime.id)}
+            aria-label={`使用 ${runtime.name}`}>使用</button>}
         </div>
       </div>
       {selected && (
-        <div id={detailsId} className="border-t border-stone-200 px-4 pb-4 pt-3">
+        <div className="border-t border-stone-200 px-4 pb-4 pt-3">
           <ModelSelects runtime={runtime} />
           {failure && <div className="mt-3"><AgentDiagnosticNotice diagnostic={failure} historical
             detecting={detecting} onRescan={() => void refreshRuntimes()} /></div>}
           {!runtime.usable && <p className="mt-3 text-sm text-amber-900">当前选择暂未检测到。请安装或检查环境后刷新；不会自动切换。</p>}
-          <p className="mt-3 max-w-[68ch] text-sm leading-6 text-stone-600">{guide?.configure ?? '请在该 Agent 中完成账号与模型配置，再回到聊天区使用。'}</p>
-          <div className="mt-2"><GuideLink id={runtime.id} name={runtime.name} install={!runtime.usable} /></div>
+          <details className="group mt-3" open={!runtime.usable || runtime.authStatus === 'missing'}>
+            <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded py-1 text-xs font-medium text-stone-600 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 [&::-webkit-details-marker]:hidden">
+              <ChevronDown className="h-3.5 w-3.5 -rotate-90 transition-transform group-open:rotate-0 motion-reduce:transition-none" aria-hidden="true" />配置帮助
+            </summary>
+            <p className="mt-2 max-w-[68ch] text-sm leading-6 text-stone-600">{guide?.configure ?? '请在该 Agent 中完成账号与模型配置，再回到聊天区使用。'}</p>
+            <div className="mt-2"><GuideLink id={runtime.id} name={runtime.name} install={!runtime.usable} /></div>
+          </details>
         </div>
       )}
       {test.result && (
@@ -203,7 +205,7 @@ export default function AgentSettings() {
       </div>}
 
       <section aria-label="已检测到的 Agent" className="mt-5">
-        <h3 className="mb-3 text-sm font-medium text-stone-800">已检测到 <span className="ml-1 font-semibold tabular-nums text-stone-900">{detected.length}</span></h3>
+        <h3 className="sr-only">已检测到的 Agent</h3>
         {detecting && !runtimes.length ? (
           <ul className="space-y-3" aria-label="正在查找已安装的 Agent">
             {[0, 1, 2].map(i => (

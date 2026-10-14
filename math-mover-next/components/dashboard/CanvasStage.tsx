@@ -15,15 +15,25 @@ const GeoGebraBoard = dynamic(() => import('@/components/GeoGebraBoard'), {
 
 interface CanvasStageProps {
   onAppletReady: (api: GeoGebraApi) => void;
+  blocked?: boolean;
+  opening?: boolean;
 }
 
-export default function CanvasStage({ onAppletReady }: CanvasStageProps) {
+export default function CanvasStage({ onAppletReady, blocked = false, opening = false }: CanvasStageProps) {
   return (
     <main
       aria-label="数学课件画布"
+      aria-busy={opening}
       className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-white"
     >
-      <GeoGebraBoard onAppletReady={onAppletReady} showResetIcon={false} />
+      <div inert={blocked} className="h-full w-full">
+        <GeoGebraBoard onAppletReady={onAppletReady} showResetIcon={false} />
+      </div>
+      {blocked && <div data-slot="board-interaction-guard" className="absolute inset-0 z-20 touch-none bg-white/40">
+        <p role="status" className="absolute top-3 left-3 max-w-[calc(100%-24px)] rounded-lg bg-white px-3 py-1.5 text-sm leading-5 text-stone-700">
+          {opening ? '正在打开课件…' : '课件未能打开，请重试。'}
+        </p>
+      </div>}
     </main>
   );
 }

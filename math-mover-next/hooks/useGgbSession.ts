@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { GeoGebraApi, SliderItem, AuditResult } from '@/components/dashboard/types';
+import { GeoGebraApi, AuditResult } from '@/components/dashboard/types';
 // 体检算法唯一真源在 ggb-core。只走 /probe 子路径，不从整包引（见 types.ts 顶部说明）。
 import { auditConstruction } from '@mathmover/ggb-core/probe';
 import { animateViewToCenter, readViewBounds } from '@/lib/ggb-view-transition';
@@ -17,14 +17,11 @@ interface UseGgbSessionOptions {
 export function useGgbSession(options: UseGgbSessionOptions = {}) {
   const [ggbApplet, setGgbApplet] = useState<GeoGebraApi | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const [sliders, setSliders] = useState<SliderItem[]>([]);
-  const [activeSliderName, setActiveSliderName] = useState<string | null>(null);
   const [lastExecutedCommands, setLastExecutedCommands] = useState<string[]>([]);
   const [currentMode, setCurrentMode] = useState<'2D' | '3D'>('2D');
   useEffect(() => ggbApplet ? watchGgbGraphics(ggbApplet, state => setCurrentMode(state.mode)) : undefined, [ggbApplet]);
 
   const execSessionRef = useRef(0);
-  const animatingSlidersRef = useRef<Set<string>>(new Set());
   const cancelViewAnimationRef = useRef<(() => void) | null>(null);
   const cancelViewAnimation = useCallback(() => {
     cancelViewAnimationRef.current?.();
@@ -70,63 +67,6 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
     setGgbApplet(api);
     setIsReady(true);
   }, [cancelViewAnimation]);
-
-  // 扫描画板独立数值变量作为滑块
-  const detectSliders = useCallback((api: GeoGebraApi) => {
-    if (!api) return;
-    try {
-      const allObjects = api.getAllObjectNames();
-      const detected: SliderItem[] = [];
-
-      allObjects.forEach((name: string) => {
-        if (api.getObjectType(name) === 'numeric') {
-          const val = api.getValue(name);
-          if (api.isIndependent(name)) {
-            detected.push({
-              name,
-              value: Number(val.toFixed(2)),
-              min: -10,
-              max: 10,
-              step: 0.1,
-              isAnimating: animatingSlidersRef.current.has(name),
-            });
-          }
-        }
-      });
-      setSliders(detected.slice(0, 6));
-    } catch (e) {
-      console.error('Failed to detect sliders:', e);
-    }
-  }, []);
-
-  // 监听 GGB 内部变动同步回 React
-  useEffect(() => {
-    if (!ggbApplet) return;
-
-    const onUpdate = (objName: string) => {
-      if (objName === activeSliderName) return;
-
-      setSliders((prev) => {
-        const index = prev.findIndex((s) => s.name === objName);
-        if (index === -1) return prev;
-        const newVal = ggbApplet.getValue(objName);
-        if (Math.abs(prev[index].value - newVal) < 0.0001) return prev;
-        const updated = [...prev];
-        updated[index] = { ...updated[index], value: Number(newVal.toFixed(2)) };
-        return updated;
-      });
-    };
-
-    try {
-      ggbApplet.registerUpdateListener(onUpdate);
-    } catch {}
-
-    return () => {
-      try {
-        ggbApplet.unregisterUpdateListener(onUpdate);
-      } catch {}
-    };
-  }, [ggbApplet, activeSliderName]);
 
   // 执行 GGB 指令全流程（支持 replaceAll 全量覆盖 或 incremental 局部增量执行）
   const executeCommands = useCallback(
@@ -277,11 +217,10 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
             : commandsToRun;
           setLastExecutedCommands(mergedCommands);
 
-          // 延迟体检与探测滑块
+          // 延迟体检
           setTimeout(() => {
             if (execSessionRef.current !== session) { done(null); return; }
             const audit = auditConstruction(ggbApplet, mergedCommands);
-            detectSliders(ggbApplet);
             if (options.onAuditCompleted) {
               options.onAuditCompleted(audit);
             }
@@ -290,51 +229,7 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
         });
       });
     },
-    [ggbApplet, currentMode, lastExecutedCommands, detectSliders, options, cancelViewAnimation]
-  );
-
-  // 设置滑块数值
-  const setSliderValue = useCallback(
-    (name: string, val: number) => {
-      setActiveSliderName(name);
-      setSliders((prev) => prev.map((s) => (s.name === name ? { ...s, value: val } : s)));
-      if (ggbApplet) {
-        try {
-          ggbApplet.setValue(name, val);
-        } catch (e) {
-          console.error(`Failed to set value for slider ${name}:`, e);
-        }
-      }
-      setTimeout(() => setActiveSliderName(null), 100);
-    },
-    [ggbApplet]
-  );
-
-  // 动画播放/暂停开关
-  const toggleSliderAnimation = useCallback(
-    (name: string) => {
-      if (!ggbApplet) return;
-      const isCurrentlyAnimating = animatingSlidersRef.current.has(name);
-      try {
-        if (isCurrentlyAnimating) {
-          animatingSlidersRef.current.delete(name);
-          if (ggbApplet.setAnimating) ggbApplet.setAnimating(name, false);
-          if (animatingSlidersRef.current.size === 0 && ggbApplet.stopAnimation) {
-            ggbApplet.stopAnimation();
-          }
-        } else {
-          animatingSlidersRef.current.add(name);
-          if (ggbApplet.setAnimating) ggbApplet.setAnimating(name, true);
-          if (ggbApplet.startAnimation) ggbApplet.startAnimation();
-        }
-        setSliders((prev) =>
-          prev.map((s) => (s.name === name ? { ...s, isAnimating: !isCurrentlyAnimating } : s))
-        );
-      } catch (e) {
-        console.error(`Failed to toggle animation for ${name}:`, e);
-      }
-    },
-    [ggbApplet]
+    [ggbApplet, currentMode, lastExecutedCommands, options, cancelViewAnimation]
   );
 
   // 视图控制
@@ -389,7 +284,6 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
     cancelViewAnimation();
     try {
       ggbApplet.newConstruction();
-      setSliders([]);
       setLastExecutedCommands([]);
     } catch {}
   }, [ggbApplet, cancelViewAnimation]);
@@ -479,15 +373,11 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
   return {
     ggbApplet,
     isReady,
-    sliders,
     currentMode,
     lastExecutedCommands,
     restoreCommandLedger: setLastExecutedCommands,
-    refreshSliders: detectSliders,
     handleAppletReady,
     executeCommands,
-    setSliderValue,
-    toggleSliderAnimation,
     setAxesVisible,
     setGridVisible,
     resetView,
@@ -495,6 +385,5 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
     exportGGB,
     exportHTML,
     exportPNG,
-    detectSliders: () => ggbApplet && detectSliders(ggbApplet),
   };
 }

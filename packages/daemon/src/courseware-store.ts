@@ -32,14 +32,16 @@ function bytes(base64: string, limit: number): Buffer {
 
 /** Files are content-addressed and immutable; DB references are committed only AFTER durable writes.
  * Failed transactions may leave orphan resources, but never overwrite a valid revision.
- * No automatic deletion/pruning of history or orphan files. */
+ * Explicit permanent deletion removes revisions and queues unreferenced resources
+ * for retryable cleanup; normal saves never prune history. */
 export class CoursewareStore {
   readonly root: string;
   readonly db: import('node:sqlite').DatabaseSync;
+  private backupsInProgress = 0;
   constructor(root = dataDirectory()) {
     fs.mkdirSync(root, { recursive: true, mode: 0o700 });
     this.root = fs.realpathSync(root);
-    for (const dir of ['coursewares', 'assets', 'backups', 'trash']) this.safeDirectory(dir);
+    for (const dir of ['coursewares', 'assets', 'backups']) this.safeDirectory(dir);
     const dbPath = this.file('library.sqlite');
     this.db = new DatabaseSync(dbPath);
     try {
@@ -47,7 +49,7 @@ export class CoursewareStore {
       const check = this.db.prepare('PRAGMA quick_check').get();
       if (Object.values(check ?? {})[0] !== 'ok') throw new Error('课件数据库校验失败，原文件未被重置');
       const version = Number(Object.values(this.db.prepare('PRAGMA user_version').get() ?? {})[0]);
-      if (version > 1) throw new Error('课件库由较新版本创建，请升级程序');
+      if (version > 2) throw new Error('课件库由较新版本创建，请升级程序');
       if (!version) this.db.exec(`BEGIN IMMEDIATE;
         CREATE TABLE coursewares (id TEXT PRIMARY KEY, title TEXT NOT NULL,
           created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL, deleted_at TEXT);
@@ -55,10 +57,18 @@ export class CoursewareStore {
           payload TEXT NOT NULL, snapshot TEXT, saved_at TEXT NOT NULL, PRIMARY KEY(id, revision));
         CREATE INDEX recent_coursewares ON coursewares(updated_at DESC);
         PRAGMA user_version=1; COMMIT;`);
+      if (version < 2) this.db.exec(`BEGIN IMMEDIATE;
+        ALTER TABLE coursewares ADD COLUMN archived_at TEXT;
+        UPDATE coursewares SET archived_at=deleted_at WHERE deleted_at IS NOT NULL;
+        ALTER TABLE coursewares DROP COLUMN deleted_at;
+        CREATE TABLE deleted_courseware_ids (id TEXT PRIMARY KEY);
+        CREATE TABLE pending_resource_deletions (path TEXT PRIMARY KEY);
+        PRAGMA user_version=2; COMMIT;`);
       // 2026-10-11 移除 category 列——课件名不绑分类（产品不止题图→GGB 一条链路）。
       // 旧库若已有该列，尽力删掉；旧版 SQLite 不支持 DROP COLUMN 就留着，它是惰性的。
       try { this.db.exec('ALTER TABLE coursewares DROP COLUMN category'); } catch { /* 旧库/旧 SQLite：列惰性，可留 */ }
     } catch (e) { this.db.close(); throw e; }
+    this.cleanupDeletedResources();
   }
   private safeDirectory(relative: string): string {
     const full = path.join(this.root, relative);
@@ -86,8 +96,8 @@ export class CoursewareStore {
     // Directory fsync is unsupported on Windows; keep previous revisions as recovery points.
     if (process.platform !== 'win32') { const fd = fs.openSync(path.dirname(target), 'r'); try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); } }
   }
-  list(deleted = false): CoursewareSummary[] {
-    return this.db.prepare(`SELECT * FROM coursewares WHERE deleted_at IS ${deleted ? 'NOT ' : ''}NULL ORDER BY updated_at DESC`).all() as unknown as CoursewareSummary[];
+  list(archived = false): CoursewareSummary[] {
+    return this.db.prepare(`SELECT * FROM coursewares WHERE archived_at IS ${archived ? 'NOT ' : ''}NULL ORDER BY updated_at DESC`).all() as unknown as CoursewareSummary[];
   }
   get(id: string, revision?: number) {
     validId(id);
@@ -106,6 +116,7 @@ export class CoursewareStore {
   asset(key: string): { data: Buffer; mime: string } {
     const m = /^([a-f0-9]{64})\.(png|jpg|webp|gif)$/.exec(key);
     if (!m) throw new CoursewareError(400, '图片 ID 不合法');
+    if (!fs.existsSync(this.file(`assets/${key}`))) throw new CoursewareError(404, '图片资源不存在');
     return { data: this.readResource(`assets/${key}`, m[1]), mime: `image/${m[2] === 'jpg' ? 'jpeg' : m[2]}` };
   }
   private messages(input: unknown[]): unknown[] {
@@ -141,7 +152,7 @@ export class CoursewareStore {
     this.db.exec('BEGIN IMMEDIATE');
     try {
       const old = this.db.prepare('SELECT * FROM coursewares WHERE id=?').get(input.id) as unknown as CoursewareSummary | undefined;
-      if ((old?.revision ?? 0) !== input.expectedRevision || old?.deleted_at) throw new CoursewareError(409, '课件已在其他窗口修改或删除，请重新打开；本窗口内容尚未保存');
+      if ((old?.revision ?? 0) !== input.expectedRevision || this.db.prepare('SELECT id FROM deleted_courseware_ids WHERE id=?').get(input.id)) throw new CoursewareError(409, '课件已在其他窗口修改或删除，请重新打开；本窗口内容尚未保存');
       const now = new Date().toISOString();
       let snapshot: string | null = old ? (this.db.prepare('SELECT snapshot FROM revisions WHERE id=? AND revision=?').get(old.id, old.revision)?.snapshot as string | null) : null;
       if (input.ggbBase64 !== undefined) {
@@ -154,13 +165,13 @@ export class CoursewareStore {
         runtimeId: input.runtimeId, sessionId: input.sessionId });
       const created = old?.created_at ?? (input.created_at && Number.isFinite(Date.parse(input.created_at)) ? input.created_at : now);
       const revision = input.expectedRevision + 1;
-      this.db.prepare(`INSERT INTO coursewares (id, title, created_at, updated_at, revision, deleted_at)
-        VALUES (?,?,?,?,?,NULL) ON CONFLICT(id) DO UPDATE SET
+      this.db.prepare(`INSERT INTO coursewares (id, title, created_at, updated_at, revision, archived_at)
+        VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
         title=excluded.title,updated_at=excluded.updated_at,revision=excluded.revision`).run(
-          input.id, input.title.slice(0, 200), created, now, revision);
+          input.id, input.title.slice(0, 200), created, now, revision, old?.archived_at ?? null);
       this.db.prepare('INSERT INTO revisions VALUES (?,?,?,?,?)').run(input.id, revision, payload, snapshot, now);
       this.db.exec('COMMIT');
-      return { id: input.id, title: input.title.slice(0, 200), created_at: created, updated_at: now, revision, deleted_at: null };
+      return { id: input.id, title: input.title.slice(0, 200), created_at: created, updated_at: now, revision, archived_at: old?.archived_at ?? null };
     } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
   rename(id: string, title: string, expectedRevision: number) {
@@ -168,50 +179,119 @@ export class CoursewareStore {
     return this.save({ ...record, title, expectedRevision });
   }
   remove(ids: string[]): void {
+    if (!ids.length) throw new CoursewareError(400, '缺少课件 ID');
     ids.forEach(validId);
     this.db.exec('BEGIN IMMEDIATE');
     try {
-      for (const id of ids) this.changeDeletion(id, new Date().toISOString());
+      for (const id of new Set(ids)) {
+        if (!this.db.prepare('SELECT id FROM coursewares WHERE id=?').get(id)) throw new CoursewareError(404, '课件不存在');
+        const resources = new Set<string>();
+        for (const row of this.db.prepare('SELECT snapshot,payload FROM revisions WHERE id=?').all(id)) {
+          if (typeof row.snapshot === 'string' && HASH.test(row.snapshot)) resources.add(`coursewares/${id}/${row.snapshot}.ggb`);
+          for (const key of this.assetKeys(String(row.payload))) resources.add(`assets/${key}`);
+        }
+        // Include resource files left by an interrupted save of this courseware.
+        const directory = this.file(`coursewares/${id}`);
+        if (fs.existsSync(directory)) for (const name of fs.readdirSync(directory)) {
+          if (/^[a-f0-9]{64}\.ggb(?:\.[a-f0-9-]+\.tmp)?$/.test(name)) resources.add(`coursewares/${id}/${name}`);
+        }
+        for (const resource of resources) this.db.prepare('INSERT OR IGNORE INTO pending_resource_deletions VALUES (?)').run(resource);
+        this.db.prepare('DELETE FROM revisions WHERE id=?').run(id);
+        this.db.prepare('DELETE FROM coursewares WHERE id=?').run(id);
+        // Only the ID is retained, so a late browser save cannot recreate a deleted courseware.
+        this.db.prepare('INSERT INTO deleted_courseware_ids VALUES (?)').run(id);
+      }
       this.db.exec('COMMIT');
     } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+    this.cleanupDeletedResources();
   }
-  private changeDeletion(id: string, deletedAt: string | null): void {
-    const old = this.db.prepare('SELECT * FROM coursewares WHERE id=?').get(id) as unknown as CoursewareSummary | undefined;
-    if (!old) throw new CoursewareError(404, '课件不存在');
-    const revision = old.revision + 1;
-    this.db.prepare(`INSERT INTO revisions SELECT id,?,payload,snapshot,? FROM revisions WHERE id=? AND revision=?`).run(revision, new Date().toISOString(), id, old.revision);
-    this.db.prepare('UPDATE coursewares SET deleted_at=?,revision=? WHERE id=?').run(deletedAt, revision, id);
+  setArchived(id: string, archived: boolean, expectedRevision: number): CoursewareSummary {
+    validId(id);
+    if (!Number.isInteger(expectedRevision) || expectedRevision < 1) throw new CoursewareError(400, '课件版本不合法');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const old = this.db.prepare('SELECT * FROM coursewares WHERE id=?').get(id) as unknown as CoursewareSummary | undefined;
+      if (!old) throw new CoursewareError(404, '课件不存在');
+      if (old.revision !== expectedRevision) throw new CoursewareError(409, '课件已在其他窗口修改，请刷新后重试');
+      if (!!old.archived_at === archived) { this.db.exec('COMMIT'); return old; }
+      const now = new Date().toISOString();
+      const revision = old.revision + 1;
+      const archivedAt = archived ? now : null;
+      this.db.prepare('INSERT INTO revisions SELECT id,?,payload,snapshot,? FROM revisions WHERE id=? AND revision=?').run(revision, now, id, old.revision);
+      this.db.prepare('UPDATE coursewares SET archived_at=?,revision=? WHERE id=?').run(archivedAt, revision, id);
+      this.db.exec('COMMIT');
+      return { ...old, archived_at: archivedAt, revision };
+    } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
-  restore(id: string): void {
-    validId(id); this.db.exec('BEGIN IMMEDIATE');
-    try { this.changeDeletion(id, null); this.db.exec('COMMIT'); } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+  private assetKeys(payload: string): Set<string> {
+    const keys = new Set<string>();
+    for (const message of JSON.parse(payload).messages ?? []) for (const attachment of message.attachments ?? []) {
+      const match = /^\/api\/coursewares\/assets\/([a-f0-9]{64}\.(?:png|jpg|webp|gif))$/.exec(attachment.url ?? '');
+      if (match) keys.add(match[1]);
+    }
+    return keys;
   }
-  versions(id: string) { validId(id); return this.db.prepare('SELECT revision,saved_at FROM revisions WHERE id=? ORDER BY revision DESC').all(id); }
-  import(record: CoursewareInput): CoursewareSummary {
-    validId(record.id);
-    const old = this.db.prepare('SELECT * FROM coursewares WHERE id=?').get(record.id);
-    return old ? old as unknown as CoursewareSummary : this.save({ ...record, expectedRevision: 0 });
+  private cleanupDeletedResources(): void {
+    // A backup may already reference these files in its database snapshot.
+    // Keep them until it finishes copying, then drain the durable cleanup queue.
+    if (this.backupsInProgress) return;
+    // Resource cleanup is retried on startup and the next deletion. Hold the DB
+    // writer lock while checking references/unlinking to protect shared images.
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const pending = this.db.prepare('SELECT path FROM pending_resource_deletions').all();
+      const referenced = new Set<string>();
+      if (pending.some(row => String(row.path).startsWith('assets/'))) {
+        for (const row of this.db.prepare('SELECT payload FROM revisions').all()) for (const key of this.assetKeys(String(row.payload))) referenced.add(`assets/${key}`);
+      }
+      for (const row of pending) {
+        const relative = String(row.path);
+        if (referenced.has(relative)) { this.db.prepare('DELETE FROM pending_resource_deletions WHERE path=?').run(relative); continue; }
+        if (!/^(?:assets\/[a-f0-9]{64}\.(?:png|jpg|webp|gif)|coursewares\/[a-zA-Z0-9_-]{1,100}\/[a-f0-9]{64}\.ggb(?:\.[a-f0-9-]+\.tmp)?)$/.test(relative)) throw new Error('删除资源路径不合法');
+        try {
+          const target = this.file(relative);
+          if (fs.existsSync(target)) fs.unlinkSync(target);
+          this.db.prepare('DELETE FROM pending_resource_deletions WHERE path=?').run(relative);
+          if (relative.startsWith('coursewares/')) {
+            const directory = path.dirname(target);
+            if (!fs.readdirSync(directory).length) fs.rmdirSync(directory);
+          }
+        } catch (error) { console.error('[courseware-resource-cleanup]', error); }
+      }
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); console.error('[courseware-resource-cleanup]', error); }
+  }
+  versions(id: string) {
+    validId(id);
+    if (!this.db.prepare('SELECT id FROM coursewares WHERE id=?').get(id)) throw new CoursewareError(404, '课件不存在');
+    return this.db.prepare('SELECT revision,saved_at FROM revisions WHERE id=? ORDER BY revision DESC').all(id);
   }
   async createBackup(): Promise<string> {
-    const name = `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}`;
-    const relative = `backups/${name}`;
-    this.safeDirectory(relative);
-    await backup(this.db, this.file(`${relative}/library.sqlite`));
-    const copy = new DatabaseSync(this.file(`${relative}/library.sqlite`), { readOnly: true });
+    this.backupsInProgress++;
     try {
-      const resources = new Set<string>();
-      for (const row of copy.prepare('SELECT id,snapshot,payload FROM revisions').all()) {
-        if (typeof row.snapshot === 'string' && HASH.test(row.snapshot)) resources.add(`coursewares/${row.id}/${row.snapshot}.ggb`);
-        for (const m of JSON.parse(String(row.payload)).messages ?? []) for (const a of m.attachments ?? [])
-          if (a.url?.startsWith('/api/coursewares/assets/')) resources.add(`assets/${a.url.split('/').pop()}`);
-      }
-      for (const resource of resources) {
-        const expected = path.basename(resource).split('.')[0];
-        this.put(`${relative}/${resource}`, this.readResource(resource, expected));
-      }
-      this.put(`${relative}/complete.json`, Buffer.from(JSON.stringify({ schemaVersion: 1, createdAt: new Date().toISOString(), resources: resources.size })));
-    } finally { copy.close(); }
-    return name;
+      const name = `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}`;
+      const relative = `backups/${name}`;
+      this.safeDirectory(relative);
+      await backup(this.db, this.file(`${relative}/library.sqlite`));
+      const copy = new DatabaseSync(this.file(`${relative}/library.sqlite`), { readOnly: true });
+      try {
+        const resources = new Set<string>();
+        for (const row of copy.prepare('SELECT id,snapshot,payload FROM revisions').all()) {
+          if (typeof row.snapshot === 'string' && HASH.test(row.snapshot)) resources.add(`coursewares/${row.id}/${row.snapshot}.ggb`);
+          for (const m of JSON.parse(String(row.payload)).messages ?? []) for (const a of m.attachments ?? [])
+            if (a.url?.startsWith('/api/coursewares/assets/')) resources.add(`assets/${a.url.split('/').pop()}`);
+        }
+        for (const resource of resources) {
+          const expected = path.basename(resource).split('.')[0];
+          this.put(`${relative}/${resource}`, this.readResource(resource, expected));
+        }
+        this.put(`${relative}/complete.json`, Buffer.from(JSON.stringify({ schemaVersion: 2, createdAt: new Date().toISOString(), resources: resources.size })));
+      } finally { copy.close(); }
+      return name;
+    } finally {
+      this.backupsInProgress--;
+      this.cleanupDeletedResources();
+    }
   }
   close(): void { this.db.close(); }
 }

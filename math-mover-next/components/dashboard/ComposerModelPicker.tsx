@@ -8,8 +8,8 @@
  * **模型的属性**（reasoningOptions 挂在模型上，换模型档位集就变），分离的
  * 小控件体现不了从属关系；合体后档位行随选中的模型原地换档位集。
  *
- * 交互约定：选模型**不关**面板（接着就地套档位，还能看到档位行跟着换）；
- * 选完档位即关（它是这一步的收尾）；Esc / 点外面 / 再点触发钮也能关。
+ * 交互约定：选模型或档位都不关面板，方便继续比较和调整；Esc / 点外面 /
+ * 再点触发钮可以关闭。
  *
  * 价格/上下文长度/能力信息刻意不建模（那是「选型对比」的事，见 agent-runtime
  * defs.ts 的裁决），说明行放的是来源与映射。
@@ -19,6 +19,7 @@
 import { useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { Popover } from 'radix-ui';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/assistant-ui/ui/tooltip';
 import { effortDisplay, modelPresentation, type EffortOption } from '@/lib/agent-picker';
 
 export type { EffortOption };
@@ -57,9 +58,13 @@ export default function ComposerModelPicker({
   const dotRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const focusRow = (index: number) => rowRefs.current[index]?.focus();
 
-  // 打开面板：焦点落到当前选中（或第一行）的模型行
+  // 打开面板：有多个模型时聚焦当前模型；只有档位可选时聚焦当前档位。
   const selectedRow = Math.max(0, models.findIndex((m) => m.id === current?.id));
-  const focusSelectedRow = () => requestAnimationFrame(() => focusRow(selectedRow));
+  const selectedEffortIndex = Math.max(0, reasoningOptions?.findIndex((o) => o.id === effort?.option.id) ?? 0);
+  const focusInitialOption = () => requestAnimationFrame(() => {
+    if (models.length > 1) focusRow(selectedRow);
+    else dotRefs.current[selectedEffortIndex]?.focus();
+  });
 
   const pickModel = (id: string) => {
     onSelect(id);
@@ -67,7 +72,7 @@ export default function ComposerModelPicker({
   };
   const pickEffort = (id: string) => {
     onSelectEffort?.(id);
-    setOpen(false);   // 档位是这一步的收尾
+    // 留在面板里，方便继续比较模型或调整档位。
   };
 
   const onRowKeyDown = (event: React.KeyboardEvent, index: number) => {
@@ -87,7 +92,7 @@ export default function ComposerModelPicker({
     const options = reasoningOptions!;
     const last = options.length - 1;
     // 手动选择式（toolbar/radiogroup 变体）：方向键只移动焦点浏览档位，
-    // Enter/Space 才选定并关闭——方向键一动就关面板，键盘用户没法浏览档位。
+    // Enter/Space 才选定，面板继续保留，方便键盘用户浏览档位。
     const go = (next: number) => {
       event.preventDefault();
       requestAnimationFrame(() => dotRefs.current[next]?.focus());
@@ -103,7 +108,7 @@ export default function ComposerModelPicker({
   };
 
   return (
-    <Popover.Root open={open} onOpenChange={(next) => { setOpen(next); if (next) focusSelectedRow(); }}>
+    <Popover.Root open={open} onOpenChange={(next) => { setOpen(next); if (next) focusInitialOption(); }}>
       <Popover.Trigger asChild>
         <button
           type="button"
@@ -113,17 +118,17 @@ export default function ComposerModelPicker({
           className="group flex min-w-0 max-w-[13rem] items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-stone-600 transition-colors motion-reduce:transition-none hover:bg-stone-100 data-[state=open]:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="truncate">{loading ? '读取中…' : currentName}</span>
-          {effort && <span className="shrink-0 text-stone-500">· {effort.option.id}</span>}
+          {effort && <span className="shrink-0 text-stone-500">· {effort.option.label}</span>}
           <ChevronDown aria-hidden className="h-3 w-3 shrink-0 transition-transform motion-reduce:transition-none group-data-[state=open]:rotate-180" />
         </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
           side="top" align="start" sideOffset={4} collisionPadding={12}
-          onOpenAutoFocus={(event) => { event.preventDefault(); focusSelectedRow(); }}
+          onOpenAutoFocus={(event) => { event.preventDefault(); focusInitialOption(); }}
           className="z-30 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-stone-200 bg-white text-stone-700"
         >
-          <div role="listbox" aria-label="模型列表" className="max-h-56 overflow-y-auto overscroll-contain py-1">
+          {models.length > 1 && <div role="listbox" aria-label="模型列表" className="max-h-56 overflow-y-auto overscroll-contain py-1">
             {source === 'fallback' && (
               <p className="px-3 py-1.5 text-[11px] leading-4 text-stone-600">以下为常用模型别名，可用性取决于当前配置。</p>
             )}
@@ -151,40 +156,56 @@ export default function ComposerModelPicker({
                 </button>
               );
             })}
-          </div>
-          <div className="border-t border-stone-200 px-3 py-2.5">
+          </div>}
+          <div className={`${models.length > 1 ? 'border-t border-stone-200' : ''} px-3 py-2.5`}>
             {effort ? (
               <div className="flex items-center gap-2.5">
-                <span id="composer-effort-label" className="shrink-0 text-xs text-stone-600">
-                  推理档位{effort.pinned ? '' : '（默认）'}
+                <span id="composer-effort-label" className="shrink-0 whitespace-nowrap text-xs text-stone-600"
+                  title={effort.pinned ? undefined : '当前使用 Agent 的默认档位'}>
+                  推理档位{!effort.pinned && <span className="sr-only">（默认）</span>}
                 </span>
-                {/* 点阵是序数：越靠右思考越深。当前档用大圆点（knob），其余小点。
-                    档位名不标在点上（点放不下且档位集各家不同），右端复述当前值。 */}
-                <div
-                  role="radiogroup"
-                  aria-labelledby="composer-effort-label"
-                  className="relative flex min-w-0 flex-1 items-center justify-between"
-                >
-                  <span aria-hidden className="pointer-events-none absolute inset-x-1 top-1/2 h-px -translate-y-1/2 bg-stone-200" />
-                  {reasoningOptions!.map((o, index) => {
-                    const active = o.id === effort.option.id;
-                    return (
-                      <button
-                        key={o.id}
-                        ref={(el) => { dotRefs.current[index] = el; }}
-                        type="button"
-                        role="radio"
-                        aria-checked={active}
-                        aria-label={o.label}
-                        tabIndex={active ? 0 : -1}
-                        onClick={() => pickEffort(o.id)}
-                        onKeyDown={(event) => onDotKeyDown(event, index)}
-                        className={`relative rounded-full transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-emerald-700 ${active ? 'h-3.5 w-3.5 bg-emerald-700' : 'h-2 w-2 bg-stone-300 hover:bg-stone-400'}`}
-                      />
-                    );
-                  })}
-                </div>
-                <span className="shrink-0 text-xs text-stone-700">（{effort.option.label}）</span>
+                {/* 小圆点保持原有外观，每个档位的整格都可点；较高的按钮借用已有纵向留白。
+                    悬停与键盘聚焦时提示名称，右端仍显示当前档位。 */}
+                <TooltipProvider delayDuration={250} skipDelayDuration={100} disableHoverableContent>
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="composer-effort-label"
+                    className="relative flex h-4 min-w-0 flex-1 items-center"
+                  >
+                    {reasoningOptions!.map((o, index) => {
+                      const active = o.id === effort.option.id;
+                      return (
+                        <Tooltip key={o.id}>
+                          <TooltipTrigger asChild>
+                            <button
+                              ref={(el) => { dotRefs.current[index] = el; }}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              aria-label={o.label}
+                              tabIndex={active ? 0 : -1}
+                              onClick={() => pickEffort(o.id)}
+                              onKeyDown={(event) => onDotKeyDown(event, index)}
+                              className="group relative flex h-7 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-emerald-700"
+                            >
+                              <span aria-hidden className={`pointer-events-none absolute top-1/2 h-px -translate-y-1/2 bg-stone-200 ${index === 0 ? 'left-1/2' : 'left-0'} ${index === reasoningOptions!.length - 1 ? 'right-1/2' : 'right-0'}`} />
+                              <span aria-hidden className={`pointer-events-none relative shrink-0 rounded-full transition-colors motion-reduce:transition-none ${active ? 'h-3.5 w-3.5 bg-emerald-700' : 'h-2 w-2 bg-stone-300 group-hover:bg-stone-400'}`} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" sideOffset={6} collisionPadding={12} className="pointer-events-none px-2 py-1 motion-reduce:animate-none">
+                            {o.label}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
+                  </div>
+                </TooltipProvider>
+                <span className="grid shrink-0 whitespace-nowrap text-xs text-stone-700">
+                  {/* Overlapping hidden labels reserve the actual widest option without measuring the DOM. */}
+                  {reasoningOptions!.map(option => <span key={option.id} aria-hidden="true"
+                    className="invisible col-start-1 row-start-1">（{option.label}）</span>)}
+                  <span className="col-start-1 row-start-1 text-right">（{effort.option.label}）</span>
+                </span>
               </div>
             ) : (
               <p className="text-xs leading-5 text-stone-500">推理档位：由 Agent 配置决定</p>

@@ -16,6 +16,19 @@ export function conversationTurns(messages: AgentChatMessage[]): ConversationTur
   });
 }
 
+/** Streaming changes assistant messages; reuse the unchanged question index. */
+export function createConversationTurnSelector() {
+  let previousUsers: AgentChatMessage[] = [];
+  let previousTurns: ConversationTurn[] = [];
+  return (messages: AgentChatMessage[]) => {
+    const users = messages.filter(message => message.role === 'user');
+    if (users.length === previousUsers.length && users.every((message, index) => message === previousUsers[index])) return previousTurns;
+    previousUsers = users;
+    previousTurns = conversationTurns(users);
+    return previousTurns;
+  };
+}
+
 /** Offsets refer to user-message starts, including their complete assistant reply. */
 export function readingTurnIndex(offsets: number[], scrollTop: number, height: number, scrollHeight: number): number {
   if (!offsets.length) return -1;

@@ -10,6 +10,7 @@ import { File, getFileHref } from "@/components/assistant-ui/elements/file";
 import { ThreadFollowupSuggestions } from "@/components/assistant-ui/elements/follow-up-suggestions.aui";
 import { Image } from "@/components/assistant-ui/elements/image";
 import { MarkdownText } from "@/components/assistant-ui/elements/markdown-text";
+import { WindowedChatText } from "@/components/dashboard/ChatMessageVisibility";
 import {
   Reasoning,
   ReasoningContent,
@@ -684,7 +685,7 @@ export const AssistantMessage: FC<{ before?: ReactNode; after?: ReactNode; error
                 );
               }
               case "text":
-                return <MarkdownText />;
+                return <WindowedChatText><MarkdownText /></WindowedChatText>;
               case "reasoning":
                 return <Reasoning {...part} />;
               case "tool-call":

@@ -22,6 +22,9 @@ const openSettings = async () => {
 
 try {
   await page.route('**/api/coursewares**', (route) => route.fulfill({ json: { records: [] } }));
+  await page.route('**/api/byok', (route) => route.fulfill({ json: {
+    baseUrl: 'https://fixture.invalid/v1', model: 'fixture-model', apiKeyConfigured: false, apiKeyTail: '',
+  } }));
   await page.route('**/api/agent/test', (route) => route.fulfill({ json: { ok: true, status: 'ready', message: '就绪 · 已登录（验收桩）' } }));
   await page.goto('http://localhost:3000/dashboard', { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.getByRole('textbox', { name: '题目描述' }).waitFor({ timeout: 60_000 });
@@ -59,6 +62,23 @@ try {
   const before = (await composerTrigger.getAttribute('aria-label'));
   const modelSelect = page.getByRole('combobox', { name: '选择模型' });
   await modelSelect.waitFor();
+  const selectedCard = page.locator('li').filter({ has: modelSelect });
+  const currentIndicator = selectedCard.locator('span[aria-label^="当前使用 "]');
+  assert.equal(await currentIndicator.evaluate(element => getComputedStyle(element).opacity), '1', 'current usage is a full-opacity status, not a disabled button');
+  const configurationHelp = selectedCard.locator('details');
+  assert.equal(await configurationHelp.evaluate(element => element.open), false, 'configuration help starts collapsed for a usable, signed-in Agent');
+  const collapsedHeight = (await selectedCard.boundingBox()).height;
+  await configurationHelp.locator('summary').click();
+  await selectedCard.getByRole('link', { name: /配置文档/ }).waitFor();
+  const expandedHeight = (await selectedCard.boundingBox()).height;
+  assert(expandedHeight > collapsedHeight, 'folding help reduces card height');
+  await configurationHelp.locator('summary').click();
+  const scrollbar = page.locator('.settings-scroll-viewport');
+  const scrollbarStyle = await scrollbar.evaluate(element => ({
+    width: getComputedStyle(element, '::-webkit-scrollbar').width,
+    buttons: getComputedStyle(element, '::-webkit-scrollbar-button').display,
+  }));
+  assert.deepEqual(scrollbarStyle, { width: '6px', buttons: 'none' });
   const options = await modelSelect.locator('option').all();
   assert.ok(options.length >= 2, 'model select populated');
   await modelSelect.selectOption({ index: Math.min(1, options.length - 1) });
@@ -87,6 +107,17 @@ try {
   await page.keyboard.press('End');
   await page.getByRole('heading', { name: '内置构造 Agent（BYOK）' }).waitFor();
   await page.getByRole('button', { name: '测试 内置构造 Agent（BYOK）' }).waitFor();
+  const providerPanel = page.getByRole('tabpanel', { name: 'API 提供商' });
+  const endpointInput = providerPanel.getByRole('textbox', { name: 'API 端点', exact: true });
+  await page.waitForFunction(() => document.querySelector('#settings-panel-providers input[type=url]')?.value === 'https://fixture.invalid/v1');
+  await page.getByRole('button', { name: '测试 内置构造 Agent（BYOK）' }).click();
+  await providerPanel.getByRole('status').filter({ hasText: '就绪 · 已登录（验收桩）' }).waitFor();
+  await endpointInput.fill('https://draft.invalid/v1');
+  await providerPanel.getByRole('textbox', { name: '模型', exact: true }).fill('draft-model');
+  await providerPanel.getByLabel('API 密钥（本地端点可留空）', { exact: true }).fill('fixture-draft-key');
+  assert(await page.getByRole('button', { name: '测试 内置构造 Agent（BYOK）' }).isDisabled(), 'unsaved configuration cannot be tested');
+  await providerPanel.getByText('配置已修改，请先保存再测试。', { exact: true }).waitFor();
+  assert.equal(await providerPanel.getByRole('status').filter({ hasText: '就绪 · 已登录（验收桩）' }).count(), 0, 'editing clears the old test result');
 
   // 8. 分区导航：帮助与快捷键 / 关于 各有真实内容，返回后 Tab 仍在
   await nav.getByRole('button', { name: '帮助与快捷键', exact: true }).click();
@@ -95,17 +126,24 @@ try {
   await page.getByText('数据与密钥', { exact: true }).first().waitFor();
   await nav.getByRole('button', { name: '模型与提供商', exact: true }).click();
   await page.getByRole('tab', { name: 'API 提供商', exact: true }).waitFor();
+  assert.equal(await endpointInput.inputValue(), 'https://draft.invalid/v1', 'section switching retains unsaved endpoint');
+  assert.equal(await providerPanel.getByRole('textbox', { name: '模型', exact: true }).inputValue(), 'draft-model', 'section switching retains unsaved model');
+  assert.equal(await providerPanel.getByLabel('API 密钥（本地端点可留空）', { exact: true }).inputValue(), 'fixture-draft-key', 'section switching retains unsaved key');
+  await providerPanel.getByText('配置已修改，请先保存再测试。', { exact: true }).waitFor();
 
   await mkdir(new URL('../spike-out/verify-settings/', import.meta.url), { recursive: true });
   await page.screenshot({ path: new URL('../spike-out/verify-settings/providers-tab.png', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
   await page.getByRole('tab', { name: /^本机 CLI/ }).click();
+  await page.getByRole('tabpanel', { name: /^本机 CLI/ }).getByRole('status').filter({ hasText: '就绪 · 已登录（验收桩）' }).waitFor();
   await page.waitForTimeout(300);   // 等边框过渡收尾，避免截到中间帧
   await page.screenshot({ path: new URL('../spike-out/verify-settings/cli-tab.png', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
 
   assert.equal(errors.length, 0, `browser errors: ${errors.join('; ')}`);
   console.log(JSON.stringify({ navShell: true, brandIcons: true, dualTabs: true, byokInProviderTab: true, cardSubtitles: true, statusChips: true,
     modelAtAGlance: true, sharedModelState: true, effortRow: true, testButton: true,
-    installCollapsed: true, tabKeyboard: true, browserErrors: errors.length }));
+    installCollapsed: true, tabKeyboard: true, configurationHelpCollapsed: true, currentStatusLegible: true,
+    thinScrollbar: true, sectionDraftsRetained: true, editedTestResultsCleared: true,
+    cardHeights: { collapsed: collapsedHeight, expanded: expandedHeight }, browserErrors: errors.length }));
 } finally {
   await browser.close();
 }

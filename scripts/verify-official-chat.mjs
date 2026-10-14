@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 // Real dashboard + GeoGebra; courseware writes and Agent streams are isolated fixtures.
+const base = process.argv[2] || 'http://localhost:3000';
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const artifacts = new URL('../spike-out/official-chat/', import.meta.url);
 await mkdir(artifacts, { recursive: true });
@@ -22,7 +23,7 @@ const image = await fixturePage.evaluate(() => {
 await fixturePage.close();
 const markdown = '## 已建立抛物线\n\n函数为 $y=(x-1)^2$，顶点为 $(1,0)$。\n\n- 对称轴：$x=1$\n- 开口向上\n\n```geogebra\nf(x)=(x-1)^2\n' + 'W'.repeat(160) + '\n```\n\n$$\n' + Array.from({ length: 45 }, (_, i) => `x_{${i}}`).join('+') + '\n$$';
 const message = (id, role, content, meta, attachments) => ({ id, role, content, createdAt: now, meta, attachments });
-let record = { id, title: '官方聊天验证', category: null, created_at: new Date(now).toISOString(), updated_at: new Date(now).toISOString(), revision: 1, deleted_at: null, commands: [], messages: [
+let record = { id, title: '官方聊天验证', category: null, created_at: new Date(now).toISOString(), updated_at: new Date(now).toISOString(), revision: 1, archived_at: null, commands: [], messages: [
   message('u1', 'user', '绘制抛物线并说明顶点位置。'),
   message('a1', 'assistant', markdown, { status: 'completed', commands: ['f(x)=(x-1)^2'], execution: { status: 'completed', startedAt: now - 2000, endedAt: now, steps: [{ id: 's1', name: 'ggb_apply', status: 'returned' }] }, auditResult: { missing: [], undefinedObjs: [], degraded: false } }),
   message('u2', 'user', '请看看这张题图。', undefined, [{ id: 'image-1', name: '题目.png', contentType: 'image/png', url: image }]),
@@ -61,7 +62,7 @@ try {
       return realFetch(input, init);
     };
   });
-  await page.goto(`http://localhost:3000/dashboard?history_id=${id}`);
+  await page.goto(`${base}/dashboard?history_id=${id}`);
   await page.locator('[data-slot=aui_assistant-message-root]').first().waitFor();
   const panel = page.locator('aside[aria-label=对话]');
   const viewport = page.getByRole('region', { name: '聊天消息', exact: true });
@@ -74,9 +75,9 @@ try {
   assert.equal(await turn('a3').locator('.aui-assistant-action-bar-root button').count(), 1);
   assert.equal(await panel.getByRole('button', { name: '重新生成', exact: true }).count(), 0);
   await turn('a1').getByRole('button', { name: /本轮已结束/ }).click();
-  await turn('a1').getByRole('list', { name: '工具执行步骤' }).waitFor();
-  assert.equal(await turn('a1').getByRole('list', { name: '工具执行步骤' }).innerText(), '更新构造 · 已返回');
-  assert.equal(await turn('a2').locator('[data-slot=run-activity] button').count(), 0);
+  await turn('a1').locator('[data-tool-step-status]').waitFor();
+  assert.equal(await turn('a1').locator('[data-tool-step-status]').getAttribute('data-tool-step-status'), 'returned');
+  assert.equal(await turn('a2').locator('[data-agent-execution]').getAttribute('data-agent-execution'), 'stopped');
   assert.equal(await panel.getByText('尚未收到工具活动。', { exact: true }).count(), 0);
   await panel.screenshot({ path: output('activity.png') });
   await turn('a1').getByRole('button', { name: /本轮已结束/ }).click();
@@ -175,32 +176,34 @@ try {
     const el = document.querySelector('[aria-label=聊天消息]');
     return el.scrollHeight - el.clientHeight - el.scrollTop <= 1;
   });
-  await latest.locator('[data-slot=run-activity] button').click();
-  await latest.getByRole('list', { name: '工具执行步骤' }).waitFor();
+  await latest.locator('[data-agent-execution] > [data-slot=tool-group-trigger]').click();
+  await latest.locator('[data-tool-step-status]').waitFor();
   await emit({ kind: 'tool-result', name: 'ggb_get_state', toolCallId: 'fixture-1', isError: true });
   await emit({ kind: 'done' });
   await page.evaluate(() => window.__finishAgent());
   await latest.locator('[data-agent-execution=completed]').waitFor();
-  assert.equal(await latest.locator('[data-slot=run-activity] button').getAttribute('aria-expanded'), 'true');
-  assert((await latest.getByRole('list', { name: '工具执行步骤' }).innerText()).includes('返回错误'));
+  assert.equal(await latest.locator('[data-agent-execution] > [data-slot=tool-group-trigger]').getAttribute('aria-expanded'), 'true');
+  assert.equal(await latest.locator('[data-tool-step-status]').getAttribute('data-tool-step-status'), 'error');
   await latest.getByRole('button', { name: '复制消息', exact: true }).waitFor();
   await startRun('测试停止');
   await emit({ kind: 'tool-call', name: 'ggb_apply', toolCallId: 'fixture-stopped-tool' });
   await emit({ kind: 'text-delta', text: '停止时仍保留这段内容。' });
   await latest.getByText('停止时仍保留这段内容。', { exact: true }).waitFor();
-  await page.getByRole('button', { name: '停止本轮', exact: true }).click();
+  await emit({ kind: 'text-delta', text: '停止前最后一小段。' });
+  await page.evaluate(() => document.querySelector('[aria-label=停止本轮]').click());
   await latest.locator('[data-agent-execution=stopped]').waitFor();
-  assert.equal(await latest.locator('[data-slot=run-activity]').getAttribute('data-status'), 'cancelled');
-  await latest.locator('[data-slot=run-activity] button').click();
-  await latest.getByRole('list', { name: '工具执行步骤' }).waitFor();
-  assert((await latest.getByRole('list', { name: '工具执行步骤' }).innerText()).includes('未确认'));
+  assert.equal(await latest.locator('[data-agent-execution]').getAttribute('data-agent-execution'), 'stopped');
+  await latest.getByText('停止时仍保留这段内容。停止前最后一小段。', { exact: true }).waitFor();
+  await latest.locator('[data-agent-execution] > [data-slot=tool-group-trigger]').click();
+  await latest.locator('[data-tool-step-status]').waitFor();
+  assert.equal(await latest.locator('[data-tool-step-status]').getAttribute('data-tool-step-status'), 'unconfirmed');
   assert.equal(await latest.locator('[role=alert]').count(), 0);
   await startRun('测试错误提示');
   await emit({ kind: 'error', message: '验证用错误：连接中断' });
   await emit({ kind: 'done' });
   await page.evaluate(() => window.__finishAgent());
   await latest.locator('[data-agent-execution=error]').waitFor();
-  assert.equal(await latest.locator('[data-slot=run-activity]').getAttribute('data-status'), 'error');
+  assert.equal(await latest.locator('[data-agent-execution]').getAttribute('data-agent-execution'), 'error');
   await latest.getByRole('alert').waitFor();
   await panel.screenshot({ path: output('error.png') });
 
@@ -215,7 +218,7 @@ try {
   await editedInput.fill('取消后不应写入');
   await panel.getByRole('button', { name: '取消', exact: true }).click();
   assert.equal(await editedInput.count(), 0);
-  assert.equal(await turn('u3').innerText(), '继续解释。');
+  assert.equal(await turn('u3').locator('.aui-user-message-content').innerText(), '继续解释。');
   assert.equal(await page.evaluate(() => window.__agentRequest.text), '测试错误提示');
 
   await page.waitForFunction(() => !!window.ggbApplet?.getAllObjectNames);

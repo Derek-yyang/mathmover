@@ -41,7 +41,7 @@ try {
   }
   for (const width of [1544, 2400]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto('http://localhost:3000/dashboard', { waitUntil: 'domcontentloaded' });
+    await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => !!window.ggbApplet?.getViewProperties);
     await page.getByRole('button', { name: '画板设置', exact: true }).click();
     const initial = await visiblePanel();

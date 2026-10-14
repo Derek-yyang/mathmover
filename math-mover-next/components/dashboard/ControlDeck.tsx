@@ -1,34 +1,33 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
 import {
-  Play,
-  Pause,
   Grid,
   Settings2,
   Maximize2,
   Minimize2,
   RotateCcw,
-  ChevronDown,
-  Download,
-  FileCode2,
-  Globe,
-  Image as ImageIcon
 } from 'lucide-react';
-import { CoursewareExportFormat, SliderItem } from './types';
+import type { CoursewareExportFormat } from './types';
+import CoursewareExportMenu from './CoursewareExportMenu';
+import CoursewareTitle from './CoursewareTitle';
+import BoardConnectionStatus from './BoardConnectionStatus';
+import type { GgbConnectionStatus } from '@/lib/ggb-connection';
 
 interface ControlDeckProps {
   title: string;
+  editorId?: string;
+  onRename?: (title: string) => Promise<void>;
+  renameDisabled?: boolean;
+  boardDisabled?: boolean;
   saveStatusText?: string;
-  sliders: SliderItem[];
+  connectionStatus?: GgbConnectionStatus;
+  onReconnect?: () => void;
   showAxes: boolean;
   axesMixed?: boolean;
   showGrid: boolean;
   settingsOpen?: boolean;
   onToggleSettings?: () => void;
   isFullscreen: boolean;
-  onSliderChange: (name: string, value: number) => void;
-  onToggleAnimation: (name: string) => void;
   onToggleAxes: () => void;
   onToggleGrid: () => void;
   onResetView: () => void;
@@ -38,110 +37,48 @@ interface ControlDeckProps {
 
 export default function ControlDeck({
   title,
+  editorId,
+  onRename,
+  renameDisabled,
+  boardDisabled = false,
   saveStatusText,
-  sliders,
+  connectionStatus,
+  onReconnect,
   showAxes,
   axesMixed = false,
   showGrid,
   settingsOpen = false,
   onToggleSettings,
   isFullscreen,
-  onSliderChange,
-  onToggleAnimation,
   onToggleAxes,
   onToggleGrid,
   onResetView,
   onToggleFullscreen,
   onExport,
 }: ControlDeckProps) {
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-
-  // 普通页面区域通过 mousedown 关闭；GeoGebra 嵌入区可能是 iframe，
-  // 内部点击不会冒泡到页面，用 focusin 捕捉焦点转入 iframe 的情况。
-  useEffect(() => {
-    const closeWhenOutside = (target: EventTarget | null) => {
-      if (exportMenuRef.current && target instanceof Node && !exportMenuRef.current.contains(target)) {
-        setShowExportMenu(false);
-      }
-    };
-    const handleMouseDown = (event: MouseEvent) => closeWhenOutside(event.target);
-    const handleFocusIn = (event: FocusEvent) => closeWhenOutside(event.target);
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('focusin', handleFocusIn);
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('focusin', handleFocusIn);
-    };
-  }, []);
-
   return (
-    <header className="relative z-10 flex h-14 shrink-0 select-none items-center justify-between gap-3 border-b border-[#E7E5E4] bg-[#FDFCF8] px-4">
+    <div className="@container relative z-10 shrink-0">
+    <header data-slot="board-toolbar" className="grid select-none grid-cols-[minmax(0,1fr)] items-center gap-x-3 gap-y-1 border-b border-[#E7E5E4] bg-[#FDFCF8] px-4 py-2 @min-[560px]:grid-cols-[minmax(0,1fr)_auto]">
       {/* 左侧：课件标题 */}
-      <div className={`flex min-w-0 items-center gap-3 ${sliders.length === 0 ? 'flex-1' : ''}`}>
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="font-semibold text-stone-800 text-sm truncate max-w-[200px]" title={title}>
-            {title || '未命名课件'}
-          </span>
-          {saveStatusText && <span role="status" aria-label="课件保存状态" className="hidden shrink-0 text-xs text-stone-600 sm:inline">{saveStatusText}</span>}
+      <div data-slot="board-toolbar-title" className="order-1 flex min-w-0 items-center gap-3 @min-[560px]:min-h-10">
+        <div className="flex min-w-0 items-center gap-2 has-[[data-slot=courseware-title-editor]]:[&_[role=status]]:hidden">
+          {onRename ? <CoursewareTitle key={editorId} title={title} onRename={onRename} disabled={renameDisabled} />
+            : <span className="max-w-[200px] truncate text-sm font-semibold text-stone-800" title={title}>{title || '未命名课件'}</span>}
+          {saveStatusText && <span role="status" aria-label="课件保存状态" className="hidden shrink-0 text-xs text-stone-600 @min-[560px]:inline">{saveStatusText}</span>}
         </div>
+        {connectionStatus && <BoardConnectionStatus status={connectionStatus} onReconnect={onReconnect} />}
       </div>
 
-      {/* 中间：参数与动点控制区 (Sliders Deck) */}
-      {sliders.length > 0 && (
-        <div className="flex min-w-0 flex-1 items-center justify-center gap-4 overflow-x-auto py-1 px-2" role="group" aria-label="课件参数">
-          <div className="flex items-center gap-3">
-            {sliders.map((s) => (
-              <div
-                key={s.name}
-                className="flex items-center gap-2 bg-[#F5F5F0] hover:bg-stone-200/60 border border-stone-200/80 rounded-lg px-2.5 py-1 text-xs transition-colors shrink-0"
-              >
-                <button
-                  type="button"
-                  onClick={() => onToggleAnimation(s.name)}
-                  title={s.isAnimating ? '暂停动画' : '播放动画演示'}
-                  className={`p-1 rounded-md transition-colors ${
-                    s.isAnimating
-                      ? 'bg-emerald-500 text-white shadow-sm'
-                      : 'text-stone-600 hover:text-emerald-600 hover:bg-white'
-                  }`}
-                >
-                  {s.isAnimating ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                </button>
-
-                <span className="font-mono font-medium text-stone-700 min-w-[24px]">
-                  {s.name}
-                </span>
-
-                <input
-                  type="range"
-                  min={s.min}
-                  max={s.max}
-                  step={s.step || 0.1}
-                  value={s.value}
-                  aria-label={`参数 ${s.name}`}
-                  onChange={(e) => onSliderChange(s.name, parseFloat(e.target.value))}
-                  className="w-24 h-1.5 bg-stone-300 rounded-lg appearance-none cursor-pointer accent-emerald-600 focus:outline-none"
-                />
-
-                <span className="font-mono text-stone-600 w-10 text-right tabular-nums">
-                  {s.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* 右侧：视图控制、导出与操作按钮 */}
-      <div className="flex items-center gap-1 shrink-0 pl-2">
+      <div data-slot="board-toolbar-actions" className="order-2 flex min-w-0 flex-wrap items-center gap-1 [&>button]:shrink-0 @min-[560px]:justify-end">
         <button
           type="button"
           onClick={onToggleAxes}
+          disabled={boardDisabled}
           title={axesMixed ? '坐标轴部分显示，点击显示全部' : showAxes ? '隐藏坐标轴' : '显示坐标轴'}
           aria-label="显示坐标轴"
           aria-pressed={axesMixed ? 'mixed' : showAxes}
-          className={`p-2 rounded-lg text-xs font-medium transition-colors ${
+          className={`p-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
             axesMixed ? 'text-emerald-700 bg-stone-100 ring-1 ring-inset ring-emerald-600/40 hover:bg-emerald-50' : showAxes
               ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
               : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'
@@ -153,10 +90,11 @@ export default function ControlDeck({
         <button
           type="button"
           onClick={onToggleGrid}
+          disabled={boardDisabled}
           title={showGrid ? '隐藏网格' : '显示网格'}
           aria-label="显示网格"
           aria-pressed={showGrid}
-          className={`p-2 rounded-lg text-xs transition-colors ${
+          className={`p-2 rounded-lg text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
             showGrid
               ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
               : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'
@@ -165,7 +103,7 @@ export default function ControlDeck({
           <Grid className="w-4 h-4" />
         </button>
 
-        <button type="button" onClick={onToggleSettings} disabled={!onToggleSettings}
+        <button type="button" onClick={onToggleSettings} disabled={boardDisabled || !onToggleSettings}
           aria-label="画板设置" title={settingsOpen ? '关闭画板设置' : '打开画板设置'} aria-pressed={settingsOpen}
           className={`p-2 rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-40 ${settingsOpen ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-stone-500 hover:text-stone-800 hover:bg-stone-100'}`}>
           <Settings2 aria-hidden className="w-4 h-4" />
@@ -174,75 +112,16 @@ export default function ControlDeck({
         <button
           type="button"
           onClick={onResetView}
+          disabled={boardDisabled}
           title="重置视图居中"
-          className="p-2 rounded-lg text-stone-500 hover:text-stone-800 hover:bg-stone-100 transition-colors"
+          aria-label="重置视图居中"
+          className="p-2 rounded-lg text-stone-500 hover:text-stone-800 hover:bg-stone-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <RotateCcw className="w-4 h-4" />
         </button>
 
         {/* 导出下拉按钮 */}
-        {onExport && (
-          <div className="relative" ref={exportMenuRef}>
-            <button
-              type="button"
-              onClick={() => setShowExportMenu((prev) => !prev)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-xs ml-1"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>导出</span>
-              <ChevronDown className="w-3 h-3 opacity-80" />
-            </button>
-
-            {showExportMenu && (
-              <div className="absolute right-0 mt-1.5 w-40 bg-white border border-[#E7E5E4] rounded-xl shadow-lg p-1 z-50 text-xs select-none">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExportMenu(false);
-                    onExport('html');
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-stone-100 text-stone-700 text-left transition-colors"
-                >
-                  <Globe className="w-4 h-4 text-emerald-600" />
-                  <div>
-                    <div className="font-medium">导出 HTML 课件</div>
-                    <div className="text-[10px] text-stone-600">浏览器交互网页</div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExportMenu(false);
-                    onExport('ggb');
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-stone-100 text-stone-700 text-left transition-colors"
-                >
-                  <FileCode2 className="w-4 h-4 text-emerald-600" />
-                  <div>
-                    <div className="font-medium">导出 .GGB 课件</div>
-                    <div className="text-[10px] text-stone-400">GeoGebra 源文件</div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowExportMenu(false);
-                    onExport('png');
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-stone-100 text-stone-700 text-left transition-colors"
-                >
-                  <ImageIcon className="w-4 h-4 text-emerald-600" />
-                  <div>
-                    <div className="font-medium">导出 PNG 截图</div>
-                    <div className="text-[10px] text-stone-400">高清画板图片</div>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        {onExport && <CoursewareExportMenu onExport={onExport} disabled={boardDisabled} />}
 
         <div className="w-[1px] h-4 bg-stone-200 mx-1" />
 
@@ -257,6 +136,8 @@ export default function ControlDeck({
           {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
         </button>
       </div>
+
     </header>
+    </div>
   );
 }

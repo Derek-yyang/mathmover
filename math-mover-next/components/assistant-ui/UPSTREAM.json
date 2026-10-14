@@ -150,6 +150,31 @@
       "url": "https://r.assistant-ui.com/elements-range.json",
       "file": "components/assistant-ui/utils/range.ts",
       "sha256": "3506d5f07865c042a4ef9b96904f687d19372a14e7dfccf946749860a3606182"
+    },
+    {
+      "url": "https://r.assistant-ui.com/thread-list.json",
+      "file": "components/assistant-ui/elements/thread-list.aui.tsx",
+      "sha256": "3902d93ad5f3b4d8228a88cdcd18844ed8e96d00b77166e3d30d88af3b1a7103"
+    },
+    {
+      "url": "https://ui.shadcn.com/r/styles/new-york/input.json",
+      "file": "components/assistant-ui/ui/input.tsx",
+      "sha256": "6299a6a387dc55e528aec4342deaea0b83f1ea3a365c135a31a18ee55334f441"
+    },
+    {
+      "url": "https://r.assistant-ui.com/threadlist-sidebar.json",
+      "file": "components/assistant-ui/elements/threadlist-sidebar.aui.tsx",
+      "sha256": "2077042381015411a5e383caf8a13837929a0c8619c63ed3d8cb67903d590a0a"
+    },
+    {
+      "url": "https://ui.shadcn.com/r/styles/new-york/sidebar.json",
+      "file": "components/assistant-ui/ui/sidebar-layout.tsx",
+      "sha256": "3b68133c7293a5ecfca107b8497b1d3e5636e096e5416b4b1ee06be8428abc89",
+      "extractedExports": [
+        "SidebarHeader",
+        "SidebarContent",
+        "SidebarFooter"
+      ]
     }
   ]
 }

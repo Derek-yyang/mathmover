@@ -13,7 +13,7 @@ const makeRows = () => Array.from({ length: 5 }, (_, i) => {
   date.setDate(date.getDate() - (i === 3 ? 1 : i === 4 ? 3 : 0));
   date.setMinutes(date.getMinutes() - i);
   return { id: `aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa${i}`, title: `动效测试 ${i + 1}`,
-    revision: 1, created_at: date.toISOString(), updated_at: date.toISOString(), deleted_at: null,
+    revision: 1, created_at: date.toISOString(), updated_at: date.toISOString(), archived_at: null,
     commands: [], messages: [] };
 });
 let rows = makeRows();

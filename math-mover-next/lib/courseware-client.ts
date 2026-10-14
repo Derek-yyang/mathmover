@@ -28,24 +28,16 @@ export const getCourseware = (id: string) => libraryRequest<CoursewareRecord>(`/
 export async function renameCourseware(id: string, title: string, expectedRevision: number) {
   const summary = await libraryRequest<CoursewareSummary>(`/${encodeURIComponent(id)}/rename`, { title, expectedRevision }); historyChanged({ kind: 'rename', summary });
 }
-export async function deleteCoursewares(ids: string[]) { await libraryRequest('/delete', { ids }); historyChanged({ kind: 'delete', ids }); }
-
-let migration: Promise<void> | undefined;
-export function migrateLegacyHistory(): Promise<void> {
-  if (migration) return migration;
-  migration = (async () => {
-    const raw = localStorage.getItem('mathmover_generations_v1');
-    if (!raw) return;
-    const records = JSON.parse(raw);
-    if (!Array.isArray(records)) throw new Error('旧课件历史格式损坏，原数据已保留');
-    for (const record of records) {
-      await libraryRequest('/import', { ...record, title: record.title || '未命名课件', expectedRevision: 0,
-        commands: record.commands ?? [], messages: record.messages ?? [] });
-    }
-    // Deliberately retain legacy storage; imports are idempotent on the daemon.
-  })().catch(error => { migration = undefined; throw error; });
-  return migration;
+export async function deleteCoursewares(ids: string[]) {
+  const service = await libraryRequest<{ capabilities?: { permanentDelete?: boolean } }>();
+  if (!service.capabilities?.permanentDelete) throw new CoursewareError(503, '课件库服务版本过旧，请重启 daemon 后使用永久删除');
+  await libraryRequest('/delete', { ids }); historyChanged({ kind: 'delete', ids });
 }
+export async function archiveCourseware(id: string, archived: boolean, expectedRevision: number) {
+  const summary = await libraryRequest<CoursewareSummary>(`/${encodeURIComponent(id)}/${archived ? 'archive' : 'unarchive'}`, { expectedRevision });
+  historyChanged({ kind: archived ? 'archive' : 'unarchive', summary });
+}
+
 const imageCache = new WeakMap<File, Promise<string>>();
 export async function persistableMessages(messages: AgentChatMessage[]): Promise<AgentChatMessage[]> {
   return Promise.all(messages.map(async message => ({ ...message, attachments: message.attachments ? await Promise.all(message.attachments.map(async a => {

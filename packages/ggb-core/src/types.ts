@@ -206,7 +206,8 @@ export interface CoursewareSummary {
   created_at: string;
   updated_at: string;
   revision: number;
-  deleted_at: string | null;
+  /** 归档时间；未归档为 null。删除会永久移除记录。 */
+  archived_at: string | null;
 }
 
 /**

@@ -1,18 +1,22 @@
 'use client';
 
-import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { AssistantRuntimeProvider, SimpleImageAttachmentAdapter, ThreadPrimitive, useExternalStoreRuntime, type AttachmentAdapter } from '@assistant-ui/react';
 import { ChevronDown, Loader2, Sparkles } from 'lucide-react';
 import type { AgentChatMessage, ChatAttachment } from './types';
 import AgentDiagnosticNotice from './AgentDiagnosticNotice';
-import AssistantChatMessage from './AssistantChatMessage';
+import ChatMessageList from './AssistantChatMessage';
 import AssistantChatComposer from './AssistantChatComposer';
 import type { PickableModel } from './ComposerModelPicker';
 import ConversationIndex from './ConversationIndex';
 import { ImagePreviewProvider } from './ImagePreview';
 import { useAgentRuntimeState } from './AgentRuntimeState';
 import { toAssistantMessage, fromAssistantInput } from '@/lib/assistant-chat-adapter';
-import { conversationTurns } from '@/lib/conversation-index';
+import { createConversationTurnSelector } from '@/lib/conversation-index';
+import { ChatMessageVisibility } from './ChatMessageVisibility';
+import { ComposerDrafts } from '@/lib/composer-drafts';
+import { useComposerDraft } from '@/hooks/useComposerDraft';
+import type { SendBlock } from '@/lib/agent-send-readiness';
 
 export interface RuntimeOption {
   id: string; name: string; version: string | null; usable: boolean;
@@ -24,13 +28,14 @@ export interface RuntimeOption {
 }
 interface AgentChatPanelProps {
   messages: AgentChatMessage[]; isLoading: boolean; sendDisabled?: boolean;
-  conversationId?: string; loadingStatusText?: string;
+  sendBlock?: SendBlock; onReconnectBoard?: () => void; onOpenSettings?: () => void;
+  conversationId?: string; editorId?: string; loadingStatusText?: string;
   onSendMessage: (text: string, attachments: ChatAttachment[]) => void | Promise<void>;
   onEditMessage?: (messageId: string, text: string, attachments: ChatAttachment[]) => void | Promise<void>;
   /** 停止当前这一轮（agent 正在跑时才用得上） */
   onStopRun?: () => void;
   runtimes?: RuntimeOption[];
-  activeRuntimeId?: string; onSelectRuntime?: (id: string) => void;
+  activeRuntimeId?: string;
   selectedModel?: string; onSelectModel?: (id: string) => void;
   selectedEffort?: string; onSelectEffort?: (id: string) => void;
 }
@@ -44,10 +49,11 @@ const subscribeReducedMotion = (notify: () => void) => {
 const getReducedMotion = () => window.matchMedia(reducedMotionQuery).matches;
 const getServerReducedMotion = () => true;
 
-function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusText = '等待 Agent 回复…',
+function ChatThread({ messages, isLoading, sendDisabled = false, sendBlock, onReconnectBoard, onOpenSettings, loadingStatusText = '等待 Agent 回复…',
   onSendMessage, onEditMessage, onStopRun, canAttachImages,
   models, modelSource, selectedModel, onSelectModel,
-  reasoningOptions, selectedEffort, onSelectEffort }: AgentChatPanelProps & {
+  reasoningOptions, selectedEffort, onSelectEffort, drafts, draftId }: AgentChatPanelProps & {
+    drafts: ComposerDrafts; draftId: string;
     canAttachImages: boolean;
     models?: Array<PickableModel>;
     modelSource?: 'live' | 'fallback';
@@ -58,18 +64,23 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
   const contentRef = useRef<HTMLDivElement>(null);
   const [indexBrowsing, setIndexBrowsing] = useState(false);
   const reducedMotion = useSyncExternalStore(subscribeReducedMotion, getReducedMotion, getServerReducedMotion);
-  const turns = useMemo(() => conversationTurns(messages), [messages]);
+  const selectTurns = useMemo(() => createConversationTurnSelector(), []);
+  const turns = selectTurns(messages);
+  const browseIndex = useCallback(() => setIndexBrowsing(true), []);
   const imageAdapter = useMemo<AttachmentAdapter>(() => {
     const base = new SimpleImageAttachmentAdapter();
     return {
       accept: 'image/png,image/jpeg,image/webp,image/gif',
-      async add({ file }) {
+      async *add({ file }) {
         if (!canAttachImages) throw new Error('当前 Agent 没有图片通道。');
         if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) throw new Error('请使用 PNG、JPEG、WebP 或 GIF 图片。');
         if (file.size > 6 * 1024 * 1024) throw new Error('单张题目图片不能超过 6 MB。');
         const pending = await base.add({ file });
+        // Publish the File before the preview read finishes, so switching away
+        // during that read still preserves the selected attachment.
+        yield { ...pending, status: { type: 'running' as const, reason: 'uploading' as const, progress: 0 } };
         const complete = await base.send(pending);
-        return { ...pending, content: complete.content };
+        yield { ...pending, content: complete.content };
       },
       remove: () => base.remove(),
       async send(attachment) {
@@ -94,6 +105,7 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
       await onSendMessage(input.text, input.attachments);
     },
   });
+  const draftError = useComposerDraft(runtime.thread.composer, drafts, draftId);
   return <AssistantRuntimeProvider runtime={runtime}>
     <ThreadPrimitive.Root className="aui-root flex min-h-0 flex-1 flex-col" style={{ '--composer-radius': '1rem', '--composer-padding': '8px' } as React.CSSProperties}>
       <div className="relative min-h-0 flex-1">
@@ -108,25 +120,45 @@ function ChatThread({ messages, isLoading, sendDisabled = false, loadingStatusTe
               <p className="mt-2 max-w-60 text-sm leading-6 text-stone-600">输入题目或上传题图，和 Agent 一起构建、调整画板上的模型。</p>
             </div>
           </ThreadPrimitive.Empty>
-          <div ref={contentRef} className="space-y-6"><ThreadPrimitive.Messages>{() => <AssistantChatMessage />}</ThreadPrimitive.Messages></div>
+          <ChatMessageVisibility messages={messages} viewportRef={viewportRef}>
+            <div ref={contentRef} className="space-y-6"><ChatMessageList messages={messages} /></div>
+          </ChatMessageVisibility>
           {isLoading && !messages.some(msg => msg.meta?.execution?.status === 'running') && <p role="status" className="mt-3 flex items-center gap-2 text-xs text-stone-600"><Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />{loadingStatusText}</p>}
           <ThreadPrimitive.ScrollToBottom behavior={reducedMotion ? 'instant' : 'smooth'} onClick={() => setIndexBrowsing(false)} aria-label="回到最新" className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-stone-300 bg-white p-2 text-stone-700 hover:bg-stone-100 disabled:hidden focus-visible:outline-2 focus-visible:outline-emerald-700"><ChevronDown className="h-4 w-4" /></ThreadPrimitive.ScrollToBottom>
         </ThreadPrimitive.Viewport>
-        <ConversationIndex turns={turns} viewportRef={viewportRef} contentRef={contentRef} onNavigate={() => setIndexBrowsing(true)} />
+        <ConversationIndex turns={turns} viewportRef={viewportRef} contentRef={contentRef} onNavigate={browseIndex} />
       </div>
-      <AssistantChatComposer canAttachImages={canAttachImages} isLoading={isLoading} onStopRun={onStopRun} getAttachmentCount={() => runtime.thread.composer.getState().attachments.length}
+      <AssistantChatComposer canAttachImages={canAttachImages} isLoading={isLoading} onStopRun={onStopRun}
+        sendBlock={sendBlock} onResolveSendBlock={sendBlock?.action === 'reconnect' ? onReconnectBoard
+          : sendBlock?.action === 'settings' ? onOpenSettings
+          : sendBlock?.action === 'rescan' ? () => void refreshRuntimes() : undefined}
         models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel}
         reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort} />
+      {draftError && <p role="alert" className="px-3 pb-3 text-xs leading-5 text-amber-900">{draftError}</p>}
     </ThreadPrimitive.Root>
   </AssistantRuntimeProvider>;
 }
 
 export default function AgentChatPanel(props: AgentChatPanelProps) {
-  const { runtimes = [], activeRuntimeId, onSelectRuntime, isLoading, conversationId, selectedModel, onSelectModel, selectedEffort, onSelectEffort } = props;
-  const canAttachImages = runtimes.find(runtime => runtime.id === activeRuntimeId)?.canAttachImages !== false;
+  const { runtimes = [], activeRuntimeId, conversationId, editorId, selectedModel, onSelectModel, selectedEffort, onSelectEffort } = props;
+  const [drafts] = useState(() => new ComposerDrafts());
+  const editorKey = editorId ?? conversationId ?? 'new';
+  useEffect(() => {
+    const changed = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.kind === 'delete' && Array.isArray(detail.ids)) drafts.delete(detail.ids);
+    };
+    window.addEventListener('mathmover_coursewares_changed', changed);
+    return () => window.removeEventListener('mathmover_coursewares_changed', changed);
+  }, [drafts]);
+  const { detecting, detectionError } = useAgentRuntimeState();
+  const active = runtimes.find(runtime => runtime.id === activeRuntimeId);
+  const agentLabel = active?.name ?? (detecting ? '正在检测 Agent…'
+    : detectionError ? 'Agent 检测失败'
+    : runtimes.length === 0 ? '未检测到 Agent' : '未选择 Agent');
+  const canAttachImages = active?.canAttachImages !== false;
   // 模型清单跟着当前 agent 走。只有「默认」一项时视为没得选（UI 藏控件）——
   // 清单以 agent 配置为唯一真相，不留手填入口（产品裁决 2026-10-12）。
-  const active = runtimes.find(runtime => runtime.id === activeRuntimeId);
   const models = active?.models?.list ?? [];
   const modelSource = active?.models?.source;
   // 档位是**当前模型**的属性：换模型要跟着换，所以从选中项取，不从 agent 取。
@@ -135,12 +167,10 @@ export default function AgentChatPanel(props: AgentChatPanelProps) {
   return <aside aria-label="对话" className="flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-[#E7E5E4] bg-[#FDFCF8]">
     <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[#E7E5E4] px-4">
       <span className="shrink-0 text-sm font-semibold text-stone-800">对话</span>
-      {runtimes.length > 0 && <select aria-label="选择 Agent" value={activeRuntimeId ?? ''} onChange={event => onSelectRuntime?.(event.target.value)} disabled={isLoading}
-        className="min-w-0 max-w-40 rounded-lg border border-stone-200 bg-transparent px-2 py-1 text-xs text-stone-700 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-60">
-        {runtimes.map(runtime => <option key={runtime.id} value={runtime.id} disabled={!runtime.usable}>{runtime.name}{runtime.usable ? '' : '（未安装）'}{runtime.authStatus === 'missing' ? '（未登录）' : ''}</option>)}
-      </select>}
+      <span role="status" aria-label={active ? `当前 Agent：${active.name}` : agentLabel} title={agentLabel}
+        className="min-w-0 max-w-40 truncate text-xs text-stone-500">{agentLabel}</span>
     </div>
-    <ImagePreviewProvider key={conversationId ?? 'new'}><ChatThread {...props} canAttachImages={canAttachImages}
+    <ImagePreviewProvider key={editorKey}><ChatThread {...props} canAttachImages={canAttachImages} drafts={drafts} draftId={conversationId ?? editorKey}
       models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel}
         reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort} /></ImagePreviewProvider>
   </aside>;

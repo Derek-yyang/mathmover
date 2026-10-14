@@ -1,16 +1,19 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { AttachmentPrimitive, ComposerPrimitive, useAui, useAuiState } from '@assistant-ui/react';
 import { ArrowUp, ImagePlus, Square, X } from 'lucide-react';
 import { useImagePreview } from './ImagePreview';
 import ComposerModelPicker, { type PickableModel } from './ComposerModelPicker';
 import type { EffortOption } from '@/lib/agent-picker';
+import type { SendBlock } from '@/lib/agent-send-readiness';
 
-export default function AssistantChatComposer({ canAttachImages, isLoading, onStopRun, getAttachmentCount,
+export default function AssistantChatComposer({ canAttachImages, isLoading, onStopRun,
+  sendBlock, onResolveSendBlock,
   models = [], modelSource, selectedModel, onSelectModel,
   reasoningOptions, selectedEffort, onSelectEffort }: {
-  canAttachImages: boolean; isLoading: boolean; onStopRun?: () => void; getAttachmentCount: () => number;
+  canAttachImages: boolean; isLoading: boolean; onStopRun?: () => void;
+  sendBlock?: SendBlock; onResolveSendBlock?: () => void;
   /** 该 agent 可选的模型（= agent 配置里的全部）；只有一项时不渲染控件 */
   models?: PickableModel[];
   modelSource?: 'live' | 'fallback';
@@ -22,25 +25,43 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
   onSelectEffort?: (id: string) => void;
 }) {
   const aui = useAui();
+  const sendBlockId = useId();
   const preview = useImagePreview();
   const input = useRef<HTMLInputElement>(null);
-  const pendingAdds = useRef(0);
+  const pendingAdds = useRef(new Map<File, number>());
   const [attachmentError, setAttachmentError] = useState('');
+  const [attachmentLimitExceeded, setAttachmentLimitExceeded] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const hasAttachments = useAuiState(s => s.composer.attachments.length > 0);
+  const attachmentCount = useAuiState(s => s.composer.attachments.length);
+  const hasAttachments = attachmentCount > 0;
+  const attachmentsNotReady = useAuiState(s => s.composer.attachments.some(item => item.status.type === 'running' || item.status.type === 'incomplete'));
   const incompatibleAttachments = hasAttachments && !canAttachImages;
   const addImages = async (files: File[]) => {
     if (!canAttachImages) { setAttachmentError('当前 Agent 没有图片通道，请切换 Agent 或用文字描述题目。'); return; }
     setAttachmentError('');
+    setAttachmentLimitExceeded(false);
+    const additions: Promise<void>[] = [];
     for (const file of files) {
       if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) { setAttachmentError('请使用 PNG、JPEG、WebP 或 GIF 图片。'); continue; }
       if (file.size > 6 * 1024 * 1024) { setAttachmentError('单张题目图片不能超过 6 MB。'); continue; }
-      if (getAttachmentCount() + pendingAdds.current >= 4) { setAttachmentError('一次最多添加 4 张题目图片。'); break; }
-      pendingAdds.current++;
-      try { await aui.composer.addAttachment(file); }
-      catch (error) { setAttachmentError(error instanceof Error ? error.message : '图片读取失败，请重试。'); }
-      finally { pendingAdds.current--; }
+      const attachments = aui.composer().getState().attachments;
+      let count = attachments.length;
+      for (const [pendingFile, reservations] of pendingAdds.current) {
+        count += Math.max(0, reservations - attachments.filter(item => item.file === pendingFile).length);
+      }
+      if (count >= 4) { setAttachmentLimitExceeded(true); break; }
+      pendingAdds.current.set(file, (pendingAdds.current.get(file) ?? 0) + 1);
+      // Start every accepted File now, so a switch during the first preview
+      // read does not leave the rest of this batch outside the draft snapshot.
+      additions.push(aui.composer.addAttachment(file).catch(error => {
+        setAttachmentError(error instanceof Error ? error.message : '图片读取失败，请重试。');
+      }).finally(() => {
+        const remaining = (pendingAdds.current.get(file) ?? 1) - 1;
+        if (remaining) pendingAdds.current.set(file, remaining);
+        else pendingAdds.current.delete(file);
+      }));
     }
+    await Promise.all(additions);
   };
   return <div className="shrink-0 px-3 pt-2 pb-3">
     <ComposerPrimitive.Root aria-label="题目输入区"
@@ -65,7 +86,8 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
         }}</ComposerPrimitive.Attachments>
       </div>}
       <ComposerPrimitive.Input aria-label="题目描述" placeholder="输入题目，或粘贴题目截图…" minRows={1} maxRows={8}
-        submitMode={incompatibleAttachments ? 'none' : 'enter'}
+        aria-describedby={!isLoading && sendBlock ? sendBlockId : undefined}
+        submitMode={sendBlock || incompatibleAttachments || attachmentsNotReady ? 'none' : 'enter'}
         addAttachmentOnPaste={false}
         onPaste={event => { const files = Array.from(event.clipboardData.files); if (files.length) { event.preventDefault(); void addImages(files); } }}
         className="block w-full resize-none bg-transparent text-sm leading-6 text-stone-800 placeholder:text-stone-600 focus:outline-none" />
@@ -76,9 +98,9 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
           <button type="button" aria-label="添加题目图片" title={canAttachImages ? '上传、粘贴或拖入题目图片' : '当前 Agent 没有图片通道'}
             disabled={!canAttachImages} onClick={() => input.current?.click()} className="shrink-0 rounded-lg p-2 text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:text-stone-400"><ImagePlus aria-hidden className="h-4 w-4" /></button>
           {/* 模型 + 推理档位的组合面板放在工具栏里（挨着附件/发送），不放聊天区
-              头部——「随手换」的视线就在输入框。只有该 agent 真能选时才显示
-              （超过一项才有得选）；档位是模型的属性，跟模型同面板。 */}
-          {models.length > 1 && (
+              头部——「随手换」的视线就在输入框。模型或档位有多个选项时才显示；
+              档位是模型的属性，跟模型同面板。 */}
+          {models.length > 0 && (models.length > 1 || (reasoningOptions?.length ?? 0) > 1) && (
             <ComposerModelPicker models={models} source={modelSource} loading={isLoading && models.length === 0}
               selectedId={selectedModel ?? 'default'} onSelect={id => onSelectModel?.(id)}
               reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={id => onSelectEffort?.(id)} />
@@ -95,14 +117,23 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
             <Square aria-hidden className="h-3.5 w-3.5 fill-current" />
           </button>
           <ComposerPrimitive.Send tabIndex={isLoading ? -1 : 0} aria-hidden={isLoading}
-            disabled={isLoading || incompatibleAttachments} aria-label="发送消息" title="发送消息"
+            disabled={isLoading || !!sendBlock || incompatibleAttachments || attachmentsNotReady} aria-label="发送消息" title={sendBlock?.message ?? '发送消息'}
+            aria-describedby={!isLoading && sendBlock ? sendBlockId : undefined}
             className={`absolute inset-0 flex items-center justify-center rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500 transition-opacity duration-150 motion-reduce:transition-none ${isLoading ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
             <ArrowUp aria-hidden size={18} strokeWidth={2.25} />
           </ComposerPrimitive.Send>
         </div>
       </div>
     </ComposerPrimitive.Root>
+    {!isLoading && sendBlock && <div id={sendBlockId} className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs leading-5 text-stone-600">
+      <span role="status">{sendBlock.message}</span>
+      {sendBlock.action && onResolveSendBlock && <button type="button" onClick={onResolveSendBlock}
+        className="rounded text-emerald-800 underline underline-offset-4 hover:text-emerald-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+        {sendBlock.action === 'reconnect' ? '重新连接' : sendBlock.action === 'settings' ? '打开设置' : '重新检测'}
+      </button>}
+    </div>}
     {attachmentError && <p role="alert" className="mt-2 text-xs leading-5 text-amber-900">{attachmentError}</p>}
+    {attachmentLimitExceeded && attachmentCount >= 4 && <p role="alert" className="mt-2 text-xs leading-5 text-amber-900">一次最多添加 4 张题目图片。</p>}
     {!canAttachImages && <p role={incompatibleAttachments ? 'alert' : undefined} className="mt-2 text-xs leading-5 text-stone-600">{incompatibleAttachments ? '当前 Agent 没有图片通道，请移除图片或切换 Agent 后发送。' : '当前 Agent 没有图片通道，请用文字描述题目。'}</p>}
   </div>;
 }

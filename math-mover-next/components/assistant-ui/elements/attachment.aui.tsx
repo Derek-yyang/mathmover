@@ -33,11 +33,7 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/components/assistant-ui/ui/dialog";
-import {
-  Avatar,
-  AvatarImage,
-  AvatarFallback,
-} from "@/components/assistant-ui/ui/avatar";
+import { Avatar } from "@/components/assistant-ui/ui/avatar";
 import { TooltipIconButton } from "@/components/assistant-ui/elements/tooltip-icon-button";
 import { useAttachmentSrc } from "@/components/assistant-ui/hooks/use-attachment-src";
 import { cn } from "@/components/assistant-ui/utils";
@@ -52,6 +48,7 @@ const AttachmentPreview: FC<AttachmentPreviewProps> = ({ src, name }) => {
   return (
     <img
       src={src}
+      decoding="async"
       alt={`预览：${name}`}
       className={cn(
         "block h-auto max-h-[80vh] w-auto max-w-full rounded-sm object-contain transition-opacity duration-300 motion-reduce:transition-none",
@@ -101,16 +98,17 @@ const AttachmentPreviewDialog: FC<AttachmentPreviewDialogProps> = ({
 };
 
 const AttachmentThumb: FC<{ src: string | undefined }> = ({ src }) => {
+  const [loadedSrc, setLoadedSrc] = useState<string>();
+  const [failedSrc, setFailedSrc] = useState<string>();
   return (
     <Avatar className="aui-attachment-tile-avatar h-full w-full rounded-none">
-      <AvatarImage
-        src={src}
-        alt=""
-        className="aui-attachment-tile-image rounded-none object-cover"
-      />
-      <AvatarFallback>
+      {(!src || loadedSrc !== src || failedSrc === src) && <span className="absolute inset-0 flex items-center justify-center bg-muted">
         <FileText className="aui-attachment-tile-fallback-icon text-muted-foreground/80 size-6 stroke-[1.5]" />
-      </AvatarFallback>
+      </span>}
+      {/* Radix AvatarImage preloads via new Image(), bypassing native lazy loading. */}
+      {src && failedSrc !== src && <img src={src} alt="" loading="lazy" decoding="async"
+        width={96} height={96} onLoad={() => setLoadedSrc(src)} onError={() => setFailedSrc(src)}
+        className="aui-attachment-tile-image relative aspect-square h-full w-full rounded-none object-cover" />}
     </Avatar>
   );
 };

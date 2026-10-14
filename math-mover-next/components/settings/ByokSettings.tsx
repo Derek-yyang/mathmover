@@ -8,7 +8,7 @@
  * 连接测试探 `${baseUrl}/models`（多数 OpenAI 兼容端点都有），不发模型请求。
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Check, KeyRound, Loader2 } from 'lucide-react';
 import { fetchByokConfig, saveByokConfig, type ByokConfigView } from '@/lib/byok-config';
 import { useAgentRuntimeState } from '../dashboard/AgentRuntimeState';
@@ -27,31 +27,75 @@ export default function ByokSettings() {
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [test, setTest] = useState<TestState>({ running: false });
+  const testRequest = useRef<AbortController | null>(null);
+  const savePending = useRef(false);
+  const statusId = useId();
 
   useEffect(() => {
+    let cancelled = false;
     void fetchByokConfig().then((v) => {
+      if (cancelled) return;
       setView(v);
       setBaseUrl(v.baseUrl);
       setModel(v.model);
-    }).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      setLoaded(true);
+    }).catch((e) => {
+      if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; testRequest.current?.abort(); testRequest.current = null; };
   }, []);
 
   const configured = !!view.baseUrl && !!view.model;
+  const dirty = baseUrl !== view.baseUrl || model !== view.model || apiKey !== '';
+  const testHint = loading ? '正在读取配置…' : !loaded ? '配置读取失败，请重新打开设置后重试。'
+    : saving ? '保存中，完成后再测试。' : dirty ? '配置已修改，请先保存再测试。'
+    : !configured ? '请先填写并保存 API 端点与模型。' : undefined;
+  const invalidateTest = () => {
+    testRequest.current?.abort();
+    testRequest.current = null;
+    setTest({ running: false });
+    setSaved(false);
+  };
   const runTest = () => {
+    if (!loaded || savePending.current || testRequest.current || detecting || dirty || !configured) return;
+    const controller = new AbortController();
+    testRequest.current = controller;
     setTest({ running: true });
     void fetch('/api/agent/test', {
       method: 'POST',
+      signal: controller.signal,
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ runtimeId: 'byok' }),
     }).then(async (res) => {
       const data = await res.json() as { ok?: boolean; message?: string };
+      if (testRequest.current !== controller) return;
       setTest({ running: false, result: { ok: data.ok === true, message: data.message ?? (res.ok ? '测试完成。' : `测试失败（HTTP ${res.status}）。`) } });
     }).catch((e) => {
+      if (testRequest.current !== controller) return;
       setTest({ running: false, result: { ok: false, message: `测试请求失败：${e instanceof Error ? e.message : String(e)}` } });
-    });
+    }).finally(() => { if (testRequest.current === controller) testRequest.current = null; });
+  };
+
+  const save = () => {
+    if (!loaded || savePending.current || testRequest.current) return;
+    savePending.current = true;
+    invalidateTest();
+    setSaving(true);
+    void saveByokConfig({ baseUrl, model, apiKey }).then((v) => {
+      setView(v);
+      // Display the server's normalized values so testing uses this exact configuration.
+      setBaseUrl(v.baseUrl);
+      setModel(v.model);
+      setApiKey('');
+      setSaved(true);
+      setError('');
+    }).catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => { savePending.current = false; setSaving(false); });
   };
 
   return (
@@ -75,18 +119,18 @@ export default function ByokSettings() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" aria-label="测试 内置构造 Agent（BYOK）" title="测试端点是否可达"
-              disabled={test.running || detecting} onClick={runTest}
+            <button type="button" aria-label="测试 内置构造 Agent（BYOK）" title={testHint ?? '测试已保存的端点是否可达'}
+              aria-describedby={testHint ? statusId : undefined}
+              disabled={test.running || detecting || !!testHint} onClick={runTest}
               className={action + ' text-stone-700 hover:bg-stone-100'}>
               {test.running ? <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />测试中…</> : '测试'}
             </button>
-            <button type="button"
-              className={action + (selected ? ' flex items-center gap-1.5 text-emerald-800' : ' text-stone-700 hover:bg-stone-100')}
-              disabled={busy || detecting || selected || runtime?.usable === false}
-              onClick={() => selectRuntime('byok')}
-              aria-label={(selected ? '当前使用 ' : '使用 ') + '内置构造 Agent（BYOK）'}>
-              {selected ? <><Check className="h-4 w-4" aria-hidden="true" />当前使用</> : '使用'}
-            </button>
+            {selected ? <span aria-label="当前使用 内置构造 Agent（BYOK）"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-emerald-800">
+              <Check className="h-4 w-4" aria-hidden="true" />当前使用
+            </span> : <button type="button" className={action + ' text-stone-700 hover:bg-stone-100'}
+              disabled={busy || detecting || runtime?.usable === false} onClick={() => selectRuntime('byok')}
+              aria-label="使用 内置构造 Agent（BYOK）">使用</button>}
           </div>
         </div>
 
@@ -94,36 +138,28 @@ export default function ByokSettings() {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-xs font-medium text-stone-600 sm:col-span-2">API 端点
               <input className={input} type="url" placeholder="https://api.openai.com/v1 或 http://127.0.0.1:15721/v1"
-                value={baseUrl} onChange={e => { setBaseUrl(e.target.value); setSaved(false); }} />
+                disabled={!loaded || saving} value={baseUrl} onChange={e => { invalidateTest(); setBaseUrl(e.target.value); }} />
             </label>
             <label className="block text-xs font-medium text-stone-600">
               {view.apiKeyConfigured ? `API 密钥（已配置 •••• ${view.apiKeyTail}，留空保留）` : 'API 密钥（本地端点可留空）'}
               <input className={input} type="password" autoComplete="off" placeholder={view.apiKeyConfigured ? '留空则不更换' : 'sk-…'}
-                value={apiKey} onChange={e => { setApiKey(e.target.value); setSaved(false); }} />
+                disabled={!loaded || saving} value={apiKey} onChange={e => { invalidateTest(); setApiKey(e.target.value); }} />
             </label>
             <label className="block text-xs font-medium text-stone-600">模型
               <input className={input} type="text" placeholder="端点认得的模型 id"
-                value={model} onChange={e => { setModel(e.target.value); setSaved(false); }} />
+                disabled={!loaded || saving} value={model} onChange={e => { invalidateTest(); setModel(e.target.value); }} />
             </label>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button type="button" className={action + ' bg-emerald-700 text-white hover:bg-emerald-800'}
-              disabled={saving}
-              onClick={() => {
-                setSaving(true);
-                void saveByokConfig({ baseUrl, model, apiKey }).then((v) => {
-                  setView(v);
-                  setApiKey('');
-                  setSaved(true);
-                  setError('');
-                }).catch((e) => setError(e instanceof Error ? e.message : String(e)))
-                  .finally(() => setSaving(false));
-              }}>
+              disabled={!loaded || saving || test.running}
+              onClick={save}>
               {saving ? '保存中…' : '保存'}
             </button>
-            <p role="status" className="flex items-center gap-1.5 text-sm text-stone-600">
-              {saved && <><Check className="h-4 w-4 text-emerald-700" aria-hidden="true" />已保存</>}
-              {!saved && (configured ? '密钥由本机 MathMover 保管，不进课件备份。' : '填好端点与模型后生效。')}
+            <p id={statusId} role="status" className="flex items-center gap-1.5 text-sm text-stone-600">
+              {testHint}
+              {!testHint && (saved ? <><Check className="h-4 w-4 text-emerald-700" aria-hidden="true" />已保存</>
+                : '密钥由本机 MathMover 保管，不进课件备份。')}
             </p>
           </div>
           <p className="mt-3 max-w-[68ch] text-xs leading-5 text-stone-600">

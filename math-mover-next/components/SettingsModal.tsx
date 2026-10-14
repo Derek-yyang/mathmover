@@ -8,11 +8,13 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Info, Keyboard, Cpu, RefreshCw, X } from 'lucide-react';
+import { Archive, Database, Info, Keyboard, Cpu, RefreshCw, X } from 'lucide-react';
 import AgentSettings from './settings/AgentSettings';
 import ByokSettings from './settings/ByokSettings';
 import HelpSettings from './settings/HelpSettings';
 import AboutSettings from './settings/AboutSettings';
+import ArchivedCoursewares from './settings/ArchivedCoursewares';
+import DataStorageSettings from './settings/DataStorageSettings';
 import { useAgentRuntimeState } from './dashboard/AgentRuntimeState';
 
 const quietButton = 'rounded-lg px-3 py-2 text-sm font-medium hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -23,10 +25,12 @@ const navButton = (active: boolean) =>
   `flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${
     active ? 'bg-emerald-50 text-emerald-900' : 'text-stone-700 hover:bg-stone-100'}`;
 
-type Section = 'agents' | 'help' | 'about';
+type Section = 'agents' | 'archives' | 'storage' | 'help' | 'about';
 
 const NAV: Array<{ id: Section; label: string; icon: typeof Cpu }> = [
   { id: 'agents', label: '模型与提供商', icon: Cpu },
+  { id: 'archives', label: '归档课件', icon: Archive },
+  { id: 'storage', label: '数据与存储', icon: Database },
   { id: 'help', label: '帮助与快捷键', icon: Keyboard },
   { id: 'about', label: '关于', icon: Info },
 ];
@@ -70,10 +74,10 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 px-6 py-4">
         <h2 id="settings-title" className="text-lg font-semibold">设置</h2>
         <div className="flex items-center gap-1">
-          <button type="button" className={quietButton + ' flex items-center gap-2 text-stone-700'}
+          {section === 'agents' && <button type="button" className={quietButton + ' flex items-center gap-2 text-stone-700'}
             onClick={() => void refreshRuntimes()} disabled={detecting} aria-label="刷新检测">
             <RefreshCw className="h-4 w-4" aria-hidden="true" />{detecting ? '正在检测…' : '刷新检测'}
-          </button>
+          </button>}
           <button type="button" aria-label="关闭设置" onClick={onClose} className={quietButton}><X className="h-5 w-5" /></button>
         </div>
       </header>
@@ -96,9 +100,9 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             })}
           </ul>
         </nav>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          {section === 'agents' && (
-            <>
+        <div className="settings-scroll-viewport min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+          {/* Keep configuration mounted across sections so drafts and test results survive. */}
+          <div hidden={section !== 'agents'}>
               <div role="tablist" aria-label="模型与提供商" onKeyDown={onTabKeyDown}
                 className="-mx-1 mb-4 flex gap-2 border-b border-stone-200 px-1">
                 <button type="button" role="tab" id="settings-tab-cli" aria-controls="settings-panel-cli"
@@ -121,8 +125,9 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
               <div role="tabpanel" id="settings-panel-providers" aria-labelledby="settings-tab-providers" hidden={tab !== 'providers'}>
                 <ByokSettings />
               </div>
-            </>
-          )}
+          </div>
+          {section === 'archives' && <ArchivedCoursewares onOpen={onClose} />}
+          <div hidden={section !== 'storage'}><DataStorageSettings active={section === 'storage'} /></div>
           {section === 'help' && <HelpSettings />}
           {section === 'about' && <AboutSettings />}
         </div>

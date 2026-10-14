@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,7 +23,7 @@ describe('local courseware library', () => {
     const s = make(); s.save(record()); const reopened = new CoursewareStore(s.root); stores.push(reopened);
     expect(reopened.get('course-1').ggbBase64).toBe(ggb);
     expect(reopened.get('course-1').messages[0].content).toBe('画点');
-    expect(reopened.db.prepare('PRAGMA user_version').get()?.user_version).toBe(1);
+    expect(reopened.db.prepare('PRAGMA user_version').get()?.user_version).toBe(2);
   });
   it('rejects stale windows without overwriting history', () => {
     const s = make(); s.save(record()); s.save(record({ expectedRevision: 1, title: '新题' }));
@@ -47,15 +47,76 @@ describe('local courseware library', () => {
     expect(s.asset(attachments[0].url.split('/').pop()).data.toString()).toBe('image');
     expect(attachments[1].unavailable).toBe(true);
   });
-  it('imports once and does not overwrite existing local records', () => {
-    const s = make(); s.import(record()); s.import(record({ title: '旧浏览器副本' }));
-    expect(s.list()).toHaveLength(1); expect(s.get('course-1').title).toBe('函数');
-  });
-  it('soft deletes and restores; stale saves cannot resurrect deletion', () => {
-    const s = make(); s.save(record()); s.remove(['course-1']);
+  it('archives and unarchives without losing content; edits keep the archive state', () => {
+    const s = make(); s.save(record());
+    expect(s.setArchived('course-1', true, 1).revision).toBe(2);
     expect(s.list()).toHaveLength(0); expect(s.list(true)).toHaveLength(1);
-    expect(() => s.save(record({ expectedRevision: 1 }))).toThrow();
-    s.restore('course-1'); expect(s.list()[0].revision).toBe(3); expect(s.get('course-1').ggbBase64).toBe(ggb);
+    expect(s.get('course-1').ggbBase64).toBe(ggb);
+    expect(() => s.save(record({ expectedRevision: 1 }))).toThrow('其他窗口');
+    expect(() => s.setArchived('course-1', false, 1)).toThrow('其他窗口');
+    s.save(record({ expectedRevision: 2, title: '归档后编辑' }));
+    expect(s.list()).toHaveLength(0); expect(s.list(true)[0].title).toBe('归档后编辑');
+    s.setArchived('course-1', false, 3);
+    expect(s.list()[0].revision).toBe(4); expect(s.list(true)).toHaveLength(0);
+    expect(s.get('course-1').messages[0].content).toBe('画点');
+  });
+  it('permanently deletes all revisions and snapshots and rejects late recreation', () => {
+    const s = make(); s.save(record()); s.save(record({ expectedRevision: 1, ggbBase64: ggbFixture('second') }));
+    s.setArchived('course-1', true, 2);
+    s.remove(['course-1']);
+    expect(s.list()).toHaveLength(0); expect(s.list(true)).toHaveLength(0);
+    expect(() => s.get('course-1')).toThrow('不存在');
+    expect(() => s.get('course-1', 1)).toThrow('不存在');
+    expect(s.db.prepare('SELECT COUNT(*) n FROM revisions').get()?.n).toBe(0);
+    expect(fs.existsSync(path.join(s.root, 'coursewares', 'course-1'))).toBe(false);
+    expect(() => s.save(record({ expectedRevision: 3 }))).toThrow('其他窗口');
+    expect(() => s.save(record())).toThrow('其他窗口');
+    const reopened = new CoursewareStore(s.root); stores.push(reopened);
+    expect(() => reopened.save(record())).toThrow('其他窗口');
+  });
+  it('keeps shared images referenced by archived or historical revisions', () => {
+    const s = make();
+    const messages = [{ role: 'user', content: '图片', attachments: [{ url: 'data:image/png;base64,aW1hZ2U=' }] }];
+    s.save(record({ messages })); s.save(record({ id: 'course-2', messages }));
+    const key = s.get('course-1').messages[0].attachments[0].url.split('/').pop();
+    s.save(record({ id: 'course-2', expectedRevision: 1, messages: [] }));
+    s.setArchived('course-2', true, 2);
+    s.remove(['course-1']);
+    expect(s.asset(key).data.toString()).toBe('image');
+    s.remove(['course-2']);
+    expect(() => s.asset(key)).toThrow('不存在');
+    expect(fs.readdirSync(path.join(s.root, 'assets'))).toHaveLength(0);
+  });
+  it('rolls back a batch containing a missing ID without removing any files', () => {
+    const s = make(); s.save(record());
+    expect(() => s.remove(['course-1', 'missing'])).toThrow('不存在');
+    expect(s.get('course-1').ggbBase64).toBe(ggb);
+    expect(s.db.prepare('SELECT COUNT(*) n FROM pending_resource_deletions').get()?.n).toBe(0);
+  });
+  it('retries resource deletion after filesystem failure and restart', () => {
+    const s = make(); s.save(record());
+    const unlink = vi.spyOn(fs, 'unlinkSync').mockImplementationOnce(() => { throw new Error('fixture disk busy'); });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try { s.remove(['course-1']); } finally { unlink.mockRestore(); log.mockRestore(); }
+    expect(() => s.get('course-1')).toThrow('不存在');
+    expect(s.db.prepare('SELECT COUNT(*) n FROM pending_resource_deletions').get()?.n).toBe(1);
+    const reopened = new CoursewareStore(s.root); stores.push(reopened);
+    expect(reopened.db.prepare('SELECT COUNT(*) n FROM pending_resource_deletions').get()?.n).toBe(0);
+    expect(fs.existsSync(path.join(s.root, 'coursewares', 'course-1'))).toBe(false);
+  });
+  it('migrates old recycle-bin records into archives without losing history', () => {
+    const s = make(); s.save(record());
+    const when = new Date().toISOString();
+    s.db.exec(`ALTER TABLE coursewares ADD COLUMN deleted_at TEXT;
+      UPDATE coursewares SET deleted_at='${when}';
+      ALTER TABLE coursewares DROP COLUMN archived_at;
+      DROP TABLE deleted_courseware_ids; DROP TABLE pending_resource_deletions; PRAGMA user_version=1;`);
+    const migrated = new CoursewareStore(s.root); stores.push(migrated);
+    expect(migrated.list()).toHaveLength(0);
+    expect(migrated.list(true)[0].archived_at).toBe(when);
+    expect(migrated.get('course-1').ggbBase64).toBe(ggb);
+    expect(migrated.get('course-1').messages[0].content).toBe('画点');
+    expect(migrated.db.prepare('PRAGMA table_info(coursewares)').all().some(column => column.name === 'deleted_at')).toBe(false);
   });
   it('detects corrupt resources without destroying the database', () => {
     const s = make(); s.save(record()); const dir = path.join(s.root, 'coursewares', 'course-1');
@@ -68,6 +129,19 @@ describe('local courseware library', () => {
     const copy = new DatabaseSync(path.join(dir, 'library.sqlite'), { readOnly: true });
     try { expect(copy.prepare('SELECT COUNT(*) n FROM coursewares').get()?.n).toBe(1); } finally { copy.close(); }
     const restored = new CoursewareStore(dir); stores.push(restored); expect(restored.get('course-1').ggbBase64).toBe(ggb);
+  });
+  it('finishes a concurrent backup before cleaning permanently deleted resources', async () => {
+    const s = make(); s.save(record());
+    const pending = s.createBackup();
+    s.remove(['course-1']);
+    expect(() => s.get('course-1')).toThrow('不存在');
+    expect(fs.existsSync(path.join(s.root, 'coursewares', 'course-1'))).toBe(true);
+    const name = await pending;
+    expect(fs.existsSync(path.join(s.root, 'backups', name, 'complete.json'))).toBe(true);
+    expect(fs.existsSync(path.join(s.root, 'coursewares', 'course-1'))).toBe(false);
+    const restored = new CoursewareStore(path.join(s.root, 'backups', name)); stores.push(restored);
+    // SQLite may capture before or after the deletion; either snapshot is complete.
+    if (restored.list().length) expect(restored.get('course-1').ggbBase64).toBe(ggb);
   });
   it('rejects invalid paths, snapshots, and keeps the access token stable', () => {
     const s = make(); expect(() => s.save(record({ id: '../escape' }))).toThrow();

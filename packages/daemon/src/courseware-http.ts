@@ -1,6 +1,6 @@
 import type http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import { CoursewareStore, type CoursewareInput } from './courseware-store.ts';
+import { CoursewareStore } from './courseware-store.ts';
 import { CoursewareError } from '@mathmover/ggb-core';
 import type { GgbBridgeClient } from './bridge-client.ts';
 
@@ -28,9 +28,13 @@ export async function libraryRequest(req: http.IncomingMessage, res: http.Server
   const parts = url.pathname.split('/').filter(Boolean).slice(2);
   const method = req.method;
   try {
-    if (!parts.length && method === 'GET') send(200, { records: store.list(url.searchParams.get('trash') === '1'), dataDirectory: store.root });
+    if (!parts.length && method === 'GET') {
+      if (url.searchParams.has('trash')) throw new CoursewareError(400, '回收站接口已移除，请使用归档');
+      const archived = url.searchParams.get('archived');
+      send(200, { records: archived === 'all' ? [...store.list(), ...store.list(true)] : store.list(archived === '1'), dataDirectory: store.root,
+        capabilities: { archive: true, permanentDelete: true } });
+    }
     else if (!parts.length && method === 'POST') send(200, store.save(await readJson(req)));
-    else if (parts[0] === 'import' && method === 'POST') send(200, store.import(await readJson(req) as CoursewareInput));
     else if (parts[0] === 'delete' && method === 'POST') { const body = await readJson(req); if (!Array.isArray(body.ids)) throw new CoursewareError(400, '缺少课件 ID'); store.remove(body.ids); send(200, { ok: true }); }
     else if (parts[0] === 'backup' && method === 'POST') send(200, { name: await store.createBackup() });
     else if (parts[0] === 'windows' && parts.length === 1 && method === 'POST') { const body = await readJson(req); send(200, { bindingToken: bridge.issueBinding(body.windowId) }); }
@@ -38,7 +42,9 @@ export async function libraryRequest(req: http.IncomingMessage, res: http.Server
       const asset = store.asset(parts[1]); res.writeHead(200, { 'content-type': asset.mime, 'cache-control': 'private, max-age=31536000, immutable', 'x-content-type-options': 'nosniff' }); res.end(asset.data);
     } else if (parts.length === 1 && method === 'GET') send(200, store.get(parts[0]));
     else if (parts[1] === 'rename' && parts.length === 2 && method === 'POST') { const body = await readJson(req); send(200, store.rename(parts[0], body.title, body.expectedRevision)); }
-    else if (parts[1] === 'restore' && parts.length === 2 && method === 'POST') { store.restore(parts[0]); send(200, { ok: true }); }
+    else if ((parts[1] === 'archive' || parts[1] === 'unarchive') && parts.length === 2 && method === 'POST') {
+      const body = await readJson(req); send(200, store.setArchived(parts[0], parts[1] === 'archive', body.expectedRevision));
+    }
     else if (parts[1] === 'versions' && parts.length === 2 && method === 'GET') send(200, { versions: store.versions(parts[0]) });
     else if (parts[1] === 'versions' && parts.length === 3 && method === 'GET' && /^\d+$/.test(parts[2])) send(200, store.get(parts[0], Number(parts[2])));
     else send(404, { error: '未知课件接口' });

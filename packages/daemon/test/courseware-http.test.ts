@@ -41,6 +41,15 @@ describe('library HTTP and window ownership', () => {
     expect((await s.request('/api/coursewares', { headers: { origin: 'https://evil.example' } })).status).toBe(403);
     expect((await s.request('/api/coursewares')).status).toBe(200);
   });
+  it('construction 读写端点返回真数组，不是被序列化的 Promise', async () => {
+    // GgbTools.readConstruction 现在是 async。端点漏 await 会把 Promise 序列化成 {}
+    // ——真 agent 走的就是这条路（mcp-stdio → HTTP），直接 .flatMap 就崩。
+    const s = await setup();
+    await s.request('/api/construction', { method: 'PUT', body: JSON.stringify({ commands: ['A = (0, 0)', 'B = (1, 1)'] }) });
+    const got = await (await s.request('/api/construction')).json();
+    expect(Array.isArray(got)).toBe(true);
+    expect(got).toEqual(['A = (0, 0)', 'B = (1, 1)']);
+  });
   it('routes two windows to their own socket, never the newest global socket', async () => {
     const s = await setup(); await s.connect('window-a', 'A=(1,1)'); await s.connect('window-b', 'B=(2,2)');
     const a = await (await s.request('/api/state?png=0', { headers: { 'x-mathmover-window': 'window-a' } })).json();
@@ -53,17 +62,30 @@ describe('library HTTP and window ownership', () => {
     const result = await s.request('/api/state', { headers: { 'x-mathmover-window': 'window-a' } });
     expect(result.status).toBe(503); expect(s.bridge.forWindow('window-b').connected).toBe(true);
   });
-  it('exposes save/read/conflict and trash operations', async () => {
+  it('exposes archive, unarchive and permanent deletion; rejects obsolete trash routes', async () => {
     const s = await setup(); const payload = { id: 'test', title: '测试', expectedRevision: 0, commands: [], messages: [] };
+    expect((await s.request('/api/coursewares/import', { method: 'POST', body: JSON.stringify(payload) })).status).toBe(404);
     expect((await s.request('/api/coursewares', { method: 'POST', body: JSON.stringify(payload) })).status).toBe(200);
     expect((await s.request('/api/coursewares', { method: 'POST', body: JSON.stringify(payload) })).status).toBe(409);
     expect((await s.request('/api/coursewares/test')).status).toBe(200);
-    await s.request('/api/coursewares/delete', { method: 'POST', body: JSON.stringify({ ids: ['test'] }) });
-    expect((await (await s.request('/api/coursewares?trash=1')).json()).records).toHaveLength(1);
-    await s.request('/api/coursewares/test/restore', { method: 'POST', body: '{}' });
+    expect((await (await s.request('/api/coursewares')).json()).capabilities).toEqual({ archive: true, permanentDelete: true });
+    expect((await s.request('/api/coursewares/test/archive', { method: 'POST', body: '{"expectedRevision":1}' })).status).toBe(200);
+    expect((await (await s.request('/api/coursewares')).json()).records).toHaveLength(0);
+    expect((await (await s.request('/api/coursewares?archived=1')).json()).records).toHaveLength(1);
+    expect((await (await s.request('/api/coursewares?archived=all')).json()).records).toHaveLength(1);
+    expect((await s.request('/api/coursewares/test/unarchive', { method: 'POST', body: '{"expectedRevision":1}' })).status).toBe(409);
+    expect((await s.request('/api/coursewares/test/unarchive', { method: 'POST', body: '{"expectedRevision":2}' })).status).toBe(200);
     expect((await (await s.request('/api/coursewares')).json()).records).toHaveLength(1);
     const previous = await (await s.request('/api/coursewares/test/versions/1')).json();
     expect(previous.revision).toBe(1); expect(previous.messages).toEqual([]);
+    expect((await s.request('/api/coursewares?trash=1')).status).toBe(400);
+    expect((await s.request('/api/coursewares/test/restore', { method: 'POST', body: '{}' })).status).toBe(404);
+    expect((await s.request('/api/coursewares/delete', { method: 'POST', body: JSON.stringify({ ids: ['test'] }) })).status).toBe(200);
+    expect((await s.request('/api/coursewares/test')).status).toBe(404);
+    expect((await s.request('/api/coursewares/test/versions/1')).status).toBe(404);
+    expect((await s.request('/api/coursewares/test/versions')).status).toBe(404);
+    expect((await (await s.request('/api/coursewares?archived=all')).json()).records).toHaveLength(0);
+    expect((await s.request('/api/coursewares', { method: 'POST', body: JSON.stringify(payload) })).status).toBe(409);
     expect((await s.request('/api/coursewares/test/rename/extra', { method: 'POST', body: '{}' })).status).toBe(404);
   });
 });

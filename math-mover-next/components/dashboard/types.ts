@@ -50,15 +50,6 @@ export interface GeoGebraApi {
   reset?: () => void;
 }
 
-export interface SliderItem {
-  name: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  isAnimating?: boolean;
-}
-
 export interface ChatAttachment {
   id?: string;
   url: string;
