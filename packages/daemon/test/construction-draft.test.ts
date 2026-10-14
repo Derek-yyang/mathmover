@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 describe('工作稿读写', () => {
-  it('写后读回：头注释被剥离，指令原样保留', () => {
+  it('写后读回：指令原样保留', () => {
     const lines = ['A = (0, 0)', '// 一条注释', 'B = (1, 1)'];
     writeConstructionFile(cfg(), lines);
     expect(readConstructionFile(cfg())).toEqual(lines);
@@ -39,19 +39,24 @@ describe('工作稿读写', () => {
     expect(readConstructionFile(cfg())).toEqual([]);
   });
 
-  it('头注释与首尾空行被滤掉，行中空行与 // 注释保留', () => {
+  it('行中空行与 // 注释保留', () => {
     const lines = ['A = (0, 0)', '', '// 说明', 'B = (1, 1)'];
     writeConstructionFile(cfg(), lines);
     expect(readConstructionFile(cfg())).toEqual(lines);
   });
 
-  it('文件头写明「可直接编辑 + apply 生效」', () => {
+  it('文件只存指令、不加头注释——原生 Read 与 read_construction 必须同形', () => {
     writeConstructionFile(cfg(), ['A = (0, 0)']);
     const body = fs.readFileSync(path.join(dir, 'construction.ggb.txt'), 'utf8');
-    expect(body).toContain('直接编辑这个文件');
-    expect(body).toContain('ggb_apply()');
-    expect(body).not.toContain('勿手改');
-    expect(body).not.toContain('直接改本文件无效');
+    // 同一文件两种长度会让 agent 误判「不同步」——头注释是元凶，不能加
+    expect(body).not.toContain('#');
+    expect(body.trim()).toBe('A = (0, 0)');
+  });
+
+  it('历史版本的 # 头注释读回时被跳过（向后兼容）', () => {
+    fs.writeFileSync(path.join(dir, 'construction.ggb.txt'),
+      '# 旧版头\n# 旧版说明\n\nA = (0, 0)\n', 'utf8');
+    expect(readConstructionFile(cfg())).toEqual(['A = (0, 0)']);
   });
 });
 
@@ -155,10 +160,10 @@ describe('GgbTools.apply 的工作稿与增量', () => {
     expect(readConstructionFile(cfg())).toEqual(['A = (0, 0)', 'B = (9, 9)']);
   });
 
-  it('readConstruction / writeConstruction 走同一份文件', () => {
+  it('readConstruction / writeConstruction 走同一份文件', async () => {
     const { bridge } = fakeBridge([]);
     const tools = new GgbTools(bridge, cfg());
     tools.writeConstruction(['A = (0, 0)']);
-    expect(tools.readConstruction()).toEqual(['A = (0, 0)']);
+    expect(await tools.readConstruction()).toEqual(['A = (0, 0)']);
   });
 });

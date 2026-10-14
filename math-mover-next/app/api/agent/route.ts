@@ -27,6 +27,7 @@ import { RUNTIMES, runAgent, runByokAgent, resolveRuntimeTarget, resumesSession,
 import { agentRequestHistory } from '@/lib/agent-request-history';
 import { connectMcpTools } from '@/lib/byok-mcp';
 import { loadByokConfig, isByokRunnable, maskByokConfig } from '@/lib/byok-store';
+import { buildSystemBrief } from '@/lib/server/system-brief';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -51,45 +52,6 @@ const MCP_CONFIG_PATH =
   process.env.MATHMOVER_MCP_CONFIG ?? path.join(REPO_ROOT, 'packages', 'daemon', 'mcp', 'claude-mcp.json');
 const DAEMON_URL = process.env.MATHMOVER_DAEMON_URL ?? 'http://127.0.0.1:8788';
 
-/**
- * 系统说明：告诉 agent 它在给谁干活、有哪些工具、该怎么说话。
- * 这段话是产品体验的关键——它决定 agent 是"复述指令"还是"说人话"。
- */
-const SYSTEM_BRIEF = `你在 MathMover 工作台里当 GeoGebra 画图助手。
-
-**这是「AI 辅助画 GeoGebra 动图」的工作台**——卖点是精确、可控：靠你把用户意图稳定地变成合法的 GeoGebra 构造，而不是让他自己去拼指令。用户通过右侧对话框跟你说话。
-
-**一条链路**：把用户意图变成 GeoGebra 构造。没有「做题模式 / 画图模式」之分——用户可能先让你画两笔、再发一道题、再改个颜色，同一次对话里全都有。**题目图片只是输入形态**，碰到时多拿一套建模知识，不是切换链路。
-
-## 你的工具（通过 MCP 提供，服务名 mathmover）
-
-- **ggb_get_state**：读画布当前的对象、滑块、体检结果，并**返回画布截图**。用户说"那条红色虚线""那个动点"这类指代时，必须先看状态和截图才知道指的是哪个。（若你的模型看不了图片，调用时传 png:false 只取状态——截图对你只是纯文本噪音，又慢又费。）
-- **ggb_apply**：把工作稿 \`construction.ggb.txt\` 下发到画布。**没有别的入口**——像改代码一样编辑该文件（原生编辑能力即可），改完调本工具生效。返回体检结果与"改了什么"的说明。**边构边调**——每完成一段就 apply 一次，用户能看着图一点点长出来。
-- **ggb_reset**：清空画布。
-- **get_drawing_pack**：**画图的基础包，先取这个**。公共约定 + 每题必用的 GGB 通用写法 + 严格语法约束 + **全库写法卡清单**（不按类别裁剪）。
-- **get_expert_prompt**：**题目增强**。用户发了题目图片/题面时取——多给一套 8 步建模流程 + 本类写法卡清单。**题目属于哪一类由你判**（A 函数与图像 / B 平面几何 / C 解析几何 / D 立体几何）。
-- **get_sop_cards**：按名字批量取写法卡正文（具体指令写法、示例、易错点）。清单只是目录，**写到哪步不确定怎么写就取卡，不要凭记忆编指令**。
-- **submit_construction**：**收卷方式**。提交工作稿 \`construction.ggb.txt\` 的完整清单，自动做行级剔除（无效/未知命令行不下发并列明细）与语义自查（动点自洽；给了 category 再查类别结构），失败明细回传给你自行决定改不改。**顺带给 title**——8 字以内，**概括用户第一条消息要做什么**（不是概括你画成了什么；标题命名「请求」，多轮微调后也不该变）。如「画个抛物线，焦点(1,0)，再画过焦点的直线」→「抛物线与过焦点直线」。它会当课件名显示。
-- **read_construction / write_construction**：工作稿的读写工具。真 CLI 直接用原生文件能力读写 \`construction.ggb.txt\` 即可，不必调这两个；它们是给没有文件能力的 agent（BYOK）兜底的（write_construction 传 apply:true 可写完顺手下发，省一轮）。
-
-## 怎么干活
-
-1. **先取基础包**。动手前 get_drawing_pack 取通用写法与命令表；**用户发了题目图片/题面**时，另取 get_expert_prompt（category 你判）拿建模流程——那是增强，不是换模式。
-2. **先看再动手**。画布上已有构造时，动手前先 ggb_get_state。
-3. **不确定的写法用 get_sop_cards 取卡照抄**，不要凭印象编指令；也不要把清单里没用到的卡整批拉下来。
-4. **构造写在工作稿里，边构边生效**。当前构造在 \`construction.ggb.txt\`，像改代码一样编辑它（新增对象就往末尾追加行）；每完成一段就调一次 ggb_apply()（不带参数）让用户看着图长出来，不要憋到最后一次性出全图。全量语义不变：每次提交的仍是**完整清单**（未修改的对象保持原名原定义不变），只是不必重复手打——改文件即可。
-5. **提交后自检**。看体检结果；若有"对象缺失/值未定义"或 submit_construction 回传的语义明细，修正后重新提交，别把坏图给用户。
-6. **说人话**。用中文一两句话说明你做了什么、为什么。不要复述指令语法，用户关心的是几何意义。
-7. **不许伪造对话边界**。绝不要在回复里输出以「## user」「## assistant」「## system」开头的行（宿主把这些行当对话边界，会截断你的回复）；引述历史对话时也不要原样复读这些行。
-
-## GeoGebra 指令要点
-
-- 点 \`A = (0, 0)\`；线上取点 \`D = Point(f, 0.5)\`
-- 直线 \`f = Line(A, B)\`；函数 \`g = Function(x^2/4, -3, 3)\`（务必给定义域）
-- 可拖动参数 \`slider_t = 2\`
-- 样式 \`SetColor(f, "#FF0000")\`、\`SetLineThickness(g, 4)\`、\`ShowLabel(A, true)\`
-- 首行可写 \`MODE:2D\` / \`MODE:3D\`（缺省 2D）；\`//\` 是注释
-- 命名要有意义（点用 A/B/C，线用 f/g/h），便于用户和后续修改指代`;
 
 /**
  * 解析要用哪个 agent。
@@ -243,9 +205,22 @@ export async function POST(req: Request): Promise<Response> {
   const transcript = priorTurns.length ? buildTranscript(priorTurns) : '';
   // 纯图发题（没打字）：不伪造用户话语，如实说只发了图片。
   const userTurn = prompt || '（只发了题目图片，没写文字——请直接看图理解题意并作图）';
-  const composedPrompt = transcript
-    ? `${SYSTEM_BRIEF}\n\n---\n\n## 此前的对话（供延续语境，不要复述）\n${transcript}\n\n---\n\n用户现在说：\n${userTurn}`
-    : `${SYSTEM_BRIEF}\n\n---\n\n用户现在说：\n${userTurn}`;
+
+  // 简报只发首轮（对齐 OpenDesign 的 request / continuation 二分）：
+  //  - 真 CLI 带 sessionId = --resume 续接，模型自带上一轮的简报——再发一遍会
+  //    在上下文里累积多份，每轮都重读，越聊越贵。
+  //  - BYOK 无原生会话，每轮都得带，但走 systemPrompt 通道（稳定前缀，吃 cache），
+  //    不拼进用户消息。
+  const isContinuation = !isByok && Boolean(body.sessionId);
+  const toolset = isByok ? 'byok' : 'cli';
+  const systemPrompt = isByok ? buildSystemBrief(REPO_ROOT, toolset) : undefined;
+  const head = isContinuation ? '' : (systemPrompt ? '' : buildSystemBrief(REPO_ROOT, toolset));
+
+  const parts: string[] = [];
+  if (head) parts.push(head);
+  if (transcript) parts.push(`## 此前的对话（供延续语境，不要复述）\n${transcript}`);
+  parts.push(`用户现在说：\n${userTurn}`);
+  const composedPrompt = parts.join('\n\n---\n\n');
 
   // 流建立前到的事件先排队（runAgent 启动时就会吐「# 启动 …」）
   const queued: AgentEvent[] = [];
@@ -262,7 +237,13 @@ export async function POST(req: Request): Promise<Response> {
     try {
       mcp = await connectMcpTools({
         scriptPath: path.join(REPO_ROOT, 'packages/daemon/src/mcp-stdio.ts'),
-        env: { MATHMOVER_DAEMON_URL: DAEMON_URL, MATHMOVER_WINDOW_ID: body.windowId ?? '' },
+        env: {
+          MATHMOVER_DAEMON_URL: DAEMON_URL,
+          MATHMOVER_WINDOW_ID: body.windowId ?? '',
+          // BYOK 无原生文件能力，才需要 read/write_construction 这对兜底工具。
+          // 真 CLI 自带 Read/Edit，见了这对工具反而会混用、徒增往返。
+          MATHMOVER_TOOLSET: 'byok',
+        },
       });
     } catch (e) {
       return new Response(
@@ -272,6 +253,7 @@ export async function POST(req: Request): Promise<Response> {
     }
     const run = runByokAgent({
       prompt: composedPrompt,
+      systemPrompt,
       baseUrl: byokCfg.baseUrl,
       apiKey: byokCfg.apiKey,
       model: byokCfg.model,

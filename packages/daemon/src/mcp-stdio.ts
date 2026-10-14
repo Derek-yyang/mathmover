@@ -29,8 +29,12 @@ async function main(): Promise<void> {
   log(`指向 daemon: ${DAEMON_URL}`);
   log('MCP stdio 就绪，等待 agent 连接…');
 
-  // createMcpServer 内部会注册 ggb_get_state / ggb_apply / ggb_reset / read_construction / write_construction
-  await serveStdio(tools as never, { name: 'mathmover', version: '0.1.0' });
+  // createMcpServer 内部会注册 ggb_get_state / ggb_apply / ggb_reset，
+  // 以及 submit_construction / 知识供给三件套。
+  // read_construction / write_construction 只在 BYOK 面前出现（见 MATHMOVER_TOOLSET）。
+  await serveStdio(tools as never, { name: 'mathmover', version: '0.1.0' }, {
+    toolset: process.env.MATHMOVER_TOOLSET === 'byok' ? 'byok' : 'cli',
+  });
 }
 
 main().catch((e) => {

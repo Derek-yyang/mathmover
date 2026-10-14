@@ -24,8 +24,12 @@ export interface ToolsLike {
     incremental?: boolean;
     unconfirmed?: boolean;
   }>;
-  readConstruction(): Promise<string[]> | string[];
-  writeConstruction(commands: string[]): Promise<string> | string;
+  // 恒异步：HTTP 版天然是 Promise，本地 GgbTools 也包一层。
+  // 类型收成 Promise（不是 `Promise<T> | T`）——那种联合类型会诱导调用方漏 await，
+  // 实测踩过：submit_construction 直接 .flatMap 在 Promise 上崩，read_construction
+  // 拿 Promise.length 当数组长度、永远返回「工作稿为空」。
+  readConstruction(): Promise<string[]>;
+  writeConstruction(commands: string[]): Promise<string>;
   reset(): Promise<void>;
   ping(): boolean;
 }

@@ -87,14 +87,14 @@ export function createHttpServer(tools: GgbTools, opts: HttpApiOptions): http.Se
 
       // 工作稿读写（BYOK 等无原生文件能力的 agent 走这条）
       if (url.pathname === '/api/construction' && req.method === 'GET') {
-        return json(res, 200, activeTools.readConstruction());
+        return json(res, 200, await activeTools.readConstruction());
       }
       if (url.pathname === '/api/construction' && req.method === 'PUT') {
         const body = (await readBody(req)) as { commands?: string[] };
         if (!Array.isArray(body.commands) || body.commands.length === 0) {
           return json(res, 400, { error: '缺少 commands 数组' });
         }
-        return json(res, 200, { file: activeTools.writeConstruction(body.commands) });
+        return json(res, 200, { file: await activeTools.writeConstruction(body.commands) });
       }
 
       // 清空

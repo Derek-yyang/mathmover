@@ -17,9 +17,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import {
-  assembleDrawingPack,
   assembleSkill,
-  buildCardIndex,
   buildCatalog,
   buildAllowedCommandsSuffix,
   checkLines,
@@ -125,10 +123,13 @@ function errContent(e: unknown) {
 export function createMcpServer(
   tools: GgbTools,
   info: { name: string; version: string },
-  opts: { rootDir?: string } = {},
+  opts: { rootDir?: string; toolset?: 'cli' | 'byok' } = {},
 ): McpServer {
   const server = new McpServer({ name: info.name, version: info.version });
   const rootDir = opts.rootDir ?? process.cwd();
+  // toolset 决定工具面宽窄：真 CLI 自带 Read/Edit，那对文件兜底工具只会让它们
+  // 混用两套路径、徒增往返——只在 BYOK 面前注册。
+  const toolset = opts.toolset ?? 'cli';
 
   // 一条链路：把用户意图变成 GeoGebra 构造。题目图片只是输入形态，碰到时多拿
   // 一套建模知识（get_expert_prompt），不是「换模式」。无会话级 category 账本——
@@ -218,49 +219,15 @@ export function createMcpServer(
     }
   });
 
-  // ── 知识供给 ────────────────────────────────────────────────
-  // 一条链路：画图。get_drawing_pack 是人人要的基础包；碰到题目图片/题面时
-  // 另取 get_expert_prompt 拿一套建模知识（增强，不是换模式）。
 
-  server.registerTool('get_drawing_pack', {
-    title: '取画图基础包 + 全库写法卡清单',
-    description:
-      '**画图的基础包，先取这个**。一次给两样：① 画图基础包——公共输出约定、' +
-      '每题必用的 GGB 通用写法（MODE/视图/点/线/标签/样式）、严格语法约束（2D+3D 全列）；' +
-      '② 全库写法卡清单（不按类别裁剪，含每张卡的一句话说明与适用输入）。' +
-      '清单只是目录，具体写法要另外用 get_sop_cards 取；不确定怎么写就取，别凭印象编。\n' +
-      '**用户发了题目图片/题面**时，在此之外再取 get_expert_prompt（**题目增强**——多一套建模方法，不是换模式）。',
-    inputSchema: {},
-  }, async () => {
-    try {
-      const { text, characters } = assembleDrawingPack(rootDir);
-      const suffix = buildAllowedCommandsSuffix(undefined, loadWhitelist(rootDir).names);
-      const index = buildCardIndex(rootDir);
-      return {
-        content: [
-          { type: 'text', text: text + suffix },
-          {
-            type: 'text',
-            text:
-              `写法卡清单（全库 ${index.length} 张）——需要哪张就 get_sop_cards 取：\n` +
-              index.map((c) => `- ${c.name}：${c.title}${c.inputs ? `｜输入：${c.inputs}` : ''}`).join('\n'),
-          },
-          {
-            type: 'text',
-            text: JSON.stringify({ mode: 'drawing', characters: characters + suffix.length, cards: index.length, catalog: index }),
-          },
-        ],
-        isError: false,
-      };
-    } catch (e) {
-      return errContent(e);
-    }
-  });
+  // ── 知识供给 ────────────────────────────────────────────────
+  // 一条链路：画图。通用写法与卡片目录已在系统简报里（人人都拿到）；
+  // 碰到题目图片/题面时另取 get_expert_prompt 拿一套建模知识（增强，不是换模式）。
 
   server.registerTool('get_expert_prompt', {
     title: '取题目建模方法 + 本类写法卡清单（增强）',
     description:
-      '**题目增强**：用户发了题目图片/题面、要把题目变成动图时取这个（平时画图用 get_drawing_pack 即可）。' +
+      '**题目增强**：用户发了题目图片/题面、要把题目变成动图时取这个（纯画图/改图不必取）。' +
       '一次取两样——① 专家 skill（8 步建模流程、每题必用的 GGB 通用写法、严格语法约束）；' +
       '② 本类的写法卡清单（一句话说明 + 适用输入 + 挂在流程第几步）。' +
       '清单只是目录，具体写法要另外用 get_sop_cards 取；不确定怎么写就取，别凭印象编。' +
@@ -356,7 +323,7 @@ export function createMcpServer(
   }, async (args) => {
     try {
       const category = args?.category;
-      const source = tools.readConstruction();
+      const source = await tools.readConstruction();
       const rawLines = source.flatMap((c) => String(c).split('\n'));
       const { knownLower } = loadWhitelist(rootDir);
 
@@ -419,55 +386,58 @@ export function createMcpServer(
   });
 
   // BYOK 等无原生文件能力的 agent 走这两个工具读写工作稿；
-  // 真 CLI（claude/codex/dsh）直接用自带的 Read/Edit，不必调它们。
-  server.registerTool('read_construction', {
-    title: '读构造工作稿',
-    description:
-      '读取当前构造工作稿 `construction.ggb.txt` 的内容（每行一条 GeoGebra 指令）。' +
-      '真 CLI 有原生读文件能力，直接读文件即可；本工具给没有文件能力的 agent 用。',
-    inputSchema: {},
-  }, async () => {
-    const lines = tools.readConstruction();
-    return {
-      content: [{
-        type: 'text',
-        text: lines.length
-          ? lines.join('\n')
-          : '（工作稿为空——画布上还没有构造）',
-      }],
-      isError: false,
-    };
-  });
-
-  server.registerTool('write_construction', {
-    title: '写构造工作稿',
-    description:
-      '用完整清单**覆盖**工作稿 `construction.ggb.txt`。真 CLI 有原生编辑能力，直接改文件即可；' +
-      '本工具给没有文件能力的 agent（BYOK）用。' +
-      'apply:true = 写完顺手下发画布（省一轮 ggb_apply）；默认只写草稿不下发。',
-    inputSchema: {
-      commands: z.array(z.string()).min(1).describe('完整 GeoGebra 指令清单，每行一条（含 MODE: 首行可选、// 注释可选）'),
-      apply: z.boolean().optional().describe('写完是否顺手下发画布，默认 false。BYOK 建议 true——省一轮 ggb_apply。'),
-    },
-  }, async (args) => {
-    const commands = (args?.commands ?? []).map((c) => String(c));
-    const file = tools.writeConstruction(commands);
-    if (args?.apply) {
-      const r = await tools.apply(undefined, { png: true });
+  // 真 CLI（claude/codex/dsh）直接用自带的 Read/Edit——它们见了这对工具反而会
+  // 混用两套路径、徒增往返，故只在 BYOK 面前注册。
+  if (toolset === 'byok') {
+    server.registerTool('read_construction', {
+      title: '读构造工作稿',
+      description:
+        '读取当前构造工作稿 `construction.ggb.txt` 的内容（每行一条 GeoGebra 指令）。' +
+        '真 CLI 有原生读文件能力，直接读文件即可；本工具给没有文件能力的 agent 用。',
+      inputSchema: {},
+    }, async () => {
+      const lines = await tools.readConstruction();
       return {
-        content: [
-          { type: 'text', text: `工作稿已写入 ${commands.length} 行并下发画布。` },
-          { type: 'text', text: describeDiff(r.diff) },
-          { type: 'text', text: describeState(r.state) },
-        ],
+        content: [{
+          type: 'text',
+          text: lines.length
+            ? lines.join('\n')
+            : '（工作稿为空——画布上还没有构造）',
+        }],
         isError: false,
       };
-    }
-    return {
-      content: [{ type: 'text', text: `工作稿已写入 ${commands.length} 行${file ? `（${file}）` : ''}。要生效请调 ggb_apply()。` }],
-      isError: false,
-    };
-  });
+    });
+
+    server.registerTool('write_construction', {
+      title: '写构造工作稿',
+      description:
+        '用完整清单**覆盖**工作稿 `construction.ggb.txt`。真 CLI 有原生编辑能力，直接改文件即可；' +
+        '本工具给没有文件能力的 agent（BYOK）用。' +
+        'apply:true = 写完顺手下发画布（省一轮 ggb_apply）；默认只写草稿不下发。',
+      inputSchema: {
+        commands: z.array(z.string()).min(1).describe('完整 GeoGebra 指令清单，每行一条（含 MODE: 首行可选、// 注释可选）'),
+        apply: z.boolean().optional().describe('写完是否顺手下发画布，默认 false。BYOK 建议 true——省一轮 ggb_apply。'),
+      },
+    }, async (args) => {
+      const commands = (args?.commands ?? []).map((c) => String(c));
+      const file = await tools.writeConstruction(commands);
+      if (args?.apply) {
+        const r = await tools.apply(undefined, { png: true });
+        return {
+          content: [
+            { type: 'text', text: `工作稿已写入 ${commands.length} 行并下发画布。` },
+            { type: 'text', text: describeDiff(r.diff) },
+            { type: 'text', text: describeState(r.state) },
+          ],
+          isError: false,
+        };
+      }
+      return {
+        content: [{ type: 'text', text: `工作稿已写入 ${commands.length} 行${file ? `（${file}）` : ''}。要生效请调 ggb_apply()。` }],
+        isError: false,
+      };
+    });
+  }
 
   return server;
 }
@@ -476,7 +446,7 @@ export function createMcpServer(
 export async function serveStdio(
   tools: GgbTools,
   info: { name: string; version: string },
-  opts: { rootDir?: string } = {},
+  opts: { rootDir?: string; toolset?: 'cli' | 'byok' } = {},
 ): Promise<void> {
   const server = createMcpServer(tools, info, opts);
   const transport = new StdioServerTransport();

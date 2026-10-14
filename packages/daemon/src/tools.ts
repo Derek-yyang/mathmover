@@ -123,17 +123,14 @@ export function buildBoardState(raw: RawState, cfg: ToolsConfig): BoardState {
  * 与 codex/claude 的受管工作目录同构：文件就是当前构造的可编辑形态。
  * agent 用原生 Read/Edit 改它（像改代码），改完调 `ggb_apply()`（不带参数）生效。
  * daemon 在 apply/reset 后回写规范化后的清单。
+ *
+ * **文件只存指令行，不加任何头注释**——否则原生 Read 与 read_construction
+ * 会看到两种长度（头被后者剥掉），agent 会误判「文件不同步」而反复倒腾。
+ * 「这文件能改、改完 apply」的说明放工具描述与 SYSTEM_BRIEF，不放文件里。
  */
 export function writeConstructionFile(cfg: ToolsConfig, commands: string[]): string {
-  const file = path.join(cfg.workdir, 'construction.ggb.txt');
-  const body = [
-    '# MathMover 当前 GeoGebra 构造草稿',
-    '# 像改代码一样直接编辑这个文件；改完调 ggb_apply()（不带参数）应用到画布。',
-    '# 建议每完成一段就 apply 一次——用户能看着图一点点长出来。',
-    '',
-    ...commands,
-    '',
-  ].join('\n');
+  const file = path.join(cfg.workdir, CONSTRUCTION_FILE);
+  const body = commands.length ? [...commands, ''].join('\n') : '';
   try {
     fs.mkdirSync(cfg.workdir, { recursive: true });
     fs.writeFileSync(file, body, 'utf-8');
@@ -145,7 +142,10 @@ export function writeConstructionFile(cfg: ToolsConfig, commands: string[]): str
 
 const CONSTRUCTION_FILE = 'construction.ggb.txt';
 
-/** 读工作稿（去掉 `#` 头注释与首尾空行；行中 `//` 注释与空行保留）。文件不存在返回 []。 */
+/**
+ * 读工作稿。`#` 行一律跳过——那是历史版本的头注释，不是 GGB 指令
+ * （GGB 注释是 `//`，会被保留）。文件不存在返回 []。
+ */
 export function readConstructionFile(cfg: ToolsConfig): string[] {
   try {
     const body = fs.readFileSync(path.join(cfg.workdir, CONSTRUCTION_FILE), 'utf8');
@@ -290,13 +290,13 @@ export class GgbTools {
     }
   }
 
-  /** 读工作稿（供 BYOK 等无原生文件能力的 agent 走工具面）。 */
-  readConstruction(): string[] {
+  /** 读工作稿（供 BYOK 等无原生文件能力的 agent 走工具面）。恒异步——与 ToolsLike 对齐。 */
+  async readConstruction(): Promise<string[]> {
     return readConstructionFile(this.cfg);
   }
 
-  /** 写工作稿（不下发画布——下发请再调 apply）。 */
-  writeConstruction(commands: string[]): string {
+  /** 写工作稿（不下发画布——下发请再调 apply）。恒异步——与 ToolsLike 对齐。 */
+  async writeConstruction(commands: string[]): Promise<string> {
     return writeConstructionFile(this.cfg, commands);
   }
 

@@ -25,8 +25,10 @@ export const CATEGORY_TO_SKILL: Record<string, string> = {
 };
 
 const SOP_REFERENCE = /^[ \t]*\{\{SOP:([a-z0-9-]+)\}\}[ \t]*$/gm;
-// (?![\s\S]) = 串尾（Python 的 \Z）；multiline 下 $ 是行尾，不能混用
-const STEP_BLOCK = /^## ([1-9]\d*)\.[^\n]*\n.*?(?=^## [1-9]\d*\.|(?![\s\S]))/gms;
+// (?![\s\S]) = 串尾（Python 的 \Z）；multiline 下 $ 是行尾，不能混用。
+// [\s\S] 而非 s（dotAll）flag——后者要求 target ≥ ES2018，而 math-mover-next 的
+// tsconfig 是 ES2017，从 Next 路由引本包会撞 TS1501。语义等价。
+const STEP_BLOCK = /^## ([1-9]\d*)\.[^\n]*\n[\s\S]*?(?=^## [1-9]\d*\.|(?![\s\S]))/gm;
 
 function stripFrontmatter(text: string): string {
   if (text.startsWith('---')) {
@@ -78,8 +80,8 @@ function sopNames(body: string, category: string): string[] {
   if (new Set(names).size !== names.length) {
     throw new SopAssemblyError(`${skill}: SOP 插入位置重复`);
   }
-  const blocks = [...body.matchAll(new RegExp(STEP_BLOCK.source, 'gms'))].map((m) => m[0]);
-  const steps = [...body.matchAll(new RegExp(STEP_BLOCK.source, 'gms'))].map((m) => m[1]);
+  const blocks = [...body.matchAll(new RegExp(STEP_BLOCK.source, 'gm'))].map((m) => m[0]);
+  const steps = [...body.matchAll(new RegExp(STEP_BLOCK.source, 'gm'))].map((m) => m[1]);
   if (new Set(steps).size !== steps.length) {
     throw new SopAssemblyError(`${skill}: 编号步骤重复`);
   }
@@ -205,7 +207,7 @@ export function buildCatalog(category: string, rootDir: string): SopCatalogEntry
   const skillRaw = stripFrontmatter(read(skillPath(rootDir, category)));
   const names = sopNames(skillRaw, category);
   const stepOf = new Map<string, string>();
-  for (const block of skillRaw.matchAll(new RegExp(STEP_BLOCK.source, 'gms'))) {
+  for (const block of skillRaw.matchAll(new RegExp(STEP_BLOCK.source, 'gm'))) {
     for (const ref of block[0].matchAll(new RegExp(SOP_REFERENCE.source, 'gm'))) {
       if (!stepOf.has(ref[1])) stepOf.set(ref[1], block[1]);
     }
