@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "katex/dist/katex.min.css";
+import { ThemeProvider } from '@/components/ThemeProvider';
 
 export const metadata: Metadata = {
   title: "MathMover - 让数学几何动起来",
@@ -13,8 +14,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
-      <body className="font-sans antialiased">{children}</body>
+    <html lang="zh-CN" className="scroll-smooth" suppressHydrationWarning>
+      <body className="font-sans antialiased"><ThemeProvider>{children}</ThemeProvider></body>
     </html>
   );
 }

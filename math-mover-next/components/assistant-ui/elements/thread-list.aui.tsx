@@ -58,6 +58,7 @@ type ThreadListHost = {
   selection?: ThreadListSelection;
   onDeleteRequest?: (ids: string[]) => void;
   onDelete?: (id: string) => Promise<void>;
+  onOpen?: (id: string) => void;
   onOpenCurrent?: () => void;
 };
 const HostContext = createContext<ThreadListHost>({});
@@ -73,20 +74,20 @@ export const ThreadList: FC<ThreadListHost & {
 
   return (
     <HostContext.Provider value={{ ...host, archived }}>
-    <ThreadListRoot ref={rootRef} tabIndex={-1} aria-label={archived ? '归档课件列表' : '最近课件列表'} className={cn('min-h-0 flex-1 gap-1 pb-2 text-stone-800', archived ? 'px-0' : 'px-3 pt-2')}>
+    <ThreadListRoot ref={rootRef} tabIndex={-1} aria-label={archived ? '归档课件列表' : '最近课件列表'} className={cn('min-h-0 flex-1 gap-1 pb-2 text-[var(--mm-text-stone-800)]', archived ? 'px-0' : 'px-3 pt-2')}>
       {!archived && <ThreadListNew disabled={host.newDisabled ?? host.disabled}
         onClick={host.onNew ? event => { event.preventDefault(); host.onNew?.(); } : undefined}
-        className="h-10 shrink-0 rounded-lg bg-transparent px-2.5 font-medium text-stone-800 hover:bg-stone-100 data-active:bg-transparent data-active:hover:bg-stone-100 [&_svg]:text-emerald-700" />}
+        className="h-10 shrink-0 rounded-lg bg-transparent px-2.5 font-medium text-[var(--mm-text-stone-800)] hover:bg-[var(--mm-bg-stone-100)] data-active:bg-transparent data-active:hover:bg-[var(--mm-bg-stone-100)] [&_svg]:text-[var(--mm-text-emerald-700)]" />}
       {(currentCount > 0 || search.length > 0) && (
-        <ThreadListSearch ref={searchRef} value={search} onValueChange={setSearch} aria-label={archived ? '搜索归档课件' : '搜索课件标题'} placeholder={archived ? '搜索归档课件' : '搜索课件标题'} className="h-9 rounded-lg border-transparent bg-stone-100/80 shadow-none placeholder:text-stone-500 focus-visible:bg-white" />
+        <ThreadListSearch ref={searchRef} value={search} onValueChange={setSearch} aria-label={archived ? '搜索归档课件' : '搜索课件标题'} placeholder={archived ? '搜索归档课件' : '搜索课件标题'} className="h-9 rounded-lg border-transparent bg-[var(--mm-bg-stone-100)]/80 shadow-none placeholder:text-[var(--mm-text-stone-500)] focus-visible:bg-[var(--mm-surface)]" />
       )}
-      {error && <div role="alert" className="px-2.5 py-2 text-xs leading-5 text-amber-900">
+      {error && <div role="alert" className="px-2.5 py-2 text-xs leading-5 text-[var(--mm-text-amber-900)]">
         {error}
-        {onRetry && <button type="button" className="ml-2 rounded underline focus-visible:outline-2 focus-visible:outline-emerald-700" onClick={onRetry}>重试</button>}
+        {onRetry && <button type="button" className="ml-2 rounded underline focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]" onClick={onRetry}>重试</button>}
       </div>}
-      {(currentCount > 0 || host.selection?.enabled) && host.selection && <div className="flex shrink-0 items-center justify-between gap-1 pt-2 pb-1 text-xs text-stone-600">
+      {(currentCount > 0 || host.selection?.enabled) && host.selection && <div className="flex shrink-0 items-center justify-between gap-1 pt-2 pb-1 text-xs text-[var(--mm-text-stone-600)]">
         <span className="px-2.5">{archived ? `已归档 (${currentCount})` : '最近课件'}</span>
-        <button type="button" disabled={host.disabled} onClick={host.selection.onToggleMode} className="min-h-8 shrink-0 rounded-md px-1.5 py-1.5 hover:bg-muted focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-50">
+        <button type="button" disabled={host.disabled} onClick={host.selection.onToggleMode} className="min-h-8 shrink-0 rounded-md px-1.5 py-1.5 hover:bg-muted focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)] disabled:opacity-50">
           {host.selection.enabled ? '取消选择' : '选择'}
         </button>
       </div>}
@@ -105,12 +106,18 @@ const ThreadListSelectionBar: FC<{ searchQuery: string }> = ({ searchQuery }) =>
   const visibleIds = filteredIndices.map(index => threadIds[index]);
   if (!selection) return null;
   const allSelected = visibleIds.length > 0 && visibleIds.every(id => selection.ids.has(id));
-  return <div className="shrink-0 border-t border-stone-200 px-2.5 pt-3 text-xs text-stone-700">
-    <div className="flex items-center justify-between">
-      <span aria-live="polite">已选 {selection.ids.size} 项</span>
-      <button type="button" disabled={disabled || !visibleIds.length} className="rounded p-1 text-emerald-800 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-50" onClick={() => selection.onSelectAll(allSelected ? [] : visibleIds)}>{allSelected ? '取消全选' : searchQuery.trim() ? '全选结果' : '全选'}</button>
+  return <div role="group" aria-label="课件批量操作" data-slot="thread-list-selection-bar"
+    className="flex h-9 shrink-0 items-center justify-between gap-2 pl-2.5 pr-1 text-xs text-[var(--mm-text-stone-600)]">
+    <span aria-live="polite" aria-atomic="true" className="shrink-0 tabular-nums">已选 {selection.ids.size} 项</span>
+    <div className="flex shrink-0 items-center gap-1">
+      <Button type="button" variant="ghost" size="sm" disabled={disabled || !visibleIds.length}
+        className="h-8 px-2 text-xs font-normal text-[var(--mm-text-emerald-800)] hover:bg-[var(--mm-bg-emerald-50)] hover:text-[var(--mm-text-emerald-800)]"
+        onClick={() => selection.onSelectAll(allSelected ? [] : visibleIds)}>{allSelected ? '取消全选' : searchQuery.trim() ? '全选结果' : '全选'}</Button>
+      <Button type="button" variant="ghost" size="icon" aria-label="删除所选课件" title="删除所选课件"
+        disabled={disabled || !selection.ids.size}
+        className="size-8 text-[var(--mm-text-red-700)] hover:bg-[var(--mm-bg-red-50)] hover:text-[var(--mm-text-red-700)] disabled:text-[var(--mm-text-stone-500)] disabled:opacity-50"
+        onClick={() => onDeleteRequest?.([...selection.ids])}><TrashIcon aria-hidden="true" className="size-4" /></Button>
     </div>
-    <button type="button" disabled={disabled || !selection.ids.size} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg py-2 text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-700 disabled:text-stone-500" onClick={() => onDeleteRequest?.([...selection.ids])}><TrashIcon className="size-4" />删除所选课件</button>
   </div>;
 };
 
@@ -305,9 +312,9 @@ const ThreadListItemGroups: FC<{ searchQuery?: string }> = ({
   }
 
   if (!threadIds.length && !isLoading) return <div role="status" className="flex flex-col items-center px-3 py-8 text-center">
-    {archived ? <ArchiveIcon aria-hidden className="mb-3 size-5 text-stone-500" /> : <FolderOpenIcon aria-hidden className="mb-3 size-5 text-stone-500" />}
-    <p className="text-sm font-medium text-stone-700">{archived ? '暂无归档课件' : '暂无课件'}</p>
-    <p className="mt-1 text-xs leading-5 text-stone-500">{archived ? '归档后的课件会保留在这里。' : '点击上方“新建课件”开始。'}</p>
+    {archived ? <ArchiveIcon aria-hidden className="mb-3 size-5 text-[var(--mm-text-stone-500)]" /> : <FolderOpenIcon aria-hidden className="mb-3 size-5 text-[var(--mm-text-stone-500)]" />}
+    <p className="text-sm font-medium text-[var(--mm-text-stone-700)]">{archived ? '暂无归档课件' : '暂无课件'}</p>
+    <p className="mt-1 text-xs leading-5 text-[var(--mm-text-stone-500)]">{archived ? '归档后的课件会保留在这里。' : '点击上方“新建课件”开始。'}</p>
   </div>;
   // One keyed presence group keeps rows mounted across date-group changes.
   const rows = groups ? groups.flatMap(group => [
@@ -328,7 +335,7 @@ const AnimatedThreadListItem = forwardRef<HTMLDivElement, { index: number; archi
     transition={{ duration: reducedMotion ? 0 : 0.22, ease: [0.25, 1, 0.5, 1] }}
     className="relative shrink-0" aria-hidden={!present || undefined} inert={!present}>
     {present ? <ThreadListPrimitive.ItemByIndex index={index} archived={archived} components={itemComponents} />
-      : <div className={cn('flex h-9 items-center rounded-lg px-2.5 text-sm', active && 'bg-emerald-50 text-emerald-900')}><span className="truncate">{title || '未命名课件'}</span></div>}
+      : <div className={cn('flex h-9 items-center rounded-lg px-2.5 text-sm', active && 'bg-[var(--mm-bg-emerald-50)] text-[var(--mm-text-emerald-900)]')}><span className="truncate">{title || '未命名课件'}</span></div>}
   </motion.div>;
 });
 AnimatedThreadListItem.displayName = 'AnimatedThreadListItem';
@@ -395,7 +402,7 @@ const ThreadListSkeleton: FC = () => {
 };
 
 export const ThreadListItem: FC = () => {
-  const { disabled, selection, onOpenCurrent } = useContext(HostContext);
+  const { disabled, selection, onOpen, onOpenCurrent } = useContext(HostContext);
   const id = useAuiState(s => s.threadListItem.id);
   const isCurrent = useAuiState(s => s.threadListItem.id === s.threads.mainThreadId);
   const isRunning = useAuiState((s) => s.threadListItem.isRunning);
@@ -413,7 +420,7 @@ export const ThreadListItem: FC = () => {
     <ThreadListItemPrimitive.Root
       data-slot="aui_thread-list-item"
       data-selected={selection?.ids.has(id) || undefined}
-      className="group hover:bg-muted focus-visible:bg-muted data-active:bg-emerald-50 data-active:text-emerald-900 data-[selected=true]:bg-emerald-50 has-focus-visible:bg-muted has-data-[state=open]:bg-muted relative flex h-9 items-center rounded-lg transition-colors focus-visible:outline-none motion-reduce:transition-none"
+      className="group hover:bg-muted focus-visible:bg-muted data-active:bg-[var(--mm-bg-emerald-50)] data-active:text-[var(--mm-text-emerald-900)] data-[selected=true]:bg-[var(--mm-bg-emerald-50)] has-focus-visible:bg-muted has-data-[state=open]:bg-muted relative flex h-9 items-center rounded-lg transition-colors focus-visible:outline-none motion-reduce:transition-none"
     >
       {isRenaming ? (
         <ThreadListItemRename
@@ -428,13 +435,14 @@ export const ThreadListItem: FC = () => {
           aria-pressed={selection?.enabled ? selection.ids.has(id) : undefined}
           onClick={event => {
             if (selection?.enabled) { event.preventDefault(); selection.onToggle(id); }
+            else if (onOpen) { event.preventDefault(); onOpen(id); }
             else if (isCurrent) onOpenCurrent?.();
           }}
           ref={triggerRef}
           data-slot="aui_thread-list-item-trigger"
           className="focus-visible:ring-ring/50 flex h-full min-w-0 flex-1 items-center rounded-md px-2.5 text-start text-sm outline-none group-hover:pe-9 group-has-focus-visible:pe-9 group-has-data-[state=open]:pe-9 group-data-active:pe-9 focus-visible:ring-1"
         >
-          {selection?.enabled && <span aria-hidden className={cn('me-2 flex size-4 shrink-0 items-center justify-center rounded border', selection.ids.has(id) ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-stone-400')}>{selection.ids.has(id) && <CheckIcon className="size-3" />}</span>}
+          {selection?.enabled && <span aria-hidden className={cn('me-2 flex size-4 shrink-0 items-center justify-center rounded border', selection.ids.has(id) ? 'border-[var(--mm-border-emerald-700)] bg-[var(--mm-bg-emerald-700)] text-white' : 'border-[var(--mm-border-stone-400)]')}>{selection.ids.has(id) && <CheckIcon className="size-3" />}</span>}
           {isRunning && (
             <Loader2Icon
               aria-hidden
@@ -557,7 +565,7 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
           variant="ghost"
           size="icon"
           data-slot="aui_thread-list-item-more"
-          className={cn("hover:bg-stone-200 focus-visible:bg-stone-200 data-[state=open]:bg-stone-200 group-data-active:hover:bg-emerald-100 group-data-active:focus-visible:bg-emerald-100 group-data-active:data-[state=open]:bg-emerald-100 absolute end-1.5 top-1/2 size-6 -translate-y-1/2 rounded-full p-0 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100", deleteOpen && 'bg-stone-200 group-data-active:bg-emerald-100 opacity-100')}
+          className={cn("hover:bg-[var(--mm-bg-stone-200)] focus-visible:bg-[var(--mm-bg-stone-200)] data-[state=open]:bg-[var(--mm-bg-stone-200)] group-data-active:hover:bg-[var(--mm-bg-emerald-100)] group-data-active:focus-visible:bg-[var(--mm-bg-emerald-100)] group-data-active:data-[state=open]:bg-[var(--mm-bg-emerald-100)] absolute end-1.5 top-1/2 size-6 -translate-y-1/2 rounded-full p-0 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100", deleteOpen && 'bg-[var(--mm-bg-stone-200)] group-data-active:bg-[var(--mm-bg-emerald-100)] opacity-100')}
         >
           <MoreHorizontalIcon className="size-3.5" />
           <span className="sr-only">课件操作</span>
@@ -566,10 +574,10 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
       </PopoverPrimitive.Anchor>
       <PopoverPrimitive.Portal container={portalContainer}>
         <PopoverPrimitive.Content side="right" align="start" sideOffset={6} collisionPadding={8}
-          collisionBoundary={portalContainer?.closest('dialog') ?? undefined}
+          collisionBoundary={portalContainer?.closest('[data-slot="settings-dialog"]') ?? undefined}
           data-slot="aui_thread-list-item-delete-confirmation"
           aria-labelledby={titleId} aria-describedby={descriptionId} aria-busy={deleting}
-          className="z-50 w-60 max-w-[calc(100vw-16px)] rounded-xl border border-stone-200 bg-popover p-3 text-popover-foreground shadow-sm outline-none"
+          className="z-50 w-60 max-w-[calc(100vw-16px)] rounded-xl border border-[var(--mm-border-stone-200)] bg-popover p-3 text-popover-foreground shadow-sm outline-none"
           onOpenAutoFocus={event => { event.preventDefault(); interactedOutsideRef.current = false; cancelRef.current?.focus(); }}
           onCloseAutoFocus={event => { event.preventDefault(); if (!interactedOutsideRef.current) moreRef.current?.focus(); }}
           onEscapeKeyDown={event => {
@@ -581,8 +589,8 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
             else interactedOutsideRef.current = true;
           }}>
           <h3 id={titleId} className="text-sm font-semibold">删除这个课件？</h3>
-          <p id={descriptionId} className="mt-1 text-xs leading-5 text-stone-600">删除后无法恢复。</p>
-          {deleteError && <p role="alert" className="mt-2 text-xs leading-5 text-amber-900">{deleteError}</p>}
+          <p id={descriptionId} className="mt-1 text-xs leading-5 text-[var(--mm-text-stone-600)]">删除后无法恢复。</p>
+          {deleteError && <p role="alert" className="mt-2 text-xs leading-5 text-[var(--mm-text-amber-900)]">{deleteError}</p>}
           <div className="mt-3 flex justify-end gap-1.5">
             <PopoverPrimitive.Close asChild><Button ref={cancelRef} variant="ghost" size="sm" disabled={deleting}>取消</Button></PopoverPrimitive.Close>
             <Button variant="destructive" size="sm" aria-label="确认删除" disabled={disabled || deleting} onClick={() => { void confirmDelete(); }}>{deleting ? '正在删除…' : '删除'}</Button>
@@ -592,7 +600,7 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
       </PopoverPrimitive.Root>
       <ThreadListItemMorePrimitive.Content
         portalProps={{ container: portalContainer }}
-        collisionBoundary={portalContainer?.closest('dialog') ?? undefined}
+        collisionBoundary={portalContainer?.closest('[data-slot="settings-dialog"]') ?? undefined}
         onEscapeKeyDown={event => {
           // Radix keeps the menu's dismissable layer during its exit animation.
           // Escape belongs to the newly focused inline editor in that interval.

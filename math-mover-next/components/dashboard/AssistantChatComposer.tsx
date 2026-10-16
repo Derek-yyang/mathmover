@@ -65,15 +65,15 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
   };
   return <div className="shrink-0 px-3 pt-2 pb-3">
     <ComposerPrimitive.Root aria-label="题目输入区"
-      className={`rounded-2xl border bg-white p-3 transition-colors motion-reduce:transition-none focus-within:border-emerald-600 ${dragging ? 'border-emerald-600 bg-emerald-50' : 'border-stone-300'}`}
+      className={`rounded-2xl border bg-[var(--mm-surface)] p-3 transition-colors motion-reduce:transition-none focus-within:border-[var(--mm-border-emerald-600)] ${dragging ? 'border-[var(--mm-border-emerald-600)] bg-[var(--mm-bg-emerald-50)]' : 'border-[var(--mm-border-stone-300)]'}`}
       onDragOver={event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); setDragging(true); } }}
       onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }}
       onDrop={event => { if (event.dataTransfer.files.length) { event.preventDefault(); setDragging(false); void addImages(Array.from(event.dataTransfer.files)); } }}>
       {hasAttachments && <div aria-label="待发送图片" className="mb-3 flex items-start gap-2 overflow-x-auto overflow-y-hidden">
         <ComposerPrimitive.Attachments>{({ attachment }) => {
           const part = attachment.content?.find(part => part.type === 'image');
-          return <AttachmentPrimitive.Root className="relative h-16 w-16 shrink-0 rounded-lg border border-stone-200 bg-stone-50">
-            <button type="button" aria-label={`预览待发送图片：${attachment.name}`} title={attachment.name} className="block h-full w-full overflow-hidden rounded-lg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-emerald-700"
+          return <AttachmentPrimitive.Root className="relative h-16 w-16 shrink-0 rounded-lg border border-[var(--mm-border-stone-200)] bg-[var(--mm-bg-stone-50)]">
+            <button type="button" aria-label={`预览待发送图片：${attachment.name}`} title={attachment.name} className="block h-full w-full overflow-hidden rounded-lg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)]"
               disabled={part?.type !== 'image'} onClick={() => {
                 const attachments = aui.composer().getState().attachments;
                 const images = attachments.map(item => { const content = item.content?.find(part => part.type === 'image'); return { url: content?.type === 'image' ? content.image : '', name: item.name }; });
@@ -81,7 +81,7 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
               }}>
               {part?.type === 'image' && <img src={part.image} alt={attachment.name} className="h-full w-full object-cover" />}
             </button>
-            <AttachmentPrimitive.Remove aria-label={`移除图片：${attachment.name}`} title="移除图片" className="absolute top-1 right-1 rounded-full border border-stone-300 bg-white p-1 text-stone-700 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700"><X aria-hidden className="h-3 w-3" /></AttachmentPrimitive.Remove>
+            <AttachmentPrimitive.Remove aria-label={`移除图片：${attachment.name}`} title="移除图片" className="absolute top-1 right-1 rounded-full border border-[var(--mm-border-stone-300)] bg-[var(--mm-surface)] p-1 text-[var(--mm-text-stone-700)] hover:bg-[var(--mm-bg-stone-100)] focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]"><X aria-hidden className="h-3 w-3" /></AttachmentPrimitive.Remove>
           </AttachmentPrimitive.Root>;
         }}</ComposerPrimitive.Attachments>
       </div>}
@@ -90,13 +90,13 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
         submitMode={sendBlock || incompatibleAttachments || attachmentsNotReady ? 'none' : 'enter'}
         addAttachmentOnPaste={false}
         onPaste={event => { const files = Array.from(event.clipboardData.files); if (files.length) { event.preventDefault(); void addImages(files); } }}
-        className="block w-full resize-none bg-transparent text-sm leading-6 text-stone-800 placeholder:text-stone-600 focus:outline-none" />
+        className="block w-full resize-none bg-transparent text-sm leading-6 text-[var(--mm-text-stone-800)] placeholder:text-[var(--mm-text-stone-600)] focus:outline-none" />
       <div className="mt-2 flex items-center justify-between gap-2">
         <input ref={input} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple disabled={!canAttachImages} className="hidden"
           onChange={event => { void addImages(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
         <div className="flex min-w-0 items-center gap-1">
           <button type="button" aria-label="添加题目图片" title={canAttachImages ? '上传、粘贴或拖入题目图片' : '当前 Agent 没有图片通道'}
-            disabled={!canAttachImages} onClick={() => input.current?.click()} className="shrink-0 rounded-lg p-2 text-stone-600 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:text-stone-400"><ImagePlus aria-hidden className="h-4 w-4" /></button>
+            disabled={!canAttachImages} onClick={() => input.current?.click()} className="shrink-0 rounded-lg p-2 text-[var(--mm-text-stone-600)] hover:bg-[var(--mm-bg-stone-100)] focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)] disabled:cursor-not-allowed disabled:text-[var(--mm-text-stone-400)]"><ImagePlus aria-hidden className="h-4 w-4" /></button>
           {/* 模型 + 推理档位的组合面板放在工具栏里（挨着附件/发送），不放聊天区
               头部——「随手换」的视线就在输入框。模型或档位有多个选项时才显示；
               档位是模型的属性，跟模型同面板。 */}
@@ -113,27 +113,31 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
         <div className="relative h-8 w-8 shrink-0">
           <button type="button" tabIndex={isLoading ? 0 : -1} aria-hidden={!isLoading}
             onClick={() => onStopRun?.()} aria-label="停止本轮" title="停止本轮（agent 正在运行）"
-            className={`absolute inset-0 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 transition-opacity duration-150 motion-reduce:transition-none ${isLoading ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+            className={`absolute inset-0 flex items-center justify-center rounded-lg bg-[var(--mm-bg-emerald-50)] text-[var(--mm-text-emerald-700)] hover:bg-[var(--mm-bg-emerald-100)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)] transition-opacity duration-150 motion-reduce:transition-none ${isLoading ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
             <Square aria-hidden className="h-3.5 w-3.5 fill-current" />
           </button>
           <ComposerPrimitive.Send tabIndex={isLoading ? -1 : 0} aria-hidden={isLoading}
             disabled={isLoading || !!sendBlock || incompatibleAttachments || attachmentsNotReady} aria-label="发送消息" title={sendBlock?.message ?? '发送消息'}
             aria-describedby={!isLoading && sendBlock ? sendBlockId : undefined}
-            className={`absolute inset-0 flex items-center justify-center rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500 transition-opacity duration-150 motion-reduce:transition-none ${isLoading ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
+            className={`absolute inset-0 flex items-center justify-center rounded-lg bg-[var(--mm-bg-emerald-700)] text-white hover:bg-[var(--mm-bg-emerald-800)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)] disabled:cursor-not-allowed disabled:bg-[var(--mm-bg-stone-100)] disabled:text-[var(--mm-text-stone-500)] transition-opacity duration-150 motion-reduce:transition-none ${isLoading ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
             <ArrowUp aria-hidden size={18} strokeWidth={2.25} />
           </ComposerPrimitive.Send>
         </div>
       </div>
     </ComposerPrimitive.Root>
-    {!isLoading && sendBlock && <div id={sendBlockId} className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs leading-5 text-stone-600">
+    {/* Transient prerequisites stay available to assistive technology and the
+        send tooltip; only actionable problems need a visible notice. */}
+    {!isLoading && sendBlock && <div id={sendBlockId} className={sendBlock.action
+      ? 'mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs leading-5 text-[var(--mm-text-stone-600)]'
+      : 'sr-only'}>
       <span role="status">{sendBlock.message}</span>
       {sendBlock.action && onResolveSendBlock && <button type="button" onClick={onResolveSendBlock}
-        className="rounded text-emerald-800 underline underline-offset-4 hover:text-emerald-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+        className="rounded text-[var(--mm-text-emerald-800)] underline underline-offset-4 hover:text-[var(--mm-text-emerald-900)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)]">
         {sendBlock.action === 'reconnect' ? '重新连接' : sendBlock.action === 'settings' ? '打开设置' : '重新检测'}
       </button>}
     </div>}
-    {attachmentError && <p role="alert" className="mt-2 text-xs leading-5 text-amber-900">{attachmentError}</p>}
-    {attachmentLimitExceeded && attachmentCount >= 4 && <p role="alert" className="mt-2 text-xs leading-5 text-amber-900">一次最多添加 4 张题目图片。</p>}
-    {!canAttachImages && <p role={incompatibleAttachments ? 'alert' : undefined} className="mt-2 text-xs leading-5 text-stone-600">{incompatibleAttachments ? '当前 Agent 没有图片通道，请移除图片或切换 Agent 后发送。' : '当前 Agent 没有图片通道，请用文字描述题目。'}</p>}
+    {attachmentError && <p role="alert" className="mt-2 text-xs leading-5 text-[var(--mm-text-amber-900)]">{attachmentError}</p>}
+    {attachmentLimitExceeded && attachmentCount >= 4 && <p role="alert" className="mt-2 text-xs leading-5 text-[var(--mm-text-amber-900)]">一次最多添加 4 张题目图片。</p>}
+    {!canAttachImages && <p role={incompatibleAttachments ? 'alert' : undefined} className="mt-2 text-xs leading-5 text-[var(--mm-text-stone-600)]">{incompatibleAttachments ? '当前 Agent 没有图片通道，请移除图片或切换 Agent 后发送。' : '当前 Agent 没有图片通道，请用文字描述题目。'}</p>}
   </div>;
 }

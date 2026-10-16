@@ -57,8 +57,11 @@ export function finishExecution(execution: AgentExecution, status: Exclude<Agent
 export function toolStepLabel(name: string): string {
   const normalized = name.startsWith('mcp__') ? name.slice(name.lastIndexOf('__') + 2) : name;
   const labels: Record<string, string> = {
-    ggb_get_state: '读取画板', ggb_apply: '更新构造', ggb_reset: '清空画板',
-    get_expert_prompt: '读取建模规则', submit_construction: '提交构造并检查',
+    ggb_get_state: '读取画板', ggb_apply: '更新构造并自检', ggb_reset: '清空画板',
+    get_expert_prompt: '读取建模规则',
+    Read: '读取文件', Write: '写入文件', Edit: '编辑文件',
+    Bash: '执行命令', Glob: '查找文件', Grep: '搜索内容',
+    WebFetch: '读取网页', WebSearch: '搜索网页',
   };
   return Object.hasOwn(labels, normalized) ? labels[normalized] : '调用工具';
 }

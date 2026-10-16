@@ -5,6 +5,7 @@
 @import "../node_modules/tailwindcss/index.css";
 @import "../node_modules/tw-animate-css/dist/tw-animate.css";
 @import "../node_modules/tw-shimmer/src/index.css";
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /* 显式注册源文件目录：自动源检测曾单独漏掉 components/SettingsModal.tsx，
    导致其中的工具类（w-52 / w-[840px] 等）未编译进产物，布局宽度塌缩。 */
@@ -16,8 +17,202 @@
 @source "../components/dashboard/AgentChatPanel.tsx";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #fdfcf8;
+  --foreground: #292524;
+  --primary: #047857;
+  --primary-foreground: #ffffff;
+  --muted: #f5f5f4;
+  --muted-foreground: #57534e;
+  --accent: #ecfdf5;
+  --accent-foreground: #065f46;
+  --destructive: #b91c1c;
+  --destructive-foreground: #ffffff;
+  --border: #e7e5e4;
+  --popover: #ffffff;
+  --mm-canvas-shell: #fdfcf8;
+  --mm-surface: #ffffff;
+  --mm-border-divider: #e7e5e4;
+  --mm-bg-stone-50: #fafaf9;
+  --mm-bg-stone-100: #f5f5f4;
+  --mm-bg-stone-200: #e7e5e4;
+  --mm-bg-stone-300: #d6d3d1;
+  --mm-bg-stone-400: #a8a29e;
+  --mm-bg-stone-600: #57534e;
+  --mm-bg-stone-700: #44403c;
+  --mm-bg-stone-800: #292524;
+  --mm-bg-stone-900: #1c1917;
+  --mm-text-stone-400: #a8a29e;
+  --mm-text-stone-500: #78716c;
+  --mm-text-stone-600: #57534e;
+  --mm-text-stone-700: #44403c;
+  --mm-text-stone-800: #292524;
+  --mm-text-stone-900: #1c1917;
+  --mm-border-stone-100: #f5f5f4;
+  --mm-border-stone-200: #e7e5e4;
+  --mm-border-stone-300: #d6d3d1;
+  --mm-border-stone-400: #a8a29e;
+  --mm-bg-emerald-50: #ecfdf5;
+  --mm-bg-emerald-100: #d1fae5;
+  --mm-bg-emerald-500: #10b981;
+  --mm-bg-emerald-600: #059669;
+  --mm-bg-emerald-700: #047857;
+  --mm-bg-emerald-800: #065f46;
+  --mm-bg-green-600: #16a34a;
+  --mm-text-emerald-300: #6ee7b7;
+  --mm-text-emerald-400: #34d399;
+  --mm-text-emerald-500: #10b981;
+  --mm-text-emerald-600: #059669;
+  --mm-text-emerald-700: #047857;
+  --mm-text-emerald-800: #065f46;
+  --mm-text-emerald-900: #064e3b;
+  --mm-border-emerald-100: #d1fae5;
+  --mm-border-emerald-200: #a7f3d0;
+  --mm-border-emerald-300: #6ee7b7;
+  --mm-border-emerald-400: #34d399;
+  --mm-border-emerald-500: #10b981;
+  --mm-border-emerald-600: #059669;
+  --mm-border-emerald-700: #047857;
+  --mm-bg-amber-50: #fffbeb;
+  --mm-bg-amber-100: #fef3c7;
+  --mm-bg-amber-600: #d97706;
+  --mm-text-amber-400: #fbbf24;
+  --mm-text-amber-500: #f59e0b;
+  --mm-text-amber-800: #92400e;
+  --mm-text-amber-900: #78350f;
+  --mm-border-amber-200: #fde68a;
+  --mm-border-amber-700: #b45309;
+  --mm-border-amber-800: #92400e;
+  --mm-bg-red-50: #fef2f2;
+  --mm-bg-red-100: #fee2e2;
+  --mm-bg-red-500: #ef4444;
+  --mm-text-red-200: #fecaca;
+  --mm-text-red-400: #f87171;
+  --mm-text-red-600: #dc2626;
+  --mm-text-red-700: #b91c1c;
+  --mm-text-red-800: #991b1b;
+  --mm-border-red-700: #b91c1c;
+  --mm-border-stone-900: #1c1917;
+  --mm-bg-softgreen-1: #e8f5e9;
+  --mm-bg-softgreen-2: #f1f8e9;
+  --mm-border-white: #ffffff;
+  --mm-bg-teal-50: #f0fdfa;
+  --mm-bg-teal-100: #ccfbf1;
+  --mm-border-teal-100: #ccfbf1;
+  --mm-border-teal-300: #5eead4;
+  --mm-text-teal-600: #0d9488;
+  --mm-bg-lime-50: #f7fee7;
+  --mm-bg-lime-100: #ecfccb;
+  --mm-border-lime-100: #ecfccb;
+  --mm-text-lime-600: #65a30d;
+  --mm-bg-orange-50: #fff7ed;
+  --mm-bg-orange-100: #ffedd5;
+  --mm-border-orange-100: #ffedd5;
+  --mm-text-orange-600: #ea580c;
+  --mm-bg-blue-50: #eff6ff;
+  --mm-bg-blue-100: #dbeafe;
+  --mm-border-blue-100: #dbeafe;
+  --mm-text-blue-600: #2563eb;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  /* Neutral surfaces establish depth; emerald is reserved for emphasis. */
+  --background: #181818;
+  --foreground: #eeeeee;
+  --primary: #6ee7b7;
+  --primary-foreground: #103224;
+  --muted: #292929;
+  --muted-foreground: #a3a3a3;
+  --accent: #1d4230;
+  --accent-foreground: #b9f4d2;
+  --destructive: #fb8585;
+  --destructive-foreground: #281316;
+  --border: #383838;
+  --popover: #242424;
+  --mm-canvas-shell: #181818;
+  --mm-surface: #202020;
+  --mm-border-divider: #383838;
+  --mm-bg-stone-50: #242424;
+  --mm-bg-stone-100: #292929;
+  --mm-bg-stone-200: #333333;
+  --mm-bg-stone-300: #454545;
+  --mm-bg-stone-400: #5e5e5e;
+  --mm-bg-stone-600: #666666;
+  --mm-bg-stone-700: #484848;
+  --mm-bg-stone-800: #141414;
+  --mm-bg-stone-900: #111111;
+  --mm-text-stone-400: #a3a3a3;
+  --mm-text-stone-500: #adadad;
+  --mm-text-stone-600: #b8b8b8;
+  --mm-text-stone-700: #d0d0d0;
+  --mm-text-stone-800: #eeeeee;
+  --mm-text-stone-900: #f5f5f5;
+  --mm-border-stone-100: #2e2e2e;
+  --mm-border-stone-200: #383838;
+  --mm-border-stone-300: #4a4a4a;
+  --mm-border-stone-400: #666666;
+  --mm-bg-emerald-50: #19382a;
+  --mm-bg-emerald-100: #204a35;
+  --mm-bg-emerald-500: #0d845f;
+  --mm-bg-emerald-600: #0a7959;
+  --mm-bg-emerald-700: #096c52;
+  --mm-bg-emerald-800: #075840;
+  --mm-bg-green-600: #086a4e;
+  --mm-text-emerald-300: #b9f4d2;
+  --mm-text-emerald-400: #92ecc0;
+  --mm-text-emerald-500: #76dfae;
+  --mm-text-emerald-600: #7ce4b3;
+  --mm-text-emerald-700: #82e8b8;
+  --mm-text-emerald-800: #a8efca;
+  --mm-text-emerald-900: #c9f8dc;
+  --mm-border-emerald-100: #24563d;
+  --mm-border-emerald-200: #2e7650;
+  --mm-border-emerald-300: #3a9363;
+  --mm-border-emerald-400: #49b878;
+  --mm-border-emerald-500: #57cc89;
+  --mm-border-emerald-600: #5bcf91;
+  --mm-border-emerald-700: #68daa0;
+  --mm-bg-amber-50: #342919;
+  --mm-bg-amber-100: #47351d;
+  --mm-bg-amber-600: #a9782a;
+  --mm-text-amber-400: #f4c873;
+  --mm-text-amber-500: #efb853;
+  --mm-text-amber-800: #f7d491;
+  --mm-text-amber-900: #ffe2a8;
+  --mm-border-amber-200: #80653d;
+  --mm-border-amber-700: #d2a34e;
+  --mm-border-amber-800: #d2a34e;
+  --mm-bg-red-50: #381f22;
+  --mm-bg-red-100: #4b282a;
+  --mm-bg-red-500: #a83f45;
+  --mm-text-red-200: #ffc9c5;
+  --mm-text-red-400: #ffa5a4;
+  --mm-text-red-600: #ff9e9e;
+  --mm-text-red-700: #ffa5a4;
+  --mm-text-red-800: #ffc3bd;
+  --mm-border-red-700: #ff9e9e;
+  --mm-border-stone-900: #8a8a8a;
+  --mm-bg-softgreen-1: #242424;
+  --mm-bg-softgreen-2: #202020;
+  --mm-border-white: #555555;
+  --mm-bg-teal-50: #193833;
+  --mm-bg-teal-100: #235348;
+  --mm-border-teal-100: #316b60;
+  --mm-border-teal-300: #45988a;
+  --mm-text-teal-600: #77e4d2;
+  --mm-bg-lime-50: #2c381e;
+  --mm-bg-lime-100: #3a5026;
+  --mm-border-lime-100: #4d6930;
+  --mm-text-lime-600: #bde587;
+  --mm-bg-orange-50: #3b2c20;
+  --mm-bg-orange-100: #543b27;
+  --mm-border-orange-100: #70503a;
+  --mm-text-orange-600: #f3ae79;
+  --mm-bg-blue-50: #1d2d3e;
+  --mm-bg-blue-100: #273f59;
+  --mm-border-blue-100: #355577;
+  --mm-text-blue-600: #91beff;
 }
 
 @theme inline {
@@ -32,7 +227,7 @@
   --color-secondary: var(--muted);
   --color-secondary-foreground: var(--foreground);
   --color-destructive: var(--destructive);
-  --color-destructive-foreground: white;
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--border);
   --color-ring: var(--primary);
@@ -40,13 +235,6 @@
   --color-popover-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
@@ -60,20 +248,6 @@ body {
 }
 
 /* Color tokens for the official assistant-ui elements. Layout lives upstream. */
-:root, .aui-root {
-  --primary: #047857;
-  --primary-foreground: #ffffff;
-  --muted: #f5f5f4;
-  --muted-foreground: #57534e;
-  --accent: #ecfdf5;
-  --accent-foreground: #065f46;
-  --destructive: #b91c1c;
-  --border: #e7e5e4;
-  --popover: #ffffff;
-}
-.aui-root, .aui-attachment-preview-dialog-content {
-  --background: #fdfcf8; --foreground: #292524;
-}
 /* Match Chinese and Latin body text to the host platform's UI fonts. */
 .aui-root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
@@ -92,11 +266,12 @@ body {
 .aui-md .katex { font-size: 1.05em; }
 
 /* Subtle native scrollbars for conversation and settings viewports. */
+.chat-scroll-viewport { scrollbar-gutter: stable; }
 .chat-scroll-viewport, .settings-scroll-viewport {
   scrollbar-width: thin;
-  scrollbar-color: #a8a29e transparent;
+  scrollbar-color: var(--mm-text-stone-400) transparent;
 }
-.chat-scroll-viewport:hover, .settings-scroll-viewport:hover { scrollbar-color: #78716c transparent; }
+.chat-scroll-viewport:hover, .settings-scroll-viewport:hover { scrollbar-color: var(--mm-text-stone-500) transparent; }
 @supports selector(::-webkit-scrollbar) {
   /* Standard scrollbar properties override WebKit sizing in Chromium. */
   .chat-scroll-viewport, .chat-scroll-viewport:hover,
@@ -107,10 +282,10 @@ body {
   .chat-scroll-viewport::-webkit-scrollbar, .settings-scroll-viewport::-webkit-scrollbar { width: 6px; }
   .chat-scroll-viewport::-webkit-scrollbar-track, .settings-scroll-viewport::-webkit-scrollbar-track { background: transparent; }
   .chat-scroll-viewport::-webkit-scrollbar-thumb, .settings-scroll-viewport::-webkit-scrollbar-thumb {
-    background: #a8a29e;
+    background: var(--mm-text-stone-400);
     border-radius: 999px;
   }
-  .chat-scroll-viewport::-webkit-scrollbar-thumb:hover, .settings-scroll-viewport::-webkit-scrollbar-thumb:hover { background: #78716c; }
+  .chat-scroll-viewport::-webkit-scrollbar-thumb:hover, .settings-scroll-viewport::-webkit-scrollbar-thumb:hover { background: var(--mm-text-stone-500); }
   .chat-scroll-viewport::-webkit-scrollbar-button, .settings-scroll-viewport::-webkit-scrollbar-button { display: none; }
 }
 @media (forced-colors: active) {
@@ -127,32 +302,32 @@ body {
 .chat-markdown ul, .chat-markdown ol { padding-left: 1.4em; margin: 0.6em 0; }
 .chat-markdown ul { list-style: disc; }
 .chat-markdown ol { list-style: decimal; }
-.chat-markdown a { color: #047857; text-decoration: underline; text-underline-offset: 3px; }
+.chat-markdown a { color: var(--mm-text-emerald-700); text-decoration: underline; text-underline-offset: 3px; }
 .chat-markdown pre, .chat-table-scroll, .chat-markdown .katex-display { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
-.chat-markdown pre { padding: 0.75em; background: #f5f5f4; border-radius: 8px; font-size: 0.8em; }
-.chat-markdown :not(pre) > code { background: #f5f5f4; padding: 0.1em 0.3em; border-radius: 4px; font-size: 0.85em; }
+.chat-markdown pre { padding: 0.75em; background: var(--mm-bg-stone-100); border-radius: 8px; font-size: 0.8em; }
+.chat-markdown :not(pre) > code { background: var(--mm-bg-stone-100); padding: 0.1em 0.3em; border-radius: 4px; font-size: 0.85em; }
 .chat-markdown table { border-collapse: collapse; font-size: 0.85em; }
-.chat-markdown th, .chat-markdown td { padding: 0.4em 0.7em; border-bottom: 1px solid #e7e5e4; text-align: left; }
-.chat-markdown blockquote { margin: 0.6em 0; padding: 0.5em 0.75em; background: #f5f5f4; border-radius: 8px; }
+.chat-markdown th, .chat-markdown td { padding: 0.4em 0.7em; border-bottom: 1px solid var(--mm-border-divider); text-align: left; }
+.chat-markdown blockquote { margin: 0.6em 0; padding: 0.5em 0.75em; background: var(--mm-bg-stone-100); border-radius: 8px; }
 .chat-markdown .katex { font-size: 1.05em; }
 
 /* Shared reading surfaces. Dialogs use a portal, outside the clipped chat panel. */
 .reading-dialog-overlay { position: fixed; inset: 0; z-index: 50; background: rgb(28 25 23 / 45%); }
-.reading-dialog { position: fixed; z-index: 50; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(64rem, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 20px; border-radius: 12px; background: #fff; color: #292524; font-size: 14px; outline: none; }
+.reading-dialog { position: fixed; z-index: 50; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(64rem, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 20px; border-radius: 12px; background: var(--mm-surface); color: var(--mm-text-stone-800); font-size: 14px; outline: none; }
 .reading-dialog-title { padding-right: 36px; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reading-dialog-close { position: absolute; right: 12px; top: 12px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; }
-.reading-icon-button, .image-view-toolbar button, .image-gallery-controls button { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 6px; min-width: 28px; min-height: 28px; padding: 4px 6px; border-radius: 6px; background: #fff; color: #57534e; cursor: pointer; font: 12px Arial, sans-serif; }
-.reading-icon-button:hover, .reading-dialog-close:hover, .image-view-toolbar button:hover, .image-gallery-controls button:hover { background: #f5f5f4; color: #292524; }
-.reading-dialog button:focus-visible, .reading-icon-button:focus-visible, .reading-text-button:focus-visible { outline: 2px solid #047857; outline-offset: 2px; }
-.reading-text-button { display: inline-flex; align-items: center; gap: 6px; border-radius: 4px; color: #57534e; font-size: 12px; cursor: pointer; }
-.reading-text-button:hover { color: #047857; }
+.reading-icon-button, .image-view-toolbar button, .image-gallery-controls button { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 6px; min-width: 28px; min-height: 28px; padding: 4px 6px; border-radius: 6px; background: var(--mm-surface); color: var(--mm-text-stone-600); cursor: pointer; font: 12px Arial, sans-serif; }
+.reading-icon-button:hover, .reading-dialog-close:hover, .image-view-toolbar button:hover, .image-gallery-controls button:hover { background: var(--mm-bg-stone-100); color: var(--mm-text-stone-800); }
+.reading-dialog button:focus-visible, .reading-icon-button:focus-visible, .reading-text-button:focus-visible { outline: 2px solid var(--mm-text-emerald-700); outline-offset: 2px; }
+.reading-text-button { display: inline-flex; align-items: center; gap: 6px; border-radius: 4px; color: var(--mm-text-stone-600); font-size: 12px; cursor: pointer; }
+.reading-text-button:hover { color: var(--mm-text-emerald-700); }
 .reading-dialog-footer { display: flex; justify-content: flex-end; margin-top: 12px; }
 .reading-block { display: block; position: relative; min-width: 0; margin: 16px 0; }
-.reading-block-actions { position: absolute; z-index: 1; top: -14px; right: 0; display: flex; align-items: center; border: 1px solid #e7e5e4; border-radius: 6px; background: #fff; opacity: 0; transition: opacity 150ms ease-out; }
+.reading-block-actions { position: absolute; z-index: 1; top: -14px; right: 0; display: flex; align-items: center; border: 1px solid var(--mm-border-divider); border-radius: 6px; background: var(--mm-surface); opacity: 0; transition: opacity 150ms ease-out; }
 .reading-block:hover > .reading-block-actions, .reading-block:focus-within > .reading-block-actions { opacity: 1; }
 .chat-math-inline { display: inline-block; position: relative; max-width: 100%; vertical-align: baseline; }
 .chat-math-inline > .katex { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
-.math-inline-action { position: absolute; z-index: 1; right: 0; bottom: 100%; border: 1px solid #e7e5e4; border-radius: 6px; background: #fff; opacity: 0; transition: opacity 150ms ease-out; }
+.math-inline-action { position: absolute; z-index: 1; right: 0; bottom: 100%; border: 1px solid var(--mm-border-divider); border-radius: 6px; background: var(--mm-surface); opacity: 0; transition: opacity 150ms ease-out; }
 .chat-math-inline:hover > .math-inline-action, .chat-math-inline:focus-within > .math-inline-action { opacity: 1; }
 .chat-formula-scroll { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
 .chat-formula-scroll .katex-display { margin: 0.5em 0; max-width: none; overflow: visible; }
@@ -162,16 +337,16 @@ body {
 .reading-expanded-table table { min-width: max-content; }
 .reading-expanded-formula { margin-top: 24px; overflow: auto; max-height: 65dvh; font-size: 22px; padding: 12px 0; }
 .reading-expanded-formula .katex-display { max-width: none; overflow: visible; }
-.chat-code-block { margin: 12px 0; min-width: 0; overflow: hidden; border: 1px solid #e7e5e4; border-radius: 8px; background: #f5f5f4; }
-.chat-code-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 4px 12px; font-size: 12px; color: #57534e; border-bottom: 1px solid #e7e5e4; }
+.chat-code-block { margin: 12px 0; min-width: 0; overflow: hidden; border: 1px solid var(--mm-border-divider); border-radius: 8px; background: var(--mm-bg-stone-100); }
+.chat-code-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 4px 12px; font-size: 12px; color: var(--mm-text-stone-600); border-bottom: 1px solid var(--mm-border-divider); }
 .chat-code-header .reading-icon-button { background: transparent; }
 .chat-code-block pre, .chat-markdown .chat-code-block pre { margin: 0; padding: 12px; overflow: auto; overscroll-behavior: contain; border-radius: 0; font-size: 12px; line-height: 1.7; background: transparent; }
 .chat-code-block code { font-family: var(--font-geist-mono), monospace; }
-.code-expand { padding: 8px 12px; width: 100%; border-top: 1px solid #e7e5e4; }
+.code-expand { padding: 8px 12px; width: 100%; border-top: 1px solid var(--mm-border-divider); }
 .image-view-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
 .image-view-toolbar > span { min-width: 42px; font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
-.image-view-toolbar button:disabled, .image-gallery-controls button[aria-disabled=true] { color: #a8a29e; cursor: default; }
-.image-view-viewport { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; width: 100%; height: min(65dvh, 680px); border-radius: 8px; background: #f5f5f4; touch-action: none; cursor: grab; user-select: none; }
+.image-view-toolbar button:disabled, .image-gallery-controls button[aria-disabled=true] { color: var(--mm-text-stone-400); cursor: default; }
+.image-view-viewport { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; width: 100%; height: min(65dvh, 680px); border-radius: 8px; background: var(--mm-bg-stone-100); touch-action: none; cursor: grab; user-select: none; }
 .image-view-viewport.is-dragging { cursor: grabbing; }
 .image-view-viewport img { position: absolute; left: 50%; top: 50%; max-width: none; transform-origin: center; user-select: none; }
 .image-gallery-controls { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 10px; font-size: 12px; font-variant-numeric: tabular-nums; }

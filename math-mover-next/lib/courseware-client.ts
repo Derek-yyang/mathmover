@@ -2,6 +2,7 @@
 import type { AgentChatMessage, GeoGebraApi } from '@/components/dashboard/types';
 import { readViewBounds } from './ggb-view-transition';
 import { readGgbGraphics } from './ggb-graphics-state';
+import { settleActivity } from './agent-activity';
 // 课件库契约是跨进程共享的，唯一真源在 ggb-core。只走 /types 子路径。
 import { CoursewareError, type CoursewareSummary } from '@mathmover/ggb-core/types';
 
@@ -24,6 +25,22 @@ export async function libraryRequest<T>(path = '', body?: unknown): Promise<T> {
   return data;
 }
 export const historyChanged = (detail?: unknown) => window.dispatchEvent(new CustomEvent('mathmover_coursewares_changed', { detail }));
+
+/**
+ * 把指令清单同步进工作稿 `construction.ggb.txt`（按**课件**落目录）。
+ *
+ * 载入课件时必须调它——否则画布已是新图，agent 读到的草稿还是上一张的，
+ * 它接着改就改错对象。失败不抛：工作稿是 agent 的便利品，同步不了不影响用户看图。
+ */
+export async function syncConstructionDraft(commands: string[], coursewareId: string): Promise<void> {
+  try {
+    await fetch('/api/construction', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-mathmover-courseware': coursewareId },
+      body: JSON.stringify({ commands }),
+    });
+  } catch { /* 同步失败不拦恢复流程 */ }
+}
 export const getCourseware = (id: string) => libraryRequest<CoursewareRecord>(`/${encodeURIComponent(id)}`);
 export async function renameCourseware(id: string, title: string, expectedRevision: number) {
   const summary = await libraryRequest<CoursewareSummary>(`/${encodeURIComponent(id)}/rename`, { title, expectedRevision }); historyChanged({ kind: 'rename', summary });
@@ -66,8 +83,10 @@ export function currentView(api: GeoGebraApi, showAxes: boolean, showGrid: boole
     bounds: bounds ? [bounds.xMin, bounds.xMax, bounds.yMin, bounds.yMax] : undefined };
 }
 export function interruptedMessages(messages: AgentChatMessage[]): AgentChatMessage[] {
-  return messages.map(message => message.meta?.status === 'generating' || message.meta?.execution?.status === 'running'
-    ? { ...message, meta: { ...message.meta, status: 'error', errorMessage: '上次任务已中断，已恢复最后保存的内容；不会自动重跑 Agent。',
-      execution: message.meta.execution ? { ...message.meta.execution, status: 'unconfirmed', endedAt: Date.now(), steps: message.meta.execution.steps.map(s => s.status === 'running' ? { ...s, status: 'unconfirmed', endedAt: Date.now() } : s) } : undefined } }
-    : message);
+  return messages.map(message => {
+    if (message.meta?.status !== 'generating' && message.meta?.execution?.status !== 'running') return message;
+    const next = settleActivity(message);
+    return { ...next, meta: { ...next.meta, status: 'error', errorMessage: '上次任务已中断，已恢复最后保存的内容；不会自动重跑 Agent。',
+      execution: next.meta?.execution ? { ...next.meta.execution, status: 'unconfirmed', endedAt: Date.now(), steps: next.meta.execution.steps.map(s => s.status === 'running' ? { ...s, status: 'unconfirmed', endedAt: Date.now() } : s) } : undefined } };
+  });
 }

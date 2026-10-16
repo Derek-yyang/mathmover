@@ -124,11 +124,11 @@ const AttachmentUI: FC = () => {
     const type = s.attachment.type;
     switch (type) {
       case "image":
-        return "Image";
+        return "图片";
       case "document":
-        return "Document";
+        return "文档";
       case "file":
-        return "File";
+        return "文件";
       default:
         return type;
     }
@@ -152,7 +152,7 @@ const AttachmentUI: FC = () => {
   const errorMessage = useAuiState((s) =>
     s.attachment.status.type === "incomplete" &&
     s.attachment.status.reason === "error"
-      ? (s.attachment.status.message ?? "Upload failed")
+      ? (s.attachment.status.message ?? "上传失败")
       : undefined,
   );
 
@@ -199,8 +199,8 @@ const AttachmentUI: FC = () => {
                       }
                     : undefined
                 }
-                aria-label={`${src ? `预览图片：${name}` : `${typeLabel} attachment ${name}`}${
-                  isError ? ", upload failed" : isUploading ? ", uploading" : ""
+                aria-label={`${src ? `预览图片：${name}` : `${typeLabel}附件：${name}`}${
+                  isError ? "，上传失败" : isUploading ? "，正在上传" : ""
                 }`}
               >
                 <AttachmentThumb src={src} />
@@ -240,7 +240,7 @@ const AttachmentRemove: FC<{ name: string }> = ({ name }) => {
   return (
     <AttachmentPrimitive.Remove asChild>
       <TooltipIconButton
-        tooltip={`Remove ${name}`}
+        tooltip={`移除附件：${name}`}
         className="aui-attachment-tile-remove absolute end-1 top-1 size-5 rounded-full bg-black/50! text-white after:absolute after:-inset-1.5 hover:bg-black/70! hover:text-white! active:scale-[0.96] motion-reduce:transition-none"
         side="top"
       >
@@ -274,12 +274,12 @@ export const ComposerAddAttachment: FC = () => {
   return (
     <ComposerPrimitive.AddAttachment asChild>
       <TooltipIconButton
-        tooltip="Add Attachment"
+        tooltip="添加附件"
         side="bottom"
         variant="ghost"
         size="icon"
         className="aui-composer-add-attachment text-muted-foreground hover:text-foreground hover:bg-muted-foreground/15 dark:border-muted-foreground/15 dark:hover:bg-muted-foreground/30 size-7 rounded-full active:scale-[0.96] motion-reduce:transition-none"
-        aria-label="Add Attachment"
+        aria-label="添加附件"
       >
         <PlusIcon className="aui-attachment-add-icon size-4" />
       </TooltipIconButton>

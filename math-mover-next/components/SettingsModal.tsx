@@ -7,28 +7,31 @@
  * 目的地，画布才是核心（PRODUCT.md）。全局动作（刷新检测）在头部。
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { Archive, Database, Info, Keyboard, Cpu, RefreshCw, X } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
+import { Popover } from 'radix-ui';
+import { Archive, Database, Info, Keyboard, Cpu, RefreshCw, SunMoon, X } from 'lucide-react';
 import AgentSettings from './settings/AgentSettings';
-import ByokSettings from './settings/ByokSettings';
+import ByokSettings, { type SettingsDraftState } from './settings/ByokSettings';
 import HelpSettings from './settings/HelpSettings';
 import AboutSettings from './settings/AboutSettings';
 import ArchivedCoursewares from './settings/ArchivedCoursewares';
 import DataStorageSettings from './settings/DataStorageSettings';
+import AppearanceSettings from './settings/AppearanceSettings';
 import { useAgentRuntimeState } from './dashboard/AgentRuntimeState';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './assistant-ui/ui/tabs';
+import { SettingsButton } from './settings/SettingsControls';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from './assistant-ui/ui/dialog';
 
-const quietButton = 'rounded-lg px-3 py-2 text-sm font-medium hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed';
-const tabButton = (active: boolean) =>
-  `relative -mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${
-    active ? 'border-emerald-700 text-emerald-900' : 'border-transparent text-stone-600 hover:text-stone-900'}`;
+const settingsTab = 'h-10 flex-none rounded-none px-4 after:bg-primary data-[state=active]:text-primary dark:data-[state=active]:text-primary group-data-[orientation=horizontal]/tabs:after:bottom-[-1px]';
 const navButton = (active: boolean) =>
-  `flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${
-    active ? 'bg-emerald-50 text-emerald-900' : 'text-stone-700 hover:bg-stone-100'}`;
+  `flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)] ${
+    active ? 'bg-[var(--mm-bg-emerald-50)] text-[var(--mm-text-emerald-900)]' : 'text-[var(--mm-text-stone-700)] hover:bg-[var(--mm-bg-stone-100)]'}`;
 
-type Section = 'agents' | 'archives' | 'storage' | 'help' | 'about';
+type Section = 'agents' | 'appearance' | 'archives' | 'storage' | 'help' | 'about';
 
 const NAV: Array<{ id: Section; label: string; icon: typeof Cpu }> = [
   { id: 'agents', label: '模型与提供商', icon: Cpu },
+  { id: 'appearance', label: '外观', icon: SunMoon },
   { id: 'archives', label: '归档课件', icon: Archive },
   { id: 'storage', label: '数据与存储', icon: Database },
   { id: 'help', label: '帮助与快捷键', icon: Keyboard },
@@ -36,53 +39,67 @@ const NAV: Array<{ id: Section; label: string; icon: typeof Cpu }> = [
 ];
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const cancelCloseRef = useRef<HTMLButtonElement | null>(null);
+  const closeFocusRef = useRef<HTMLElement | null>(null);
+  const pendingCloseRef = useRef(onClose);
+  const [panel, setPanel] = useState<HTMLDivElement | null>(null);
+  const [draft, setDraft] = useState<SettingsDraftState>({ dirty: false, saving: false });
+  const [confirmClose, setConfirmClose] = useState(false);
+  const handleDraftState = useCallback((state: SettingsDraftState) => {
+    setDraft(previous => previous.dirty === state.dirty && previous.saving === state.saving ? previous : state);
+    if (!state.dirty && !state.saving) setConfirmClose(false);
+  }, []);
   const [section, setSection] = useState<Section>('agents');
   const [tab, setTab] = useState<'cli' | 'providers'>('cli');
-  const tabRefs = useRef<Record<'cli' | 'providers', HTMLButtonElement | null>>({ cli: null, providers: null });
   const { runtimes, detecting, refreshRuntimes } = useAgentRuntimeState();
   const cliCount = runtimes.filter(item => item.id !== 'byok' && item.usable).length;
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    const trigger = document.activeElement as HTMLElement | null;
-    dialog?.showModal();
-    return () => { dialog?.close(); trigger?.focus(); };
-  }, []);
-
-  // 标准 tablist 键盘：方向键移动并切换（焦点跟随选中项），Home/End 跳两端
-  const onTabKeyDown = (event: React.KeyboardEvent) => {
-    const order: Array<'cli' | 'providers'> = ['cli', 'providers'];
-    const index = order.indexOf(tab);
-    let next: 'cli' | 'providers' | null = null;
-    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-      next = order[(index + (event.key === 'ArrowRight' ? 1 : order.length - 1)) % order.length]!;
-    } else if (event.key === 'Home') next = 'cli';
-    else if (event.key === 'End') next = 'providers';
-    if (!next) return;
-    event.preventDefault();
-    setTab(next);
-    tabRefs.current[next]?.focus();
+  const requestClose = (proceed = onClose) => {
+    if (!draft.dirty && !draft.saving) { proceed(); return; }
+    closeFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    pendingCloseRef.current = proceed;
+    setConfirmClose(true);
   };
 
-  return <dialog ref={dialogRef} aria-labelledby="settings-title" onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => {
-    if (event.target !== event.currentTarget) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
-  }} className="m-auto h-[640px] max-h-[90dvh] w-[840px] max-w-[calc(100%-32px)] overflow-hidden rounded-2xl bg-[#FDFCF8] p-0 text-stone-800 shadow-2xl backdrop:bg-stone-900/40">
+  return <Dialog open onOpenChange={open => { if (!open) requestClose(); }}>
+    <DialogContent ref={setPanel} data-slot="settings-dialog" aria-labelledby="settings-title" aria-describedby={undefined}
+      showCloseButton={false} overlayClassName="bg-[var(--mm-bg-stone-900)]/40"
+      onOpenAutoFocus={() => { triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }}
+      onCloseAutoFocus={event => { event.preventDefault(); if (triggerRef.current?.isConnected) triggerRef.current.focus(); }}
+      className="block h-[640px] max-h-[90dvh] w-[840px] max-w-[calc(100%-32px)] overflow-hidden rounded-xl border-0 bg-[var(--mm-canvas-shell)] p-0 text-[var(--mm-text-stone-800)] shadow-2xl sm:rounded-xl">
     <div className="flex h-full flex-col">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 px-6 py-4">
-        <h2 id="settings-title" className="text-lg font-semibold">设置</h2>
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--mm-border-stone-200)] px-6 py-4">
+        <DialogTitle id="settings-title" className="text-lg font-semibold leading-normal tracking-normal">设置</DialogTitle>
         <div className="flex items-center gap-1">
-          {section === 'agents' && <button type="button" className={quietButton + ' flex items-center gap-2 text-stone-700'}
-            onClick={() => void refreshRuntimes()} disabled={detecting} aria-label="刷新检测">
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />{detecting ? '正在检测…' : '刷新检测'}
-          </button>}
-          <button type="button" aria-label="关闭设置" onClick={onClose} className={quietButton}><X className="h-5 w-5" /></button>
+          {section === 'agents' && <SettingsButton type="button"
+            onClick={() => void refreshRuntimes()} disabled={detecting} aria-busy={detecting} aria-label="刷新检测">
+            <RefreshCw className={detecting ? 'animate-spin motion-reduce:animate-none' : undefined} aria-hidden="true" />{detecting ? '正在检测…' : '刷新检测'}
+          </SettingsButton>}
+          <Popover.Root open={confirmClose} onOpenChange={setConfirmClose}>
+            <Popover.Anchor asChild>
+              <DialogClose asChild><SettingsButton type="button" size="icon" className="size-8" aria-label="关闭设置"><X aria-hidden="true" /></SettingsButton></DialogClose>
+            </Popover.Anchor>
+            <Popover.Portal container={panel}>
+              <Popover.Content side="bottom" align="end" sideOffset={8} collisionBoundary={panel} collisionPadding={12}
+                aria-labelledby="settings-discard-title" aria-describedby="settings-discard-description"
+                className="z-50 w-72 max-w-[calc(100vw-48px)] rounded-xl border border-[var(--mm-border-stone-200)] bg-popover p-3 text-popover-foreground shadow-sm outline-none"
+                onOpenAutoFocus={event => { event.preventDefault(); cancelCloseRef.current?.focus(); }}
+                onCloseAutoFocus={event => { event.preventDefault(); if (closeFocusRef.current?.isConnected) closeFocusRef.current.focus(); }}>
+                <h3 id="settings-discard-title" className="text-sm font-semibold">放弃未保存的修改？</h3>
+                <p id="settings-discard-description" role="status" className="mt-1 text-xs leading-5 text-[var(--mm-text-stone-600)]">
+                  {draft.saving ? '配置正在保存，请稍候。' : '关闭后，尚未保存的 API 配置修改将丢失。'}
+                </p>
+                <div className="mt-3 flex justify-end gap-1.5">
+                  <Popover.Close ref={cancelCloseRef} asChild><SettingsButton>继续编辑</SettingsButton></Popover.Close>
+                  <SettingsButton variant="destructive" disabled={draft.saving} onClick={() => pendingCloseRef.current()}>放弃并关闭</SettingsButton>
+                </div>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
-        <nav aria-label="设置分区" className="w-48 shrink-0 border-r border-stone-200 px-3 py-4">
+        <nav aria-label="设置分区" className="w-48 shrink-0 border-r border-[var(--mm-border-stone-200)] px-3 py-4">
           <ul className="space-y-1">
             {NAV.map(item => {
               const Icon = item.icon;
@@ -103,35 +120,33 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
         <div className="settings-scroll-viewport min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
           {/* Keep configuration mounted across sections so drafts and test results survive. */}
           <div hidden={section !== 'agents'}>
-              <div role="tablist" aria-label="模型与提供商" onKeyDown={onTabKeyDown}
-                className="-mx-1 mb-4 flex gap-2 border-b border-stone-200 px-1">
-                <button type="button" role="tab" id="settings-tab-cli" aria-controls="settings-panel-cli"
-                  aria-selected={tab === 'cli'} tabIndex={tab === 'cli' ? 0 : -1}
-                  ref={element => { tabRefs.current.cli = element; }}
-                  className={tabButton(tab === 'cli')} onClick={() => setTab('cli')}>
+            <Tabs value={tab} onValueChange={value => { if (value === 'cli' || value === 'providers') setTab(value); }} className="gap-0">
+              <TabsList variant="line" aria-label="模型与提供商"
+                className="mb-4 h-10 w-full justify-start border-b border-[var(--mm-border-stone-200)] p-0 group-data-[orientation=horizontal]/tabs:h-10">
+                <TabsTrigger value="cli" id="settings-tab-cli" aria-controls="settings-panel-cli" className={settingsTab}>
                   本机 CLI{cliCount > 0 ? `（${cliCount}）` : ''}
-                </button>
-                <button type="button" role="tab" id="settings-tab-providers" aria-controls="settings-panel-providers"
-                  aria-selected={tab === 'providers'} tabIndex={tab === 'providers' ? 0 : -1}
-                  ref={element => { tabRefs.current.providers = element; }}
-                  className={tabButton(tab === 'providers')} onClick={() => setTab('providers')}>
+                </TabsTrigger>
+                <TabsTrigger value="providers" id="settings-tab-providers" aria-controls="settings-panel-providers" className={settingsTab}>
                   API 提供商
-                </button>
-              </div>
+                </TabsTrigger>
+              </TabsList>
               {/* 两个面板保持挂载（hidden 切换）：表单草稿与测试结果不因切 Tab 蒸发 */}
-              <div role="tabpanel" id="settings-panel-cli" aria-labelledby="settings-tab-cli" hidden={tab !== 'cli'}>
+              <TabsContent forceMount value="cli" id="settings-panel-cli" aria-labelledby="settings-tab-cli" hidden={tab !== 'cli'}>
                 <AgentSettings />
-              </div>
-              <div role="tabpanel" id="settings-panel-providers" aria-labelledby="settings-tab-providers" hidden={tab !== 'providers'}>
-                <ByokSettings />
-              </div>
+              </TabsContent>
+              <TabsContent forceMount value="providers" id="settings-panel-providers" aria-labelledby="settings-tab-providers" hidden={tab !== 'providers'}>
+                <ByokSettings onDraftStateChange={handleDraftState} />
+              </TabsContent>
+            </Tabs>
           </div>
-          {section === 'archives' && <ArchivedCoursewares onOpen={onClose} />}
+          {section === 'archives' && <ArchivedCoursewares onOpen={onClose} onOpenRequest={requestClose} />}
+          {section === 'appearance' && <AppearanceSettings />}
           <div hidden={section !== 'storage'}><DataStorageSettings active={section === 'storage'} /></div>
           {section === 'help' && <HelpSettings />}
           {section === 'about' && <AboutSettings />}
         </div>
       </div>
     </div>
-  </dialog>;
+    </DialogContent>
+  </Dialog>;
 }

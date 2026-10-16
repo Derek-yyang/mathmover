@@ -3,7 +3,7 @@
  *
  * 为什么不复制工具定义：真实 agent（claude/codex/dsh）经 --mcp-config 拉起
  * mcp-stdio 拿到的工具，就是这里的工具——schema 走 tools/list 现取、执行走
- * tools/call，语义与真实 agent 完全一致（submit_construction 的账本、体检
+ * tools/call，语义与真实 agent 完全一致（ggb_apply 的账本、体检
  * 全在 daemon 侧，一分不差）。链路同真实 agent：
  *   BYOK 循环 ──stdio──▶ mcp-stdio ──HTTP──▶ daemon ──WS──▶ 页面画布
  *

@@ -9,7 +9,7 @@ import dynamic from 'next/dynamic';
 
 const GeoGebraBoard = dynamic(() => import('@/components/GeoGebraBoard'), {
   ssr: false,
-  loading: () => <div className="w-full h-full flex items-center justify-center bg-stone-50 text-stone-400 font-bold">加载画板中...</div>
+  loading: () => <div className="w-full h-full flex items-center justify-center bg-[var(--mm-bg-stone-50)] text-[var(--mm-text-stone-400)] font-bold">加载画板中...</div>
 });
 
 export default function LandingPage() {
@@ -295,53 +295,53 @@ SetColor(sF, "Black")
   }, [activeShowcase, ggbApplet]);
 
   return (
-    <div className="min-h-screen bg-[#FDFCF8] text-stone-800 font-sans selection:bg-emerald-100 selection:text-emerald-900 relative overflow-x-hidden">
+    <div className="min-h-screen bg-[var(--mm-canvas-shell)] text-[var(--mm-text-stone-800)] font-sans selection:bg-[var(--mm-bg-emerald-100)] selection:text-[var(--mm-text-emerald-900)] relative overflow-x-hidden">
       
       {/* Organic Ambience (Absolute) */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         {/* Natural Glows */}
-        <div className="absolute top-[-10%] left-[-5%] w-[45%] h-[45%] bg-emerald-100/40 rounded-full blur-[120px] mix-blend-multiply animate-pulse-slow"></div>
-        <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-lime-100/40 rounded-full blur-[100px] mix-blend-multiply animate-pulse-slow delay-1000"></div>
+        <div className="absolute top-[-10%] left-[-5%] w-[45%] h-[45%] bg-[var(--mm-bg-emerald-100)]/40 rounded-full blur-[120px] mix-blend-multiply animate-pulse-slow"></div>
+        <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-[var(--mm-bg-lime-100)]/40 rounded-full blur-[100px] mix-blend-multiply animate-pulse-slow delay-1000"></div>
         
         {/* Floating Shapes/Doodles - Green Theme */}
         <div className="absolute top-32 left-12 opacity-40 hidden lg:block animate-bounce-slow">
-            <div className="w-12 h-12 border-4 border-dashed border-emerald-300 rounded-full rotate-12"></div>
+            <div className="w-12 h-12 border-4 border-dashed border-[var(--mm-border-emerald-300)] rounded-full rotate-12"></div>
         </div>
         <div className="absolute bottom-40 right-24 opacity-40 hidden lg:block animate-bounce-slow delay-500">
-            <div className="w-16 h-16 border-4 border-dashed border-teal-300 rotate-45 transform skew-x-12"></div>
+            <div className="w-16 h-16 border-4 border-dashed border-[var(--mm-border-teal-300)] rotate-45 transform skew-x-12"></div>
         </div>
         {/* Hand-drawn style arrow using CSS borders */}
         <div className="absolute top-44 right-[18%] opacity-30 hidden xl:block rotate-6">
-            <div className="w-20 h-20 border-t-4 border-r-4 border-emerald-400 rounded-tr-[3rem]"></div>
+            <div className="w-20 h-20 border-t-4 border-r-4 border-[var(--mm-border-emerald-400)] rounded-tr-[3rem]"></div>
         </div>
       </div>
 
       {/* Navbar */}
-      <nav className="fixed top-0 w-full z-50 transition-all duration-300 bg-[#FDFCF8]/80 backdrop-blur-md border-b border-stone-200/50">
+      <nav className="fixed top-0 w-full z-50 transition-all duration-300 bg-[var(--mm-canvas-shell)]/80 backdrop-blur-md border-b border-[var(--mm-border-stone-200)]/50">
         <div className="w-full max-w-[1440px] mx-auto px-10 h-20 flex items-center justify-between">
           {/* Logo Section */}
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-[4px_4px_0px_0px_rgba(16,185,129,0.2)] transform -rotate-2 hover:rotate-0 transition-transform">
+            <div className="w-10 h-10 bg-gradient-to-br from-[var(--mm-bg-emerald-500)] to-[var(--mm-bg-green-600)] rounded-xl flex items-center justify-center text-white font-black text-xl shadow-[4px_4px_0px_0px_rgba(16,185,129,0.2)] transform -rotate-2 hover:rotate-0 transition-transform">
               M
             </div>
-            <span className="font-bold text-xl tracking-tight text-stone-800">
+            <span className="font-bold text-xl tracking-tight text-[var(--mm-text-stone-800)]">
               MathMover
             </span>
           </div>
 
           {/* Center Navigation - Premium Look */}
           <div className="hidden md:flex items-center gap-10 absolute left-1/2 transform -translate-x-1/2">
-            <Link href="#features" scroll={true} className="text-sm font-medium text-zinc-600 hover:text-emerald-600 transition-colors relative group">
+            <Link href="#features" scroll={true} className="text-sm font-medium text-[var(--mm-text-stone-600)] hover:text-[var(--mm-text-emerald-600)] transition-colors relative group">
               功能特性
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-emerald-600 transition-all duration-300 group-hover:w-full rounded-full opacity-80"></span>
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[var(--mm-bg-emerald-600)] transition-all duration-300 group-hover:w-full rounded-full opacity-80"></span>
             </Link>
-            <Link href="#showcase" scroll={true} className="text-sm font-medium text-zinc-600 hover:text-emerald-600 transition-colors relative group">
+            <Link href="#showcase" scroll={true} className="text-sm font-medium text-[var(--mm-text-stone-600)] hover:text-[var(--mm-text-emerald-600)] transition-colors relative group">
               案例展示
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-emerald-600 transition-all duration-300 group-hover:w-full rounded-full opacity-80"></span>
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[var(--mm-bg-emerald-600)] transition-all duration-300 group-hover:w-full rounded-full opacity-80"></span>
             </Link>
-            <Link href="#pricing" scroll={true} className="text-sm font-medium text-zinc-600 hover:text-emerald-600 transition-colors relative group">
+            <Link href="#pricing" scroll={true} className="text-sm font-medium text-[var(--mm-text-stone-600)] hover:text-[var(--mm-text-emerald-600)] transition-colors relative group">
               开源免费
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-emerald-600 transition-all duration-300 group-hover:w-full rounded-full opacity-80"></span>
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[var(--mm-bg-emerald-600)] transition-all duration-300 group-hover:w-full rounded-full opacity-80"></span>
             </Link>
           </div>
 
@@ -351,18 +351,18 @@ SetColor(sF, "Black")
               href="#github"
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-stone-200 bg-white/90 text-stone-700 text-sm font-semibold hover:border-stone-300 hover:bg-stone-50 transition-all shadow-sm hover:shadow active:scale-95 group"
+              className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-[var(--mm-border-stone-200)] bg-[var(--mm-surface)]/90 text-[var(--mm-text-stone-700)] text-sm font-semibold hover:border-[var(--mm-border-stone-300)] hover:bg-[var(--mm-bg-stone-50)] transition-all shadow-sm hover:shadow active:scale-95 group"
             >
-              <Github className="w-4 h-4 text-stone-700 group-hover:text-black transition-colors" />
+              <Github className="w-4 h-4 text-[var(--mm-text-stone-700)] group-hover:text-[var(--mm-text-stone-900)] transition-colors" />
               <span>GitHub</span>
-              <span className="inline-flex items-center gap-1 text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full group-hover:text-amber-500 group-hover:bg-amber-50 transition-colors">
-                <Star className="w-3 h-3 fill-current text-amber-400" />
+              <span className="inline-flex items-center gap-1 text-xs text-[var(--mm-text-stone-400)] bg-[var(--mm-bg-stone-100)] px-2 py-0.5 rounded-full group-hover:text-[var(--mm-text-amber-500)] group-hover:bg-[var(--mm-bg-amber-50)] transition-colors">
+                <Star className="w-3 h-3 fill-current text-[var(--mm-text-amber-400)]" />
                 Star
               </span>
             </a>
             <Link
               href="/dashboard"
-              className="px-6 py-2.5 rounded-full font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm hover:shadow-md hover:-translate-y-[1px] transition-all active:scale-95"
+              className="px-6 py-2.5 rounded-full font-bold text-white bg-[var(--mm-bg-emerald-500)] hover:bg-[var(--mm-bg-emerald-600)] shadow-sm hover:shadow-md hover:-translate-y-[1px] transition-all active:scale-95"
             >
               在线试用
             </Link>
@@ -375,24 +375,24 @@ SetColor(sF, "Black")
         <div className="max-w-5xl mx-auto px-6 text-center">
           
           {/* Organic Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm font-bold mb-8 animate-fade-in-up transform -rotate-1 hover:rotate-0 transition-transform cursor-default shadow-sm">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--mm-bg-emerald-50)] border border-[var(--mm-border-emerald-100)] text-[var(--mm-text-emerald-700)] text-sm font-bold mb-8 animate-fade-in-up transform -rotate-1 hover:rotate-0 transition-transform cursor-default shadow-sm">
             <Leaf className="w-3.5 h-3.5 fill-emerald-100" />
             <span>播种逻辑思维的种子</span>
           </div>
  
           {/* Headline */}
-          <h1 className="text-6xl sm:text-7xl font-black tracking-tight text-stone-800 mb-8 leading-[1.1] text-center w-full pl-2">
+          <h1 className="text-6xl sm:text-7xl font-black tracking-tight text-[var(--mm-text-stone-800)] mb-8 leading-[1.1] text-center w-full pl-2">
             让数学可视化，<br className="hidden sm:block" />
-            <span className="relative inline-block text-emerald-600">
+            <span className="relative inline-block text-[var(--mm-text-emerald-600)]">
               仅需数秒
               {/* Underline scribble - Green */}
-              <svg className="absolute w-full h-3 -bottom-2 left-0 text-emerald-300 fill-transparent stroke-current stroke-[4]" viewBox="0 0 100 10" preserveAspectRatio="none">
+              <svg className="absolute w-full h-3 -bottom-2 left-0 text-[var(--mm-text-emerald-300)] fill-transparent stroke-current stroke-[4]" viewBox="0 0 100 10" preserveAspectRatio="none">
                  <path d="M0 5 Q 50 12 100 5" />
               </svg>
             </span>
           </h1>
  
-          <p className="text-xl text-stone-500 mb-12 max-w-2xl mx-auto leading-relaxed font-medium">
+          <p className="text-xl text-[var(--mm-text-stone-500)] mb-12 max-w-2xl mx-auto leading-relaxed font-medium">
             一个有生命力的创作空间，让抽象问题绽放为交互式几何。
             上传一张快照，让我们的 AI 将其培育为动态的 GeoGebra 画布。
           </p>
@@ -401,7 +401,7 @@ SetColor(sF, "Black")
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20 sm:mb-24">
             <Link
               href="/dashboard"
-              className="w-full sm:w-auto px-8 py-4 rounded-full font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
+              className="w-full sm:w-auto px-8 py-4 rounded-full font-bold text-white bg-[var(--mm-bg-emerald-500)] hover:bg-[var(--mm-bg-emerald-600)] shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group"
             >
               <span>在线试用 (Web Demo)</span>
               <ArrowRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
@@ -410,9 +410,9 @@ SetColor(sF, "Black")
               href="#releases"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full sm:w-auto px-8 py-4 bg-white text-stone-700 border-2 border-stone-200 rounded-full font-bold text-lg hover:border-emerald-500 hover:text-emerald-600 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-8 py-4 bg-[var(--mm-surface)] text-[var(--mm-text-stone-700)] border-2 border-[var(--mm-border-stone-200)] rounded-full font-bold text-lg hover:border-[var(--mm-border-emerald-500)] hover:text-[var(--mm-text-emerald-600)] transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] flex items-center justify-center gap-2"
             >
-              <Download className="w-5 h-5 text-emerald-600" />
+              <Download className="w-5 h-5 text-[var(--mm-text-emerald-600)]" />
               <span>下载桌面端</span>
             </a>
           </div>
@@ -420,11 +420,11 @@ SetColor(sF, "Black")
           {/* Visual Center - Paper Card */}
           <div className="relative max-w-4xl mx-auto">
             {/* Background rotation accent - Earthy Tones */}
-            <div className="absolute inset-0 bg-[#E8F5E9] rounded-[2.5rem] transform rotate-2 scale-105 opacity-80"></div>
-            <div className="absolute inset-0 bg-[#F1F8E9] rounded-[2.5rem] transform -rotate-1 scale-105 opacity-80"></div>
+            <div className="absolute inset-0 bg-[var(--mm-bg-softgreen-1)] rounded-[2.5rem] transform rotate-2 scale-105 opacity-80"></div>
+            <div className="absolute inset-0 bg-[var(--mm-bg-softgreen-2)] rounded-[2.5rem] transform -rotate-1 scale-105 opacity-80"></div>
             
-            <div id="demo" className="relative bg-white rounded-[2rem] border-2 border-stone-100 shadow-xl overflow-hidden p-4 transform transition-transform hover:scale-[1.01] duration-500">
-              <div className="bg-black rounded-[1.5rem] overflow-hidden aspect-video relative shadow-inner border border-stone-200">
+            <div id="demo" className="relative bg-[var(--mm-surface)] rounded-[2rem] border-2 border-[var(--mm-border-stone-100)] shadow-xl overflow-hidden p-4 transform transition-transform hover:scale-[1.01] duration-500">
+              <div className="bg-black rounded-[1.5rem] overflow-hidden aspect-video relative shadow-inner border border-[var(--mm-border-stone-200)]">
                 <iframe 
                     src={`//player.bilibili.com/player.html?bvid=${BILIBILI_BV_ID}&page=1&high_quality=1&danmaku=0`}
                     className="w-full h-full rounded-[1.5rem]"
@@ -442,10 +442,10 @@ SetColor(sF, "Black")
       <section className="py-24 relative z-10" id="features">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16 space-y-4">
-              <h2 className="text-4xl md:text-5xl font-black text-stone-800 tracking-tight">
+              <h2 className="text-4xl md:text-5xl font-black text-[var(--mm-text-stone-800)] tracking-tight">
                   不仅是工具，<br/>更是思维的延伸
               </h2>
-              <p className="text-stone-500 font-bold text-lg max-w-2xl mx-auto">
+              <p className="text-[var(--mm-text-stone-500)] font-bold text-lg max-w-2xl mx-auto">
                   五大核心引擎，重塑数学探索体验
               </p>
           </div>
@@ -457,25 +457,25 @@ SetColor(sF, "Black")
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="md:col-span-4 md:row-span-1 bg-white rounded-[2rem] p-8 md:p-10 border border-stone-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group flex flex-col justify-between"
+                className="md:col-span-4 md:row-span-1 bg-[var(--mm-surface)] rounded-[2rem] p-8 md:p-10 border border-[var(--mm-border-stone-100)] shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group flex flex-col justify-between"
             >
-                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-[80px] -mr-20 -mt-20 group-hover:bg-emerald-100 transition-colors"></div>
+                <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--mm-bg-emerald-50)] rounded-full blur-[80px] -mr-20 -mt-20 group-hover:bg-[var(--mm-bg-emerald-100)] transition-colors"></div>
                 {/* Background Pattern */}
                 <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "radial-gradient(#10b981 1px, transparent 1px)", backgroundSize: "24px 24px" }}></div>
 
                 <div className="relative z-10">
-                    <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mb-6 border border-emerald-100 group-hover:rotate-6 transition-transform duration-300">
-                        <ScanEye className="w-7 h-7 text-emerald-600" />
+                    <div className="w-14 h-14 bg-[var(--mm-bg-emerald-50)] rounded-2xl flex items-center justify-center mb-6 border border-[var(--mm-border-emerald-100)] group-hover:rotate-6 transition-transform duration-300">
+                        <ScanEye className="w-7 h-7 text-[var(--mm-text-emerald-600)]" />
                     </div>
-                    <h3 className="text-2xl font-black text-stone-800 mb-3">AI 视觉解析：从快照到逻辑</h3>
-                    <p className="text-stone-500 font-medium leading-relaxed max-w-lg">
+                    <h3 className="text-2xl font-black text-[var(--mm-text-stone-800)] mb-3">AI 视觉解析：从快照到逻辑</h3>
+                    <p className="text-[var(--mm-text-stone-500)] font-medium leading-relaxed max-w-lg">
                         强大的 AI 视觉引擎，不仅能看懂题目，更能读懂隐含的几何约束。无论是手写草稿还是书本截图，瞬间将其转化为可运行的严谨代码。
                     </p>
                 </div>
                 <div className="mt-8 flex gap-2">
-                   <div className="px-3 py-1 bg-stone-50 rounded-lg text-xs font-bold text-stone-400 border border-stone-100">OCR 识别</div>
-                   <div className="px-3 py-1 bg-stone-50 rounded-lg text-xs font-bold text-stone-400 border border-stone-100">语义理解</div>
-                   <div className="px-3 py-1 bg-stone-50 rounded-lg text-xs font-bold text-stone-400 border border-stone-100">代码生成</div>
+                   <div className="px-3 py-1 bg-[var(--mm-bg-stone-50)] rounded-lg text-xs font-bold text-[var(--mm-text-stone-400)] border border-[var(--mm-border-stone-100)]">OCR 识别</div>
+                   <div className="px-3 py-1 bg-[var(--mm-bg-stone-50)] rounded-lg text-xs font-bold text-[var(--mm-text-stone-400)] border border-[var(--mm-border-stone-100)]">语义理解</div>
+                   <div className="px-3 py-1 bg-[var(--mm-bg-stone-50)] rounded-lg text-xs font-bold text-[var(--mm-text-stone-400)] border border-[var(--mm-border-stone-100)]">代码生成</div>
                 </div>
             </motion.div>
 
@@ -485,16 +485,16 @@ SetColor(sF, "Black")
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.1 }}
-                className="md:col-span-2 md:row-span-1 bg-white rounded-[2rem] p-8 border border-stone-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group flex flex-col"
+                className="md:col-span-2 md:row-span-1 bg-[var(--mm-surface)] rounded-[2rem] p-8 border border-[var(--mm-border-stone-100)] shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group flex flex-col"
             >
-                <div className="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-full blur-[60px] -mr-10 -mt-10 group-hover:bg-teal-100 transition-colors"></div>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--mm-bg-teal-50)] rounded-full blur-[60px] -mr-10 -mt-10 group-hover:bg-[var(--mm-bg-teal-100)] transition-colors"></div>
                 
                 <div className="relative z-10">
-                    <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center mb-6 border border-teal-100 group-hover:-rotate-6 transition-transform duration-300">
-                        <Box className="w-6 h-6 text-teal-600" />
+                    <div className="w-12 h-12 bg-[var(--mm-bg-teal-50)] rounded-2xl flex items-center justify-center mb-6 border border-[var(--mm-border-teal-100)] group-hover:-rotate-6 transition-transform duration-300">
+                        <Box className="w-6 h-6 text-[var(--mm-text-teal-600)]" />
                     </div>
-                    <h3 className="text-xl font-black text-stone-800 mb-3">全维度引擎</h3>
-                    <p className="text-stone-500 font-medium text-sm leading-relaxed">
+                    <h3 className="text-xl font-black text-[var(--mm-text-stone-800)] mb-3">全维度引擎</h3>
+                    <p className="text-[var(--mm-text-stone-500)] font-medium text-sm leading-relaxed">
                         无论是复杂的函数曲线，还是精密的立体几何动点，我们都能完美渲染。2D 与 3D 无缝切换。
                     </p>
                 </div>
@@ -506,16 +506,16 @@ SetColor(sF, "Black")
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.2 }}
-                className="md:col-span-2 md:row-span-1 bg-white rounded-[2rem] p-8 border border-stone-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group flex flex-col"
+                className="md:col-span-2 md:row-span-1 bg-[var(--mm-surface)] rounded-[2rem] p-8 border border-[var(--mm-border-stone-100)] shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group flex flex-col"
             >
-                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-lime-50 rounded-full blur-[60px] -ml-10 -mb-10 group-hover:bg-lime-100 transition-colors"></div>
+                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-[var(--mm-bg-lime-50)] rounded-full blur-[60px] -ml-10 -mb-10 group-hover:bg-[var(--mm-bg-lime-100)] transition-colors"></div>
 
                 <div className="relative z-10">
-                    <div className="w-12 h-12 bg-lime-50 rounded-2xl flex items-center justify-center mb-6 border border-lime-100 group-hover:scale-110 transition-transform duration-300">
-                        <MousePointerClick className="w-6 h-6 text-lime-600" />
+                    <div className="w-12 h-12 bg-[var(--mm-bg-lime-50)] rounded-2xl flex items-center justify-center mb-6 border border-[var(--mm-border-lime-100)] group-hover:scale-110 transition-transform duration-300">
+                        <MousePointerClick className="w-6 h-6 text-[var(--mm-text-lime-600)]" />
                     </div>
-                    <h3 className="text-xl font-black text-stone-800 mb-3">交互式课件</h3>
-                    <p className="text-stone-500 font-medium text-sm leading-relaxed">
+                    <h3 className="text-xl font-black text-[var(--mm-text-stone-800)] mb-3">交互式课件</h3>
+                    <p className="text-[var(--mm-text-stone-500)] font-medium text-sm leading-relaxed">
                         自动生成动态滑块，拖动即可观察动点轨迹，拒绝死板，让数学逻辑在眼前跳动。
                     </p>
                 </div>
@@ -527,16 +527,16 @@ SetColor(sF, "Black")
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.3 }}
-                className="md:col-span-2 md:row-span-1 bg-white rounded-[2rem] p-8 border border-stone-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group flex flex-col"
+                className="md:col-span-2 md:row-span-1 bg-[var(--mm-surface)] rounded-[2rem] p-8 border border-[var(--mm-border-stone-100)] shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group flex flex-col"
             >
-                <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-full blur-[50px] -mr-8 -mt-8 group-hover:bg-orange-100 transition-colors"></div>
+                <div className="absolute top-0 right-0 w-24 h-24 bg-[var(--mm-bg-orange-50)] rounded-full blur-[50px] -mr-8 -mt-8 group-hover:bg-[var(--mm-bg-orange-100)] transition-colors"></div>
 
                 <div className="relative z-10">
-                    <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center mb-6 border border-orange-100 group-hover:rotate-12 transition-transform duration-300">
-                        <Cpu className="w-6 h-6 text-orange-600" />
+                    <div className="w-12 h-12 bg-[var(--mm-bg-orange-50)] rounded-2xl flex items-center justify-center mb-6 border border-[var(--mm-border-orange-100)] group-hover:rotate-12 transition-transform duration-300">
+                        <Cpu className="w-6 h-6 text-[var(--mm-text-orange-600)]" />
                     </div>
-                    <h3 className="text-xl font-black text-stone-800 mb-3">BYOK 极客模式</h3>
-                    <p className="text-stone-500 font-medium text-sm leading-relaxed">
+                    <h3 className="text-xl font-black text-[var(--mm-text-stone-800)] mb-3">BYOK 极客模式</h3>
+                    <p className="text-[var(--mm-text-stone-500)] font-medium text-sm leading-relaxed">
                         支持 DeepSeek、GPT-4 等模型接入，彻底解决成本焦虑，实现离线级隐私保护。
                     </p>
                 </div>
@@ -548,16 +548,16 @@ SetColor(sF, "Black")
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.4 }}
-                className="md:col-span-2 md:row-span-1 bg-white rounded-[2rem] p-8 border border-stone-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group flex flex-col"
+                className="md:col-span-2 md:row-span-1 bg-[var(--mm-surface)] rounded-[2rem] p-8 border border-[var(--mm-border-stone-100)] shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group flex flex-col"
             >
-                <div className="absolute bottom-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-[50px] -mr-8 -mb-8 group-hover:bg-blue-100 transition-colors"></div>
+                <div className="absolute bottom-0 right-0 w-24 h-24 bg-[var(--mm-bg-blue-50)] rounded-full blur-[50px] -mr-8 -mb-8 group-hover:bg-[var(--mm-bg-blue-100)] transition-colors"></div>
 
                 <div className="relative z-10">
-                    <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 border border-blue-100 group-hover:-translate-y-1 transition-transform duration-300">
-                        <FileUp className="w-6 h-6 text-blue-600" />
+                    <div className="w-12 h-12 bg-[var(--mm-bg-blue-50)] rounded-2xl flex items-center justify-center mb-6 border border-[var(--mm-border-blue-100)] group-hover:-translate-y-1 transition-transform duration-300">
+                        <FileUp className="w-6 h-6 text-[var(--mm-text-blue-600)]" />
                     </div>
-                    <h3 className="text-xl font-black text-stone-800 mb-3">一键全平台导出</h3>
-                    <p className="text-stone-500 font-medium text-sm leading-relaxed">
+                    <h3 className="text-xl font-black text-[var(--mm-text-stone-800)] mb-3">一键全平台导出</h3>
+                    <p className="text-[var(--mm-text-stone-500)] font-medium text-sm leading-relaxed">
                         支持导出独立网页文件，无需环境，有浏览器就能在课堂演示。
                     </p>
                 </div>
@@ -570,10 +570,10 @@ SetColor(sF, "Black")
       <section className="py-24 relative z-10" id="showcase">
           <div className="max-w-6xl mx-auto px-6">
               <div className="text-center mb-16 space-y-4">
-                  <h2 className="text-4xl md:text-5xl font-black text-stone-800 tracking-tight">
+                  <h2 className="text-4xl md:text-5xl font-black text-[var(--mm-text-stone-800)] tracking-tight">
                       生成案例展示
                   </h2>
-                  <p className="text-stone-500 font-bold text-lg max-w-2xl mx-auto">
+                  <p className="text-[var(--mm-text-stone-500)] font-bold text-lg max-w-2xl mx-auto">
                       无需猜测，直接上手。点击左侧案例，体验 AI 如何精准捕捉几何逻辑。
                   </p>
               </div>
@@ -588,14 +588,14 @@ SetColor(sF, "Black")
                               onClick={() => setActiveShowcase(index)}
                               className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 flex-1 flex flex-col justify-center ${
                                   activeShowcase === index 
-                                    ? "bg-white border-emerald-500 shadow-lg scale-[1.02]" 
-                                    : "bg-white/50 border-stone-100 hover:border-emerald-200 hover:bg-white"
+                                    ? "bg-[var(--mm-surface)] border-[var(--mm-border-emerald-500)] shadow-lg scale-[1.02]"
+                                    : "bg-[var(--mm-surface)]/50 border-[var(--mm-border-stone-100)] hover:border-[var(--mm-border-emerald-200)] hover:bg-[var(--mm-surface)]"
                               }`}
                           >
-                              <h3 className={`font-black text-lg mb-2 ${activeShowcase === index ? "text-emerald-700" : "text-stone-600"}`}>
+                              <h3 className={`font-black text-lg mb-2 ${activeShowcase === index ? "text-[var(--mm-text-emerald-700)]" : "text-[var(--mm-text-stone-600)]"}`}>
                                   {item.title}
                               </h3>
-                              <p className="text-sm text-stone-400 font-medium leading-relaxed">
+                              <p className="text-sm text-[var(--mm-text-stone-400)] font-medium leading-relaxed">
                                   {item.desc}
                               </p>
                           </div>
@@ -603,9 +603,9 @@ SetColor(sF, "Black")
                   </div>
 
                   {/* Right Stage (Main GeoGebra Area) */}
-                  <div className="w-full lg:w-2/3 bg-stone-800 rounded-[2rem] p-3 shadow-2xl flex relative overflow-hidden ring-8 ring-stone-900/5">
+                  <div className="w-full lg:w-2/3 bg-[var(--mm-bg-stone-800)] rounded-[2rem] p-3 shadow-2xl flex relative overflow-hidden ring-8 ring-[var(--mm-border-stone-900)]/5">
                       {/* Tablet Frame */}
-                      <div className="w-full h-full bg-stone-100 rounded-[1.5rem] overflow-hidden relative group">
+                      <div className="w-full h-full bg-[var(--mm-bg-stone-100)] rounded-[1.5rem] overflow-hidden relative group">
                           
                           {/* Main Content: GeoGebra Board (Full Size) */}
                           <div className="absolute inset-0 z-0">
@@ -628,19 +628,19 @@ SetColor(sF, "Black")
                           </div>
 
                           {/* Floating Reference Image (Picture-in-Picture) */}
-                          <div className="absolute bottom-6 left-6 z-10 max-w-[240px] max-h-[180px] bg-white p-2 rounded-lg shadow-2xl border-4 border-white transform transition-transform duration-300 hover:scale-[2] hover:z-50 origin-bottom-left cursor-zoom-in rotate-[-2deg] hover:rotate-0 flex items-center justify-center">
-                              <div className="relative overflow-hidden rounded bg-stone-50">
+                          <div className="absolute bottom-6 left-6 z-10 max-w-[240px] max-h-[180px] bg-[var(--mm-surface)] p-2 rounded-lg shadow-2xl border-4 border-[var(--mm-border-white)] transform transition-transform duration-300 hover:scale-[2] hover:z-50 origin-bottom-left cursor-zoom-in rotate-[-2deg] hover:rotate-0 flex items-center justify-center">
+                              <div className="relative overflow-hidden rounded bg-[var(--mm-bg-stone-50)]">
                                   <img 
                                     src={showcaseCases[activeShowcase].image} 
                                     alt="Original Problem" 
                                     className="w-auto h-auto max-w-full max-h-full object-contain block"
                                   />
                               </div>
-                              <span className="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">原始题目</span>
+                              <span className="absolute -top-3 -right-3 bg-[var(--mm-bg-red-500)] text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">原始题目</span>
                           </div>
 
                           {/* Interaction Hint Overlay */}
-                          <div className="absolute top-6 right-6 z-10 bg-emerald-500/90 text-white text-xs font-bold px-4 py-2 rounded-full backdrop-blur-sm pointer-events-none shadow-lg animate-pulse flex items-center gap-2">
+                          <div className="absolute top-6 right-6 z-10 bg-[var(--mm-bg-emerald-500)]/90 text-white text-xs font-bold px-4 py-2 rounded-full backdrop-blur-sm pointer-events-none shadow-lg animate-pulse flex items-center gap-2">
                               <MousePointerClick className="w-4 h-4" />
                               试着拖动图形
                           </div>
@@ -657,42 +657,42 @@ SetColor(sF, "Black")
         <div className="max-w-4xl mx-auto px-6">
 
           <div className="text-center mb-14 space-y-5">
-              <h2 className="text-4xl md:text-5xl font-black text-stone-800 tracking-tight">
+              <h2 className="text-4xl md:text-5xl font-black text-[var(--mm-text-stone-800)] tracking-tight">
                   完全免费，开箱即用
               </h2>
-              <p className="text-stone-500 font-bold max-w-2xl mx-auto text-lg">
+              <p className="text-[var(--mm-text-stone-500)] font-bold max-w-2xl mx-auto text-lg">
                   MathMover 是开源项目。接入你自己的模型 API Key，即可无限制使用全部功能。
               </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-3xl border border-stone-200 p-8 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <div className="bg-[var(--mm-surface)] rounded-3xl border border-[var(--mm-border-stone-200)] p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[var(--mm-bg-emerald-50)] text-[var(--mm-text-emerald-600)] flex items-center justify-center mx-auto">
                       <Cpu className="w-6 h-6" />
                   </div>
-                  <h3 className="font-bold text-stone-800 text-lg">自带 Key</h3>
-                  <p className="text-sm text-stone-500 font-medium leading-relaxed">支持 OpenAI 与 Anthropic 协议的任意兼容端点，在工作台设置中一分钟完成配置。</p>
+                  <h3 className="font-bold text-[var(--mm-text-stone-800)] text-lg">自带 Key</h3>
+                  <p className="text-sm text-[var(--mm-text-stone-500)] font-medium leading-relaxed">支持 OpenAI 与 Anthropic 协议的任意兼容端点，在工作台设置中一分钟完成配置。</p>
               </div>
-              <div className="bg-white rounded-3xl border border-stone-200 p-8 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <div className="bg-[var(--mm-surface)] rounded-3xl border border-[var(--mm-border-stone-200)] p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[var(--mm-bg-emerald-50)] text-[var(--mm-text-emerald-600)] flex items-center justify-center mx-auto">
                       <Zap className="w-6 h-6" />
                   </div>
-                  <h3 className="font-bold text-stone-800 text-lg">无限制生成</h3>
-                  <p className="text-sm text-stone-500 font-medium leading-relaxed">没有积分与订阅，生成次数只取决于你自己的 API 额度。</p>
+                  <h3 className="font-bold text-[var(--mm-text-stone-800)] text-lg">无限制生成</h3>
+                  <p className="text-sm text-[var(--mm-text-stone-500)] font-medium leading-relaxed">没有积分与订阅，生成次数只取决于你自己的 API 额度。</p>
               </div>
-              <div className="bg-white rounded-3xl border border-stone-200 p-8 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <div className="bg-[var(--mm-surface)] rounded-3xl border border-[var(--mm-border-stone-200)] p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[var(--mm-bg-emerald-50)] text-[var(--mm-text-emerald-600)] flex items-center justify-center mx-auto">
                       <Leaf className="w-6 h-6" />
                   </div>
-                  <h3 className="font-bold text-stone-800 text-lg">本地与开源</h3>
-                  <p className="text-sm text-stone-500 font-medium leading-relaxed">配置与历史都保存在你自己的设备上，代码完全开放。</p>
+                  <h3 className="font-bold text-[var(--mm-text-stone-800)] text-lg">本地与开源</h3>
+                  <p className="text-sm text-[var(--mm-text-stone-500)] font-medium leading-relaxed">配置与历史都保存在你自己的设备上，代码完全开放。</p>
               </div>
           </div>
 
           <div className="mt-14 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/dashboard"
-              className="w-full sm:w-auto px-7 py-3.5 rounded-full font-bold text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 group"
+              className="w-full sm:w-auto px-7 py-3.5 rounded-full font-bold text-white bg-[var(--mm-bg-emerald-500)] hover:bg-[var(--mm-bg-emerald-600)] shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 group"
             >
               <span>免安装在线试用</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
@@ -701,9 +701,9 @@ SetColor(sF, "Black")
               href="#releases"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full sm:w-auto px-7 py-3.5 bg-white text-stone-700 border-2 border-stone-200 rounded-full font-bold text-base hover:border-emerald-500 hover:text-emerald-600 transition-all flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-7 py-3.5 bg-[var(--mm-surface)] text-[var(--mm-text-stone-700)] border-2 border-[var(--mm-border-stone-200)] rounded-full font-bold text-base hover:border-[var(--mm-border-emerald-500)] hover:text-[var(--mm-text-emerald-600)] transition-all flex items-center justify-center gap-2"
             >
-              <Download className="w-4 h-4 text-emerald-600" />
+              <Download className="w-4 h-4 text-[var(--mm-text-emerald-600)]" />
               <span>下载桌面端 (Windows / macOS)</span>
             </a>
           </div>
@@ -712,20 +712,20 @@ SetColor(sF, "Black")
       </section>
 
       {/* Footer */}
-      <footer className="py-12 border-t border-stone-200 bg-white">
+      <footer className="py-12 border-t border-[var(--mm-border-stone-200)] bg-[var(--mm-surface)]">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
            <div className="flex items-center gap-2.5 opacity-60 hover:opacity-100 transition-opacity">
-             <div className="w-8 h-8 bg-stone-800 rounded-lg flex items-center justify-center text-white text-xs font-bold">M</div>
-             <span className="font-bold text-stone-700 text-sm">MathMover Studio</span>
+             <div className="w-8 h-8 bg-[var(--mm-bg-stone-800)] rounded-lg flex items-center justify-center text-white text-xs font-bold">M</div>
+             <span className="font-bold text-[var(--mm-text-stone-700)] text-sm">MathMover Studio</span>
            </div>
 
            {/* Open Source Links */}
-           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-stone-500 font-medium">
+           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-[var(--mm-text-stone-500)] font-medium">
              <a
                href="#github"
                target="_blank"
                rel="noopener noreferrer"
-               className="inline-flex items-center gap-1.5 hover:text-stone-900 transition-colors"
+               className="inline-flex items-center gap-1.5 hover:text-[var(--mm-text-stone-900)] transition-colors"
              >
                <Github className="w-4 h-4" />
                <span>GitHub 仓库</span>
@@ -734,7 +734,7 @@ SetColor(sF, "Black")
                href="#releases"
                target="_blank"
                rel="noopener noreferrer"
-               className="hover:text-stone-900 transition-colors"
+               className="hover:text-[var(--mm-text-stone-900)] transition-colors"
              >
                版本发布 (Releases)
              </a>
@@ -742,13 +742,13 @@ SetColor(sF, "Black")
                href="#issues"
                target="_blank"
                rel="noopener noreferrer"
-               className="hover:text-stone-900 transition-colors"
+               className="hover:text-[var(--mm-text-stone-900)] transition-colors"
              >
                提交反馈与 Issue
              </a>
            </div>
 
-           <p className="text-stone-400 text-sm font-bold">&copy; 2026 by 北海鱼籽酱</p>
+           <p className="text-[var(--mm-text-stone-400)] text-sm font-bold">&copy; 2026 by 北海鱼籽酱</p>
         </div>
       </footer>
     </div>

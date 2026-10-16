@@ -160,7 +160,7 @@ const ThreadHistorySkeleton: FC = () => (
     role="status"
     className="animate-in fade-in fill-mode-both flex flex-col gap-y-6 [animation-delay:150ms] [animation-duration:200ms]"
   >
-    <span className="sr-only">Loading conversation</span>
+    <span className="sr-only">正在加载对话</span>
     <Skeleton className="ml-auto h-9 w-2/5 rounded-xl motion-reduce:animate-none" />
     <div className="flex flex-col gap-y-2">
       <Skeleton className="h-4 w-11/12 motion-reduce:animate-none" />
@@ -311,7 +311,7 @@ const SpokenMessage: FC = () => {
           className="text-muted-foreground mb-1.5 flex items-center gap-1.5 text-xs"
         >
           <PhoneIcon className="size-3" aria-hidden />
-          <span>Voice conversation</span>
+          <span>语音对话</span>
         </div>
       )}
       <div
@@ -326,7 +326,7 @@ const SpokenMessage: FC = () => {
           )}
         </span>
         <span className="sr-only">
-          {role === "user" ? "You said" : "Assistant said"}
+          {role === "user" ? "你说" : "助手说"}
         </span>
         <div className="min-w-0 flex-1 wrap-break-word">
           <MessagePrimitive.Parts components={{ Text: SpokenText }} />
@@ -335,7 +335,7 @@ const SpokenMessage: FC = () => {
               data-slot="aui_spoken-message-indicator"
               role="status"
               className="text-muted-foreground ms-1 animate-pulse font-sans"
-              aria-label="Assistant is speaking"
+              aria-label="助手正在说话"
             >
               ●
             </span>
@@ -355,14 +355,14 @@ const SpokenActionBar: FC = () => {
       className="aui-spoken-action-bar text-muted-foreground flex shrink-0 gap-1"
     >
       <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip="复制消息" className="size-6">
+        <Button variant="ghost" size="icon" aria-label="复制消息" className="aui-button-icon size-6 p-1 active:scale-90">
           <AuiIf condition={(s) => s.message.isCopied}>
             <CheckIcon className="animate-in zoom-in-50 fade-in duration-200 ease-out" />
           </AuiIf>
           <AuiIf condition={(s) => !s.message.isCopied}>
             <CopyIcon className="animate-in zoom-in-75 fade-in duration-150" />
           </AuiIf>
-        </TooltipIconButton>
+        </Button>
       </ActionBarPrimitive.Copy>
     </ActionBarPrimitive.Root>
   );
@@ -414,7 +414,7 @@ const ThreadLoadEarlier: FC = () => {
       }}
     >
       <span role="status" className="sr-only">
-        {loading ? "Loading earlier messages" : ""}
+        {loading ? "正在加载更早的消息" : ""}
       </span>
       {visible && (
         <ThreadPrimitive.LoadEarlier asChild>
@@ -427,7 +427,7 @@ const ThreadLoadEarlier: FC = () => {
             <span
               className={cn(loading && "shimmer motion-reduce:animate-none")}
             >
-              {loading ? "Loading earlier messages" : "Load earlier messages"}
+              {loading ? "正在加载更早的消息" : "加载更早的消息"}
             </span>
           </Button>
         </ThreadPrimitive.LoadEarlier>
@@ -440,7 +440,7 @@ const ThreadScrollToBottom: FC = () => {
   return (
     <ThreadPrimitive.ScrollToBottom asChild>
       <TooltipIconButton
-        tooltip="Scroll to bottom"
+        tooltip="回到最新消息"
         variant="outline"
         className="aui-thread-scroll-to-bottom dark:border-border dark:bg-background dark:hover:bg-accent absolute -top-12 z-10 self-center rounded-full p-4 disabled:invisible"
       >
@@ -454,7 +454,7 @@ const ThreadWelcome: FC = () => {
   return (
     <div className="aui-thread-welcome-root mb-6 flex flex-col px-2">
       <p className="aui-thread-welcome-message-inner fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-2xl font-medium tracking-tight duration-200">
-        How can I help you today?
+        想探索哪道数学题？
       </p>
     </div>
   );
@@ -504,12 +504,12 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
         >
           <ComposerAttachments />
           <ComposerPrimitive.Input
-            placeholder="Send a message..."
+            placeholder="输入题目，或粘贴题目截图…"
             className="aui-composer-input caret-primary placeholder:text-muted-foreground/60 max-h-48 min-h-10 w-full resize-none bg-transparent px-2.5 py-1 text-base leading-6 outline-none"
             rows={1}
             autoFocus={autoFocus}
             enterKeyHint="send"
-            aria-label="Message input"
+            aria-label="题目描述"
           />
           <ComposerAction />
         </div>
@@ -534,13 +534,13 @@ const ComposerAction: FC = () => {
           <AuiIf condition={(s) => s.composer.dictation == null}>
             <ComposerPrimitive.Dictate asChild>
               <TooltipIconButton
-                tooltip="Voice input"
+                tooltip="语音输入"
                 side="bottom"
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="aui-composer-dictate text-muted-foreground hover:text-foreground size-7 rounded-full"
-                aria-label="Start voice input"
+                aria-label="开始语音输入"
               >
                 <MicIcon className="aui-composer-dictate-icon size-4" />
               </TooltipIconButton>
@@ -549,13 +549,13 @@ const ComposerAction: FC = () => {
           <AuiIf condition={(s) => s.composer.dictation != null}>
             <ComposerPrimitive.StopDictation asChild>
               <TooltipIconButton
-                tooltip="Stop dictation"
+                tooltip="停止语音输入"
                 side="bottom"
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="aui-composer-stop-dictation text-destructive size-7 rounded-full"
-                aria-label="Stop voice input"
+                aria-label="停止语音输入"
               >
                 <SquareIcon className="aui-composer-stop-dictation-icon size-3.5 animate-pulse fill-current" />
               </TooltipIconButton>
@@ -571,13 +571,13 @@ const ComposerAction: FC = () => {
         >
           <ComposerPrimitive.Send asChild>
             <TooltipIconButton
-              tooltip="Send message"
+              tooltip="发送消息"
               side="bottom"
               type="button"
               variant="default"
               size="icon"
               className="aui-composer-send size-7 rounded-full"
-              aria-label="Send message"
+              aria-label="发送消息"
             >
               <ArrowUpIcon className="aui-composer-send-icon size-4" />
             </TooltipIconButton>
@@ -596,7 +596,7 @@ const ComposerAction: FC = () => {
               variant="default"
               size="icon"
               className="aui-composer-cancel size-7 rounded-full"
-              aria-label={isSending ? "Cancel sending" : "Stop generating"}
+              aria-label={isSending ? "取消发送" : "停止生成"}
             >
               <SquareIcon className="aui-composer-cancel-icon size-3.5 fill-current" />
             </Button>
@@ -610,7 +610,7 @@ const ComposerAction: FC = () => {
 const MessageError: FC = () => {
   return (
     <MessagePrimitive.Error>
-      <ErrorPrimitive.Root className="aui-message-error-root border-destructive bg-destructive/10 text-destructive dark:bg-destructive/5 mt-2 rounded-md border p-3 text-sm dark:text-red-200">
+      <ErrorPrimitive.Root className="aui-message-error-root border-destructive bg-destructive/10 text-destructive dark:bg-destructive/5 mt-2 rounded-md border p-3 text-sm dark:text-[var(--mm-text-red-200)]">
         <ErrorPrimitive.Message className="aui-message-error-message line-clamp-2" />
       </ErrorPrimitive.Root>
     </MessagePrimitive.Error>
@@ -735,14 +735,14 @@ const AssistantActionBar: FC = () => {
       className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 -ms-1 flex gap-1 duration-200"
     >
       <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip="复制消息">
+        <Button variant="ghost" size="icon" aria-label="复制消息" className="aui-button-icon size-6 p-1 active:scale-90">
           <AuiIf condition={(s) => s.message.isCopied}>
             <CheckIcon className="animate-in zoom-in-50 fade-in duration-200 ease-out" />
           </AuiIf>
           <AuiIf condition={(s) => !s.message.isCopied}>
             <CopyIcon className="animate-in zoom-in-75 fade-in duration-150" />
           </AuiIf>
-        </TooltipIconButton>
+        </Button>
       </ActionBarPrimitive.Copy>
       <AuiIf condition={(s) => s.thread.capabilities.feedback}>
         <ActionBarPrimitive.FeedbackPositive asChild>

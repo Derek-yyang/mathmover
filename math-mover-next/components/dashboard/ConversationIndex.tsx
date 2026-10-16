@@ -153,11 +153,11 @@ function ConversationIndex({ turns, viewportRef, contentRef, onNavigate }: Props
       previewId={previewState?.id === turn.id ? previewId : undefined} buttonsRef={buttonsRef}
       onNavigate={navigate} onPreview={showPreview} onFocus={focusMarker} onKey={focusAdjacent} />)}
     {preview && <div className="absolute right-full w-2" style={{ top: previewTop, height: previewHeight }} aria-hidden />}
-    {preview && <div id={previewId} data-conversation-preview role="tooltip" className="absolute right-8 rounded-lg border border-stone-200 bg-white px-3 py-2.5 text-xs leading-5 text-stone-800"
+    {preview && <div id={previewId} data-conversation-preview role="tooltip" className="absolute right-8 rounded-lg border border-[var(--mm-border-stone-200)] bg-[var(--mm-surface)] px-3 py-2.5 text-xs leading-5 text-[var(--mm-text-stone-800)]"
       style={{ top: previewTop, width: Math.min(260, layout.width - 48), maxHeight: previewHeight, overflowY: 'auto' }}>
-      <p className="mb-1 text-stone-600">第 {preview.number} 轮 · 共 {turns.length} 轮</p>
+      <p className="mb-1 text-[var(--mm-text-stone-600)]">第 {preview.number} 轮 · 共 {turns.length} 轮</p>
       <p className="line-clamp-3 break-words [overflow-wrap:anywhere]">{preview.preview}</p>
-      {preview.images > 0 && !preview.preview.startsWith('题目图片 ·') && <p className="mt-1 text-stone-600">题目图片 · {preview.images} 张</p>}
+      {preview.images > 0 && !preview.preview.startsWith('题目图片 ·') && <p className="mt-1 text-[var(--mm-text-stone-600)]">题目图片 · {preview.images} 张</p>}
     </div>}
   </nav>;
 }
@@ -174,9 +174,9 @@ const TurnMarker = memo(function TurnMarker({ turn, index, active, tabStop, prev
     ref={node => { if (node) buttonsRef.current.set(turn.id, node); else buttonsRef.current.delete(turn.id); }}
     aria-label={`第 ${turn.number} 轮：${turn.preview}`} aria-current={active ? 'location' : undefined}
     aria-describedby={previewId} tabIndex={tabStop ? 0 : -1} data-turn-id={turn.id}
-    className="group/index flex min-h-0 flex-1 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700"
+    className="group/index flex min-h-0 flex-1 cursor-pointer items-center justify-center rounded-sm outline-none focus-visible:bg-[var(--mm-bg-emerald-50)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--mm-border-emerald-700)]"
     onPointerEnter={() => onPreview(turn.id)} onFocus={() => onFocus(turn.id)} onClick={() => onNavigate(index)}
     onKeyDown={event => { if (onKey(index, event.key)) event.preventDefault(); }}>
-    <span aria-hidden className={`h-px rounded-full transition-[width,background-color] duration-150 motion-reduce:transition-none group-hover/index:w-3 group-hover/index:bg-stone-600 ${active ? 'w-3 bg-stone-700' : 'w-2 bg-stone-300'}`} />
+    <span aria-hidden className={`h-px rounded-full transition-[width,background-color] duration-150 motion-reduce:transition-none group-hover/index:w-3 group-hover/index:bg-[var(--mm-bg-stone-600)] ${active ? 'w-3 bg-[var(--mm-bg-stone-700)]' : 'w-2 bg-[var(--mm-bg-stone-300)]'}`} />
   </button>;
 });

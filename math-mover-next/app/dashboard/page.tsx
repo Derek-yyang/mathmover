@@ -22,9 +22,10 @@ import {
   CoursewareExportFormat,
 } from '@/components/dashboard/types';
 import { useCoursewareLibrary } from '@/hooks/useCoursewareLibrary';
-import type { CoursewareRecord } from '@/lib/courseware-client';
+import { syncConstructionDraft, type CoursewareRecord } from '@/lib/courseware-client';
 import { historyBeforeUserMessage } from '@/lib/assistant-chat-adapter';
 import { createStreamTextBatch } from '@/lib/stream-text-batch';
+import { appendActivityText, classifyActivityText, recordActivityTool, settleActivity, type ActivityTextEvent } from '@/lib/agent-activity';
 import { agentSendBlock } from '@/lib/agent-send-readiness';
 import { openSettings } from '@/lib/settings-navigation';
 
@@ -32,7 +33,7 @@ export default function Dashboard() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center h-screen bg-[#FDFCF8] text-stone-500 font-medium">
+        <div className="flex items-center justify-center h-screen bg-[var(--mm-canvas-shell)] text-[var(--mm-text-stone-500)] font-medium">
           正在加载工作台...
         </div>
       }
@@ -199,6 +200,11 @@ function DashboardContent() {
   useEffect(() => () => bridgeCleanup.current?.(), []);
   const reconnectBridge = useCallback(() => bridgeCleanup.current?.reconnect(), []);
 
+  // 当前课件的 id —— 工作稿目录的键。走 ref 是因为重连自愈要用它，而把它塞进
+  // 桥的依赖里会让每次保存都重挂一次 WebSocket。
+  const coursewareIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => { coursewareIdRef.current = courseware.summary?.id; }, [courseware.summary?.id]);
+
   // applet 就绪：挂桥，让 agent 够得着这块画布
   const handleAppletReadyWithBridge = useCallback(
     (api: GeoGebraApi) => {
@@ -206,7 +212,16 @@ function DashboardContent() {
       bridgeCleanup.current?.();
       bridgeCleanup.current = attachGgbBridge(api, {
         windowId,
-        onConnectionChange: setConnectionStatus,
+        onConnectionChange: (status) => {
+          setConnectionStatus(status);
+          // 草稿自愈：daemon 启动时会清掉孤儿工作区（见 daemon 的 workspaces.ts），
+          // 而页面可能还开着、不会自动重灌。重连成功就按当前账本补一次——
+          // 有了这条，草稿随删随补，回收逻辑才敢放手删。
+          if (status === 'connected') {
+            const id = coursewareIdRef.current;
+            if (id) void syncConstructionDraft(ledgerRef.current, id);
+          }
+        },
         getLedger: () => ledgerRef.current,
         onLedgerChange: (commands) => {
           ledgerRef.current = commands;
@@ -261,8 +276,8 @@ function DashboardContent() {
   /**
    * 发消息给本机 agent CLI，流式收它的回答。
    *
-   * 事件是 NDJSON：text-delta 累积成正文，tool-call/tool-result 用于显示
-   * "它在干什么"，done 收尾。多轮靠 sessionId 续（--resume）。
+   * NDJSON keeps public narration/tool order in activity, and projects only
+   * final or unclassified settled text into the answer. sessionId resumes CLI runs.
    */
   // 停止当前这一轮：abort fetch → 流取消 → route 杀掉 agent 子进程。
   // 本轮状态记为 stopped（不是 error），已产出的内容保留在气泡里。
@@ -296,7 +311,7 @@ function DashboardContent() {
         ...priorMessages,
         userMsg,
         { id: assistantId, role: 'assistant', content: '', createdAt: Date.now(),
-          meta: { status: 'generating', execution: { status: 'running', startedAt: Date.now(), steps: [] } } },
+          meta: { status: 'generating', activity: [], execution: { status: 'running', startedAt: Date.now(), steps: [] } } },
       ];
       setMessages(nextMessages);
       setIsLoading(true);
@@ -305,7 +320,11 @@ function DashboardContent() {
       // 流式累积到助手气泡上
       const applyPatch = (fn: (m: AgentChatMessage) => AgentChatMessage) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? fn(m) : m)));
-      const textBatch = createStreamTextBatch(text => applyPatch(m => ({ ...m, content: (m.content ?? '') + text })));
+      let textContext: ActivityTextEvent = {};
+      const textBatch = createStreamTextBatch(text => {
+        const event = { ...textContext, text };
+        applyPatch(m => appendActivityText(m, event));
+      });
       const patch = (fn: (m: AgentChatMessage) => AgentChatMessage) => {
         // Tool/error/final state must never overtake buffered text.
         textBatch.flush();
@@ -324,7 +343,10 @@ function DashboardContent() {
 
       try {
         // Do not spend a model call until the user's question has reached local storage.
-        await flush(nextMessages);
+        // 顺带拿到课件 id：agent 的工作稿目录按它落（这次 flush 已经把记录建出来了）。
+        // 拿不到就留空——落到 daemon 的 `_default`，**不要**退回窗口 id，那等于把
+        // 「按窗口命名目录」放回来（正是这次要消除的东西）。
+        const coursewareId = await flush(nextMessages);
         // 题目图片：File → base64（blob: URL 路由读不了，必须在这里转）
         const imagePayloads: { mediaType: string; base64: string; name?: string }[] = [];
         for (const a of attachments ?? []) {
@@ -352,6 +374,7 @@ function DashboardContent() {
           body: JSON.stringify({
             text,
             windowId,
+            coursewareId,
             sessionId: sessionIdRef.current,
             restartFromHistory: editMessageId ? true : undefined,
             runtimeId: activeRuntimeId,
@@ -390,16 +413,32 @@ function DashboardContent() {
             kind?: string; text?: string; name?: string;
             sessionId?: string; message?: string; line?: string;
             toolCallId?: unknown; isError?: unknown; input?: unknown;
+            messageId?: string; phase?: 'commentary' | 'final'; resultText?: string; status?: string;
+            title?: string;
           };
           try { ev = JSON.parse(raw); } catch { return; }
           switch (ev.kind) {
             case 'text-delta':
+              if (textContext.messageId !== ev.messageId || textContext.phase !== ev.phase) textBatch.flush();
+              textContext = { messageId: ev.messageId, phase: ev.phase };
               streamedText = true;
               textBatch.push(ev.text ?? '');
               break;
             case 'text':
-              if (!streamedText) textBatch.push(ev.text ?? '');
+              if (!streamedText || textContext.messageId !== ev.messageId) patch(m => appendActivityText(m, ev, true));
+              else if (ev.phase) patch(m => classifyActivityText(m, ev.phase!, ev.messageId));
               streamedText = false;
+              break;
+            case 'text-phase':
+              if (ev.phase) patch(m => classifyActivityText(m, ev.phase!, ev.messageId));
+              break;
+            case 'title':
+              // 从正文里剥出来的课件名（`<mm-title>` 标记）。标记本身永远不出现在 text 里，
+              // 宿主在 route 的出流口剥掉。命名优先级由 useCoursewareLibrary 管：
+              // 用户手改的 > agent 起的（第一条带 meta.title 的消息赢）> 首条消息截断。
+              if (typeof ev.title === 'string') {
+                patch(m => ({ ...m, meta: mergeRunMeta(m.meta, { title: ev.title }) }));
+              }
               break;
             case 'session':
               sessionIdRef.current = ev.sessionId;
@@ -408,6 +447,7 @@ function DashboardContent() {
             case 'tool-result': {
               const now = Date.now();
               if (ev.kind === 'tool-call') {
+                streamedText = false;
                 setLoadingStatusText(`正在${toolStepLabel(ev.name ?? '')}…`);
                 // 标题/类别是工具**入参**，AgentToolStep 不记入参，只能从事件流抓。
                 const runMeta = metaFromToolCall(ev.name, ev.input);
@@ -416,8 +456,14 @@ function DashboardContent() {
                 }
               }
               else setLoadingStatusText('等待 Agent 回复…');
-              patch(m => m.meta?.execution ? { ...m, meta: { ...m.meta,
-                execution: updateToolProgress(m.meta.execution, ev, now) } } : m);
+              patch(m => {
+                if (!m.meta?.execution) return m;
+                const execution = updateToolProgress(m.meta.execution, ev, now);
+                const next = { ...m, meta: { ...m.meta, execution } };
+                const step = typeof ev.toolCallId === 'string'
+                  ? execution.steps.find(step => step.toolCallId === ev.toolCallId) : execution.steps.at(-1);
+                return step ? recordActivityTool(next, step.id, ev.kind === 'tool-call') : next;
+              });
               break;
             }
             case 'error':
@@ -426,6 +472,8 @@ function DashboardContent() {
               break;
             case 'done':
               sawDone = true;
+              if (ev.status === 'cancelled') stopped = true;
+              patch(m => settleActivity(m, ev.status !== 'cancelled' && !sawError ? ev.resultText : undefined));
               if (ev.sessionId) sessionIdRef.current = ev.sessionId;
               break;
           }
@@ -451,9 +499,12 @@ function DashboardContent() {
         const now = Date.now();
         if (abortRef.current === controller) abortRef.current = null;
         const status = stopped ? 'stopped' : sawError ? 'error' : sawDone ? 'completed' : 'unconfirmed';
-        patch(m => m.meta?.execution ? { ...m, meta: { ...m.meta,
-          status: stopped ? 'stopped' : sawError ? 'error' : 'completed',
-          execution: finishExecution(m.meta.execution, status, now) } } : m);
+        patch(m => {
+          const next = settleActivity(m);
+          return next.meta?.execution ? { ...next, meta: { ...next.meta,
+            status: stopped ? 'stopped' : sawError ? 'error' : 'completed',
+            execution: finishExecution(next.meta.execution, status, now) } } : next;
+        });
         setIsLoading(false);
         setLoadingStatusText('准备就绪');
       }
@@ -466,11 +517,11 @@ function DashboardContent() {
   }, [handleSendMessage]);
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 bg-[#FDFCF8] overflow-hidden">
+    <div className="flex h-full min-h-0 w-full min-w-0 bg-[var(--mm-canvas-shell)] overflow-hidden">
       {/* 工具栏与画布共用一个工作区；全屏时保留同一个 Applet 实例。 */}
       <div
         ref={canvasWorkspaceRef}
-        className={`flex min-h-0 min-w-0 flex-1 flex-col bg-white ${isFullscreen ? 'fixed inset-0 z-40 h-dvh w-screen' : 'relative h-full'}`}
+        className={`flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--mm-surface)] ${isFullscreen ? 'fixed inset-0 z-40 h-dvh w-screen' : 'relative h-full'}`}
       >
         <ControlDeck
           title={displayedTitle}
@@ -493,13 +544,13 @@ function DashboardContent() {
           onToggleFullscreen={handleToggleFullscreen}
           onExport={handleExport}
         />
-        {courseware.error && <div role="alert" className="flex shrink-0 items-center justify-between gap-3 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-          <span>{courseware.error}</span><button type="button" className="shrink-0 rounded px-2 py-1 underline focus-visible:outline-2 focus-visible:outline-amber-800" onClick={courseware.retry}>{courseware.retryLabel}</button>
+        {courseware.error && <div role="alert" className="flex shrink-0 items-center justify-between gap-3 bg-[var(--mm-bg-amber-50)] px-4 py-2 text-sm text-[var(--mm-text-amber-900)]">
+          <span>{courseware.error}</span><button type="button" className="shrink-0 rounded px-2 py-1 underline focus-visible:outline-2 focus-visible:outline-[var(--mm-border-amber-800)]" onClick={courseware.retry}>{courseware.retryLabel}</button>
         </div>}
         {exportError && (
-          <div role="alert" className="flex shrink-0 items-center justify-between gap-3 bg-red-50 px-4 py-2 text-sm text-red-800">
+          <div role="alert" className="flex shrink-0 items-center justify-between gap-3 bg-[var(--mm-bg-red-50)] px-4 py-2 text-sm text-[var(--mm-text-red-800)]">
             <span>{exportError}</span>
-            <button type="button" aria-label="关闭导出提示" onClick={() => setExportError(null)} className="rounded p-1 hover:bg-red-100">
+            <button type="button" aria-label="关闭导出提示" onClick={() => setExportError(null)} className="rounded p-1 hover:bg-[var(--mm-bg-red-100)]">
               <X className="h-4 w-4" />
             </button>
           </div>

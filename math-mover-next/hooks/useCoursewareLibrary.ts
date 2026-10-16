@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { AgentChatMessage, GeoGebraApi } from '@/components/dashboard/types';
 import { ggbClientEventType, readGgbGraphics, watchGgbGraphics } from '@/lib/ggb-graphics-state';
-import { captureGgb, currentView, getCourseware, historyChanged, interruptedMessages, libraryRequest, persistableMessages, renameCourseware,
+import { captureGgb, currentView, getCourseware, historyChanged, interruptedMessages, libraryRequest, persistableMessages, renameCourseware, syncConstructionDraft,
   CoursewareError, type CoursewareRecord, type CoursewareSummary } from '@/lib/courseware-client';
 
 interface Options {
@@ -27,9 +27,11 @@ export function useCoursewareLibrary(options: Options) {
   const dirty = useRef(0); const saved = useRef(0); const restoring = useRef(true);
   const conflict = useRef(false);
   const restoredInputs = useRef<{ messages: AgentChatMessage[]; showAxes: boolean; showGrid: boolean; runtimeId?: string } | null>(null);
-  const queue = useRef<Promise<void>>(Promise.resolve()); const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queue = useRef<Promise<unknown>>(Promise.resolve()); const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadQueue = useRef<Promise<void>>(Promise.resolve());
-  const flushRef = useRef<(messages?: AgentChatMessage[]) => Promise<void>>(async () => {});
+  // flush 顺带把课件 id 交出来——发送消息那条路要拿它当 agent 的工作稿目录键
+  // （目录按课件落，见 packages/daemon/src/workspaces.ts）。
+  const flushRef = useRef<(messages?: AgentChatMessage[]) => Promise<string | undefined>>(async () => undefined);
   const markDirty = useCallback(() => {
     if (restoring.current) return;
     dirty.current++;
@@ -66,7 +68,7 @@ export function useCoursewareLibrary(options: Options) {
         // During Agent execution preserve the last confirmed canvas checkpoint. Final/idle writes capture live state.
         const reuseCheckpoint = o.busy && !!current.ggbBase64;
         const ggbBase64 = reuseCheckpoint ? current.ggbBase64 : await captureGgb(o.api);
-        // 课件名优先级：用户手改的 > agent 起的（submit_construction 的 title）> 首条消息截断。
+        // 课件名优先级：用户手改的 > agent 起的（正文 `<mm-title>` 标记剥出来的）> 首条消息截断。
         //
         // 「手改过」用「当前名 ≠ 自动名」推断。看着粗，但够用：
         // 用户起的名只要与自动名不同就会被保住——这正是需要保护的场景。
@@ -85,6 +87,7 @@ export function useCoursewareLibrary(options: Options) {
         setSummary(result); setStatus(dirty.current === generation ? 'saved' : 'dirty'); historyChanged();
         const here = new URL(window.location.href);
         if (!here.searchParams.has('history_id') && !here.searchParams.has('action')) router.replace(`/dashboard?history_id=${encodeURIComponent(result.id)}`);
+        return current.id;
       } finally {
         if (saveNoticeTimer.current) clearTimeout(saveNoticeTimer.current);
         saveNoticeTimer.current = null;
@@ -104,7 +107,8 @@ export function useCoursewareLibrary(options: Options) {
     if (!next || next.length > 200) return Promise.reject(new Error('课件名称需要为 1–200 个字符'));
     if (state.current.busy || restoring.current || conflict.current) return Promise.reject(new Error('请等待当前操作完成后重命名'));
     // A named blank courseware is meaningful: persist its first snapshot even with no messages or objects.
-    if (!record.current || record.current.revision === 0) return flush(undefined, next);
+    // flush 现在会把课件 id 交出来（供发送那条路当工作稿目录键）；重命名不需要它，抹平掉。
+    if (!record.current || record.current.revision === 0) return flush(undefined, next).then(() => undefined);
     const id = record.current.id;
     // Share the autosave queue so a pending snapshot cannot overwrite the new name or revision.
     const job = queue.current.catch(() => {}).then(async () => {
@@ -179,6 +183,10 @@ export function useCoursewareLibrary(options: Options) {
         restoredInputs.current = { messages: loaded?.messages ?? [], showAxes: loaded?.view?.showAxes ?? true, showGrid: loaded?.view?.showGrid ?? true, runtimeId: state.current.runtimeId };
         await state.current.onRestore(loaded);
         if (cancelled) return;
+        // 同步进工作稿（按**课件**落目录）：不同步的话画布已是新图、agent 读到的草稿
+        // 还是上一张的，它接着改就改错对象。失败不拦恢复流程（草稿是 agent 的便利品）。
+        // 新建空会话没有课件（loaded 为空）——按课件分目录后不存在串台，无需清空谁的草稿。
+        if (loaded) void syncConstructionDraft(loaded.commands ?? [], loaded.id);
         const graphics = state.current.api && readGgbGraphics(state.current.api);
         if (graphics && restoredInputs.current) {
           restoredInputs.current.showAxes = graphics.axes === 'all';

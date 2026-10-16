@@ -18,12 +18,12 @@ const rows: Array<{ term: string; detail: string }> = [
 export default function HelpSettings() {
   return (
     <div>
-      <p className="mt-1 max-w-[68ch] text-sm leading-6 text-stone-600">工作台的实际交互行为速查。</p>
+      <p className="mt-1 max-w-[68ch] text-sm leading-6 text-[var(--mm-text-stone-600)]">工作台的实际交互行为速查。</p>
       <dl className="mt-5 space-y-4">
         {rows.map(row => (
           <div key={row.term} className="flex flex-col gap-1 sm:flex-row sm:gap-6">
-            <dt className="w-40 shrink-0 text-sm font-medium text-stone-900">{row.term}</dt>
-            <dd className="max-w-[52ch] text-sm leading-6 text-stone-600">{row.detail}</dd>
+            <dt className="w-40 shrink-0 text-sm font-medium text-[var(--mm-text-stone-900)]">{row.term}</dt>
+            <dd className="max-w-[52ch] text-sm leading-6 text-[var(--mm-text-stone-600)]">{row.detail}</dd>
           </div>
         ))}
       </dl>

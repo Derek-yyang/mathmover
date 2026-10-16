@@ -11,7 +11,7 @@ export default function DashboardLayout({
   return (
     <SidebarStateProvider>
       <AgentRuntimeProvider>
-      <div className="flex h-screen w-full bg-[#FDFCF8] overflow-hidden">
+      <div className="flex h-screen w-full bg-[var(--mm-canvas-shell)] overflow-hidden">
         {/* 左侧固定宽度侧栏，可收起，不拖动宽度。 */}
         <Suspense fallback={null}>
           <DashboardSidebar />

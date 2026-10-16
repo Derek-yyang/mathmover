@@ -7,6 +7,9 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const { buildSystemBrief, resetSystemBriefCache } = await import(
   new URL('../lib/server/system-brief.ts', import.meta.url).href
 );
+const { workspaceDir, constructionPath } = await import(
+  new URL('../lib/server/workspace.ts', import.meta.url).href
+);
 
 test('简报含通用写法 + 命令表 + 卡片目录（原 get_drawing_pack 的内容）', () => {
   resetSystemBriefCache();
@@ -47,4 +50,17 @@ test('byok 面多一段文件读写工具说明，cli 面没有', () => {
 test('简报不再含 get_drawing_pack（内容已内联，工具已删）', () => {
   const brief = buildSystemBrief(REPO_ROOT, 'cli');
   assert.ok(!brief.includes('get_drawing_pack'));
+});
+
+test('简报不含绝对路径（会破坏 cache 前缀）；工作区按课件而异、落在数据目录下', () => {
+  const brief = buildSystemBrief(REPO_ROOT, 'cli');
+  // 简报要字节级稳定，路径含课件 id，不能混进去
+  assert.ok(!brief.includes('workspaces'), '稳定简报不该含每课件的路径');
+
+  // 沙箱在数据目录下（用户数据归数据目录、软件归软件），每课件一份
+  const id = '3f2a9c10-8e1b-4c7d-9a2f-0b6e5d4c3b2a';
+  assert.match(workspaceDir(id), /workspaces[/\\]3f2a9c10-8e1b-4c7d-9a2f-0b6e5d4c3b2a$/);
+  assert.match(constructionPath(id), /workspaces[/\\]3f2a9c10-8e1b-4c7d-9a2f-0b6e5d4c3b2a[/\\]construction\.ggb\.txt$/);
+  // 无课件 id 时落 _default 兜底，不会与任何课件串
+  assert.match(workspaceDir(undefined), /workspaces[/\\]_default$/);
 });

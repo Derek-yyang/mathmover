@@ -23,11 +23,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken, dataDirectory } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, runAgent, runByokAgent, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { RUNTIMES, runAgent, runByokAgent, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, createTitleExtractor, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 import { agentRequestHistory } from '@/lib/agent-request-history';
 import { connectMcpTools } from '@/lib/byok-mcp';
 import { loadByokConfig, isByokRunnable, maskByokConfig } from '@/lib/byok-store';
 import { buildSystemBrief } from '@/lib/server/system-brief';
+import { constructionPath, ensureMcpConfig, workspaceDir } from '@/lib/server/workspace';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -51,6 +52,20 @@ const REPO_ROOT = findRepoRoot();
 const MCP_CONFIG_PATH =
   process.env.MATHMOVER_MCP_CONFIG ?? path.join(REPO_ROOT, 'packages', 'daemon', 'mcp', 'claude-mcp.json');
 const DAEMON_URL = process.env.MATHMOVER_DAEMON_URL ?? 'http://127.0.0.1:8788';
+
+/**
+ * 首轮的标题指令 —— 拼在稳定前缀**之后**的每轮切片里，只发一次。
+ *
+ * 课件名走正文标记（`<mm-title>`），宿主剥掉、用户看不见；见 agent-runtime 的
+ * title-marker.ts。为什么不用工具参数：`ggb_apply` 是「每完成一段就调一次」的高频动作，
+ * 标题挂上去就得反复重说；而且某轮 agent 一次工具都没调时，标题永远拿不到。
+ */
+const TITLE_DIRECTIVE =
+  '【这一轮额外做一件事】在正常回答之前，先在正文最前面输出一次标题标记：\n' +
+  '<mm-title>标题</mm-title>\n' +
+  '规则：2–8 字；**概括用户这条消息要做什么**（不是概括你画成了什么——标题命名的是「请求」，' +
+  '多轮微调后也不该变）；用用户的语言；不要引号、不要 markdown、不要结尾标点。' +
+  '输出完标记就直接开始正常回答，不要向用户提这件事。';
 
 
 /**
@@ -98,6 +113,11 @@ export async function POST(req: Request): Promise<Response> {
     /** 推理档位（该模型 reasoningOptions 之一）。只对支持的运行时生效。 */
     reasoningEffort?: string;
     windowId?: string;
+    /**
+     * 本轮的课件 id。agent 的工作稿目录按它落（`workspaces/<课件id>/`）——
+     * 草稿是「当前画布的可编辑形态」，归课件所有，不跟窗口走。缺省落 `_default`。
+     */
+    coursewareId?: string;
     /** 此前轮次（不含本轮）；用于无会话运行时或编辑后的新会话。 */
     history?: TranscriptTurn[];
     /** 题目图片（发题拿动图的感知侧） */
@@ -109,6 +129,10 @@ export async function POST(req: Request): Promise<Response> {
       const health = await fetch(`${DAEMON_URL}/api/health`, { headers: { 'x-mathmover-window': body.windowId, 'x-mathmover-token': libraryToken() }, signal: AbortSignal.timeout(5000) });
       if (!health.ok || !(await health.json()).canvasConnected) throw new Error('window unavailable');
     } catch { return new Response(line({ kind: 'error', message: '当前窗口的画板尚未连接，请稍后重试；没有启动 Agent。' }), { status: 503, headers: { 'content-type': 'application/x-ndjson' } }); }
+  }
+  // 课件 id 决定 agent 的工作稿目录，形态必须干净（它要当目录名）。
+  if (body.coursewareId && !/^[a-zA-Z0-9_-]{1,100}$/.test(body.coursewareId)) {
+    return Response.json({ error: '课件 ID 无效' }, { status: 400 });
   }
 
   const prompt = (body.text ?? '').trim();
@@ -148,17 +172,12 @@ export async function POST(req: Request): Promise<Response> {
   const def = picked?.def;
   const target = picked?.target;
 
-  // 模型：先跑一次发现（把 live 清单记进缓存），再校验用户的选择。
-  // 不校验会出现「UI 显示了一个模型，实际跑不了」——fallbackModels 只是提示，
-  // 不是真清单（见 agent-runtime/src/models.ts）。
+  // 模型校验只查 GET 健康检查已发现的 liveModels 缓存，不再 spawn CLI。
   // 推理档位同理：清单取自 agent 自己的配置，有清单就校验。
   // BYOK 的模型在设置表单里，不走清单校验。
   let model: string | undefined;
   const effort = typeof body.reasoningEffort === 'string' && body.reasoningEffort.trim()
     ? body.reasoningEffort.trim().slice(0, 32) : undefined;
-  if (def && ((typeof body.model === 'string' && body.model.trim()) || effort)) {
-    await listAgentModels(def, target ?? def.executable).catch(() => null);
-  }
   if (def && typeof body.model === 'string' && body.model.trim()) {
     const resolved = resolveModel(def.id, body.model);
     if (!resolved.ok) {
@@ -216,10 +235,28 @@ export async function POST(req: Request): Promise<Response> {
   const systemPrompt = isByok ? buildSystemBrief(REPO_ROOT, toolset) : undefined;
   const head = isContinuation ? '' : (systemPrompt ? '' : buildSystemBrief(REPO_ROOT, toolset));
 
+  // 工作稿路径**按课件而异**（`<dataDir>/workspaces/<课件id>/`），不进稳定简报——
+  // 那会破坏 cache 前缀。单起一行、每轮都带：体积小，而 agent 每次动笔都要它。
+  // 实测没说清时会满仓库找位置，一次白烧 12 次工具调用。
+  // 无课件 id 时落 `_default`（workspaceDir 的兜底），与 daemon 同一套规则。
+  const coursewareKey = body.coursewareId?.trim() || undefined;
+  const sandbox = workspaceDir(coursewareKey);
+  fs.mkdirSync(sandbox, { recursive: true });
+  const pathLine = `工作稿路径：${constructionPath(coursewareKey)}（写构造就写进这个绝对路径，别处写的 daemon 读不到）`;
+
+  // 首轮 = 既没有前序轮次，也没有可续的原生会话。编辑历史轮次（restartFromHistory）带着
+  // 前序，不算首轮——那种轮次不该重新命名课件。
+  const isFirstTurn = priorTurns.length === 0 && !body.sessionId;
+
   const parts: string[] = [];
   if (head) parts.push(head);
+  // 标题指令**只在首轮**、且拼在稳定前缀**之后**（每轮切片）。
+  // 塞进稳定前缀有两个坏处：① 每轮都要求生成标题（模型会每轮自作主张吐标记）；
+  // ② 移动缓存前缀，每轮都 miss（OpenDesign 为此专门把同类指令放切片里，注释写明过）。
+  // 稳定规则段里另有一句「只在被明确要求时才输出标记」，管住不自作主张。
+  if (isFirstTurn) parts.push(TITLE_DIRECTIVE);
   if (transcript) parts.push(`## 此前的对话（供延续语境，不要复述）\n${transcript}`);
-  parts.push(`用户现在说：\n${userTurn}`);
+  parts.push(`${pathLine}\n\n用户现在说：\n${userTurn}`);
   const composedPrompt = parts.join('\n\n---\n\n');
 
   // 流建立前到的事件先排队（runAgent 启动时就会吐「# 启动 …」）
@@ -240,6 +277,7 @@ export async function POST(req: Request): Promise<Response> {
         env: {
           MATHMOVER_DAEMON_URL: DAEMON_URL,
           MATHMOVER_WINDOW_ID: body.windowId ?? '',
+          MATHMOVER_COURSEWARE_ID: coursewareKey ?? '',
           // BYOK 无原生文件能力，才需要 read/write_construction 这对兜底工具。
           // 真 CLI 自带 Read/Edit，见了这对工具反而会混用、徒增往返。
           MATHMOVER_TOOLSET: 'byok',
@@ -269,14 +307,16 @@ export async function POST(req: Request): Promise<Response> {
   handle = runAgent({
     def: def!,
     prompt: composedPrompt,
-    mcpConfigPath: MCP_CONFIG_PATH,
-    cwd: REPO_ROOT,
+    // 沙箱 = 数据目录下的工作区：--restricted 把写入框在 cwd 里，工作稿必须在里面，
+    // 而用户数据要归数据目录、软件要归软件（别把工作稿塞进仓库目录换解 bug）。
+    mcpConfigPath: ensureMcpConfig(REPO_ROOT, DAEMON_URL),
+    cwd: sandbox,
     // 不要传 sessionId —— 那是"新建指定 id"语义，与续接冲突
     resumeSessionId: body.sessionId || undefined,
     images: checked.images,
     model,
     reasoningEffort: effort,
-    env: { MATHMOVER_WINDOW_ID: body.windowId ?? '' },
+    env: { MATHMOVER_WINDOW_ID: body.windowId ?? '', MATHMOVER_COURSEWARE_ID: coursewareKey ?? '' },
     // 长任务保护：**静默**超时与**首输出**硬顶（语义见 run.ts / defs.ts）。
     // per-agent 推荐值在定义上，环境变量仍优先（运维要压测时不用改代码）。
     inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? def!.inactivityTimeoutMs ?? 180_000),
@@ -296,21 +336,30 @@ export async function POST(req: Request): Promise<Response> {
   void target; // 仅用于 findRuntime 的可用性预检，真正 spawn 由 runAgent 负责
 
   const encoder = new TextEncoder();
+  // 标题标记在这里剥掉——CLI 与 BYOK 都从这儿出流，一处管两家。
+  // **剥离恒开**（标记是协议噪音，任何情况下都不许进正文），采用只认本轮第一个。
+  const titleExtractor = createTitleExtractor();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const send = (e: AgentEvent) => {
+      const write = (e: AgentEvent) => {
         try {
           controller.enqueue(encoder.encode(line(e)));
         } catch {
           /* 流已关闭 */
         }
       };
+      // 队列里的事件也要过提取器（流建立前 runAgent 就会吐事件）
+      const send = (e: AgentEvent) => {
+        for (const out of titleExtractor.push(e)) write(out);
+      };
       for (const e of queued.splice(0)) send(e);
       sink = send;
-      handle.done.then(
-        () => { try { controller.close(); } catch { /* 已关闭 */ } },
-        () => { try { controller.close(); } catch { /* 已关闭 */ } },
-      );
+      const finish = () => {
+        // 流尾可能残留半截开标签前缀（正文结尾就写了个 `<`）——吐出来，别丢字
+        for (const out of titleExtractor.flush()) write(out);
+        try { controller.close(); } catch { /* 已关闭 */ }
+      };
+      handle.done.then(finish, finish);
     },
     cancel() {
       try { handle.cancel(); } catch { /* 已退出 */ }

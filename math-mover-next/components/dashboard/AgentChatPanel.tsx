@@ -111,20 +111,20 @@ function ChatThread({ messages, isLoading, sendDisabled = false, sendBlock, onRe
       <div className="relative min-h-0 flex-1">
         <ThreadPrimitive.Viewport ref={viewportRef} autoScroll={!indexBrowsing} scrollToBottomOnRunStart={!indexBrowsing}
           tabIndex={0} role="region" aria-label="聊天消息"
-          className={`chat-scroll-viewport h-full overflow-x-hidden overflow-y-auto overscroll-contain pl-4 ${turns.length > 1 ? 'pr-9' : 'pr-4'} pt-5 pb-3 select-text focus-visible:outline-2 focus-visible:outline-emerald-700`}>
+          className={`chat-scroll-viewport h-full overflow-x-hidden overflow-y-auto overscroll-contain pl-4 ${turns.length > 1 ? 'pr-9' : 'pr-4'} pt-5 pb-3 select-text focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]`}>
           {detectionError && <div className="mb-4"><AgentDiagnosticNotice diagnostic={detectionError} detecting={detecting} onRescan={() => void refreshRuntimes()} /></div>}
           <ThreadPrimitive.Empty>
             <div className="flex min-h-64 h-full flex-col items-center justify-center px-5 text-center">
-              <Sparkles aria-hidden className="mb-4 h-6 w-6 text-emerald-700" />
-              <h2 className="text-base font-semibold text-stone-800">把数学题变成动态图形</h2>
-              <p className="mt-2 max-w-60 text-sm leading-6 text-stone-600">输入题目或上传题图，和 Agent 一起构建、调整画板上的模型。</p>
+              <Sparkles aria-hidden className="mb-4 h-6 w-6 text-[var(--mm-text-emerald-700)]" />
+              <h2 className="text-base font-semibold text-[var(--mm-text-stone-800)]">把数学题变成动态图形</h2>
+              <p className="mt-2 max-w-60 text-sm leading-6 text-[var(--mm-text-stone-600)]">输入题目或上传题图，和 Agent 一起构建、调整画板上的模型。</p>
             </div>
           </ThreadPrimitive.Empty>
           <ChatMessageVisibility messages={messages} viewportRef={viewportRef}>
             <div ref={contentRef} className="space-y-6"><ChatMessageList messages={messages} /></div>
           </ChatMessageVisibility>
-          {isLoading && !messages.some(msg => msg.meta?.execution?.status === 'running') && <p role="status" className="mt-3 flex items-center gap-2 text-xs text-stone-600"><Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />{loadingStatusText}</p>}
-          <ThreadPrimitive.ScrollToBottom behavior={reducedMotion ? 'instant' : 'smooth'} onClick={() => setIndexBrowsing(false)} aria-label="回到最新" className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-stone-300 bg-white p-2 text-stone-700 hover:bg-stone-100 disabled:hidden focus-visible:outline-2 focus-visible:outline-emerald-700"><ChevronDown className="h-4 w-4" /></ThreadPrimitive.ScrollToBottom>
+          {isLoading && !messages.some(msg => msg.meta?.execution?.status === 'running') && <p role="status" className="mt-3 flex items-center gap-2 text-xs text-[var(--mm-text-stone-600)]"><Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />{loadingStatusText}</p>}
+          <ThreadPrimitive.ScrollToBottom behavior={reducedMotion ? 'instant' : 'smooth'} onClick={() => setIndexBrowsing(false)} aria-label="回到最新" className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-[var(--mm-border-stone-300)] bg-[var(--mm-surface)] p-2 text-[var(--mm-text-stone-700)] hover:bg-[var(--mm-bg-stone-100)] disabled:hidden focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]"><ChevronDown className="h-4 w-4" /></ThreadPrimitive.ScrollToBottom>
         </ThreadPrimitive.Viewport>
         <ConversationIndex turns={turns} viewportRef={viewportRef} contentRef={contentRef} onNavigate={browseIndex} />
       </div>
@@ -134,7 +134,7 @@ function ChatThread({ messages, isLoading, sendDisabled = false, sendBlock, onRe
           : sendBlock?.action === 'rescan' ? () => void refreshRuntimes() : undefined}
         models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel}
         reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort} />
-      {draftError && <p role="alert" className="px-3 pb-3 text-xs leading-5 text-amber-900">{draftError}</p>}
+      {draftError && <p role="alert" className="px-3 pb-3 text-xs leading-5 text-[var(--mm-text-amber-900)]">{draftError}</p>}
     </ThreadPrimitive.Root>
   </AssistantRuntimeProvider>;
 }
@@ -164,11 +164,11 @@ export default function AgentChatPanel(props: AgentChatPanelProps) {
   // 档位是**当前模型**的属性：换模型要跟着换，所以从选中项取，不从 agent 取。
   const selected = models.find((m) => m.id === (selectedModel || 'default')) ?? models[0];
   const reasoningOptions = selected?.reasoningOptions ?? [];
-  return <aside aria-label="对话" className="flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-[#E7E5E4] bg-[#FDFCF8]">
-    <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[#E7E5E4] px-4">
-      <span className="shrink-0 text-sm font-semibold text-stone-800">对话</span>
+  return <aside aria-label="对话" className="flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-[var(--mm-border-divider)] bg-[var(--mm-canvas-shell)]">
+    <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--mm-border-divider)] px-4">
+      <span className="shrink-0 text-sm font-semibold text-[var(--mm-text-stone-800)]">对话</span>
       <span role="status" aria-label={active ? `当前 Agent：${active.name}` : agentLabel} title={agentLabel}
-        className="min-w-0 max-w-40 truncate text-xs text-stone-500">{agentLabel}</span>
+        className="min-w-0 max-w-40 truncate text-xs text-[var(--mm-text-stone-500)]">{agentLabel}</span>
     </div>
     <ImagePreviewProvider key={editorKey}><ChatThread {...props} canAttachImages={canAttachImages} drafts={drafts} draftId={conversationId ?? editorKey}
       models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel}

@@ -13,9 +13,9 @@ function Finding({ finding }: { finding: AuditFinding }) {
 
 export default function AgentRunResult({ meta }: { meta?: AgentMeta }) {
   const result = runResultPresentation(meta);
-  if (!result) return null;
+  if (!result?.warning) return null;
   return <ToolGroupRoot aria-label="本轮结果" data-agent-result variant="ghost" defaultOpen={result.warning}
-    className={`mt-2 min-w-0 text-xs leading-6 ${result.warning ? 'text-amber-900' : 'text-stone-700'}`}>
+    className={`mt-2 min-w-0 text-xs leading-6 ${result.warning ? 'text-[var(--mm-text-amber-900)]' : 'text-[var(--mm-text-stone-700)]'}`}>
     <ToolGroupTrigger count={result.commands} label={`图形检查 · ${result.check}`} />
     <ToolGroupContent>
     {result.category && <p>{result.category}</p>}
@@ -26,7 +26,7 @@ export default function AgentRunResult({ meta }: { meta?: AgentMeta }) {
       {result.issues.slice(0, 3).map((finding, index) => <Finding key={`${finding.kind}-${finding.name}-${index}`} finding={finding} />)}
     </ul>}
     {result.issues.length > 3 && <details className="mt-1">
-      <summary className="min-h-9 cursor-pointer content-center rounded px-1 hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-amber-800">另外 {result.issues.length - 3} 个问题</summary>
+      <summary className="min-h-9 cursor-pointer content-center rounded px-1 hover:bg-[var(--mm-bg-amber-100)] focus-visible:outline-2 focus-visible:outline-[var(--mm-border-amber-800)]">另外 {result.issues.length - 3} 个问题</summary>
       <ul aria-label="其他图形检查问题">{result.issues.slice(3).map((finding, index) => <Finding key={`${finding.kind}-${finding.name}-${index}`} finding={finding} />)}</ul>
     </details>}
     </ToolGroupContent>

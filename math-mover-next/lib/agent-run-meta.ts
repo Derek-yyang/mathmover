@@ -20,30 +20,28 @@ export const CATEGORY_LABEL: Record<string, string> = {
 
 const TOOL_SUFFIX = /^(?:mcp__[^_]+__)?([a-z_]+)$/;
 
-/** 工具名归一：`mcp__mathmover__submit_construction` → `submit_construction`。 */
+/** 工具名归一：`mcp__mathmover__get_expert_prompt` → `get_expert_prompt`。 */
 export function toolBaseName(name: unknown): string {
   const raw = typeof name === 'string' ? name : '';
   return raw.startsWith('mcp__') ? raw.slice(raw.lastIndexOf('__') + 2) : raw;
 }
 
 /**
- * 抽出这次工具调用带来的元数据。只认两个入口：
+ * 抽出这次工具调用带来的元数据。**只剩一个入口**：
  * - `get_expert_prompt` 的 `category`（题目增强判类）
- * - `submit_construction` 的 `category` / `title`（收卷时的类别与命名）
- * `submit_construction` 不给 category（纯画图/改图），那就不写。
+ *
+ * 课件名不再从这里来——它走正文标记（`<mm-title>`），由 route 的出流口剥出来发
+ * `title` 事件，前端在 `case 'title'` 里落进 meta。收卷工具（submit_construction）
+ * 已于 2026-10-15 删除：校验并进了 ggb_apply，命名改走标记。
  */
 export function metaFromToolCall(name: unknown, input: unknown): Partial<AgentMeta> {
   const base = toolBaseName(name);
-  if (base !== 'submit_construction' && base !== 'get_expert_prompt') return {};
-  const args = (input ?? {}) as { title?: unknown; category?: unknown };
+  if (base !== 'get_expert_prompt') return {};
+  const args = (input ?? {}) as { category?: unknown };
   const out: Partial<AgentMeta> = {};
   if (typeof args.category === 'string' && /^[ABCD]$/.test(args.category)) {
     out.category = args.category;
     out.categoryLabel = CATEGORY_LABEL[args.category];
-  }
-  if (typeof args.title === 'string') {
-    const t = args.title.trim().slice(0, 60);
-    if (t) out.title = t;
   }
   return out;
 }

@@ -115,10 +115,10 @@ export default function ComposerModelPicker({
           aria-label={`选择模型与推理档位，当前：${currentName}${effort ? `，${effort.option.label}` : ''}`}
           title={effort ? `${currentName} · ${effort.option.label}${effort.pinned ? '' : '（默认）'}` : currentName}
           disabled={loading || models.length === 0}
-          className="group flex min-w-0 max-w-[13rem] items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-stone-600 transition-colors motion-reduce:transition-none hover:bg-stone-100 data-[state=open]:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="group flex min-w-0 max-w-[13rem] items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-[var(--mm-text-stone-600)] transition-colors motion-reduce:transition-none hover:bg-[var(--mm-bg-stone-100)] data-[state=open]:bg-[var(--mm-bg-stone-100)] focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="truncate">{loading ? '读取中…' : currentName}</span>
-          {effort && <span className="shrink-0 text-stone-500">· {effort.option.label}</span>}
+          {effort && <span className="shrink-0 text-[var(--mm-text-stone-500)]">· {effort.option.label}</span>}
           <ChevronDown aria-hidden className="h-3 w-3 shrink-0 transition-transform motion-reduce:transition-none group-data-[state=open]:rotate-180" />
         </button>
       </Popover.Trigger>
@@ -126,11 +126,11 @@ export default function ComposerModelPicker({
         <Popover.Content
           side="top" align="start" sideOffset={4} collisionPadding={12}
           onOpenAutoFocus={(event) => { event.preventDefault(); focusInitialOption(); }}
-          className="z-30 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-stone-200 bg-white text-stone-700"
+          className="z-30 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-[var(--mm-border-stone-200)] bg-[var(--mm-surface)] text-[var(--mm-text-stone-700)]"
         >
           {models.length > 1 && <div role="listbox" aria-label="模型列表" className="max-h-56 overflow-y-auto overscroll-contain py-1">
             {source === 'fallback' && (
-              <p className="px-3 py-1.5 text-[11px] leading-4 text-stone-600">以下为常用模型别名，可用性取决于当前配置。</p>
+              <p className="px-3 py-1.5 text-[11px] leading-4 text-[var(--mm-text-stone-600)]">以下为常用模型别名，可用性取决于当前配置。</p>
             )}
             {models.map((m, index) => {
               const { name, detail } = modelPresentation(m.label);
@@ -145,22 +145,22 @@ export default function ComposerModelPicker({
                   tabIndex={checked ? 0 : -1}
                   onClick={() => pickModel(m.id)}
                   onKeyDown={(event) => onRowKeyDown(event, index)}
-                  className="relative flex w-full cursor-default select-none items-start gap-2 py-1 pr-3 pl-9 text-left text-xs leading-[18px] outline-none hover:bg-stone-100 focus-visible:bg-stone-100"
+                  className="relative flex w-full cursor-default select-none items-start gap-2 py-1 pr-3 pl-9 text-left text-xs leading-[18px] outline-none hover:bg-[var(--mm-bg-stone-100)] focus-visible:bg-[var(--mm-bg-stone-100)]"
                 >
-                  {checked && <Check aria-hidden className="absolute top-1.5 left-3 h-3.5 w-3.5 text-emerald-800" />}
+                  {checked && <Check aria-hidden className="absolute top-1.5 left-3 h-3.5 w-3.5 text-[var(--mm-text-emerald-800)]" />}
                   <span className="min-w-0 flex-1">
                     <span className="block break-words">{name}</span>
-                    {detail && <span className="block break-words text-[11px] leading-[14px] text-stone-600">{detail}</span>}
+                    {detail && <span className="block break-words text-[11px] leading-[14px] text-[var(--mm-text-stone-600)]">{detail}</span>}
                   </span>
-                  {source === 'fallback' && m.id !== 'default' && <span className="shrink-0 text-xs text-stone-600">别名</span>}
+                  {source === 'fallback' && m.id !== 'default' && <span className="shrink-0 text-xs text-[var(--mm-text-stone-600)]">别名</span>}
                 </button>
               );
             })}
           </div>}
-          <div className={`${models.length > 1 ? 'border-t border-stone-200' : ''} px-3 py-2.5`}>
+          <div className={`${models.length > 1 ? 'border-t border-[var(--mm-border-stone-200)]' : ''} px-3 py-2.5`}>
             {effort ? (
               <div className="flex items-center gap-2.5">
-                <span id="composer-effort-label" className="shrink-0 whitespace-nowrap text-xs text-stone-600"
+                <span id="composer-effort-label" className="shrink-0 whitespace-nowrap text-xs text-[var(--mm-text-stone-600)]"
                   title={effort.pinned ? undefined : '当前使用 Agent 的默认档位'}>
                   推理档位{!effort.pinned && <span className="sr-only">（默认）</span>}
                 </span>
@@ -186,10 +186,10 @@ export default function ComposerModelPicker({
                               tabIndex={active ? 0 : -1}
                               onClick={() => pickEffort(o.id)}
                               onKeyDown={(event) => onDotKeyDown(event, index)}
-                              className="group relative flex h-7 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-emerald-700"
+                              className="group relative flex h-7 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]"
                             >
-                              <span aria-hidden className={`pointer-events-none absolute top-1/2 h-px -translate-y-1/2 bg-stone-200 ${index === 0 ? 'left-1/2' : 'left-0'} ${index === reasoningOptions!.length - 1 ? 'right-1/2' : 'right-0'}`} />
-                              <span aria-hidden className={`pointer-events-none relative shrink-0 rounded-full transition-colors motion-reduce:transition-none ${active ? 'h-3.5 w-3.5 bg-emerald-700' : 'h-2 w-2 bg-stone-300 group-hover:bg-stone-400'}`} />
+                              <span aria-hidden className={`pointer-events-none absolute top-1/2 h-px -translate-y-1/2 bg-[var(--mm-bg-stone-200)] ${index === 0 ? 'left-1/2' : 'left-0'} ${index === reasoningOptions!.length - 1 ? 'right-1/2' : 'right-0'}`} />
+                              <span aria-hidden className={`pointer-events-none relative shrink-0 rounded-full transition-colors motion-reduce:transition-none ${active ? 'h-3.5 w-3.5 bg-[var(--mm-bg-emerald-700)]' : 'h-2 w-2 bg-[var(--mm-bg-stone-300)] group-hover:bg-[var(--mm-bg-stone-400)]'}`} />
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="top" sideOffset={6} collisionPadding={12} className="pointer-events-none px-2 py-1 motion-reduce:animate-none">
@@ -200,7 +200,7 @@ export default function ComposerModelPicker({
                     })}
                   </div>
                 </TooltipProvider>
-                <span className="grid shrink-0 whitespace-nowrap text-xs text-stone-700">
+                <span className="grid shrink-0 whitespace-nowrap text-xs text-[var(--mm-text-stone-700)]">
                   {/* Overlapping hidden labels reserve the actual widest option without measuring the DOM. */}
                   {reasoningOptions!.map(option => <span key={option.id} aria-hidden="true"
                     className="invisible col-start-1 row-start-1">（{option.label}）</span>)}
@@ -208,7 +208,7 @@ export default function ComposerModelPicker({
                 </span>
               </div>
             ) : (
-              <p className="text-xs leading-5 text-stone-500">推理档位：由 Agent 配置决定</p>
+              <p className="text-xs leading-5 text-[var(--mm-text-stone-500)]">推理档位：由 Agent 配置决定</p>
             )}
           </div>
         </Popover.Content>

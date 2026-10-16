@@ -40,9 +40,9 @@ export default function CoursewareTitle({ title, disabled, onRename }: Props) {
   if (!editing) return <button ref={trigger} type="button" disabled={disabled}
     aria-label={`重命名课件：${title || '未命名课件'}`} title={disabled ? title : '点击编辑课件名称'}
     onClick={() => { setDraft(title); setError(null); setEditing(true); }}
-    className="group flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left text-sm font-semibold text-stone-800 transition-colors hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:cursor-default disabled:hover:bg-transparent motion-reduce:transition-none">
+    className="group flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-left text-sm font-semibold text-[var(--mm-text-stone-800)] transition-colors hover:bg-[var(--mm-bg-stone-100)] focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)] disabled:cursor-default disabled:hover:bg-transparent motion-reduce:transition-none">
     <span className="max-w-[200px] truncate">{title || '未命名课件'}</span>
-    <Pencil aria-hidden className="h-3 w-3 shrink-0 text-stone-500 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 group-disabled:invisible" />
+    <Pencil aria-hidden className="h-3 w-3 shrink-0 text-[var(--mm-text-stone-500)] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 group-disabled:invisible" />
   </button>;
 
   return <form aria-label="编辑课件名称" aria-busy={saving} data-slot="courseware-title-editor"
@@ -65,7 +65,7 @@ export default function CoursewareTitle({ title, disabled, onRename }: Props) {
           if (!pending.current) close(true);
         }
       }}
-      className="h-7 w-full min-w-0 select-text rounded-none border-0 border-b border-stone-300 bg-transparent px-1.5 text-sm font-semibold text-stone-800 outline-none focus:border-emerald-600 aria-invalid:border-amber-700" />
-    {error && <p id="courseware-title-error" role="alert" className="absolute top-full left-0 z-10 mt-1 w-64 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-900 shadow-sm">{error}</p>}
+      className="h-7 w-full min-w-0 select-text rounded-none border-0 border-b border-[var(--mm-border-stone-300)] bg-transparent px-1.5 text-sm font-semibold text-[var(--mm-text-stone-800)] outline-none focus:border-[var(--mm-border-emerald-600)] aria-invalid:border-[var(--mm-border-amber-700)]" />
+    {error && <p id="courseware-title-error" role="alert" className="absolute top-full left-0 z-10 mt-1 w-64 rounded-md border border-[var(--mm-border-amber-200)] bg-[var(--mm-bg-amber-50)] px-2 py-1 text-xs text-[var(--mm-text-amber-900)] shadow-sm">{error}</p>}
   </form>;
 }

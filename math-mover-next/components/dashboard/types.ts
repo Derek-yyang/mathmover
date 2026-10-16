@@ -37,6 +37,8 @@ export interface GeoGebraApi {
   getViewProperties?: (view: number) => unknown;
   getGraphicsOptions?: (view: number) => unknown;
   getPerspectiveXML?: () => string;
+  getXML?: () => string;
+  setXML?: (xml: string) => void;
   setCoordSystem?: (xMin: number, xMax: number, yMin: number, yMax: number) => void;
   refreshViews: () => void;
   recalcDisplay?: () => void;
@@ -60,11 +62,13 @@ export interface ChatAttachment {
 }
 
 export interface AgentMeta {
+  /** Public activity only. Private thinking and raw tool payloads are never stored here. */
+  activity?: AgentActivityEntry[];
   /** stopped = 用户主动打断；不要当错误呈现 */
   status?: 'generating' | 'completed' | 'error' | 'stopped';
-  /** agent 起的课件名（submit_construction 的 title 入参），优先级高于「首条消息截断」 */
+  /** agent 起的课件名（正文里的 `<mm-title>` 标记，宿主剥出来后经 title 事件落进来），优先级高于「首条消息截断」 */
   title?: string;
-  /** 本轮类别：题目增强才有值（get_expert_prompt / submit_construction 的 category 入参） */
+  /** 本轮类别：题目增强才有值（get_expert_prompt 的 category 入参） */
   category?: string;
   categoryLabel?: string;
   /** 本轮实际下发的构造指令清单 */
@@ -76,6 +80,10 @@ export interface AgentMeta {
   execution?: AgentExecution;
   characters?: number;
 }
+
+export type AgentActivityEntry =
+  | { id: string; kind: 'text'; text: string; phase: 'pending' | 'commentary' | 'final' | 'unknown'; messageId?: string; complete?: boolean }
+  | { id: string; kind: 'tool'; stepId: string };
 
 export interface AgentChatMessage {
   id: string;

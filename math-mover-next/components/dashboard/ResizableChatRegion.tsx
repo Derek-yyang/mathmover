@@ -115,8 +115,8 @@ export default function ResizableChatRegion({ children, disabled = false }: { ch
           setWidth(next);
         }}
       >
-        <span className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 group-hover:bg-emerald-600 group-focus-visible:bg-emerald-700 ${dragging ? 'bg-emerald-600' : 'bg-transparent'}`} />
-        <span aria-hidden="true" className={`absolute left-1/2 top-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full group-hover:bg-emerald-600 group-focus-visible:bg-emerald-700 ${dragging ? 'bg-emerald-600' : 'bg-stone-300'}`} />
+        <span className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 group-hover:bg-[var(--mm-bg-emerald-600)] group-focus-visible:bg-[var(--mm-bg-emerald-700)] ${dragging ? 'bg-[var(--mm-bg-emerald-600)]' : 'bg-transparent'}`} />
+        <span aria-hidden="true" className={`absolute left-1/2 top-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full group-hover:bg-[var(--mm-bg-emerald-600)] group-focus-visible:bg-[var(--mm-bg-emerald-700)] ${dragging ? 'bg-[var(--mm-bg-emerald-600)]' : 'bg-[var(--mm-bg-stone-300)]'}`} />
       </div>
     </div>
   );

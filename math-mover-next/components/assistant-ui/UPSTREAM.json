@@ -137,6 +137,11 @@
       "sha256": "1b838ae6054c2c45535701af231291436e77da1d6215a2c2a80a313de5aaeace"
     },
     {
+      "url": "https://r.assistant-ui.com/elements-thinking-indicator.json",
+      "file": "components/assistant-ui/elements/thinking-indicator.tsx",
+      "sha256": "dc85ba3e84c99deb63ec7285dbd12d05f4c28e168ed4ae034a22a662f53eb71b"
+    },
+    {
       "url": "https://r.assistant-ui.com/elements-surfaces.json",
       "file": "components/assistant-ui/elements/surfaces.tsx",
       "sha256": "5d81fbb669e67ae20026cd30ed57efc51a5e3ee0f4f5d265e1723de75359b8fa"
@@ -175,6 +180,31 @@
         "SidebarContent",
         "SidebarFooter"
       ]
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-run-activity.json",
+      "file": "components/assistant-ui/elements/run-activity.tsx",
+      "sha256": "1b838ae6054c2c45535701af231291436e77da1d6215a2c2a80a313de5aaeace"
+    },
+    {
+      "url": "https://r.assistant-ui.com/elements-shiki-highlighter.json",
+      "file": "components/assistant-ui/elements/shiki-highlighter.tsx",
+      "sha256": "81e7f56a5486967eef1763ea15ba22ad923388f5575f8dac71e588405c547f37"
+    },
+    {
+      "url": "https://r.assistant-ui.com/select.json",
+      "file": "components/assistant-ui/ui/select.tsx",
+      "sha256": "0233f634447f34c4f61a581a6166449d1985de1b0685340e964da95676cb8f1a"
+    },
+    {
+      "url": "https://r.assistant-ui.com/tabs.json",
+      "file": "components/assistant-ui/ui/tabs.tsx",
+      "sha256": "664ee378214eadf712f489c77aa9a6084b72f9669d4ee31ac6a030e15872f9e2"
+    },
+    {
+      "url": "https://r.assistant-ui.com/badge.json",
+      "file": "components/assistant-ui/ui/badge.tsx",
+      "sha256": "d8386d947b8a8c6d965de680503e6af5ed66068cd61b4d9ecc722a4cee1d6ffc"
     }
   ]
 }

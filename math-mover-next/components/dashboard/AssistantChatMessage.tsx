@@ -4,6 +4,7 @@ import { memo } from 'react';
 import { ThreadPrimitive, useAuiState } from '@assistant-ui/react';
 import { AssistantMessage, UserMessage, EditComposer } from '@/components/assistant-ui/elements/thread.aui';
 import { ToolGroupRoot, ToolGroupTrigger, ToolGroupContent } from '@/components/assistant-ui/elements/tool-group.aui';
+import { CodeBlock } from '@/components/assistant-ui/elements/code-block';
 import type { AgentChatMessage } from './types';
 import AgentDiagnosticNotice from './AgentDiagnosticNotice';
 import AgentExecutionProgress from './AgentExecutionProgress';
@@ -39,15 +40,15 @@ function ChatMessageBody() {
     {msg.role === 'user' ? <>
       {isEditing ? <EditComposer /> : <UserMessage />}
       {msg.attachments?.filter(image => image.unavailable || !image.url).map((image, index) =>
-        <p key={image.id ?? index} className="mt-2 text-sm text-stone-600">旧图片无法恢复，请重新上传：{image.name || '题目图片'}</p>)}
+        <p key={image.id ?? index} className="mt-2 text-sm text-[var(--mm-text-stone-600)]">旧图片无法恢复，请重新上传：{image.name || '题目图片'}</p>)}
     </> : <AssistantMessage
-      before={msg.meta?.execution && <AgentExecutionProgress execution={msg.meta.execution} />}
+      before={msg.meta?.execution && <AgentExecutionProgress execution={msg.meta.execution} activity={msg.meta.activity} />}
       error={diagnostic && <AgentDiagnosticNotice diagnostic={diagnostic} detecting={detecting} onRescan={() => void refreshRuntimes()} />}
       after={<>
         <AgentRunResult meta={msg.meta} />
         {commands.length > 0 && <ToolGroupRoot variant="ghost" className="mt-2">
           <ToolGroupTrigger count={commands.length} label={`构造指令 · ${commands.length} 条`} />
-          <ToolGroupContent><pre className="overflow-x-auto rounded-lg bg-muted p-3 text-xs"><code>{commands.join('\n')}</code></pre></ToolGroupContent>
+          <ToolGroupContent><CodeBlock language="GeoGebra" code={commands.join('\n')} /></ToolGroupContent>
         </ToolGroupRoot>}
       </>} />}
   </>;

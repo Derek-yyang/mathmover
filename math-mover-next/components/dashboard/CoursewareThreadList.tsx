@@ -15,8 +15,8 @@ const EMPTY_MESSAGES: readonly ThreadMessageLike[] = [];
 
 /** Official list runtime backed by the existing courseware API. Chat and canvas
  * remain owned by useCoursewareLibrary; selecting a row uses its existing URL. */
-export default function CoursewareThreadList({ searchRequest = 0, archived = false, onOpen, portalContainer }: {
-  searchRequest?: number; archived?: boolean; onOpen?: () => void; portalContainer?: HTMLElement | null;
+export default function CoursewareThreadList({ searchRequest = 0, archived = false, onOpen, onOpenRequest, portalContainer }: {
+  searchRequest?: number; archived?: boolean; onOpen?: () => void; onOpenRequest?: (proceed: () => void) => void; portalContainer?: HTMLElement | null;
 }) {
   const router = useRouter();
   const currentId = useSearchParams().get('history_id') ?? undefined;
@@ -113,9 +113,9 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
   }, [busy, records, refresh]);
   const openCourseware = useCallback((id: string) => {
     if (busy || mutationLock.current) return;
-    router.push(`/dashboard?history_id=${encodeURIComponent(id)}`);
-    onOpen?.();
-  }, [busy, onOpen, router]);
+    const proceed = () => { router.push(`/dashboard?history_id=${encodeURIComponent(id)}`); onOpen?.(); };
+    if (onOpenRequest) onOpenRequest(proceed); else proceed();
+  }, [busy, onOpen, onOpenRequest, router]);
   const adapter = useMemo<ExternalStoreThreadListAdapter>(() => ({
     threadId: currentId, threads, archivedThreads, isLoading: loading,
     onSwitchToNewThread: () => { if (!mutationLock.current) newCourseware(); },
@@ -146,6 +146,9 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
   return <AssistantRuntimeProvider runtime={runtime}>
     <ThreadList archived={archived} portalContainer={portalContainer} disabled={disabled} error={error} onRetry={() => { void refresh(); }} searchRef={searchRef} rootRef={listRef}
       newDisabled={mutating} onNew={() => { if (!mutationLock.current) newCourseware(); }}
+      // Intercept before the primitive changes its active thread, so cancelling
+      // a draft guard leaves both the URL and list selection unchanged.
+      onOpen={onOpenRequest ? openCourseware : undefined}
       onOpenCurrent={archived ? onOpen : undefined}
       onDelete={async id => {
         await runtime.threads.getItemById(id).delete();
@@ -168,7 +171,7 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
       }}>
         <DialogTitle>{deleteIds.length <= 1 ? '删除这个课件？' : `删除 ${deleteIds.length} 个课件？`}</DialogTitle>
         <DialogDescription>将永久删除课件、对话和画板历史，无法恢复。需要保留时可以选择归档。</DialogDescription>
-        {error && <p role="alert" className="text-sm text-amber-900">{error}</p>}
+        {error && <p role="alert" className="text-sm text-[var(--mm-text-amber-900)]">{error}</p>}
         <div className="flex justify-end gap-2">
           <DialogClose asChild><Button variant="ghost" disabled={mutating}>取消</Button></DialogClose>
           <Button variant="destructive" disabled={disabled} onClick={() => {

@@ -5,7 +5,6 @@
 import "@assistant-ui/react-markdown/styles/dot.css";
 
 import {
-  type CodeHeaderProps,
   MarkdownTextPrimitive,
   type MarkdownTextPrimitiveProps,
   memoizeMarkdownComponents,
@@ -17,10 +16,7 @@ import rehypeKatex from "rehype-katex";
 import { normalizeMathDelimiters } from "@assistant-ui/react-markdown";
 import { type FC, memo, useMemo, useRef } from "react";
 import type { TextMessagePartProps } from "@assistant-ui/react";
-import { CheckIcon, CopyIcon } from "lucide-react";
-
-import { TooltipIconButton } from "@/components/assistant-ui/elements/tooltip-icon-button";
-import { useCopyToClipboard } from "@/components/assistant-ui/hooks/use-copy-to-clipboard";
+import { CodeHeader, CodePre } from "./code-block";
 import { cn } from "@/components/assistant-ui/utils";
 
 type MarkdownTextProps = Partial<TextMessagePartProps> & {
@@ -73,30 +69,6 @@ const MarkdownTextImpl: FC<MarkdownTextProps> = ({
 };
 
 export const MarkdownText = memo(MarkdownTextImpl);
-
-const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
-  const { isCopied, copyToClipboard } = useCopyToClipboard();
-  const onCopy = () => {
-    if (!code || isCopied) return;
-    copyToClipboard(code);
-  };
-
-  return (
-    <div className="aui-code-header-root border-border/50 bg-muted/50 mt-3 flex items-center justify-between rounded-t-xl border border-b-0 px-3.5 py-1.5 text-xs">
-      <span className="aui-code-header-language text-muted-foreground font-medium lowercase">
-        {language}
-      </span>
-      <TooltipIconButton tooltip="复制消息" onClick={onCopy}>
-        {!isCopied && (
-          <CopyIcon className="animate-in zoom-in-75 fade-in duration-150" />
-        )}
-        {isCopied && (
-          <CheckIcon className="animate-in zoom-in-50 fade-in duration-200 ease-out" />
-        )}
-      </TooltipIconButton>
-    </div>
-  );
-};
 
 const defaultComponents = memoizeMarkdownComponents({
   // Preserve the existing policy for model-generated remote image URLs.
@@ -259,15 +231,7 @@ const defaultComponents = memoizeMarkdownComponents({
       {...props}
     />
   ),
-  pre: ({ className, ...props }) => (
-    <pre
-      className={cn(
-        "aui-md-pre border-border/50 bg-muted/30 overflow-x-auto rounded-t-none rounded-b-xl border border-t-0 p-3.5 text-[13px] leading-relaxed",
-        className,
-      )}
-      {...props}
-    />
-  ),
+  pre: CodePre,
   code: function Code({ className, ...props }) {
     const isCodeBlock = useIsMarkdownCodeBlock();
     return (

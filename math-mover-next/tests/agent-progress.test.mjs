@@ -66,15 +66,23 @@ test('metadata excludes tool payloads and redacts credential-like names', () => 
   const run = update(fresh(), { kind: 'tool-call', toolCallId: 'a', name: 'API_KEY=private-test-secret', input: 'SECRET' }, 2000);
   assert.doesNotMatch(JSON.stringify(run), /private-test-secret|SECRET/);
   assert.equal(toolStepLabel('constructor'), '调用工具');
-  assert.equal(toolStepLabel('ggb_apply'), '更新构造');
+  assert.equal(toolStepLabel('ggb_apply'), '更新构造并自检');
   assert.equal(update(run, { kind: 'thinking', text: 'SECRET' }, 3000), run);
 });
 
 test('elapsed text is local time only and tolerates backwards clocks', () => {
   assert.equal(toolStepLabel('mcp__mathmover__get_expert_prompt'), '读取建模规则');
-  assert.equal(toolStepLabel('mcp__mathmover__submit_construction'), '提交构造并检查');
+  // 收卷工具已于 2026-10-15 删除：校验并进了 ggb_apply，命名改走正文标记
+  assert.equal(toolStepLabel('mcp__mathmover__submit_construction'), '调用工具');
   assert.equal(elapsedLabel(1000, 2000), '1 秒');
   assert.equal(elapsedLabel(1000, 62000), '1 分 1 秒');
   assert.equal(elapsedLabel(2000, 1000), '0 秒');
+});
+
+test('native tool labels describe only the observed action', () => {
+  assert.equal(toolStepLabel('Read'), '读取文件');
+  assert.equal(toolStepLabel('Edit'), '编辑文件');
+  assert.equal(toolStepLabel('Bash'), '执行命令');
+  assert.equal(toolStepLabel('WebSearch'), '搜索网页');
 });
 

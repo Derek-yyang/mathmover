@@ -80,7 +80,7 @@ export function ToolCall({
           {!running && (
             <OutcomeIcon aria-label={outcome === "error" ? "返回错误" : outcome === "unconfirmed" ? "结果未确认" : "已返回"}
               className={cn("fade-in zoom-in-90 animate-in size-3.5 duration-200",
-                outcome === "returned" ? "text-emerald-500" : outcome === "error" ? "text-destructive" : "text-muted-foreground")} />
+                outcome === "returned" ? "text-[var(--mm-text-emerald-500)]" : outcome === "error" ? "text-destructive" : "text-muted-foreground")} />
           )}
         </span>
       </CollapsibleTrigger>

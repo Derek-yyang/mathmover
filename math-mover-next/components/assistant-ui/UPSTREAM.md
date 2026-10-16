@@ -12,6 +12,39 @@ dashboard shell, runtime transport and approved image composer are retained.
 
 Local integration changes:
 
+- Settings uses the existing official shadcn/Radix Dialog foundation in
+  `ui/dialog.tsx`, retaining its 840x640 panel, 12px radius and MathMover tokens.
+  Radix owns modal focus looping, outside dismissal and nested Escape priority;
+  the host restores the invoking element because Settings can open from several
+  controls/events. Content accepts optional overlay styles and a close-button
+  toggle; existing callers retain their defaults. Motion respects the system's
+  reduced-motion preference. Settings menus/confirmations remain in its focus
+  scope and use its `data-slot=settings-dialog` boundary. The appearance menu is
+  non-modal within the enclosing modal, avoiding overlapping modal locks.
+- Unsaved API drafts guard Settings dismissal through its close control, Escape,
+  backdrop and archive navigation. A small Radix Popover anchored to the close
+  control offers continue/discard, with focus returning to the invoking control.
+  BYOK publishes dirty/saving flags from input/save events; credentials remain
+  in the form's memory only. Reverting or saving clears the guard, failed saves
+  retain drafts, and pending saves cannot be discarded. Immediate settings such
+  as theme/model selection do not trigger this guard.
+
+- Settings use official `tabs.json` (Radix line variant) and `badge.json`
+  sources (retrieved 2026-10-16), alongside the existing shared Button. Host
+  adapters unify 32px actions, 20px neutral/success/warning badges, theme-green
+  selection/focus and reduced-motion styles. Tabs keep both panels mounted,
+  explicitly hide inactive panels and retain stable accessible IDs, preserving
+  drafts/results while Radix owns roving focus and automatic keyboard selection.
+  Existing test, refresh, save and runtime-switch guards remain in their hosts.
+
+- Settings model and reasoning controls use the official `select.json` Radix
+  component (retrieved 2026-10-16), with existing MathMover theme tokens and
+  compact triggers. The wrapper accepts a portal container so lists stay inside
+  the settings dialog's focus scope, and retains upstream keyboard, focus,
+  typeahead, scroll controls and selection indicators. Motion respects reduced
+  motion; long labels are constrained to the viewport. Model/effort state is
+  still owned by the existing AgentRuntimeProvider.
+
 - The canvas export menu uses a local Radix DropdownMenu wrapper, the same
   foundation as the official ThreadListItemMore primitives. Both share menu
   surface styles; keyboard navigation, dismissal and focus restoration use
@@ -27,17 +60,43 @@ Local integration changes:
 - Labels are translated into Chinese. Tool-group triggers accept a label for
   actual execution/check results supplied by the host and a separate suffix
   for elapsed time, keeping digits outside the animated shimmer label.
-- Agent execution uses the official ToolGroup ghost variant containing
-  props-driven ToolCall elements. Waiting, running and completed states share
-  the group trigger, with elapsed time pinned to its trailing edge. Each call
+- Agent execution uses the official `elements-run-activity` registry component
+  containing public commentary and props-driven ToolCall elements in event order.
+  Runtime message IDs, text phases and final results drive presentation; tool
+  request boundaries classify preceding provisional narration, while unclassified
+  settled text stays visible. Legacy messages retain their original body.
+  Classification is saved in courseware metadata; no raw tool payloads or private
+  thinking are stored. Final answers and actionable errors stay outside the
+  disclosure. Waiting, running and completed states share the trigger, with a
+  separately ticking duration component. Each call
   expands to recorded tool name, call identifier, status and duration; an empty
   run shows a placeholder. Raw arguments/results are not saved by the host, so
   the sections are named call record and execution status instead of implying
   raw payload availability. ToolCall adds localized section labels and separate
   error/unconfirmed outcome icons; returned is not a construction audit.
-  Group and call toggles use useScrollLock, with Radix data-state selectors for
+  Activity and call toggles use useScrollLock, with Radix data-state selectors for
   chevrons and panel animations. Outline borders use the host border token
   explicitly under Tailwind v4. The ToolTimeline trial source remains available.
+- RunActivity keeps the current activity in its single-line disclosure trigger,
+  with truncation and a separate duration suffix. The host supplies an optional
+  `currentActivityLabel` from observed tool states: active calls show the running
+  action; between calls the most recently returned result stays readable with
+  an explicit returned/error/unconfirmed label. No artificial delay is added
+  to execution, next-step updates or run completion. The upstream fallback remains for
+  other callers. Native tool names have short localized action labels. New
+  events preserve the user's expansion state and the complete ordered history.
+- Running summaries compose the official `elements-thinking-indicator` source
+  (retrieved 2026-10-15). Its pulse uses the host primary color; label changes
+  retain the upstream shimmer and enter animation with reduced-motion support.
+  The root is a span so it can live inside the disclosure button. Elapsed time
+  accepts a React node to reuse the isolated clock without restarting label
+  animations every second. Labels use a 20px line height to preserve descenders.
+  Settled summaries remain static and history remains in RunActivity.
+- Empty summaries reserve the disclosure icon's width and share the trigger's
+  flex alignment and row height. The dot/text stay fixed when activity arrives,
+  without exposing an empty button. The host clock initializes from current time
+  against the persisted run start so this layout transition cannot reset elapsed
+  time to zero.
 - Shimmer labels and swap layers use a 20px line height so text masks
   include font descenders such as the lower part of `g` in `Agent`.
 - The assistant-ui message indicator is suppressed because the host tool group
@@ -59,10 +118,32 @@ Local integration changes:
   separate message-edit composer.
 - The message action bar omits the upstream More menu and single-message
   Markdown export. The dashboard currently exposes only the copy action.
+  Copy uses the shared ghost icon Button with an accessible Chinese name and
+  the upstream copied-state checkmark, without a hover tooltip.
 - Markdown adds the existing math plugins and remote-image policy. Palette
   tokens and scoped chat typography live in `app/globals.css`: assistant/user
   body text uses 15px type with 24px line height and explicit system font fallbacks.
   Message geometry stays in the upstream source.
+- `elements/code-block.tsx` extracts the Markdown renderer's official CodeHeader
+  and pre surface for reuse by the construction-command disclosure. It preserves
+  language casing, uses Chinese copy/copied labels and the existing clipboard
+  hook, and adds reduced-motion support and bounded horizontal scrolling.
+  Construction commands use literal source without Markdown parsing; the source
+  and its line breaks are copied unchanged.
+- `elements/shiki-highlighter.tsx` is the official standalone Shiki renderer,
+  retrieved from `elements-shiki-highlighter` on 2026-10-16. Imports use the host
+  utility namespace, source trimming is omitted to preserve whitespace, and the
+  plain fallback keeps keyboard access. The upstream pending-load ref has the
+  same narrow lint exemption as the Markdown renderer. The GeoGebra adapter
+  supplies an already initialized Shiki core with only the local lexical grammar
+  and MathMover light/dark token palettes, bypassing automatic engine/language
+  loading. No WASM or remote grammar/theme fetch is used for GeoGebra.
+  React lazy/Suspense defers this renderer until the command disclosure mounts;
+  plain code remains visible during loading and on load/initialization failure.
+  Both palettes are emitted together and switch through the host color-scheme,
+  without retokenizing on a theme change. Fallback and highlighted code share
+  font metrics, padding and line spacing. `lib/ggb-highlight.ts` is a local
+  display grammar, not GeoGebra's parser or command validation catalog.
 - Historical Markdown is windowed by the dashboard host. Measured text heights
   stay in the message shell while distant text DOM is released; tool controls
   retain state through React Activity while their offscreen subscriptions pause.
@@ -112,7 +193,7 @@ controls follow the runtime's supported capabilities.
 - Single-record deletion uses a local Radix Popover anchored to the row's
   overflow button, with no backdrop. Cancel owns initial focus; Escape/outside
   interaction dismisses it and deletion errors remain in the popover for retry.
-  Archive popovers portal inside Settings' native dialog. Batch deletion keeps
+  Archive popovers portal inside Settings' Dialog. Batch deletion keeps
   the host's centered confirmation dialog and both use the same delete adapter.
 - Motion preserves deletion fade/slide and layout movement with reduced-motion
   support. Exiting rows release their index scope and render an inert static
@@ -135,8 +216,29 @@ controls follow the runtime's supported capabilities.
   empty view. Empty views use a compact icon, title and explanation. Footer entries
   share the same row style; the redundant expanded-header search action is
   removed while the collapsed-rail search shortcut is retained.
+- Batch selection uses a single compact footer row: selected count, select-all
+  and an accessible delete icon reuse the shared ghost Button. The extra divider
+  and second full-width delete row are omitted. Delete is disabled at zero
+  selection and otherwise uses the destructive text/hover tokens; existing
+  confirmation, filtering, busy guards and deletion behavior are retained.
 - The archive view omits the new-thread action. Its menus and delete confirmation
-  portal into the native Settings dialog so they remain in its top layer and
+  portal into the Settings Dialog so they remain in its focus scope and
   accept focus/pointer input. `ui/dialog.tsx` adds an optional portal container;
   other dialog users retain their existing body portal. Opening an already
   active archive closes Settings without asking the runtime to switch again.
+
+## Theme integration
+
+- Theme persistence, system preference, cross-window synchronization and the
+  initial theme script use `next-themes`, following the shadcn/ui Next.js
+  dark-mode integration: https://ui.shadcn.com/docs/dark-mode/next .
+- `components/ThemeProvider.tsx` configures `data-theme`, the existing `mm.theme`
+  preference key, a light default and transitions disabled during theme changes.
+  There is no parallel host theme store or custom initialization script.
+- AppearanceSettings adapts the shadcn mode-toggle composition with the shared
+  Button and Radix DropdownMenu. Radio items add a selected indicator and menus
+  portal inside the Settings Dialog. These are host adaptations, not a
+  separate assistant-ui theme-management component.
+- Colors remain MathMover's CSS tokens in `app/globals.css`: warm light
+  surfaces, neutral dark grays and emerald accents. GeoGebra content
+  keeps its original colors for editing and export.

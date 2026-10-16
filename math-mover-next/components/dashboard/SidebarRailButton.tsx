@@ -20,10 +20,10 @@ export default function SidebarRailButton({ label, children, onClick, id, contro
       aria-controls={controls} aria-expanded={expanded}
       onPointerEnter={() => setDismissed(false)} onFocus={() => setDismissed(false)}
       onKeyDown={event => { if (event.key === 'Escape') setDismissed(true); }}
-      className="group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-stone-700 hover:bg-stone-200/60 focus-visible:outline-2 focus-visible:outline-emerald-700">
+      className="group relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[var(--mm-text-stone-700)] hover:bg-[var(--mm-bg-stone-200)]/60 focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]">
       <span aria-hidden="true" className="flex items-center justify-center">{children}</span>
       <span id={tooltipId} role="tooltip"
-        className={`pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-stone-900 px-3 py-2 text-xs font-medium text-white ${dismissed ? 'invisible' : 'invisible group-hover:visible group-focus-visible:visible'}`}>
+        className={`pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-[var(--mm-bg-stone-900)] px-3 py-2 text-xs font-medium text-white ${dismissed ? 'invisible' : 'invisible group-hover:visible group-focus-visible:visible'}`}>
         {label}
       </span>
     </button>

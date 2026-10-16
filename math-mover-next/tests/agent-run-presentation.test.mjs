@@ -7,15 +7,36 @@ const compile = name => ts.transpileModule(readFileSync(new URL(`../lib/${name}.
   { compilerOptions: { module: ts.ModuleKind.ES2020 } }).outputText;
 const url = code => 'data:text/javascript;base64,' + Buffer.from(code).toString('base64');
 const progress = compile('agent-progress').replace("'./agent-diagnostics'", JSON.stringify(url(compile('agent-diagnostics'))));
-const code = compile('agent-run-presentation').replace("'./agent-progress'", JSON.stringify(url(progress)));
+const runMeta = compile('agent-run-meta').replace("'@/components/dashboard/types'", JSON.stringify(url('export {};')));
+const code = compile('agent-run-presentation')
+  .replace("'./agent-progress'", JSON.stringify(url(progress)))
+  .replace("'./agent-run-meta'", JSON.stringify(url(runMeta)));
 const { executionPresentation, runResultPresentation } = await import(url(code));
 const run = (steps, status = 'completed') => ({ status, steps, startedAt: 1000, endedAt: 2000 });
 const step = (name, status = 'returned') => ({ id: name, name, status });
 
 test('current activity follows the latest concurrent running call, never an invented phase', () => {
-  const result = executionPresentation(run([step('ggb_get_state', 'running'), step('submit_construction', 'running')], 'running'));
-  assert.equal(result.label, '正在提交构造并检查');
-  assert.equal(executionPresentation(run([], 'running')).label, '等待 Agent 回复');
+  const result = executionPresentation(run([step('ggb_get_state', 'running'), step('ggb_apply', 'running')], 'running'));
+  assert.equal(result.label, '正在更新构造并自检…');
+  assert.equal(executionPresentation(run([], 'running')).label, '处理中…');
+});
+
+test('returned calls never stay current; earlier concurrent work remains active', () => {
+  assert.equal(executionPresentation(run([step('ggb_get_state', 'running'), step('ggb_apply')], 'running')).label, '正在读取画板…');
+  assert.equal(executionPresentation(run([step('ggb_get_state'), step('ggb_apply')], 'running')).label, '更新构造并自检 · 已返回');
+  assert.equal(executionPresentation(run([step('Bash', 'running')], 'running')).label, '正在执行命令…');
+  assert.equal(executionPresentation(run([step('unknown', 'running')], 'running')).label, '正在调用工具…');
+});
+
+test('fast results retain a readable, truthful summary until the next activity', () => {
+  assert.equal(executionPresentation(run([step('ggb_get_state')], 'running')).label, '读取画板 · 已返回');
+  assert.equal(executionPresentation(run([step('ggb_apply', 'error')], 'running')).label, '更新构造并自检 · 返回错误');
+  assert.equal(executionPresentation(run([step('ggb_apply', 'unconfirmed')], 'running')).label, '更新构造并自检 · 未确认');
+  const calls = [{ ...step('Read'), endedAt: 4000 }, { ...step('Bash'), endedAt: 3000 }];
+  assert.equal(executionPresentation(run(calls, 'running')).label, '读取文件 · 已返回');
+  assert.equal(executionPresentation(run([...calls, step('ggb_apply', 'running')], 'running')).label, '正在更新构造并自检…');
+  assert.equal(executionPresentation(run(calls, 'completed')).label, '本轮已结束');
+  assert.equal(executionPresentation(run(calls, 'stopped')).label, '已停止 · 本轮未跑完');
 });
 
 test('tool errors, missing results and interrupted runs remain distinct from success', () => {
@@ -26,7 +47,8 @@ test('tool errors, missing results and interrupted runs remain distinct from suc
 });
 
 test('returned construction calls never imply an object audit passed', () => {
-  const result = runResultPresentation({ execution: run([step('mcp__math_mover__submit_construction')]) });
+  // 按**工具名**判「是不是构造类」，不按展示标签——标签是给人看的措辞，改文案不该让这里失效
+  const result = runResultPresentation({ execution: run([step('mcp__mathmover__ggb_apply')]) });
   assert.equal(result.check, '未检查');
   assert.equal(result.checked, false);
   assert.equal(runResultPresentation({ execution: run([step('ggb_get_state')]) }), null);

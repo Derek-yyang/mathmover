@@ -275,16 +275,16 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
   }, [ggbBase64]);
 
   return (
-    <div ref={stageRef} className="geogebra-stage relative h-full w-full min-h-0 min-w-0 overflow-hidden bg-white">
+    <div ref={stageRef} className="geogebra-stage relative h-full w-full min-h-0 min-w-0 overflow-hidden bg-[var(--mm-surface)]">
       <div
         ref={containerRef}
-        className="absolute inset-0 h-full! w-full! overflow-hidden bg-white"
+        className="absolute inset-0 h-full! w-full! overflow-hidden bg-[var(--mm-surface)]"
         id={id || "ggb-element"}
       />
       {loadError && (
-        <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white p-6 text-sm text-stone-700">
+        <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[var(--mm-surface)] p-6 text-sm text-[var(--mm-text-stone-700)]">
           <p>本地画板资源加载失败，请先运行 npm run ggb:install 安装运行库。</p>
-          <button type="button" onClick={() => setLoadAttempt(value => value + 1)} className="rounded-lg border border-stone-300 px-4 py-2 hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-emerald-700">重新加载</button>
+          <button type="button" onClick={() => setLoadAttempt(value => value + 1)} className="rounded-lg border border-[var(--mm-border-stone-300)] px-4 py-2 hover:bg-[var(--mm-bg-stone-100)] focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]">重新加载</button>
         </div>
       )}
     </div>
