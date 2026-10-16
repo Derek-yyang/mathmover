@@ -1,11 +1,12 @@
 /**
  * 语义校验（判据移植自原 Python `semantic_guard.py`，该文件已随一次性生成管线下线）。
  *
- * 忠实移植的部分：free_param / orphan_slider 的判据与文案（_DEF_RE/_TOKEN_RE 逻辑）、
- * 类别结构检查的失败文案。
+ * 忠实移植的部分：free_param / orphan_slider 的判据与文案（_DEF_RE/_TOKEN_RE 逻辑）。
  * （Python 的 strip_text_objects 曾一并移植为 stripTextObjects，2026-10-11 删除——
- *   调用者随一次性管线一起下线了；且「悄悄删」与 submit_construction 的
- *   「校验不拦路」不变量相反。文字对象现在由 no_text 检查报告，让模型自己改。）
+ *   调用者随一次性管线一起下线了；且「悄悄删」与「校验不拦路」的不变量相反。）
+ *
+ * 2026-10-15：`syntax` / `no_text` / `category_structure` 三条移除，判据与理由见
+ * `semanticCheck` 的注释。本模块至此不再需要 category。
  *
  * 记录在案的实现差异：Python 侧对象 kind 由 ggb_parser 的表达式精化（圆锥/方程
  * 识别等多趟启发式）给出；这里按**定义命令头**分类 + 少量表达式启发（二次项
@@ -15,7 +16,6 @@
  */
 
 import { classifyLine } from './parse.ts';
-import type { Mode } from './types.ts';
 
 export interface SemanticFailure {
   check: string;
@@ -24,7 +24,6 @@ export interface SemanticFailure {
 
 export interface SemanticResult {
   ok: boolean;
-  validity: number;
   failures: SemanticFailure[];
   summary: string;
 }
@@ -42,8 +41,6 @@ const MATH_FUNCS = new Set([
   'sum', 'mean', 'median', 'x', 'y', 'z',
   'pi', 'e', 'phi', 'i', 'undefined', 'true', 'false',
 ]);
-
-const CONIC_KINDS = new Set(['conic', 'parabola', 'ellipse', 'hyperbola']);
 
 const DEF_RE = /^\s*([A-Za-z][A-Za-z0-9_]*)\s*(?:\(([^)]*)\))?\s*:?=/;
 const TOKEN_RE = /"[^"]*"|\d+\.?\d*(?:[eE][+-]?\d+)?|[A-Za-z_][A-Za-z0-9_]*/g;
@@ -72,6 +69,7 @@ interface MiniObj {
 const CONIC_HEADS = new Set(['conic', 'parabola', 'ellipse', 'hyperbola']);
 const TEXT_HEADS = new Set(['text']);
 const SLIDER_HEADS = new Set(['slider']);
+/** 多边形/圆类命令头——`classifyDefs` 靠它给对象定 kind（形状检查已移除，分类仍用）。 */
 const B_HEADS = new Set(['polygon', 'circle', 'arc', 'sector', 'circulararc', 'circularsector', 'rigidpolygon', 'polyline']);
 const POINT_HEADS = new Set(['point', 'pointin', 'intersect', 'midpoint', 'center', 'vertex', 'focus', 'extremum']);
 
@@ -113,93 +111,36 @@ function classifyDefs(text: string): { objs: MiniObj[]; defs: { name: string; bo
   return { objs, defs };
 }
 
-export interface LineCheck {
-  validity: number;
-  invalidCount: number;
-  total: number;
-  unknownCommands: { line: string; head: string }[];
-}
-
-/** 行级体检：未知类行计 invalid，命令头不在白名单的记 unknown。 */
-export function checkLines(text: string, knownCommandLower: Set<string>): LineCheck {
-  let total = 0;
-  let invalid = 0;
-  const unknownCommands: { line: string; head: string }[] = [];
-  for (const raw of text.split('\n')) {
-    const { kind } = classifyLine(raw);
-    if (kind === 'blank' || kind === 'comment') continue;
-    total += 1;
-    if (kind === 'unknown') {
-      invalid += 1;
-      continue;
-    }
-    const m = DEF_RE.exec(raw);
-    const call = m ? /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/.exec(raw.slice(m.index + m[0].length)) : null;
-    const head = (call?.[1] ?? (m?.[1] ? '' : '')).toLowerCase();
-    if (kind === 'property') {
-      const pm = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/.exec(raw);
-      const ph = pm?.[1]?.toLowerCase() ?? '';
-      if (ph && !knownCommandLower.has(ph)) unknownCommands.push({ line: raw, head: ph });
-    } else if (call && head && !knownCommandLower.has(head)) {
-      unknownCommands.push({ line: raw, head });
-    }
-  }
-  return {
-    validity: total ? Math.round(((total - invalid) / total) * 10000) / 10000 : 1.0,
-    invalidCount: invalid,
-    total,
-    unknownCommands,
-  };
-}
-
 /**
- * 语义自查。
+ * 语义自查 —— **只查「与类别无关、且从指令文本里看不出来」的东西**。
  *
- * `category` 是可选增强参数（题目建模的交卷才给）：给了才额外查 category_structure
- * （A 要函数、B 要多边形/圆…）**与 no_text**（题面文字该画出来，不是贴上去）。
- * 不给则这两条都不跑——「画条线段」被要求"缺函数对象"是废话，
- * 「在图上写句说明」被要求"删掉文字对象"同样是废话。
- * 恒跑的只剩语法率与动点自洽（画图与题目建模都适用）。
+ * 现存两条：free_param（引用了未定义的名字）与 orphan_slider（滑块没驱动任何对象）。
+ * 共同点是**必须把依赖图算出来才知道**：agent 读自己写的 `a = Slider(3, 8, 0.5)`
+ * 看不出全篇没一处引用 a；画布体检也只会说「对象建好了、有值」。而一个拖了没反应的
+ * 滑块，正是「精确可控的动图」这个卖点的反面。
  *
- * 2026-10-11：no_text 此前归在「恒跑」里，会误伤纯画图——用户要一段说明文字
- * 是合理的（标签另说，产品约定是 ShowLabel/SetLabelMode 挂在对象上，不用 Text）。
+ * 2026-10-15 移除三条：
+ *  - `syntax`（指令有效率）——行级白名单检查 `checkLines` 已经覆盖，再报一遍是噪音；
+ *  - `no_text`（残留文字对象）与 `category_structure`（按类别的形状要求）——都是
+ *    **按类别的形状启发式**，且与 agent 已拿到的专家 skill 重复（skill 里已写明
+ *    该类题该建什么骨架，再 nag 一遍是同一件事说两遍）。
+ *
+ * 移除后本函数**不再需要 category**——写路径（ggb_apply）因此与类别彻底解耦，
+ * 类别只剩「选哪套专家知识」一个用途（get_expert_prompt）。
+ *
+ * （沿革：no_text 原归在「恒跑」里，2026-10-11 挪到 category 门后，因为它误伤纯画图——
+ *   用户要一段说明文字是合理的；标签另说，产品约定是 ShowLabel/SetLabelMode 挂在对象上。）
  */
 export function semanticCheck(
-  category: string | undefined,
   candidateText: string,
-  opts: { knownCommandLower?: Set<string>; mode?: Mode } = {},
+  opts: { knownCommandLower?: Set<string> } = {},
 ): SemanticResult {
   const { objs, defs } = classifyDefs(candidateText);
   const failures: SemanticFailure[] = [];
-  const kinds = new Set(objs.map((o) => o.kind));
   const objNames = new Set(objs.map((o) => o.name));
   const sliderNames = new Set(objs.filter((o) => o.kind === 'slider').map((o) => o.name));
 
-  // 1) 语法有效率
-  const lines = opts.knownCommandLower
-    ? checkLines(candidateText, opts.knownCommandLower)
-    : null;
-  const validity = lines?.validity ?? 1.0;
-  if (validity < 0.95) {
-    failures.push({
-      check: 'syntax',
-      detail: `指令有效率 ${validity}，无效行 ${lines?.invalidCount ?? 0} 行`,
-    });
-  }
-
-  // 2) 残留文字对象 —— **只在给了 category 时查**（与 category_structure 同款门控）。
-  //    规则本意是「题面文字不应生成 Text 对象」：题目写着"如图，在△ABC 中…"，
-  //    agent 该把三角形画出来，而不是把这句话贴成一个 Text。
-  //    纯画图时用户说「在图上写句『这是重心』」是合理需求，不该拦。
-  const textObjs = objs.filter((o) => o.kind === 'text').map((o) => o.name);
-  if (category && textObjs.length) {
-    failures.push({
-      check: 'no_text',
-      detail: `存在文字对象 ${JSON.stringify(textObjs)}，题目文字不应生成 Text 对象，请删除这些行`,
-    });
-  }
-
-  // 3) 动点自由度自洽（Python 判据同款）
+  // 动点自由度自洽（Python 判据同款）
   const boundAll = new Set<string>();
   for (const d of defs) for (const b of d.bound) boundAll.add(b);
   const variants = new Set<string>();
@@ -238,41 +179,9 @@ export function semanticCheck(
     });
   }
 
-  // 4) 类别结构要求（文案与 Python 对齐）
-  if (category === 'A') {
-    if (!([...kinds].some((k) => k === 'function' || k === 'equation'))) {
-      failures.push({ check: 'category_structure', detail: '函数与图像类题目：图中缺少函数或方程对象（应有 f(x)=... 或显式曲线方程）' });
-    }
-  } else if (category === 'B') {
-    if (!([...kinds].some((k) => B_HEADS.has(k) || k === 'circle'))) {
-      failures.push({ check: 'category_structure', detail: '平面几何类题目：缺少多边形/圆等几何对象，仅有孤立的点和线不满足题意' });
-    }
-  } else if (category === 'C') {
-    if (!([...kinds].some((k) => CONIC_KINDS.has(k)))) {
-      failures.push({ check: 'category_structure', detail: '解析几何类题目：缺少圆锥曲线对象（Parabola/Ellipse/Hyperbola 或二次方程曲线），请用题目给定的方程或条件构造圆锥曲线' });
-    }
-  } else if (category === 'D') {
-    const mode = (opts.mode ?? detectModeText(candidateText)).toUpperCase();
-    const has3d = [...kinds].some((k) => ['point3d', 'polygon3d', 'sphere', 'cone', 'cylinder'].includes(k))
-      || /(?:Point|Polygon)\s*\([^)]*,[^)]*,[^)]*\)/i.test(candidateText)
-      || /\(\s*-?[\d.]+\s*,\s*-?[\d.]+\s*,\s*-?[\d.]+\s*\)/.test(candidateText);
-    if (mode !== '3D' && !has3d) {
-      failures.push({ check: 'category_structure', detail: '立体几何类题目：应为 3D 视图（MODE: 3D）且含空间点/空间多边形，当前图是平面图，请按立体几何骨架重做' });
-    }
-  }
-
   return {
     ok: failures.length === 0,
-    validity,
     failures,
     summary: failures.map((f) => `${f.check}: ${f.detail.slice(0, 60)}`).join('; '),
   };
-}
-
-function detectModeText(text: string): string {
-  for (const line of text.split('\n')) {
-    const { kind } = classifyLine(line);
-    if (kind === 'mode') return /3d/i.test(line) ? '3D' : '2D';
-  }
-  return '2D';
 }

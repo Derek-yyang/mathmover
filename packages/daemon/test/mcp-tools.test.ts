@@ -45,16 +45,19 @@ async function openClient(opts: { wrapAsync?: boolean; toolset?: 'cli' | 'byok' 
   const bridge: Pick<GgbBridgeClient, 'connected' | 'snapshot' | 'call'> = {
     connected: true,
     snapshot: null,
-    call: <T>(op: string) => {
+    // 回显**下发的清单**（真画布的账本就是它）——桩若恒定回一份写死的清单，
+    // apply 的写回就会把工作稿冲成那一份，「文件没被动过」这类断言就测不准了。
+    call: <T>(op: string, args?: unknown) => {
+      const sent = (args as { commands?: string[] } | undefined)?.commands ?? ['A = (0, 0)'];
       if (op === 'apply') {
         return Promise.resolve({
-          applied: [], failedFirstPass: [], durationMs: 1, state: rawState(['A = (0, 0)']),
+          applied: [], failedFirstPass: [], durationMs: 1, state: rawState(sent),
         } as RawApplyResult as T);
       }
-      return Promise.resolve(rawState(['A = (0, 0)']) as T);
+      return Promise.resolve(rawState(sent) as T);
     },
   };
-  // workdir 必须指向临时目录：submit_construction 会往这里写构造文件，
+  // workdir 必须指向临时目录：apply 会往这里写构造文件，
   // 用默认的 process.cwd() 会把 construction.ggb.txt 拉进仓库。
   const workdir = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-mcp-tools-test-'));
   workdirs.push(workdir);
@@ -104,14 +107,13 @@ describe('MCP 工具面', () => {
     expect((await cli.listTools()).tools.map((t) => t.name).sort()).toEqual([
       'get_expert_prompt', 'get_sop_cards',
       'ggb_apply', 'ggb_get_state', 'ggb_reset',
-      'submit_construction',
     ]);
     // BYOK 无原生文件能力，需要 read/write_construction 兜底
     const byok = await openClient({ toolset: 'byok' });
     expect((await byok.listTools()).tools.map((t) => t.name).sort()).toEqual([
       'get_expert_prompt', 'get_sop_cards',
       'ggb_apply', 'ggb_get_state', 'ggb_reset',
-      'read_construction', 'submit_construction', 'write_construction',
+      'read_construction', 'write_construction',
     ]);
   });
 
@@ -122,13 +124,6 @@ describe('MCP 工具面', () => {
 
     // 题目增强：category 必填——改回可选会让 agent 不判类就拿 skill
     expect(describeTool(tools, 'get_expert_prompt').required).toEqual(['category']);
-    // 收卷：**没有 commands 参数**（唯一入口是工作稿文件），category 必须可选
-    expect(describeTool(tools, 'submit_construction').params).not.toContain('commands');
-    expect(describeTool(tools, 'submit_construction').required).not.toContain('category');
-    expect(describeTool(tools, 'submit_construction').params).toContain('category');
-    // 命名：可选（agent 起的课件名）。必填会让 agent 为了过 schema 乱编名字。
-    expect(describeTool(tools, 'submit_construction').params).toContain('title');
-    expect(describeTool(tools, 'submit_construction').required).not.toContain('title');
     // 取卡按名字批量拿
     expect(describeTool(tools, 'get_sop_cards').required).toEqual(['names']);
     // 工作稿是唯一入口：ggb_apply 无 commands；读零参，写必带 commands（可选 apply 联动下发）
@@ -143,14 +138,14 @@ describe('MCP 工具面', () => {
     const client = await openClient();
     const { tools } = await client.listTools();
     const expert = describeTool(tools, 'get_expert_prompt').description;
-    const submit = describeTool(tools, 'submit_construction').description;
+    const apply = describeTool(tools, 'ggb_apply').description;
     const cards = describeTool(tools, 'get_sop_cards').description;
 
     expect(expert).toContain('题目增强');            // 增强能力，不是「专用链路」
     expect(expert).toContain('纯画图/改图不必取');   // 指路：非做题不用取
     expect(expert).toContain('分类标准');            // 分类学随工具下发
-    expect(expert).toContain('传给 submit_construction');  // 提示交卷时同 category 一并传
-    expect(submit).toContain('给了 category');        // category 是本次入参，不是模式
+    expect(apply).toContain('动点自洽');              // 校验并进 apply 后的语义检查
+    expect(apply).toContain('自查');                  // 回执带明细，别让 agent 以为只管下发
     expect(cards).toContain('不要凭记忆编指令');     // 防幻觉的核心纪律
   });
 
@@ -170,25 +165,39 @@ describe('MCP 工具面', () => {
     expect(meta.catalog.every((c: { step: string }) => typeof c.step === 'string')).toBe(true);
   });
 
-  it('category 是本次入参，不跨调用残留（无会话账本）', async () => {
+  it('取过哪类知识包都不影响 apply（无会话账本）', async () => {
     // 用 write_construction 备稿，需 byok 面
     const client = await openClient({ toolset: 'byok' });
-    // 先取题目增强（category 用来选知识包）
+    // 先取题目增强（category 只用来选知识包）
     await client.callTool({ name: 'get_expert_prompt', arguments: { category: 'A' } });
     await client.callTool({
       name: 'write_construction',
       arguments: { commands: ['A = (0, 0)', 'B = (1, 1)'] },
     });
-    // 不传 category → 不做类别结构检查（哪怕上面取过 A 类知识包）
-    const r = await client.callTool({ name: 'submit_construction', arguments: { png: false } });
-    expect(textBlocks(r).some((t) => t.includes('已按类别 A'))).toBe(false);
-    expect(textBlocks(r).some((t) => t.includes('已校验并下发'))).toBe(true);
+    // apply 不带类别（2026-10-15 起写路径与类别彻底解耦），也不会把上面那次分类记下来
+    const r = await client.callTool({ name: 'ggb_apply', arguments: { png: false } });
+    expect(textBlocks(r).some((t) => t.includes('已按类别'))).toBe(false);
   });
 
-  it('异步工具面（真 agent 走的 HTTP 路径）：read/write/submit 都不崩', async () => {
-    // tools-http 的 readConstruction 返回 Promise。漏 await 时 submit_construction 的
-    // source.flatMap 直接崩、read_construction 拿 Promise.length 当数组长度恒报「空」——
-    // 同步 GgbTools 测不出来，必须走异步包装。
+  it('ggb_apply 报告无效行但**不剔除**——它们还在工作稿里', async () => {
+    // 剔了 daemon 会把净化后的账本回写工作稿，agent 刚写的那行就从它自己的文件里消失。
+    // 而 apply 是「每完成一段就调一次」的高频动作，等于在它编辑到一半时抽走它脚下的行。
+    const client = await openClient({ toolset: 'byok' });
+    const commands = ['A = (0, 0)', 'Tangnet(A, 1)'];
+    await client.callTool({ name: 'write_construction', arguments: { commands } });
+    const r = await client.callTool({ name: 'ggb_apply', arguments: { png: false } });
+    const texts = textBlocks(r);
+    // 问题行放第一条（别埋在一堆 text 块中间），且明说没替它删
+    expect(texts[0]).toContain('Tangnet(A, 1)');
+    expect(texts[0]).toContain('没有替你删');
+    // 文件没被动过
+    const read = await client.callTool({ name: 'read_construction', arguments: {} });
+    expect(textBlocks(read).some((t) => t.includes('Tangnet(A, 1)'))).toBe(true);
+  });
+
+  it('异步工具面（真 agent 走的 HTTP 路径）：read/write/apply 都不崩', async () => {
+    // tools-http 的 readConstruction 返回 Promise。漏 await 时 read_construction 会拿
+    // Promise.length 当数组长度、恒报「工作稿为空」——同步 GgbTools 测不出来，必须走异步包装。
     const client = await openClient({ wrapAsync: true, toolset: 'byok' });
     await client.callTool({
       name: 'write_construction',
@@ -197,9 +206,7 @@ describe('MCP 工具面', () => {
     const read = await client.callTool({ name: 'read_construction', arguments: {} });
     expect(textBlocks(read).some((t) => t.includes('A = (0, 0)'))).toBe(true);
     expect(textBlocks(read).some((t) => t.includes('工作稿为空'))).toBe(false);
-    const submit = await client.callTool({ name: 'submit_construction', arguments: { png: false } });
-    expect(textBlocks(submit).some((t) => t.includes('已校验并下发'))).toBe(true);
     const apply = await client.callTool({ name: 'ggb_apply', arguments: { png: false } });
-    expect(textBlocks(apply).some((t) => t.includes('已按类别') || t.includes('对象') || t.includes('构造'))).toBe(true);
+    expect(textBlocks(apply).some((t) => t.includes('对象') || t.includes('构造'))).toBe(true);
   });
 });

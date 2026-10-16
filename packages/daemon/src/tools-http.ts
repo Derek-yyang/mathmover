@@ -26,8 +26,8 @@ export interface ToolsLike {
   }>;
   // 恒异步：HTTP 版天然是 Promise，本地 GgbTools 也包一层。
   // 类型收成 Promise（不是 `Promise<T> | T`）——那种联合类型会诱导调用方漏 await，
-  // 实测踩过：submit_construction 直接 .flatMap 在 Promise 上崩，read_construction
-  // 拿 Promise.length 当数组长度、永远返回「工作稿为空」。
+  // 实测踩过：readConstruction 返回 Promise 时调用方直接 .flatMap 在它上面崩，
+  // 或者拿 Promise.length 当数组长度、永远返回「工作稿为空」。
   readConstruction(): Promise<string[]>;
   writeConstruction(commands: string[]): Promise<string>;
   reset(): Promise<void>;
@@ -35,12 +35,23 @@ export interface ToolsLike {
 }
 
 export function createHttpBackedTools(daemonUrl: string): ToolsLike {
+  // agent 侧的两个身份，都由 daemon 校验：
+  //  - MATHMOVER_WINDOW_ID    → 哪块活画布（WebSocket 连接）
+  //  - MATHMOVER_COURSEWARE_ID → 哪份工作稿（workspaces/<id>/）
+  // 任一在场就把令牌带上，否则 daemon 对这两个头一律 403。
+  const windowId = process.env.MATHMOVER_WINDOW_ID;
+  const coursewareId = process.env.MATHMOVER_COURSEWARE_ID;
+  const identity = windowId || coursewareId
+    ? {
+        'x-mathmover-token': libraryToken(),
+        ...(windowId ? { 'x-mathmover-window': windowId } : {}),
+        ...(coursewareId ? { 'x-mathmover-courseware': coursewareId } : {}),
+      }
+    : {};
   const call = async (path: string, init?: RequestInit): Promise<any> => {
     const res = await fetch(`${daemonUrl}${path}`, {
       ...init,
-      headers: { 'content-type': 'application/json', ...(process.env.MATHMOVER_WINDOW_ID ? {
-        'x-mathmover-window': process.env.MATHMOVER_WINDOW_ID, 'x-mathmover-token': libraryToken(),
-      } : {}), ...(init?.headers ?? {}) },
+      headers: { 'content-type': 'application/json', ...identity, ...(init?.headers ?? {}) },
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {

@@ -18,6 +18,7 @@ import { serveStdio } from './mcp-server.ts';
 import { listenHttp } from './http-api.ts';
 import { CoursewareStore } from './courseware-store.ts';
 import { dataDirectory, libraryToken } from './data-directory.ts';
+import { removeLegacyWindowRoot, sweepWorkspaces, workspaceDir } from './workspaces.ts';
 
 const VERSION = '0.1.0';
 
@@ -79,12 +80,27 @@ async function main(): Promise<void> {
 
   log(`受管工作目录: ${cfg.workdir}`);
 
-  const tools = new GgbTools(bridge, cfg);
   const store = new CoursewareStore(args.dataDir);
   const token = libraryToken(store.root, true);
 
+  // 启动扫描：清掉不属于任何在世课件的孤儿工作区（详见 workspaces.ts）。
+  // 此刻按定义没有窗口连着，所以 workspaces/ 下的一切都是上次跑剩的。
+  // live 必须含**归档**课件——归档不是删除，它还活着。
+  const live = [...store.list(), ...store.list(true)].map((r) => r.id);
+  const swept = sweepWorkspaces(store.root, live);
+  if (swept.length) log(`清理孤儿工作区 ${swept.length} 个`);
+  if (removeLegacyWindowRoot(store.root)) log('清理旧布局 windows/（工作稿已改落 workspaces/）');
+
+  // 构造工作稿（含无课件 id 的兜底）一律落**数据目录**下的工作区：
+  // 用户数据归数据目录、软件归软件。--workdir 只是 agent 的项目参考，
+  // 不再是工作稿的落点。
+  const tools = new GgbTools(bridge, { ...cfg, workdir: workspaceDir(store.root) });
+
   await listenHttp(tools, { port: args.httpPort, host: '127.0.0.1', library: { store, token, bridge },
-    toolsForWindow: id => new GgbTools(bridge.forWindow(id), { ...cfg, workdir: path.join(store.root, 'windows', id) }) });
+    // 两个键各管一件事：id（窗口）找画布连接，coursewareId 定工作稿目录。
+    // 只带 coursewareId 的调用（如前端同步草稿）拿默认 bridge——那几个操作纯文件 I/O，不碰画布。
+    toolsForWindow: (id, coursewareId) => new GgbTools(id ? bridge.forWindow(id) : bridge,
+      { ...cfg, workdir: workspaceDir(store.root, coursewareId) }) });
   log(`本地课件库: ${store.root}（与安装目录分离）`);
   log(`HTTP 工具面已监听 http://127.0.0.1:${args.httpPort}（/api/health|state|apply|diff|reset）`);
 

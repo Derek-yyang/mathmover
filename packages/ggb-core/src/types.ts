@@ -18,17 +18,16 @@
  *  2. 【读写不对称】
  *     写（模型产出）只用一种格式：**全量 GGB 指令清单**。
  *         可机械验证、可回放、可 diff。不做增量 patch 协议。
- *         写**入口**有两条，落点都是同一份全量账本：
- *         ① 直接编辑工作稿 `construction.ggb.txt`（像改代码）→ `ggb_apply()` 生效
- *         ② `ggb_apply(commands)` / `submit_construction(commands)` 传全量清单
+ *         写**入口**只有一条：编辑工作稿 `construction.ggb.txt`（像改代码）→ `ggb_apply()` 生效。
  *         纯追加时下发走增量（页面不清屏，对象逐个出现），但账本仍是全量。
  *     读（模型感知）用多元通道：结构摘要 + 画布 PNG + 上轮 audit。
  *         光有 commands 文本不足以回答"那条红色虚线是哪条"。
  *
- *  3. 【校验不拦路】`submit_construction` 收到无效行时**剔除后照常下发**，
- *     只把明细回传给 agent，由它自行决定改不改。
- *     与现行 app.py:1018-1024 / ggb_parser「宁可放过」一致；
- *     单行笔误不得卡死整题提交。质量门用 options.strict，仅供离线评测。
+ *  3. 【校验不拦路，也不删行】`ggb_apply` 对工作稿做行级（无效/未知命令）与语义
+ *     （动点自洽）自查，**明细回传给 agent，由它自行决定改不改**。
+ *     2026-10-15 起不再剔除无效行——剔了 daemon 会把净化后的账本回写工作稿，
+ *     agent 刚写的那行就从它自己的文件里消失（apply 是高频动作，等于在它编辑到一半
+ *     时抽走它脚下的行）。未知命令在 GeoGebra 里只是执行失败、不生成对象，画布不会脏。
  * ────────────────────────────────────────────────────────────────────────
  */
 
@@ -36,7 +35,8 @@
 export type Mode = '2D' | '3D';
 
 /**
- * 学科类别，决定用哪份专家 prompt 与 semantic_check 的结构判据。
+ * 学科类别，决定用哪份专家 prompt（`get_expert_prompt` 的入参）。
+ * 2026-10-15 起**不再参与语义检查**——按类别的形状检查已移除。
  * A 函数 / B 平面几何 / C 圆锥曲线 / D 立体几何
  */
 export type Category = 'A' | 'B' | 'C' | 'D';
@@ -259,25 +259,6 @@ export interface DiffResult {
   /** 一句话中文摘要，供 agent 直接转述给用户 */
   summary: string;
   unchangedCount: number;
-}
-
-/** `submit_construction` 的校验明细。**不拦路**，只回传。 */
-export interface ValidationDetail {
-  check: string;
-  detail: string;
-}
-
-export interface SubmitValidation {
-  /** semantic_check 通过与否。false 不影响下发（见不变量 3） */
-  semanticOk: boolean;
-  /** 因无效而被剔除、未下发的行 */
-  invalidLines: string[];
-  /** 语义校验失败明细（含 check 名 + detail） */
-  semanticFailures: ValidationDetail[];
-  /** 用于离线评测的质量门；产品链路恒为 false */
-  strict: boolean;
-  /** 剔除后实际下发的行 */
-  delivered: string[];
 }
 
 /** 执行器回放一条指令的单次尝试结果。 */

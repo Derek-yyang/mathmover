@@ -35,7 +35,7 @@ specialist 输出后、下发前端前，逐条对照白名单校验对象/属�
 不合格行过滤掉；若合格率低于阈值，把报错信息拼回上下文自动重试一次。
 
 - 改动位置：原 `app.py` /api/upload 的 generate() 内（该管线已下线）。**校验层本体还在**，
-  现落于 `ggb-core` 的 `checkLines` / `classifyLine`，由 `submit_construction` 做行级剔除
+  现落于 `ggb-core` 的 `checkLines` / `classifyLine`，由 `ggb_apply` 每次下发后自查回传
 - 收益：通常能把可用率拉高一大截；此后可以从容删减 prompt 里的否定句补丁
 - 验收标准：无效指令不再到达前端；重试逻辑有日志可观测
 - 完成情况：2026-08-28 实现（`app.py` + `ggb_parser.py` 共享解析器）。
@@ -195,8 +195,9 @@ Python 一次性生成管线（Router → Specialist → 校验）没有任何�
 没有这个套件，任何一次换 CLI / 换模型都是在盲飞。
 
 - 建议形态：fixtures（题目 + 期望对象）+ 批跑脚本。判据现成：
-  `ggb-core/src/semantic.ts` 的 `semanticCheck` 按类别查结构，`ggb_get_state`
-  给对象清单，`submit_construction` 回传行级/语义明细；链路怎么跑可参考
+  `ggb_get_state` 给对象清单，`ggb_apply` 的回执给行级明细与语义自查
+  （2026-10-15 起只剩与类别无关的 free_param / orphan_slider——按类别的形状检查
+  已移除，判分要按类别看结构得自己写，别再指望 `semanticCheck`）；链路怎么跑可参考
   `math-mover-next/scripts/smoke-agent-route.mjs` 与 `scripts/e2e-chat-panel.mjs`
 - **注意：判分这块要新建，不是复原**——原 L1/L2/L3 的 `scripts/benchmark.py`、
   `bench_run.py`、`properties.py`、`l3_run.py` 已被主动删除（旧判分本身不可信，
@@ -213,8 +214,8 @@ Python 一次性生成管线（Router → Specialist → 校验）没有任何�
 - 数据落点：本地 SQLite，与课件库同处——`packages/daemon/src/courseware-store.ts`
   现有 `coursewares` / `revisions` 两张表，加一张 telemetry 表即可
   （Supabase 已随 SaaS 化下线，不复存在）
-- 现成信号：类别在会话账本里（`packages/daemon/src/mcp-server.ts`）；
-  行级指令有效率与语义失败明细由 `submit_construction` 回传；
+- 现成信号：类别来自 `get_expert_prompt` 的入参（`packages/daemon/src/mcp-server.ts`）；
+  行级指令有效率与语义失败明细由 `ggb_apply` 的回执回传；
   用户的手动修改本来就落在 `revisions` 版本历史里，差分即是隐式质量信号
 - 用途：驱动后续 prompt / SOP 调整有据可依，量化 P0~P1 的实际收益
 
@@ -307,7 +308,7 @@ P0、P1 做完，与同类竞品会拉开肉眼可见的差距。
    > Python 后端不复存在（sidecar 无从打包），"prompt 管线移植为 TS"也不成其为
    > 移植——生成现在由本机第三方 agent CLI 完成，仓库里只剩 SOP 静态校验还是 Python。
    > 三表设计里的 `generations.ggb_commands` 同理过时：指令清单由 agent 产出并经
-   > `submit_construction` 下发，不再是管线的直接输出。
+   > `ggb_apply` 下发，不再是管线的直接输出。
    > **C-3 要重新拍板**：桌面壳真正要解决的变成「怎么把 agent CLI 与 daemon 一起装进
    > Electron、并管好用户自己的 API key」，而不是管线往哪跑。
 4. **域名确认**：线上现为 mathmover.top，demo 是否启用 .com 新域名待定

@@ -37,8 +37,8 @@ export interface ByokAgentOptions {
   systemPrompt?: string;
   /**
    * 工具往返上限。默认 5：做题主路径要 get_expert_prompt → get_sop_cards →
-   * submit_construction → 看体检结果自检，四个依赖步之后才轮到收尾，3 会卡死
-   * 自检；5 给正常路径留一次修正空间，跑飞防线意义不变（跑飞是十几个来回）。
+   * ggb_apply（回执带行级/动点自洽明细）→ 改掉问题行再 apply，四个依赖步之后才轮到
+   * 收尾，3 会卡死自检；5 给正常路径留一次修正空间，跑飞防线意义不变（跑飞是十几个来回）。
    * OpenDesign 的 MAX_BYOK_TOOL_LOOPS=3 适配的是浅链路媒体工具，不照搬。
    */
   maxRounds?: number;
@@ -136,6 +136,9 @@ export function runByokAgent(opts: ByokAgentOptions): ByokRunHandle {
     let lastContent = '';
 
     for (let round = 0; round < maxRounds; round++) {
+      const messageId = `byok-${round}`;
+      const emitText = (event: AgentEvent) => opts.onEvent(event.kind === 'text-delta' || event.kind === 'text'
+        ? { ...event, messageId } : event);
       if (abort.signal.aborted) {
         opts.onEvent({ kind: 'done', resultText: lastContent || undefined, status: 'cancelled' });
         return { exitCode: 0 };
@@ -163,13 +166,13 @@ export function runByokAgent(opts: ByokAgentOptions): ByokRunHandle {
         }
         const contentType = res.headers.get('content-type') ?? '';
         if (contentType.includes('text/event-stream') && res.body) {
-          reply = await consumeSse(res.body, opts.onEvent);
+          reply = await consumeSse(res.body, emitText);
         } else {
           // 端点不支持流式：回落非流式 JSON（正文按块补发为 text）
           const json = (await res.json()) as { choices?: Array<{ message?: { tool_calls?: ToolCall[]; content?: string | null } }> };
           const message = json.choices?.[0]?.message ?? {};
           reply = { content: (message.content ?? '').trim(), tool_calls: message.tool_calls ?? [] };
-          if (reply.content) opts.onEvent({ kind: 'text', text: reply.content });
+          if (reply.content) emitText({ kind: 'text', text: reply.content });
         }
       } catch (e) {
         if (abort.signal.aborted) {
@@ -181,6 +184,8 @@ export function runByokAgent(opts: ByokAgentOptions): ByokRunHandle {
       }
 
       lastContent = reply.content || lastContent;
+      // This is the model's tool-call decision, not a guess based on its wording.
+      opts.onEvent({ kind: 'text-phase', messageId, phase: reply.tool_calls.length ? 'commentary' : 'final' });
       if (!reply.tool_calls.length) {
         opts.onEvent({ kind: 'done', resultText: reply.content || lastContent || undefined, status: 'completed' });
         return { exitCode: 0 };

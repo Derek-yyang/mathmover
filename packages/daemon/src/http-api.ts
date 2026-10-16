@@ -16,8 +16,16 @@ export interface HttpApiOptions {
   port: number;
   host?: string;
   library?: LibraryServices;
-  toolsForWindow?: (id: string) => GgbTools;
+  /**
+   * 按请求构造工具面。两个键各管一件事：
+   *  - `id`（窗口）= 哪块活画布（找 WebSocket 连接）；缺省 = 用默认画布
+   *  - `coursewareId` = 哪份工作稿（定 `workspaces/<id>/`）；缺省 = `_default`
+   */
+  toolsForWindow?: (id: string | undefined, coursewareId?: string) => GgbTools;
 }
+
+/** 目录名/头的取值域——与前端生成课件 id 的形态一致（UUID）。 */
+const SAFE_ID = /^[a-zA-Z0-9_-]{1,100}$/;
 
 const CORS = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -56,8 +64,15 @@ export function createHttpServer(tools: GgbTools, opts: HttpApiOptions): http.Se
     try {
       if (opts.library && await libraryRequest(req, res, url, opts.library)) return;
       const windowId = req.headers['x-mathmover-window'];
-      if (windowId && (!opts.library || !authorized(req, opts.library.token) || typeof windowId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(windowId))) return json(res, 403, { error: '窗口访问校验失败' });
-      const activeTools = windowId && opts.toolsForWindow ? opts.toolsForWindow(String(windowId)) : tools;
+      const coursewareId = req.headers['x-mathmover-courseware'];
+      // 两个头都要求本地令牌：它们都能间接决定服务端去读写哪块画布/哪个文件。
+      if (windowId && (!opts.library || !authorized(req, opts.library.token) || typeof windowId !== 'string' || !SAFE_ID.test(windowId))) return json(res, 403, { error: '窗口访问校验失败' });
+      if (coursewareId && (!opts.library || !authorized(req, opts.library.token) || typeof coursewareId !== 'string' || !SAFE_ID.test(coursewareId))) return json(res, 403, { error: '课件访问校验失败' });
+      // 只带课件 id 的调用（前端同步草稿走这条）拿默认画布——那几个操作是纯文件 I/O。
+      const activeTools = opts.toolsForWindow && (windowId || coursewareId)
+        ? opts.toolsForWindow(typeof windowId === 'string' ? windowId : undefined,
+            typeof coursewareId === 'string' ? coursewareId : undefined)
+        : tools;
       // 健康检查：画布是否连着
       if (url.pathname === '/api/health' && req.method === 'GET') {
         return json(res, 200, {
@@ -91,7 +106,8 @@ export function createHttpServer(tools: GgbTools, opts: HttpApiOptions): http.Se
       }
       if (url.pathname === '/api/construction' && req.method === 'PUT') {
         const body = (await readBody(req)) as { commands?: string[] };
-        if (!Array.isArray(body.commands) || body.commands.length === 0) {
+        // 空数组合法：空课件要能清空草稿（同步载入结果时会遇到）
+        if (!Array.isArray(body.commands)) {
           return json(res, 400, { error: '缺少 commands 数组' });
         }
         return json(res, 200, { file: await activeTools.writeConstruction(body.commands) });

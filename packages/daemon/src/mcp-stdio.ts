@@ -17,8 +17,25 @@
 import { createMcpServer } from './mcp-server.ts';
 import { serveStdio } from './mcp-server.ts';
 import { createHttpBackedTools } from './tools-http.ts';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DAEMON_URL = process.env.MATHMOVER_DAEMON_URL ?? 'http://127.0.0.1:8788';
+
+/**
+ * skill 资产根目录 —— 从**本文件自身位置**推，不靠 cwd。
+ *
+ * cwd 是 agent 的沙箱工作区（每窗口一份、落在数据目录下），那里只有工作稿，
+ * **没有 ggb_commands.json / skills/**。靠 cwd 猜会让 ggb_apply 等
+ * 要读白名单的工具直接 ENOENT（实测：工作稿读写好好的，校验连报两次错）。
+ * 资产跟安装目录走，工作稿跟沙箱走——两件事。
+ */
+function findAssetRoot(): string {
+  const env = process.env.MATHMOVER_ROOT;
+  if (env) return env;
+  // 本文件在 <root>/packages/daemon/src/，上溯三层即仓库根
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+}
 
 function log(...a: unknown[]): void {
   console.error('[mathmover-mcp]', ...a);
@@ -29,10 +46,11 @@ async function main(): Promise<void> {
   log(`指向 daemon: ${DAEMON_URL}`);
   log('MCP stdio 就绪，等待 agent 连接…');
 
-  // createMcpServer 内部会注册 ggb_get_state / ggb_apply / ggb_reset，
-  // 以及 submit_construction / 知识供给三件套。
+  // createMcpServer 内部会注册 ggb_get_state / ggb_apply（含行级与动点自洽自查）/ ggb_reset，
+  // 以及知识供给三件套。
   // read_construction / write_construction 只在 BYOK 面前出现（见 MATHMOVER_TOOLSET）。
   await serveStdio(tools as never, { name: 'mathmover', version: '0.1.0' }, {
+    rootDir: findAssetRoot(),
     toolset: process.env.MATHMOVER_TOOLSET === 'byok' ? 'byok' : 'cli',
   });
 }

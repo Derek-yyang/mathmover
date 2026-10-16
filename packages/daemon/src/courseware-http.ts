@@ -1,6 +1,7 @@
 import type http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { CoursewareStore } from './courseware-store.ts';
+import { removeWorkspace } from './workspaces.ts';
 import { CoursewareError } from '@mathmover/ggb-core';
 import type { GgbBridgeClient } from './bridge-client.ts';
 
@@ -35,7 +36,14 @@ export async function libraryRequest(req: http.IncomingMessage, res: http.Server
         capabilities: { archive: true, permanentDelete: true } });
     }
     else if (!parts.length && method === 'POST') send(200, store.save(await readJson(req)));
-    else if (parts[0] === 'delete' && method === 'POST') { const body = await readJson(req); if (!Array.isArray(body.ids)) throw new CoursewareError(400, '缺少课件 ID'); store.remove(body.ids); send(200, { ok: true }); }
+    else if (parts[0] === 'delete' && method === 'POST') {
+      const body = await readJson(req);
+      if (!Array.isArray(body.ids)) throw new CoursewareError(400, '缺少课件 ID');
+      store.remove(body.ids);
+      // 顺手回收工作稿目录。尽力而为——失败不拦删除，由 daemon 启动扫描兜底（见 workspaces.ts）。
+      for (const id of body.ids) removeWorkspace(store.root, String(id));
+      send(200, { ok: true });
+    }
     else if (parts[0] === 'backup' && method === 'POST') send(200, { name: await store.createBackup() });
     else if (parts[0] === 'windows' && parts.length === 1 && method === 'POST') { const body = await readJson(req); send(200, { bindingToken: bridge.issueBinding(body.windowId) }); }
     else if (parts[0] === 'assets' && parts.length === 2 && method === 'GET') {

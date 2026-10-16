@@ -26,8 +26,9 @@
 | 一般画图/改图 | `get_drawing_pack` | `generation-rules` + `ggb-basics` + **全库 18 张卡** + 工具描述 |
 | 发了题目图片/题面 | 上面 + `get_expert_prompt` | 再加 **4 份 SKILL 的 8 步建模方法论** + 本类清单 |
 
-判据侧也随之：`submit_construction` 的 `category_structure`（A 要函数、B 要多边形/圆…）
-**只在给了 category 时查**（题目建模的交卷才带）；不给就只做行级剔除与动点自洽。
+判据侧随之：语义检查 2026-10-15 起**只剩动点自洽**（free_param / orphan_slider），
+与类别无关，每次 `ggb_apply` 都跑。按类别的形状检查（`category_structure` / `no_text`）
+已移除——它们与 SKILL 里的骨架要求重复，再 nag 一遍是同一件事说两遍。
 所以调 SKILL 的 8 步**只影响取了增强的场景**，调 `ggb-basics` 或卡库**全都影响**。
 
 ---
@@ -75,7 +76,7 @@ SOP 库只放「小范围、可能用而未必用」的条件写法。库里现�
 | 文件 | 控制什么 | 怎么调 | 谁守着 |
 |---|---|---|---|
 | `semantic.ts` 的 `detail` 文案 | agent 拿到提示后怎么改 | 让提示更可执行、更少歧义 | `semantic.test.ts` 只要求**点出问题对象名**（含 `t`/`Slider`/`msg` 等），措辞可自由改，但不能把对象名从文案里去掉 |
-| `submit_construction` 的回传组织 | 明细怎么排序、合并、是否附图 | 调信息密度 | **无** |
+| `ggb_apply` 的回传组织 | 明细怎么排序、合并、是否附图 | 调信息密度 | **无** |
 
 改这一层出图质量会变，**别当成"日志"顺手改**。
 

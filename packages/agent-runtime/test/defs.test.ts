@@ -109,7 +109,7 @@ describe('codex 解析（2026-10-09 真实输出校准）', () => {
     expect(codex.parseLine(J({
       type: 'item.completed',
       item: { id: 'item_0', type: 'agent_message', text: '好的' },
-    }))).toEqual({ kind: 'text', text: '好的' });
+    }))).toEqual({ kind: 'text', text: '好的', messageId: 'item_0' });
     expect(codex.parseLine(J({
       type: 'item.started',
       item: { id: 'item_0', type: 'agent_message', text: null },

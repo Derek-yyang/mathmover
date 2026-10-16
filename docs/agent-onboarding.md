@@ -33,8 +33,8 @@ CLI（Claude Code / Codex / dsh）；本组改动把这道门槛从三个方向�
 - **轮次上限 5**：单次请求内工具往返的上限（跑飞防烧阀值），超限**优雅收尾**——
   已吐正文保留、不发 error（OpenDesign 原话：close the stream gracefully）。
   为什么不是 OpenDesign 的 3：我们的做题主路径是 get_expert_prompt → get_sop_cards
-  → submit_construction → 看体检结果自检，四步依赖之后才轮到收尾，3 会卡死自检；
-  5 给正常路径留一次修正空间。跑飞是十几个来回，5 与 3 的防线意义相同。
+  → ggb_apply（回执带行级与动点自洽明细）→ 改掉问题行再 apply，四步依赖之后才轮到
+  收尾，3 会卡死自检；5 给正常路径留一次修正空间。跑飞是十几个来回，5 与 3 的防线意义相同。
 - **图片输入不支持**（OpenDesign 同样未做；其 BYOK 工具是输出向的媒体生成）。
   未配置端点/模型时如实 400 拒发。
 - **模型清单**：BYOK 的「agent 配置」就是设置表单——与「清单以 agent 配置为

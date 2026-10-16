@@ -24,11 +24,18 @@ import { spawnCapture } from './spawn.ts';
 /** 归一后的事件——前端 useChat 与上层编排都只认这个。 */
 export type AgentEvent =
   | { kind: 'session'; sessionId: string }
-  | { kind: 'text-delta'; text: string }
-  | { kind: 'text'; text: string }
+  | { kind: 'text-delta'; text: string; messageId?: string; phase?: 'commentary' | 'final' }
+  | { kind: 'text'; text: string; messageId?: string; phase?: 'commentary' | 'final' }
+  | { kind: 'text-phase'; messageId?: string; phase: 'commentary' | 'final' }
   | { kind: 'tool-call'; name: string; toolCallId: string; input?: unknown }
   | { kind: 'tool-result'; toolCallId: string; output?: unknown; isError?: boolean }
   | { kind: 'thinking'; text: string }
+  | { kind: 'usage'; inputTokens?: number; outputTokens?: number }
+  /**
+   * 从正文里剥出来的课件名（`<mm-title>` 标记，见 title-marker.ts）。
+   * 标记本身永远不出现在 `text` / `text-delta` 里——这里只报「剥到了什么」。
+   */
+  | { kind: 'title'; title: string }
   | { kind: 'usage'; inputTokens?: number; outputTokens?: number }
   | { kind: 'done'; resultText?: string; sessionId?: string; status?: 'completed' | 'cancelled' }
   | { kind: 'error'; message: string }
@@ -491,6 +498,15 @@ export const claudeCode: RuntimeDefinition = {
       '--verbose',
       '--include-partial-messages',
       '--mcp-config', mcpConfigPath,
+      // **只认 --mcp-config 里那一份**，不合并其它作用域（用户级 / 项目级 / 插件）。
+      // 不带它时 claude 会把所有来源的 MCP server 一起起起来并逐个健康检查——实测
+      // 一轮白花 6.7 秒（7068ms → 384ms），且随用户装了多少 MCP server 增长。
+      // 那些 server（docker run、uvx 拉包…）跟画布无关，我们一个都不需要。
+      // 代价：agent 看不到用户自己的 MCP；要让它在画图时也能用某个，就显式写进
+      // mcpConfigPath 那份配置里。
+      // 注意：布尔旗标进不了值拒绝探针（capabilities.ts 明写「布尔旗标别往这里放」），
+      // 故不做版本门——真撞上不认识的旧版会响亮地死在 "unknown option" 上，不是静默降级。
+      '--strict-mcp-config',
       '--restricted',
       '--allowedTools=mcp__mathmover__*',
     ];
@@ -530,11 +546,15 @@ export const claudeCode: RuntimeDefinition = {
       const content = pick(e, 'message', 'content');
       if (!Array.isArray(content)) return null;
       const events: AgentEvent[] = [];
+      const messageId = pick(e, 'message', 'id');
+      const reason = pick(e, 'message', 'stop_reason');
+      const phase = pick(e, 'parent_tool_use_id') != null ? 'commentary'
+        : reason === 'tool_use' ? 'commentary' : reason === 'end_turn' ? 'final' : undefined;
       for (const part of content) {
         const pt = pick(part, 'type');
         if (pt === 'text') {
           const t = String(pick(part, 'text') ?? '');
-          if (t) events.push({ kind: 'text', text: t });
+          if (t) events.push({ kind: 'text', text: t, ...(typeof messageId === 'string' ? { messageId } : {}), ...(phase ? { phase } : {}) });
         } else if (pt === 'tool_use') {
           events.push({
             kind: 'tool-call',
@@ -575,11 +595,13 @@ export const claudeCode: RuntimeDefinition = {
       const ev = pick(e, 'event');
       const et = String(pick(ev, 'type') ?? '');
       const delta = pick(ev, 'delta');
+      const messageId = pick(e, 'api_message_id');
       if (et === 'content_block_delta') {
         const dt = String(pick(delta, 'type') ?? '');
         if (dt === 'text_delta') {
           const t = String(pick(delta, 'text') ?? '');
-          return t ? { kind: 'text-delta', text: t } : null;
+          return t ? { kind: 'text-delta', text: t, ...(typeof messageId === 'string' ? { messageId } : {}),
+            ...(pick(e, 'parent_tool_use_id') != null ? { phase: 'commentary' as const } : {}) } : null;
         }
         if (dt === 'thinking_delta') {
           const t = String(pick(delta, 'thinking') ?? '');
@@ -589,15 +611,20 @@ export const claudeCode: RuntimeDefinition = {
         return null;
       }
       if (et === 'message_delta') {
+        const reason = pick(delta, 'stop_reason');
+        const phase = pick(e, 'parent_tool_use_id') != null ? 'commentary'
+          : reason === 'tool_use' ? 'commentary' : reason === 'end_turn' ? 'final' : undefined;
         const u = pick(e, 'usage') ?? pick(ev, 'usage');
+        const events: AgentEvent[] = [];
+        if (phase) events.push({ kind: 'text-phase', phase, ...(typeof messageId === 'string' ? { messageId } : {}) });
         if (u) {
-          return {
+          events.push({
             kind: 'usage',
             inputTokens: pick(u, 'input_tokens') ? Number(pick(u, 'input_tokens')) : undefined,
             outputTokens: pick(u, 'output_tokens') ? Number(pick(u, 'output_tokens')) : undefined,
-          };
+          });
         }
-        return null;
+        return events.length > 1 ? events : events[0] ?? null;
       }
       // message_start/stop、content_block_start/stop：结构性标记，无上层价值
       return null;
@@ -846,7 +873,9 @@ export const codex: RuntimeDefinition = {
       if (it === 'agent_message') {
         if (type !== 'item.completed') return null; // started 时 text 未定稿
         const t = String(pick(item, 'text') ?? '');
-        return t ? { kind: 'text', text: t } : null;
+        const nativePhase = pick(item, 'phase');
+        const phase = nativePhase === 'commentary' ? 'commentary' : nativePhase === 'final_answer' ? 'final' : undefined;
+        return t ? { kind: 'text', text: t, ...(id ? { messageId: id } : {}), ...(phase ? { phase } : {}) } : null;
       }
 
       if (it === 'mcp_tool_call') {

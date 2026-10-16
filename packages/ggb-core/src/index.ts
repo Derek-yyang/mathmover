@@ -3,5 +3,6 @@ export * from './parse.ts';
 export * from './diff.ts';
 export * from './probe.ts';
 export * from './whitelist.ts';
+export * from './catalog.ts';
 export * from './sop.ts';
 export * from './semantic.ts';

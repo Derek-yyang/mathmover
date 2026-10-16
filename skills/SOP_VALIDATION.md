@@ -209,7 +209,7 @@ Chat Completions 和 Responses 默认不传 max_tokens/max_output_tokens，额�
 - agent 工具面删掉 `ggb_route`（纯登记、零信息增益的一步），`get_expert_prompt` 的
   `category` 改为必填——分类由 agent 自己判，调它即完成"分类 + 取流程与清单"两件事。
   分类学文本并入该工具描述，纠偏仍是换个 category 再调一次覆盖账本。
-  会话账本语义不变：`get_expert_prompt` 写、`submit_construction` 只读；写入方从两个收成一个。
+  类别只用于选知识包，不进会话账本（收卷工具 `submit_construction` 已于 2026-10-15 删除）。
 - 分类路由整条下线：`app.py` 的 `route_classify` / `llm_classify` / `parse_router_result` /
   `ROUTER_PROMPT`、`decision_router.py`（Perplexity 决策模型 + 缩图探针）、
   配置键 `router_mode` / `perplexity_api_key` / `decisions_threshold` / `decisions_model`、

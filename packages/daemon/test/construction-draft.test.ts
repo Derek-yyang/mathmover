@@ -118,10 +118,13 @@ describe('GgbTools.apply 的工作稿与增量', () => {
     expect(applied.args).toMatchObject({ commands: ['A = (0, 0)', 'B = (1, 1)'] });
   });
 
-  it('工作稿为空时如实报错，不静默下发空图', async () => {
+  it('工作稿为空时如实报错，且报出绝对路径（agent 的 cwd 未必等于 workdir）', async () => {
     const { bridge } = fakeBridge([]);
     const tools = new GgbTools(bridge, cfg());
     await expect(tools.apply()).rejects.toThrow(/没有可下发的指令/);
+    // 只说文件名会让 agent 满仓库找位置（实测浪费 12 次工具调用去猜）
+    await expect(tools.apply()).rejects.toThrow(new RegExp(dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    expect(tools.constructionPath).toBe(path.join(dir, 'construction.ggb.txt'));
   });
 
   it('纯追加 → 走增量：只发新行，但账本是完整清单', async () => {

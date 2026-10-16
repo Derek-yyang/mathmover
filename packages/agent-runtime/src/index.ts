@@ -9,3 +9,4 @@ export * from './claude-env.ts';
 export * from './transcript.ts';
 export * from './images.ts';
 export * from './models.ts';
+export * from './title-marker.ts';

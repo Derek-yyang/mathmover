@@ -7,10 +7,11 @@
  *  - 结构化数据用 `text` block 承载 JSON，附一个纯文本摘要便于 agent 快速理解。
  *  - 工具签名不含 sessionId（签名寿命是第一资产）：会话 = 一个 daemon 进程。
  *    页面断开时如实报 GGB_SESSION_DEAD，不假装画布还在。
- *  - SOP 工具面（P1→P1.6）：get_expert_prompt 取流程+清单、get_sop_cards 按需取卡、
- *    submit_construction 收卷（校验剔除后下发 + 明细回传）。
- *    category 是 submit_construction 的可选增强（多查一层结构），不进会话账本。
+ *  - SOP 工具面（P1→P1.6）：get_expert_prompt 取流程+清单、get_sop_cards 按需取卡。
  *    分类由 agent 自己判——调 get_expert_prompt 时亮出 category，即完成分类+取材两件事。
+ *    **类别只用于选知识包**，写路径与它无关（按类别的形状检查已从 ggb-core/semantic.ts 移除）。
+ *  - 校验（行级 + 动点自洽）挂在 ggb_apply 上，**只报不删**；收卷工具 submit_construction
+ *    已于 2026-10-15 删除，课件命名改走正文标记（agent-runtime 的 title-marker.ts）。
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -20,8 +21,7 @@ import {
   assembleSkill,
   buildCatalog,
   buildAllowedCommandsSuffix,
-  checkLines,
-  classifyLine,
+  inspectLedger,
   loadSopCards,
   loadWhitelist,
   semanticCheck,
@@ -133,7 +133,7 @@ export function createMcpServer(
 
   // 一条链路：把用户意图变成 GeoGebra 构造。题目图片只是输入形态，碰到时多拿
   // 一套建模知识（get_expert_prompt），不是「换模式」。无会话级 category 账本——
-  // category 只在 submit_construction 上作为本次交卷的可选增强（多查一层结构）。
+  // category 只决定取哪套知识包，写路径不依赖它。
 
   server.registerTool('ggb_get_state', {
     title: '读取 GeoGebra 画布当前状态',
@@ -155,15 +155,34 @@ export function createMcpServer(
   server.registerTool('ggb_apply', {
     title: '应用构造工作稿到画布',
     description:
-      '把工作稿 `construction.ggb.txt` 下发到画布。**没有别的入口**——像改代码一样' +
+      '把工作稿 `construction.ggb.txt`（在受管工作目录下，绝对路径见系统简报）下发到画布。' +
+      '**没有别的入口**——像改代码一样' +
       '编辑该文件（真 CLI 用原生编辑能力；BYOK 用 write_construction），改完调本工具生效。' +
-      '返回新状态、体检结果，以及相对上一版的改动说明。' +
+      '返回新状态、体检结果、相对上一版的改动说明，以及**行级与语义自查**：' +
+      '不可解析/未知命令的行、动点自洽（引用了未定义的名字、或滑块没驱动任何对象）。' +
       '**边构边调**：每完成一段就 apply 一次，用户能看着图一点点长出来，而不是等很久一次出全图。',
     inputSchema: {
       png: z.boolean().optional().describe('返回结果是否附带画布截图，默认 true。'),
     },
   }, async (args) => {
     try {
+      // 校验的是**工作稿本身**（agent 写的那份），不是画布回显的账本——回显经过增量合并，
+      // 而且宿主委托那条路会把它换掉（dashboard 的 applyCommands 直接 `ledger ?? commands`）。
+      // 报的是「你文件里有问题行」，就得读文件。
+      //
+      // 判据走 `inspectLedger`（= ggb_catalog.py 的移植）：**只有两件事**——名字在不在
+      // 白名单、用法对不对（**只有带签名的命令才查用法**）。绝不再用 `classifyLine` 的
+      // 结构分类当有效性判据：那会把 `ShowGrid(1, true)` / `ZoomIn(2)` 这类合法命令
+      // 误报成无效（实测让 agent 白改了三轮）。
+      const source = await tools.readConstruction();
+      const draftLines = source.flatMap((c) => String(c).split('\n'));
+      const { knownLower } = loadWhitelist(rootDir);
+      const ledgerCheck = inspectLedger(draftLines, undefined, rootDir);
+      const semantic = semanticCheck(draftLines.join('\n'), { knownCommandLower: knownLower });
+
+      // **不剔除**：剔了 daemon 会把净化后的账本回写工作稿，agent 刚写的那行就从它自己的
+      // 文件里消失；而 apply 是「每完成一段就调一次」的高频动作。未知命令在 GeoGebra 里
+      // 只是执行失败、不生成对象，画布不会脏。
       const r = await tools.apply(undefined, { png: args?.png ?? true });
       const content: ToolContent = [
         { type: 'text', text: describeDiff(r.diff) },
@@ -186,6 +205,29 @@ export function createMcpServer(
           text: '本次为增量应用（未清屏，新对象直接叠加在现有图上）。',
         });
       }
+      // 问题行放**第一条**（上面的 unshift 之后，它才真正落在首位）：别把无效行埋在
+      // 一堆 text 块中间——agent 会略过。明确说「还在文件里、我们没替你删」，它才不会
+      // 以为文件已经被收拾干净。
+      // 逐条给**具体理由**（未知命令 / 参数个数 / 类型 / 视图 / 副作用命令当表达式用），
+      // 而不是笼统一句「无效行」——agent 拿到理由才知道怎么改。
+      const problems: string[] = [];
+      if (ledgerCheck.problems.length) {
+        problems.push(`以下 ${ledgerCheck.problems.length} 行有问题（画布上没有它们产生的对象）：\n` +
+          ledgerCheck.problems.map((p) =>
+            `  第 ${p.index + 1} 行 ${p.line}\n` +
+            p.problems.map((x) => `    · ${x.detail}`).join('\n')).join('\n'));
+      }
+      if (!semantic.ok) {
+        problems.push('动点自洽未过：\n' + semantic.failures.map((f) => `  [${f.check}] ${f.detail}`).join('\n'));
+      }
+      if (problems.length) {
+        content.unshift({
+          type: 'text',
+          text: '⚠ 工作稿里有问题行——**它们还在文件里，我们没有替你删**：\n\n' +
+            problems.join('\n\n') +
+            '\n\n请改掉它们（或删掉）后再收工；带着无效行收工，用户看到的就是一张缺东西的图。',
+        });
+      }
       if (r.failedFirstPass.length > 0) {
         content.push({
           type: 'text',
@@ -196,6 +238,9 @@ export function createMcpServer(
       content.push({ type: 'text', text: JSON.stringify({
         diff: r.diff, applied: r.applied.length, failedFirstPass: r.failedFirstPass,
         durationMs: r.durationMs, incremental: (r as { incremental?: boolean }).incremental ?? false,
+        invalidLines: ledgerCheck.unknownLines,
+        problems: ledgerCheck.problems,
+        semantic,
       }, null, 2) });
       if (r.state.png.base64) {
         content.push({ type: 'image', data: r.state.png.base64, mimeType: 'image/png' });
@@ -231,8 +276,7 @@ export function createMcpServer(
       '一次取两样——① 专家 skill（8 步建模流程、每题必用的 GGB 通用写法、严格语法约束）；' +
       '② 本类的写法卡清单（一句话说明 + 适用输入 + 挂在流程第几步）。' +
       '清单只是目录，具体写法要另外用 get_sop_cards 取；不确定怎么写就取，别凭印象编。' +
-      'category 由你根据题目自己判，只决定取哪套建模知识；交卷时若这张图是题目建的，' +
-      '把同一 category 传给 submit_construction 多查一层结构。\n分类标准：\n' + CATEGORY_TAXONOMY,
+      'category 由你根据题目自己判，只决定取哪套建模知识。\n分类标准：\n' + CATEGORY_TAXONOMY,
     inputSchema: {
       category: z.enum(['A', 'B', 'C', 'D']).describe(
         '题目类别（必填，你来判）：A 函数与图像 / B 平面几何 / C 解析几何 / D 立体几何',
@@ -299,91 +343,11 @@ export function createMcpServer(
     }
   });
 
-  server.registerTool('submit_construction', {
-    title: '提交构造（收卷：校验剔除后下发）',
-    description:
-      '收卷动作：提交工作稿 `construction.ggb.txt` 的完整清单。自动做两层检查并把失败明细回传给你自行决定改不改' +
-      '（不会替你重生成）：① 行级——语法/未知命令的行剔除后下发，明细列出；' +
-      '② 语义级——动点自洽（free_param / orphan_slider）恒查；' +
-      '给了 category 再按类别查结构（A 要函数/方程、B 要多边形/圆、C 要圆锥曲线、D 要 3D）。' +
-      '**先用 ggb_apply 边构边看，最后收卷**。',
-    inputSchema: {
-      title: z.string().optional().describe(
-        '给这个任务起个短名（8 字以内为宜）。**概括用户第一条消息要做什么**，' +
-        '不是概括你画成了什么——标题命名的是「请求」，多轮微调后也不该变。' +
-        '如用户说「画个抛物线，焦点在(1,0)，再画条过焦点的直线」→「抛物线与过焦点直线」。' +
-        '不给则回退到用户首条消息的截断。',
-      ),
-      category: z.enum(['A', 'B', 'C', 'D']).optional().describe(
-        '**可选增强**：这张图是按题目建模的（用过 get_expert_prompt）就带上，会多查一层类别结构；' +
-        '纯画图/改图不给，硬套只会得到无关告警。',
-      ),
-      png: z.boolean().optional().describe('返回结果是否附带画布截图，默认 true'),
-    },
-  }, async (args) => {
-    try {
-      const category = args?.category;
-      const source = await tools.readConstruction();
-      const rawLines = source.flatMap((c) => String(c).split('\n'));
-      const { knownLower } = loadWhitelist(rootDir);
-
-      // ① 行级：剔除语法无效行 + 未知命令行（宁可放过的是可解析行；这类行下发必败）
-      const lineCheck = checkLines(rawLines.join('\n'), knownLower);
-      const dropped = new Set<string>();
-      for (const raw of rawLines) {
-        const t = raw.trim();
-        if (!t || t.startsWith('//')) continue;
-        // 与 checkLines 同判据：整行不可解析 -> 剔
-        if (classifyLine(raw).kind === 'unknown') dropped.add(raw);
-      }
-      for (const u of lineCheck.unknownCommands) dropped.add(u.line);
-      const cleaned = rawLines.filter((l) => !dropped.has(l));
-
-      // ② 语义级：明细回传（不拦下发——验证闭环不进生成链路）
-      const semantic = semanticCheck(category, cleaned.join('\n'), {
-        knownCommandLower: knownLower,
-      });
-
-      const r = await tools.apply(cleaned, { png: args?.png ?? true });
-      const title = typeof args?.title === 'string' ? args.title.trim().slice(0, 60) : '';
-      const content: ToolContent = [
-        { type: 'text', text: (title ? `已命名为「${title}」。` : '') + (category
-          ? `已按类别 ${category} 校验并下发 ${cleaned.length} 行（剔除 ${dropped.size} 行）。`
-          : `已校验并下发 ${cleaned.length} 行（剔除 ${dropped.size} 行）。`) },
-      ];
-      if (dropped.size) {
-        content.push({
-          type: 'text',
-          text: `剔除的行（无效/未知命令，未下发）：\n${[...dropped].map((x) => `  ${x}`).join('\n')}`,
-        });
-      }
-      if (!semantic.ok) {
-        content.push({
-          type: 'text',
-          text: '语义自查未全过（不影响已下发内容，请自行决定是否修正）：\n' +
-            semantic.failures.map((f) => `  [${f.check}] ${f.detail}`).join('\n'),
-        });
-      }
-      content.push({ type: 'text', text: describeDiff(r.diff) });
-      content.push({ type: 'text', text: describeState(r.state) });
-      content.push({
-        type: 'text',
-        text: JSON.stringify({
-          category,
-          applied: r.applied.length,
-          droppedLines: [...dropped],
-          lineCheck: { validity: lineCheck.validity, unknownCommands: lineCheck.unknownCommands },
-          semantic,
-        }, null, 2),
-      });
-      if (r.state.png.base64) {
-        content.push({ type: 'image', data: r.state.png.base64, mimeType: 'image/png' });
-      }
-      return { content, isError: false };
-    } catch (e) {
-      return errContent(e);
-    }
-  });
+  // 2026-10-15 删除 submit_construction（收卷）：
+  //  - 行级剔除 + 动点自洽并进了 ggb_apply（**只报不删**，见那里的注释）；
+  //  - 课件命名改走正文标记 `<mm-title>`（agent-runtime 的 title-marker.ts），
+  //    宿主剥出来发 title 事件——不吃工具调用频次，某轮一次工具都没调也拿得到。
+  // 于是「交卷」这个动作没有剩余职责了。
 
   // BYOK 等无原生文件能力的 agent 走这两个工具读写工作稿；
   // 真 CLI（claude/codex/dsh）直接用自带的 Read/Edit——它们见了这对工具反而会

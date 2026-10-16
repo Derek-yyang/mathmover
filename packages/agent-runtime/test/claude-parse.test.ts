@@ -23,6 +23,22 @@ const lines = fs.readFileSync(SAMPLE, 'utf-8').split('\n').filter((l) => l.trim(
 const events = lines.flatMap(replay);
 
 describe('claudeCode.parseLine — 真实样本重放', () => {
+  it('retains message IDs and distinguishes tool-use narration from end-turn answers', () => {
+    expect(claudeCode.parseLine(JSON.stringify({ type: 'stream_event', api_message_id: 'a',
+      event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '先读取' } } })))
+      .toMatchObject({ kind: 'text-delta', messageId: 'a', text: '先读取' });
+    for (const [reason, phase] of [['tool_use', 'commentary'], ['end_turn', 'final']]) {
+      expect(claudeCode.parseLine(JSON.stringify({ type: 'stream_event', api_message_id: 'a',
+        event: { type: 'message_delta', delta: { stop_reason: reason } } })))
+        .toMatchObject({ kind: 'text-phase', messageId: 'a', phase });
+    }
+    expect(claudeCode.parseLine(JSON.stringify({ type: 'assistant', message: { id: 'b', stop_reason: 'end_turn',
+      content: [{ type: 'text', text: '最终回答' }] } })))
+      .toMatchObject({ kind: 'text', messageId: 'b', phase: 'final' });
+    expect(claudeCode.parseLine(JSON.stringify({ type: 'assistant', parent_tool_use_id: 'task',
+      message: { id: 'sub', stop_reason: 'end_turn', content: [{ type: 'text', text: '子任务结果' }] } })))
+      .toMatchObject({ kind: 'text', messageId: 'sub', phase: 'commentary' });
+  });
   it('init 带出 session，result 收尾', () => {
     const session = events.find((e) => e.kind === 'session');
     const done = events.find((e) => e.kind === 'done');

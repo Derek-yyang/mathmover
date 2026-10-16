@@ -7,6 +7,7 @@ import { CoursewareStore } from '../src/courseware-store.ts';
 import { GgbBridgeClient } from '../src/bridge-client.ts';
 import { GgbTools } from '../src/tools.ts';
 import { listenHttp } from '../src/http-api.ts';
+import { workspaceDir } from '../src/workspaces.ts';
 
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { for (const close of cleanups.splice(0)) await close(); });
@@ -14,7 +15,10 @@ async function setup() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mathmover-library-http-test-'));
   const store = new CoursewareStore(root); const bridge = new GgbBridgeClient({ port: 0 }); await bridge.start();
   const token = 'a'.repeat(64); const tools = new GgbTools(bridge, { workdir: root, includePng: false, pngMaxEdge: 900 });
-  const server = await listenHttp(tools, { port: 0, library: { store, bridge, token }, toolsForWindow: id => new GgbTools(bridge.forWindow(id), { workdir: path.join(root, id), includePng: false, pngMaxEdge: 900 }) });
+  // 两个键各管一件事（与 cli.ts 同构）：id 找画布连接，coursewareId 定工作稿目录。
+  const server = await listenHttp(tools, { port: 0, library: { store, bridge, token },
+    toolsForWindow: (id, coursewareId) => new GgbTools(id ? bridge.forWindow(id) : bridge,
+      { workdir: workspaceDir(root, coursewareId), includePng: false, pngMaxEdge: 900 }) });
   const port = (server.address() as { port: number }).port;
   const wsPort = ((bridge as unknown as { wss: { address(): { port: number } } }).wss.address()).port;
   const sockets: WebSocket[] = [];
@@ -32,7 +36,7 @@ async function setup() {
     });
     return ws;
   }
-  return { store, bridge, request, connect, port };
+  return { store, bridge, request, connect, port, root };
 }
 describe('library HTTP and window ownership', () => {
   it('rejects unauthenticated and cross-origin access', async () => {
@@ -49,6 +53,33 @@ describe('library HTTP and window ownership', () => {
     const got = await (await s.request('/api/construction')).json();
     expect(Array.isArray(got)).toBe(true);
     expect(got).toEqual(['A = (0, 0)', 'B = (1, 1)']);
+  });
+  it('工作稿按课件分目录：x-mathmover-courseware 决定读写哪一份', async () => {
+    // 键是课件 id 而不是窗口 id：草稿是「当前画布的可编辑形态」，归课件所有。
+    // 两份草稿互不串——这正是这次改动的目的。
+    const s = await setup();
+    const a = '3f2a9c10-8e1b-4c7d-9a2f-0b6e5d4c3b2a';
+    const b = '9c8b7a60-1d2e-4f30-8a9b-7c6d5e4f3a2b';
+    await s.request('/api/construction', { method: 'PUT', headers: { 'x-mathmover-courseware': a }, body: JSON.stringify({ commands: ['A = (0, 0)'] }) });
+    await s.request('/api/construction', { method: 'PUT', headers: { 'x-mathmover-courseware': b }, body: JSON.stringify({ commands: ['B = (1, 1)'] }) });
+    expect(await (await s.request('/api/construction', { headers: { 'x-mathmover-courseware': a } })).json()).toEqual(['A = (0, 0)']);
+    expect(await (await s.request('/api/construction', { headers: { 'x-mathmover-courseware': b } })).json()).toEqual(['B = (1, 1)']);
+    expect(fs.existsSync(path.join(s.root, 'workspaces', a, 'construction.ggb.txt'))).toBe(true);
+  });
+  it('课件头不合法一律 403（这个值要当目录名用）', async () => {
+    const s = await setup();
+    expect((await s.request('/api/construction', { headers: { 'x-mathmover-courseware': '../../escape' } })).status).toBe(403);
+    expect((await s.request('/api/construction', { headers: { 'x-mathmover-courseware': 'a/b' } })).status).toBe(403);
+  });
+  it('永久删除课件时回收它的工作稿目录', async () => {
+    const s = await setup();
+    const id = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    await s.request('/api/coursewares', { method: 'POST', body: JSON.stringify({ id, title: '待删', expectedRevision: 0, commands: [], messages: [] }) });
+    await s.request('/api/construction', { method: 'PUT', headers: { 'x-mathmover-courseware': id }, body: JSON.stringify({ commands: ['A = (0, 0)'] }) });
+    const dir = path.join(s.root, 'workspaces', id);
+    expect(fs.existsSync(dir)).toBe(true);
+    expect((await s.request('/api/coursewares/delete', { method: 'POST', body: JSON.stringify({ ids: [id] }) })).status).toBe(200);
+    expect(fs.existsSync(dir)).toBe(false);
   });
   it('routes two windows to their own socket, never the newest global socket', async () => {
     const s = await setup(); await s.connect('window-a', 'A=(1,1)'); await s.connect('window-b', 'B=(2,2)');

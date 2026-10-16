@@ -6,7 +6,7 @@ const res = await POST(new Request('http://local/api/agent', {
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
     text: '请走 SOP 流程建一个最简单的函数构造：题目判为 A 类（函数与图像），用 get_expert_prompt 取 A 类流程与清单，' +
-      '再用 get_sop_cards 取 function-object 卡看写法，最后用 submit_construction 提交两行：MODE:2D 和 f = Function(x^2/4, -3, 3)。',
+      '再用 get_sop_cards 取 function-object 卡看写法，最后把 MODE:2D 和 f = Function(x^2/4, -3, 3) 写进工作稿并调 ggb_apply 生效。',
     runtimeId: 'claude-code',
   }),
 }));

@@ -221,7 +221,13 @@ export class GgbTools {
     this.requireLive();
     const list = commands ?? readConstructionFile(this.cfg);
     if (list.length === 0) {
-      throw new Error('没有可下发的指令：请传 commands，或先编辑 construction.ggb.txt');
+      // 报绝对路径：agent 的 cwd 与 daemon 的 workdir 不必相同，只说文件名
+      // 它会满仓库找（实测浪费 12 次工具调用去猜位置）。
+      const file = path.join(this.cfg.workdir, CONSTRUCTION_FILE);
+      throw new Error(
+        `没有可下发的指令：工作稿 ${file} 是空的（或不存在）。` +
+        '请把完整 GeoGebra 指令清单写进这个文件，再调 ggb_apply()。',
+      );
     }
     const before = this.bridge.snapshot?.commands ?? [];
     const includePng = opts.png ?? this.cfg.includePng;
@@ -293,6 +299,11 @@ export class GgbTools {
   /** 读工作稿（供 BYOK 等无原生文件能力的 agent 走工具面）。恒异步——与 ToolsLike 对齐。 */
   async readConstruction(): Promise<string[]> {
     return readConstructionFile(this.cfg);
+  }
+
+  /** 工作稿的绝对路径——工具描述与报错要报它，agent 的 cwd 未必等于 workdir。 */
+  get constructionPath(): string {
+    return path.join(this.cfg.workdir, CONSTRUCTION_FILE);
   }
 
   /** 写工作稿（不下发画布——下发请再调 apply）。恒异步——与 ToolsLike 对齐。 */

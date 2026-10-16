@@ -83,6 +83,10 @@ describe('runByokAgent 工具循环', () => {
     expect(r.exitCode).toBe(0);
     // 正文按 delta 逐块
     expect(events.filter(e => e.kind === 'text-delta').map(e => e.text)).toEqual(['先看', '画板', '画好了']);
+    expect(events.filter(e => e.kind === 'text-phase')).toEqual([
+      { kind: 'text-phase', messageId: 'byok-0', phase: 'commentary' },
+      { kind: 'text-phase', messageId: 'byok-1', phase: 'final' },
+    ]);
     // tool_call 跨帧拼装（name 与 arguments 都是增量）
     expect(seen).toEqual([{ commands: ['A=(0,0)'] }]);
     expect(events.find(e => e.kind === 'tool-call')).toMatchObject({ name: 'ggb_apply', toolCallId: 'c1' });

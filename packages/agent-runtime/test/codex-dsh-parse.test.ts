@@ -25,6 +25,14 @@ function replay(def: typeof codex | typeof dsh, line: string): AgentEvent[] {
 }
 
 describe('codex.parseLine — 真实样本重放', () => {
+  it('preserves explicit commentary/final_answer phases without guessing on legacy messages', () => {
+    for (const [nativePhase, phase] of [['commentary', 'commentary'], ['final_answer', 'final']]) {
+      expect(codex.parseLine(JSON.stringify({ type: 'item.completed', item: { id: 'a', type: 'agent_message', text: '消息', phase: nativePhase } })))
+        .toMatchObject({ kind: 'text', messageId: 'a', phase });
+    }
+    expect(codex.parseLine(JSON.stringify({ type: 'item.completed', item: { id: 'old', type: 'agent_message', text: '旧消息' } })))
+      .toEqual({ kind: 'text', messageId: 'old', text: '旧消息' });
+  });
   const lines = fs.readFileSync(fixture('codex-stream-sample.jsonl'), 'utf-8').split('\n').filter((l) => l.trim());
   const events = lines.flatMap((l) => replay(codex, l));
 

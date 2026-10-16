@@ -87,6 +87,16 @@ describe('buildArgs 闸门：证实不认识才摘，没探过照传', () => {
     expect(args).toContain('--model');
   });
 
+  it('--strict-mcp-config 恒传：不合并用户级 MCP（实测每轮省 6.7 秒）', () => {
+    // 不带它时 claude 会把**所有作用域**的 MCP server 一起起起来逐个健康检查——
+    // 实测 7068ms → 384ms，且随用户装了多少 server 增长（docker run / uvx 拉包那些
+    // 跟画布毫无关系）。布尔旗标进不了值拒绝探针（capabilities.ts 明写禁区），故无版本门：
+    // 真撞上不认识的旧版会响亮地死在 unknown option 上，不是静默降级。
+    expect(claudeArgs()).toContain('--strict-mcp-config');
+    setCapabilities('claude-code', { sessionFlag: false, resumeFlag: false, modelFlag: false });
+    expect(claudeArgs({ sessionId: 's1' })).toContain('--strict-mcp-config');
+  });
+
   it('codex 的 --model 按 exec / exec resume 分键取舍（旗标集不同，实测踩过）', () => {
     setCapabilities('codex', { modelFlag: false, resumeModelFlag: true });
     const fresh = codex.buildArgs({ prompt: 'p', mcpConfigPath: 'x.json', model: 'gpt-x' });
