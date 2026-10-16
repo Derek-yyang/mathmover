@@ -18,7 +18,10 @@ Local integration changes:
   the host restores the invoking element because Settings can open from several
   controls/events. Content accepts optional overlay styles and a close-button
   toggle; existing callers retain their defaults. Motion respects the system's
-  reduced-motion preference. Settings menus/confirmations remain in its focus
+  reduced-motion preference. Centered dialogs fade/scale in place; legacy
+  directional slide classes are removed so Tailwind 4's independent centering
+  translation does not combine with an extra diagonal animation offset.
+  Settings menus/confirmations remain in its focus
   scope and use its `data-slot=settings-dialog` boundary. The appearance menu is
   non-modal within the enclosing modal, avoiding overlapping modal locks.
 - Unsaved API drafts guard Settings dismissal through its close control, Escape,
