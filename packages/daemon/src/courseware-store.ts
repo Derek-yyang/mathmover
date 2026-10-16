@@ -272,7 +272,16 @@ export class CoursewareStore {
       const name = `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}`;
       const relative = `backups/${name}`;
       this.safeDirectory(relative);
-      await backup(this.db, this.file(`${relative}/library.sqlite`));
+      // 备份源必须是**独立连接**。node:sqlite 的 backup() 是异步增量拷贝，若拷贝期间
+      // 又有语句落在**同一个连接**上（备份跑着，一次 remove/save 进来——线上就是这么用的），
+      // 它会抛一个没有 stack 的 `Error: not an error`：实测同一连接 20 次挂 7 次，
+      // 换成独立连接后 20/20 通过。SQLite 的备份 API 本就为「活库备份」设计，
+      // 源库被并发写时它会从头重来；但要让它看得见这件事，源得是它自己的连接。
+      const source = new DatabaseSync(this.file('library.sqlite'));
+      try {
+        source.exec('PRAGMA busy_timeout=5000');
+        await backup(source, this.file(`${relative}/library.sqlite`));
+      } finally { source.close(); }
       const copy = new DatabaseSync(this.file(`${relative}/library.sqlite`), { readOnly: true });
       try {
         const resources = new Set<string>();

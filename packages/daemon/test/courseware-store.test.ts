@@ -131,17 +131,21 @@ describe('local courseware library', () => {
     const restored = new CoursewareStore(dir); stores.push(restored); expect(restored.get('course-1').ggbBase64).toBe(ggb);
   });
   it('finishes a concurrent backup before cleaning permanently deleted resources', async () => {
-    const s = make(); s.save(record());
-    const pending = s.createBackup();
-    s.remove(['course-1']);
-    expect(() => s.get('course-1')).toThrow('不存在');
-    expect(fs.existsSync(path.join(s.root, 'coursewares', 'course-1'))).toBe(true);
-    const name = await pending;
-    expect(fs.existsSync(path.join(s.root, 'backups', name, 'complete.json'))).toBe(true);
-    expect(fs.existsSync(path.join(s.root, 'coursewares', 'course-1'))).toBe(false);
-    const restored = new CoursewareStore(path.join(s.root, 'backups', name)); stores.push(restored);
-    // SQLite may capture before or after the deletion; either snapshot is complete.
-    if (restored.list().length) expect(restored.get('course-1').ggbBase64).toBe(ggb);
+    // 跑 4 轮：node:sqlite 的备份与同连接写入交错只在约三分之一的跑次里翻车（见 createBackup 注释），
+    // 单轮守不住这个回归。每轮独立 store，断言逐轮相同。
+    for (let round = 0; round < 4; round++) {
+      const s = make(); s.save(record());
+      const pending = s.createBackup();
+      s.remove(['course-1']);
+      expect(() => s.get('course-1')).toThrow('不存在');
+      expect(fs.existsSync(path.join(s.root, 'coursewares', 'course-1'))).toBe(true);
+      const name = await pending;
+      expect(fs.existsSync(path.join(s.root, 'backups', name, 'complete.json'))).toBe(true);
+      expect(fs.existsSync(path.join(s.root, 'coursewares', 'course-1'))).toBe(false);
+      const restored = new CoursewareStore(path.join(s.root, 'backups', name)); stores.push(restored);
+      // SQLite may capture before or after the deletion; either snapshot is complete.
+      if (restored.list().length) expect(restored.get('course-1').ggbBase64).toBe(ggb);
+    }
   });
   it('rejects invalid paths, snapshots, and keeps the access token stable', () => {
     const s = make(); expect(() => s.save(record({ id: '../escape' }))).toThrow();
