@@ -70,9 +70,15 @@ async function settlePaint(): Promise<void> {
   await new Promise<void>((r) => setTimeout(r, 120));
 }
 
-/** 画布取图：优先直接读 canvas 像素（网页/Electron 同一行代码）。 */
+/** 画布取图：优先用 GeoGebra 原生导出，回退到 canvas 像素。 */
 function capturePng(api: GeoGebraApi): { png: string | null; source: RawState['pngSource'] } {
-  void api;
+  // GeoGebra 原生导出：不依赖 canvas 缓冲区，3D 视图也能拿到正确图像。
+  if (typeof api?.getPNGBase64 === 'function') {
+    try {
+      const b64 = api.getPNGBase64(1, false);
+      if (b64 && b64.length > 100) return { png: b64, source: 'ggb-export' };
+    } catch { /* fallthrough */ }
+  }
   try {
     // GeoGebra 容器 id 在不同宿主下不同：e2e harness 用 #ggb，真实页面是 #ggb-element
     // （或 CanvasStage/GeoGebraBoard 传入的自定义 id）。所以多选择器 + 回退到最大 canvas。
@@ -103,7 +109,6 @@ function capturePng(api: GeoGebraApi): { png: string | null; source: RawState['p
   }
   // 备胎：整页截屏由宿主提供（Electron webContents.capturePage / Playwright screenshot）。
   // 页面内拿不到，这里只能如实报 none，由 daemon 决定是否降级。
-  void api;
   return { png: null, source: 'none' };
 }
 

@@ -5,6 +5,7 @@ import { GeoGebraApi, AuditResult } from '@/components/dashboard/types';
 // 体检算法唯一真源在 ggb-core。只走 /probe 子路径，不从整包引（见 types.ts 顶部说明）。
 import { auditConstruction } from '@mathmover/ggb-core/probe';
 import { animateViewToCenter, readViewBounds } from '@/lib/ggb-view-transition';
+import { resetStandard3DView } from '@/lib/ggb-view-reset';
 import { createCoursewareHTML } from '@/lib/ggb-html-export';
 import { getCoursewarePNG } from '@/lib/ggb-png-export';
 import { watchGgbGraphics } from '@/lib/ggb-graphics-state';
@@ -124,6 +125,10 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
               ggbApplet.setPerspective('T');
               ggbApplet.setAxesVisible(true, true, true);
               ggbApplet.setGridVisible(true);
+              // 3D 默认不开网格。无编号的 setGridVisible(true) 只作用于 2D（实测），
+              // 3D 得点名 view 3；而 3D 网格状态会被 GeoGebra 自己持久化，
+              // 不显式关掉就会带着上次的勾选打开。
+              ggbApplet.setGridVisible(3, false);
             } catch {}
           }
         }
@@ -260,19 +265,26 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
   const resetView = useCallback(() => {
     if (!ggbApplet) return;
     cancelViewAnimation();
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     try {
-      const bounds = currentMode === '2D' && ggbApplet.setCoordSystem
+      // 3D 没有可用的「回正」命令——相机只能经 XML 复位（原因见 lib/ggb-view-reset.ts）。
+      // 逐帧补丁也是动画，同样交给 cancelViewAnimation 中止（抓画布 / Esc 都能打断）。
+      if (currentMode === '3D') {
+        cancelViewAnimationRef.current = resetStandard3DView(ggbApplet, { reducedMotion });
+        return;
+      }
+      const bounds = ggbApplet.setCoordSystem
         ? readViewBounds(ggbApplet.getViewProperties?.(1))
         : null;
       if (bounds) {
         cancelViewAnimationRef.current = animateViewToCenter(
           view => ggbApplet.setCoordSystem!(view.xMin, view.xMax, view.yMin, view.yMax),
           bounds,
-          { reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches },
+          { reducedMotion },
         );
         return;
       }
-      // Keep the previous behavior for 3D or older applet APIs.
+      // 老 applet（没有 setCoordSystem）：沿用旧的 2D 处理，别动
       ggbApplet.evalCommand('CenterView((0,0))');
       ggbApplet.evalCommand('ZoomIn(-10)');
       ggbApplet.refreshViews();
