@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Real UI/GeoGebra with isolated courseware writes, images and Agent streams.
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -76,6 +77,7 @@ const finish = async () => {
   await page.getByText('已保存到本地', { exact: true }).waitFor();
 };
 try {
+  await stubConstructionDraft(page);
   await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard?history_id=${ids[0]}`);
   await page.locator('span[aria-label="当前 Agent：Claude Code"]').waitFor();
   await page.getByText('已保存到本地', { exact: true }).waitFor({ timeout: 60_000 });

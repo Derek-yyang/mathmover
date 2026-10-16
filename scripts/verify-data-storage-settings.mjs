@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // All storage API requests are fixtures: never create a backup or change the user's database.
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -28,6 +29,7 @@ await page.route('**/api/coursewares**', async route => {
 });
 
 try {
+  await stubConstructionDraft(page);
   await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard`, { waitUntil: 'domcontentloaded' });
   await page.locator('span[aria-label="当前 Agent：Claude Code"]').waitFor();
   await page.addStyleTag({ content: 'nextjs-portal { display:none !important; }' });
@@ -53,7 +55,7 @@ try {
   await storage.getByRole('status').filter({ hasText: 'backups/fixture-backup' }).waitFor();
   assert(await storage.getByRole('button', { name: '创建备份', exact: true }).isEnabled());
   await mkdir('spike-out/data-storage-settings', { recursive: true });
-  await page.locator('dialog[aria-labelledby=settings-title]').screenshot({ path: 'spike-out/data-storage-settings/settings.png' });
+  await page.locator('[data-slot=settings-dialog]').screenshot({ path: 'spike-out/data-storage-settings/settings.png' });
   assert.equal(await storage.evaluate(element => element.scrollWidth > element.clientWidth), false);
   await page.getByRole('button', { name: '关闭设置', exact: true }).click();
   await page.getByRole('button', { name: '收起侧栏', exact: true }).click();

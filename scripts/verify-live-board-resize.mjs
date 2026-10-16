@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1544, height: 900 } });
@@ -7,6 +8,7 @@ try {
   await page.route('**/api/coursewares**', route => route.fulfill({ json: { records: [], ok: true } }));
   await page.route('**/api/agent', route => route.fulfill({ json: { runtimes: [] } }));
   await page.routeWebSocket('ws://127.0.0.1:8787', socket => socket.close());
+  await stubConstructionDraft(page);
   await page.goto((process.argv[2] || 'http://localhost:3000') + '/dashboard');
   await page.waitForFunction(() => !!window.ggbApplet?.getViewProperties, null, { timeout: 90000 });
   await page.waitForTimeout(500);

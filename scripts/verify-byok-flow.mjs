@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // BYOK 验收分两段：
 //  A. 浏览器 UI：设置表单保存（密钥进应用数据目录、界面只显示尾 4 位）+ 设置页切换 Agent；
@@ -50,6 +51,7 @@ try {
   assert.ok(!('apiKey' in original), '完整 key 永不回传');
 
   await page.route('**/api/coursewares**', (route) => route.fulfill({ json: { records: [] } }));
+  await stubConstructionDraft(page);
   await page.goto('http://localhost:3000/dashboard', { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.getByRole('textbox', { name: '题目描述' }).waitFor({ timeout: 60_000 });
 
@@ -100,7 +102,7 @@ try {
   // LLM 侧闭环：工具声明齐全、回喂 role:'tool'、请求不携带鉴权 key 之外还带 stream:true
   assert.equal(calls.length, 2, 'two completions (tool round + final)');
   const toolNames = (calls[0].tools ?? []).map((t) => t.function?.name);
-  for (const name of ['ggb_get_state', 'ggb_apply', 'submit_construction', 'read_construction', 'write_construction']) {
+  for (const name of ['ggb_get_state', 'ggb_apply', 'get_expert_prompt', 'get_sop_cards', 'read_construction', 'write_construction']) {
     assert.ok(toolNames.includes(name), `tools declared: ${name}`);
   }
   assert.equal(calls[0].stream, true, 'completions requested as a stream');

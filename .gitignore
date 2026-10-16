@@ -18,6 +18,8 @@ storage-cleanup-*.json
 .impeccable/
 .local-geogebra-download/
 math-mover-next/public/vendor/geogebra/
+# 运行时生成的 MCP 配置（带本机绝对路径）
+packages/daemon/mcp/runtime-mcp.json
 
 # daemon 运行态「真源」构造文件——由 ggb_apply 写入，按 workdir 落地，属本地状态
 construction.ggb.txt

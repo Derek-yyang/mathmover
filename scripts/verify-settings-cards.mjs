@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // 设置卡片重构（2026-10-13 评审后）的验收：双 Tab、卡片信息设计（模型一眼可见）、
 // 状态芯片、连接测试、设置与聊天区共写同一份模型状态、BYOK 归位 API 提供商 Tab。
@@ -26,6 +27,7 @@ try {
     baseUrl: 'https://fixture.invalid/v1', model: 'fixture-model', apiKeyConfigured: false, apiKeyTail: '',
   } }));
   await page.route('**/api/agent/test', (route) => route.fulfill({ json: { ok: true, status: 'ready', message: '就绪 · 已登录（验收桩）' } }));
+  await stubConstructionDraft(page);
   await page.goto('http://localhost:3000/dashboard', { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.getByRole('textbox', { name: '题目描述' }).waitFor({ timeout: 60_000 });
 
@@ -79,9 +81,10 @@ try {
     buttons: getComputedStyle(element, '::-webkit-scrollbar-button').display,
   }));
   assert.deepEqual(scrollbarStyle, { width: '6px', buttons: 'none' });
-  const options = await modelSelect.locator('option').all();
+  await modelSelect.click();
+  const options = await page.getByRole('listbox').getByRole('option').all();
   assert.ok(options.length >= 2, 'model select populated');
-  await modelSelect.selectOption({ index: Math.min(1, options.length - 1) });
+  await options[1].click();
   await page.waitForTimeout(300);
   const after = (await composerTrigger.getAttribute('aria-label'));
   assert.notEqual(before, after, 'settings model select writes the same state as the composer picker');

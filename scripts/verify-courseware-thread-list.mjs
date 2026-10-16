@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Real dashboard and GeoGebra, with isolated in-memory courseware API fixtures.
 const base = process.argv[2] || 'http://localhost:3000';
@@ -49,11 +50,13 @@ await page.addInitScript(() => {
 });
 page.on('pageerror', error => errors.push(error.message));
 await page.route('**/api/agent**', route => route.fulfill({ json: { runtimes: [{ id: 'claude-code', name: 'Claude Code', version: 'fixture', usable: true, authStatus: 'ok', canAttachImages: true }] } }));
+await page.route('**/api/byok', route => route.fulfill({ json: { apiKeyConfigured: false } }));
+await page.routeWebSocket('ws://127.0.0.1:8787', socket => socket.onMessage(() => {}));
 await page.route('**/api/coursewares**', async route => {
   const request = route.request();
   const url = new URL(request.url());
   const parts = url.pathname.split('/').slice(3);
-  if (parts[0] === 'windows') return route.fulfill({ json: { ok: true } });
+  if (parts[0] === 'windows') return route.fulfill({ json: { bindingToken: 'fixture-ticket' } });
   if (request.method() === 'GET') {
     if (!parts.length) {
       if (failList) return route.fulfill({ status: 503, json: { error: '列表读取失败测试' } });
@@ -90,7 +93,7 @@ await page.route('**/api/coursewares**', async route => {
 });
 const recentList = page.locator('aside[aria-label=课件侧栏] [data-slot=aui_thread-list-root]');
 const list = recentList;
-const archiveList = page.locator('dialog[aria-labelledby=settings-title] [data-slot=aui_thread-list-root]');
+const archiveList = page.locator('[data-slot=settings-dialog] [data-slot=aui_thread-list-root]');
 let visibleList = recentList;
 const rows = () => visibleList.locator('[data-slot=aui_thread-list-item-trigger]');
 const openArchives = async () => {
@@ -109,7 +112,14 @@ const menu = async title => {
   await root.getByRole('button', { name: '课件操作', exact: true }).click();
 };
 const waitForBoard = (name, x) => page.waitForFunction(({ name, x }) => window.ggbApplet?.exists(name) && window.ggbApplet.getXcoord(name) === x, { name, x });
+// Successful auto-save is intentionally silent; verify persisted fixture data.
+const waitForSnapshot = async id => {
+  const deadline = Date.now() + 10_000;
+  while (!records.get(id)?.ggbBase64 && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+  assert(records.get(id)?.ggbBase64, `complete canvas snapshot persisted for ${id}`);
+};
 try {
+  await stubConstructionDraft(page);
   await page.goto(`${base}/dashboard?history_id=${firstId}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   // Mocked error cases raise the dev indicator over the footer. Keep that
   // developer-only badge out of the product hit-testing; pageerrors still fail.
@@ -128,17 +138,17 @@ try {
   await row('圆的性质').click();
   await page.getByText('圆的性质已恢复', { exact: true }).waitFor();
   await waitForBoard('B', 3);
-  await page.getByText('已保存到本地', { exact: true }).waitFor();
+  await waitForSnapshot(secondId);
   await row('抛物线研究').click();
   await page.getByText('抛物线研究已恢复', { exact: true }).waitFor();
   await waitForBoard('A', 1);
-  await page.getByText('已保存到本地', { exact: true }).waitFor();
+  await waitForSnapshot(firstId);
   await page.waitForFunction(() => !window.ggbApplet.exists('B'));
   assert(records.get(firstId).ggbBase64, 'round trip restores the saved complete canvas snapshot');
   await row('圆的性质').click();
   await page.getByText('圆的性质已恢复', { exact: true }).waitFor();
   await waitForBoard('B', 3);
-  await page.getByText('已保存到本地', { exact: true }).waitFor();
+  await waitForSnapshot(secondId);
   await menu('圆的性质');
   await page.getByRole('menuitem', { name: '重命名', exact: true }).click();
   const rename = list.getByRole('textbox', { name: '课件名称' });
@@ -188,24 +198,24 @@ try {
   await menu('圆的性质改名'); await page.getByRole('menuitem', { name: '删除', exact: true }).click();
   const archiveDeleteDialog = page.getByRole('dialog', { name: '删除这个课件？', exact: true });
   await archiveDeleteDialog.waitFor();
-  assert(await archiveDeleteDialog.evaluate(element => element.closest('dialog[aria-labelledby=settings-title]') !== null), 'archive popover stays inside the native Settings dialog');
+  assert(await archiveDeleteDialog.evaluate(element => element.closest('[data-slot=settings-dialog]') !== null), 'archive popover stays inside the Settings Dialog');
   await page.waitForFunction(() => {
     const panel = document.querySelector('[data-slot=aui_thread-list-item-delete-confirmation]');
-    const dialog = panel?.closest('dialog[aria-labelledby=settings-title]');
+    const dialog = panel?.closest('[data-slot=settings-dialog]');
     if (!panel || !dialog) return false;
     const box = panel.getBoundingClientRect(), bounds = dialog.getBoundingClientRect();
     return box.left >= bounds.left && box.right <= bounds.right && box.top >= bounds.top && box.bottom <= bounds.bottom;
   });
-  await page.locator('dialog[aria-labelledby=settings-title]').screenshot({ path: output('archive-delete-popover.png') });
+  await page.locator('[data-slot=settings-dialog]').screenshot({ path: output('archive-delete-popover.png') });
   await archiveDeleteDialog.getByRole('button', { name: '取消', exact: true }).click();
   assert(records.has(secondId), 'archive delete cancellation retains the courseware');
   await row('圆的性质改名').click();
-  await page.locator('dialog[aria-labelledby=settings-title]').waitFor({ state: 'detached' });
+  await page.locator('[data-slot=settings-dialog]').waitFor({ state: 'detached' });
   visibleList = recentList;
   assert(records.get(secondId).archived_at, 'opening the current archive does not unarchive it');
   await openArchives();
   await row('圆的性质改名').waitFor();
-  await page.locator('dialog[aria-labelledby=settings-title]').screenshot({ path: output('archives.png') });
+  await page.locator('[data-slot=settings-dialog]').screenshot({ path: output('archives.png') });
   // Edits/auto-save of the active archive must retain its state and new revision.
   const savedArchive = page.waitForResponse(response => new URL(response.url()).pathname === '/api/coursewares' && response.request().method() === 'POST' && response.request().postDataJSON().id === secondId);
   await page.evaluate(() => window.ggbApplet.setCoords('B', 7, 4));
@@ -221,18 +231,19 @@ try {
   await row('三角函数').waitFor({ state: 'detached' });
   await openArchives();
   await row('三角函数').click();
-  await page.locator('dialog[aria-labelledby=settings-title]').waitFor({ state: 'detached' });
+  await page.locator('[data-slot=settings-dialog]').waitFor({ state: 'detached' });
   visibleList = recentList;
   await waitForBoard('C', 5);
   await page.getByText('三角函数已恢复', { exact: true }).waitFor();
-  await page.getByText('已保存到本地', { exact: true }).waitFor();
+  await waitForSnapshot(thirdId);
   assert(records.get(thirdId).archived_at);
   await openArchives();
   await menu('三角函数'); await page.getByRole('menuitem', { name: '取消归档', exact: true }).click();
   await row('三角函数').waitFor({ state: 'detached' });
   await closeArchives();
   await row('圆的性质改名').click();
-  await page.getByText('已保存到本地', { exact: true }).waitFor();
+  await waitForBoard('B', 7);
+  await waitForSnapshot(secondId);
   await menu('抛物线研究'); await page.getByRole('menuitem', { name: '删除', exact: true }).click();
   const singleDelete = page.locator('[data-slot=aui_thread-list-item-delete-confirmation]');
   await singleDelete.waitFor();
@@ -340,7 +351,7 @@ try {
   assert.equal(writes.findLast(write => write.path.endsWith('/delete')).body.ids.length, 2);
   await search.fill('');
   await page.locator('aside[aria-label=课件侧栏]').screenshot({ path: output('long-list.png') });
-  // Settings supports permanent single and bulk archive deletion in its native
+  // Settings supports permanent single and bulk archive deletion in its Radix
   // modal, including failure/retry and keyboard dismissal of the confirmation.
   const archiveOne = 'ffffffff-ffff-4fff-8fff-000000000001';
   const archiveTwo = 'ffffffff-ffff-4fff-8fff-000000000002';
@@ -353,7 +364,7 @@ try {
   await archiveDeleteDialog.getByRole('button', { name: '取消', exact: true }).focus();
   await page.keyboard.press('Escape');
   await archiveDeleteDialog.waitFor({ state: 'detached' });
-  assert(await page.locator('dialog[aria-labelledby=settings-title]').isVisible(), 'Escape closes confirmation and retains Settings');
+  assert(await page.locator('[data-slot=settings-dialog]').isVisible(), 'Escape closes confirmation and retains Settings');
   failDelete = true;
   await menu('归档删除验收一'); await page.getByRole('menuitem', { name: '删除', exact: true }).click();
   await archiveDeleteDialog.getByRole('button', { name: '确认删除', exact: true }).click();
@@ -369,10 +380,10 @@ try {
   await archiveDeleteDialog.getByRole('button', { name: '确认删除', exact: true }).click();
   await archiveList.getByRole('status').filter({ hasText: '暂无归档课件' }).waitFor();
   assert(!records.has(archiveTwo));
-  await page.locator('dialog[aria-labelledby=settings-title]').screenshot({ path: output('archives-empty.png') });
+  await page.locator('[data-slot=settings-dialog]').screenshot({ path: output('archives-empty.png') });
   await closeArchives();
   assert.deepEqual(errors, []);
-  await writeFile(output('result.json'), JSON.stringify({ ok: true, scenarios: ['official runtime UI', 'date grouping', 'active selection', 'search', 'chat and complete canvas snapshot restore', 'rename cancel/save/conflict', 'keyboard navigation', 'Agent busy guards', 'archive failure retry', 'archive and unarchive active/inactive coursewares', 'archived chat/canvas restore and continued editing', 'Settings archive search and navigation', 'opening the current archive closes Settings', 'native Settings menu and confirmation portals', 'archive permanent deletion cancel/Escape/failure/retry/batch', 'permanent delete cancel/failure/success/last index', 'batch selection and multi-delete', 'active deletion resets canvas', 'sidebar collapse/expand and search focus', 'list retry', '42-row scroll and pinned footer'], writes: writes.length, pageErrors: errors }, null, 2));
+  await writeFile(output('result.json'), JSON.stringify({ ok: true, scenarios: ['official runtime UI', 'date grouping', 'active selection', 'search', 'chat and complete canvas snapshot restore', 'rename cancel/save/conflict', 'keyboard navigation', 'Agent busy guards', 'archive failure retry', 'archive and unarchive active/inactive coursewares', 'archived chat/canvas restore and continued editing', 'Settings archive search and navigation', 'opening the current archive closes Settings', 'Settings menu and confirmation portals', 'archive permanent deletion cancel/Escape/failure/retry/batch', 'permanent delete cancel/failure/success/last index', 'batch selection and multi-delete', 'active deletion resets canvas', 'sidebar collapse/expand and search focus', 'list retry', '42-row scroll and pinned footer'], writes: writes.length, pageErrors: errors }, null, 2));
   console.log('Courseware ThreadList regression passed; fixtures only, no database writes.');
 } catch (error) {
   await writeFile(output('failure.json'), JSON.stringify({ message: error.message, pageErrors: errors, focusEvents: await page.evaluate(() => window.__focusEvents), writes }, null, 2));

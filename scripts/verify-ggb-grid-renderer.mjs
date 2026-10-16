@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import ts from '../math-mover-next/node_modules/typescript/lib/typescript.js';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 const source = await readFile(new URL('../math-mover-next/lib/ggb-grid-renderer.ts', import.meta.url), 'utf8');
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ES2020, target: ts.ScriptTarget.ES2020 } }).outputText;
@@ -88,6 +89,7 @@ try {
   await page.route('**/api/coursewares**', route => route.fulfill({ json: { records: [], ok: true } }));
   await page.route('**/api/agent**', route => route.fulfill({ json: { runtimes: [] } }));
   await page.routeWebSocket('ws://127.0.0.1:8787', socket => socket.close());
+  await stubConstructionDraft(page);
   await page.goto((process.argv[2] || 'http://localhost:3102') + '/dashboard');
   await page.waitForFunction(() => !!window.ggbApplet?.getViewProperties, null, { timeout: 90000 });
   await page.getByRole('button', { name: '全屏演示', exact: true }).click();

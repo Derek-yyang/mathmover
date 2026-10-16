@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Real canvas; isolate database, configuration and bridge traffic.
 const out = 'spike-out/responsive-board-toolbar';
@@ -58,6 +59,7 @@ async function check(label) {
   results.push({ label, canvasWidth: toolbar.width, toolbarHeight: toolbar.height, titleWidth: (await rect(title)).width });
 }
 try {
+  await stubConstructionDraft(page);
   await page.goto((process.argv[2] || 'http://localhost:3000') + '/dashboard?history_id=' + id);
   await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
   await page.waitForFunction(() => window.ggbApplet?.exists?.('c'));

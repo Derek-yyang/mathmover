@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // 模型 + 推理档位组合面板的真页面验收：课件接口与 agent 探测都走夹具，不碰真实 CLI。
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -35,6 +36,7 @@ try {
     if (route.request().method() !== 'GET') return route.fallback();
     await route.fulfill({ json: { ok: true, daemon: 'http://localhost:8788', canvasConnected: false, runtimes, activeRuntime: 'claude-code' } });
   });
+  await stubConstructionDraft(page);
   await page.goto('http://localhost:3000/dashboard', { waitUntil: 'domcontentloaded' });
   await trigger().waitFor();
 

@@ -104,7 +104,7 @@ async function main() {
   console.log('\n── 第一轮：发送题目建模 ──');
   const before1 = await p.locator('body').innerText();
   const ms1 = await sendAndWait(p,
-    '请走 SOP 流程建模（判题目类别 → get_expert_prompt 取流程与清单，类别一并给出 → get_sop_cards 按需取卡 → submit_construction 提交）：' +
+    '请走 SOP 流程建模（判题目类别 → get_expert_prompt 取流程与清单，类别一并给出 → get_sop_cards 按需取卡 → 写进工作稿并 ggb_apply 生效）：' +
     '建一个抛物线与直线相交的几何模型，抛物线 g = Function(x^2/4, -3, 3)，直线 f 过 A(0,0) 与 B(3,2)，把 f 标红。建好后一两句说明。', stats);
   console.log(`  耗时 ${Math.round(ms1 / 1000)}s`);
 

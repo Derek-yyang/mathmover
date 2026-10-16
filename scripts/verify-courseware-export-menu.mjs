@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Actual GeoGebra/downloads; database traffic is isolated to this fixture.
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -53,6 +54,7 @@ const download = async (extension, action) => {
   assert(await trigger.evaluate(element => element === document.activeElement), 'selection restores trigger focus');
 };
 try {
+  await stubConstructionDraft(page);
   await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard?history_id=${id}`);
   await page.waitForFunction(() => window.ggbApplet?.exists?.('A'), null, { timeout: 60_000 });
   await page.waitForFunction(() => !document.querySelector('button[aria-label="导出"]')?.disabled);

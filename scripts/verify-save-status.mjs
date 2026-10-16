@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 const out = 'spike-out/save-status';
 await mkdir(out, { recursive: true });
@@ -42,6 +43,7 @@ const poll = async predicate => {
 const edit = value => page.evaluate(value => window.ggbApplet.setCoords('A', value, 2), value);
 const clearNotices = () => page.evaluate(() => { window.__saveNotices = []; });
 try {
+  await stubConstructionDraft(page);
   await page.goto((process.argv[2] || 'http://localhost:3000') + '/dashboard?history_id=' + id);
   await page.waitForFunction(() => window.ggbApplet?.exists?.('A'));
   await page.waitForFunction(() => !document.querySelector('button[aria-label^="重命名课件："]')?.disabled);

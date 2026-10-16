@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Real dashboard + GeoGebra; courseware writes and Agent streams are isolated fixtures.
 const base = process.argv[2] || 'http://localhost:3000';
@@ -36,7 +37,9 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
+  await page.routeWebSocket('ws://127.0.0.1:8787', socket => socket.onMessage(() => {}));
   await page.route('**/api/coursewares**', async route => {
+    if (new URL(route.request().url()).pathname.endsWith('/windows')) return route.fulfill({ json: { bindingToken: 'fixture-ticket' } });
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
       record = { ...record, ...body, revision: (body.expectedRevision ?? record.revision) + 1 };
@@ -62,6 +65,7 @@ try {
       return realFetch(input, init);
     };
   });
+  await stubConstructionDraft(page);
   await page.goto(`${base}/dashboard?history_id=${id}`);
   await page.locator('[data-slot=aui_assistant-message-root]').first().waitFor();
   const panel = page.locator('aside[aria-label=对话]');
@@ -164,37 +168,37 @@ try {
   assert.equal(await latest.getByRole('button', { name: '复制消息', exact: true }).count(), 0);
   assert.equal(await panel.getByRole('button', { name: '编辑', exact: true }).count(), 0);
   await emit({ kind: 'tool-call', name: 'ggb_get_state', toolCallId: 'fixture-1' });
-  await emit({ kind: 'text-delta', text: '这是一段正在生成的回复。' });
+  await emit({ kind: 'text-delta', text: '这是一段正在生成的回复。', phase: 'final' });
   await latest.getByText('这是一段正在生成的回复。', { exact: true }).waitFor();
   await panel.screenshot({ path: output('streaming.png') });
   await viewport.evaluate(el => { el.scrollTo({ top: 0, behavior: 'instant' }); });
   bottomScrolling.duringRun = await returnToLatest(true);
   const growth = '\n\n' + Array.from({ length: 10 }, (_, i) => `继续生成的第 ${i + 1} 段内容。`).join('\n\n');
-  await emit({ kind: 'text-delta', text: growth });
+  await emit({ kind: 'text-delta', text: growth, phase: 'final' });
   await latest.getByText('继续生成的第 10 段内容。', { exact: true }).waitFor();
   await page.waitForFunction(() => {
     const el = document.querySelector('[aria-label=聊天消息]');
     return el.scrollHeight - el.clientHeight - el.scrollTop <= 1;
   });
-  await latest.locator('[data-agent-execution] > [data-slot=tool-group-trigger]').click();
+  await latest.locator('[data-slot=run-activity] > [data-slot=collapsible] > [data-slot=collapsible-trigger]').click();
   await latest.locator('[data-tool-step-status]').waitFor();
   await emit({ kind: 'tool-result', name: 'ggb_get_state', toolCallId: 'fixture-1', isError: true });
   await emit({ kind: 'done' });
   await page.evaluate(() => window.__finishAgent());
   await latest.locator('[data-agent-execution=completed]').waitFor();
-  assert.equal(await latest.locator('[data-agent-execution] > [data-slot=tool-group-trigger]').getAttribute('aria-expanded'), 'true');
+  assert.equal(await latest.locator('[data-slot=run-activity] > [data-slot=collapsible] > [data-slot=collapsible-trigger]').getAttribute('aria-expanded'), 'true');
   assert.equal(await latest.locator('[data-tool-step-status]').getAttribute('data-tool-step-status'), 'error');
   await latest.getByRole('button', { name: '复制消息', exact: true }).waitFor();
   await startRun('测试停止');
   await emit({ kind: 'tool-call', name: 'ggb_apply', toolCallId: 'fixture-stopped-tool' });
-  await emit({ kind: 'text-delta', text: '停止时仍保留这段内容。' });
+  await emit({ kind: 'text-delta', text: '停止时仍保留这段内容。', phase: 'final' });
   await latest.getByText('停止时仍保留这段内容。', { exact: true }).waitFor();
-  await emit({ kind: 'text-delta', text: '停止前最后一小段。' });
+  await emit({ kind: 'text-delta', text: '停止前最后一小段。', phase: 'final' });
   await page.evaluate(() => document.querySelector('[aria-label=停止本轮]').click());
   await latest.locator('[data-agent-execution=stopped]').waitFor();
   assert.equal(await latest.locator('[data-agent-execution]').getAttribute('data-agent-execution'), 'stopped');
   await latest.getByText('停止时仍保留这段内容。停止前最后一小段。', { exact: true }).waitFor();
-  await latest.locator('[data-agent-execution] > [data-slot=tool-group-trigger]').click();
+  await latest.locator('[data-slot=run-activity] > [data-slot=collapsible] > [data-slot=collapsible-trigger]').click();
   await latest.locator('[data-tool-step-status]').waitFor();
   assert.equal(await latest.locator('[data-tool-step-status]').getAttribute('data-tool-step-status'), 'unconfirmed');
   assert.equal(await latest.locator('[role=alert]').count(), 0);

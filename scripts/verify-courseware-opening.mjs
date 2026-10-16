@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Real local GeoGebra; all data, credentials, Agent and socket traffic isolated.
 const out = 'spike-out/courseware-opening';
@@ -64,6 +65,7 @@ const assertProtected = async () => {
   assert(await page.locator('[aria-label=数学课件画布] > div[inert]').count() === 1, 'native canvas keyboard interaction is inert');
 };
 try {
+  await stubConstructionDraft(page);
   await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard?history_id=${ids[0]}`);
   await ready(0);
   await page.addStyleTag({ content: 'nextjs-portal{display:none!important}' });

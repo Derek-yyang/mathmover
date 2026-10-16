@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // In-memory courseware fixtures; no database mutations or Agent runs.
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -21,6 +22,7 @@ try {
       assert.equal(route.request().method(), 'GET');
       return route.fulfill({ json: { records, dataDirectory: 'fixture', capabilities: { archive: true, permanentDelete: true } } });
     });
+    await stubConstructionDraft(page);
     await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard`, { waitUntil: 'domcontentloaded' });
     await page.locator('span[aria-label="当前 Agent：Claude Code"]').waitFor();
     await page.addStyleTag({ content: 'nextjs-portal { display:none !important; }' });
@@ -31,17 +33,17 @@ try {
     const sidebarTop = await sidebarItems.evaluate(element => element.scrollTop);
     await page.getByRole('button', { name: '设置', exact: true }).click();
     await page.getByRole('navigation', { name: '设置分区' }).getByRole('button', { name: '归档课件', exact: true }).click();
-    const settings = page.locator('dialog[aria-labelledby=settings-title]');
+    const settings = page.locator('[data-slot=settings-dialog]');
     const scroll = settings.locator('.settings-scroll-viewport');
     const first = settings.getByRole('button', { name: '归档课件 40', exact: true });
     await first.hover();
     await page.mouse.wheel(0, 420);
-    await page.waitForFunction(() => document.querySelector('dialog[open] .settings-scroll-viewport').scrollTop > 100);
+    await page.waitForFunction(() => document.querySelector('[data-slot=settings-dialog] .settings-scroll-viewport').scrollTop > 100);
     const down = await scroll.evaluate(element => element.scrollTop);
     const box = await scroll.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.wheel(0, -420);
-    await page.waitForFunction(previous => document.querySelector('dialog[open] .settings-scroll-viewport').scrollTop < previous, down);
+    await page.waitForFunction(previous => document.querySelector('[data-slot=settings-dialog] .settings-scroll-viewport').scrollTop < previous, down);
     // Menu open/close must not leave a wheel lock behind.
     await first.hover();
     await first.locator('..').getByRole('button', { name: '课件操作', exact: true }).click();
@@ -50,7 +52,7 @@ try {
     await page.getByRole('menu').waitFor({ state: 'detached' });
     await first.hover();
     await page.mouse.wheel(0, 420);
-    await page.waitForFunction(() => document.querySelector('dialog[open] .settings-scroll-viewport').scrollTop > 100);
+    await page.waitForFunction(() => document.querySelector('[data-slot=settings-dialog] .settings-scroll-viewport').scrollTop > 100);
     assert.equal(await sidebarItems.evaluate(element => element.scrollTop), sidebarTop, 'modal wheel must not scroll the sidebar behind it');
     const archiveSearch = settings.getByRole('searchbox', { name: '搜索归档课件', exact: true });
     await archiveSearch.fill('不存在');
@@ -58,7 +60,7 @@ try {
     await archiveSearch.fill('');
     await first.hover();
     await page.mouse.wheel(0, 420);
-    await page.waitForFunction(() => document.querySelector('dialog[open] .settings-scroll-viewport').scrollTop > 100);
+    await page.waitForFunction(() => document.querySelector('[data-slot=settings-dialog] .settings-scroll-viewport').scrollTop > 100);
     assert.deepEqual(errors, []);
     console.log(`Wheel scrolling passed at ${viewport.width}x${viewport.height}: sidebar, archives both directions, menu close, search reset, background isolation.`);
     await context.close();

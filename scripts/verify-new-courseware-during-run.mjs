@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Actual pages/canvases; no model calls, real database writes or daemon messages.
 const out = 'spike-out/new-courseware-during-run';
@@ -94,6 +95,7 @@ const apply = async (windowId, commands) => {
   assert.equal(replies.get(requestId).error, undefined);
 };
 try {
+  await stubConstructionDraft(page);
   await page.goto((process.argv[2] || 'http://localhost:3000') + '/dashboard?history_id=' + id);
   await ready(page); await page.waitForFunction(() => window.ggbApplet.exists('A'));
   const originalUrl = page.url(), original = await send(page, '旧课件任务');

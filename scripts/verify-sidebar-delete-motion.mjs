@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Exercise the real sidebar; every courseware request stays in this fixture.
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -66,6 +67,7 @@ try {
     const record = rows.find(row => url.pathname.endsWith(`/${row.id}`));
     await route.fulfill({ json: record ?? { records: rows } });
   });
+  await stubConstructionDraft(page);
   await page.goto('http://localhost:3000/dashboard', { waitUntil: 'domcontentloaded' });
   await button('动效测试 5').waitFor();
   await page.getByText('正在读取本地课件…', { exact: true }).waitFor({ state: 'detached' });

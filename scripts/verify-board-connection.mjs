@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Real dashboard and GeoGebra. HTTP persistence and daemon sockets are isolated fixtures.
 const base = process.argv[2] || 'http://localhost:3000';
@@ -45,6 +46,7 @@ await page.routeWebSocket('ws://127.0.0.1:8787', socket => {
 const status = page.getByRole('status', { name: '画板连接状态', exact: true });
 const reconnect = page.getByRole('button', { name: '重新连接画板', exact: true });
 try {
+  await stubConstructionDraft(page);
   await page.goto(`${base}/dashboard?history_id=${id}`);
   await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
   await page.waitForFunction(() => typeof window.ggbApplet?.getAllObjectNames === 'function');

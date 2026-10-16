@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // All requests are fixtures; no real credential/config write or endpoint probe.
 const out = 'spike-out/byok-test-consistency';
@@ -54,6 +55,7 @@ const testSaved = async () => {
   await result.waitFor();
 };
 try {
+  await stubConstructionDraft(page);
   await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard`);
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('tab', { name: 'API 提供商', exact: true }).click();

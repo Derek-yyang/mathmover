@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Isolated courseware API + real GeoGebra. No Agent calls or library writes.
 const browser = await chromium.launch({ channel: 'chrome', headless: true,
@@ -41,6 +42,7 @@ try {
   }
   for (const width of [1544, 2400]) {
     await page.setViewportSize({ width, height: 900 });
+    await stubConstructionDraft(page);
     await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => !!window.ggbApplet?.getViewProperties);
     await page.getByRole('button', { name: '画板设置', exact: true }).click();

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Actual UI and local GeoGebra, isolated database/config/socket/model fixtures.
 const out = 'spike-out/send-readiness';
@@ -61,9 +62,14 @@ const refreshFromSettings = async mode => {
   if (mode !== 'hold') await page.getByRole('button', { name: '刷新检测', exact: true }).waitFor();
   await page.getByRole('button', { name: '关闭设置', exact: true }).click();
 };
-const assertBlocked = async message => {
-  await panel.getByText(message, { exact: true }).waitFor();
+const assertBlocked = async (message, { transient = false } = {}) => {
+  const notice = panel.getByText(message, { exact: true });
+  await notice.waitFor({ state: 'attached' });
+  assert.equal(await notice.locator('..').evaluate(node => node.classList.contains('sr-only')), transient,
+    'only actionable problems take up visible space below the composer');
   assert(await send.isDisabled());
+  assert.equal(await send.getAttribute('title'), message, 'send hover retains the blocking reason');
+  assert.equal(await send.getAttribute('aria-describedby'), await notice.locator('..').getAttribute('id'));
   const before = await input.inputValue();
   await input.press('Enter');
   assert((await input.inputValue()).startsWith(before));
@@ -73,6 +79,7 @@ const assertBlocked = async message => {
   results.push(message);
 };
 try {
+  await stubConstructionDraft(page);
   await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard?history_id=${id}`);
   await page.waitForFunction(() => window.ggbApplet?.exists?.('A'));
   await page.waitForFunction(() => document.querySelector('[data-board-connection]')?.dataset.boardConnection === 'disconnected');
@@ -96,6 +103,12 @@ try {
   await page.getByRole('button', { name: '关闭设置', exact: true }).click();
   await refreshFromSettings('missing');
   await assertBlocked('未选择可用 Agent，请在设置中选择。');
+  await refreshFromSettings('hold');
+  await assertBlocked('正在检测 Agent，请稍候。', { transient: true });
+  await panel.getByRole('status', { name: '正在检测 Agent…', exact: true }).waitFor();
+  await page.screenshot({ path: `${out}/detecting.png` });
+  agentMode = 'missing'; releaseDetection();
+  await panel.getByText('未选择可用 Agent，请在设置中选择。', { exact: true }).waitFor();
   await refreshFromSettings('fail');
   await assertBlocked('Agent 检测失败，请重新检测。');
   agentMode = 'ready';
@@ -105,7 +118,7 @@ try {
   await refreshFromSettings('unauthenticated');
   await assertBlocked('当前 Agent 尚未登录，请查看配置指引。');
   await refreshFromSettings('hold');
-  await assertBlocked('正在检测 Agent，请稍候。');
+  await assertBlocked('正在检测 Agent，请稍候。', { transient: true });
   agentMode = 'ready'; releaseDetection();
   await page.waitForFunction(() => !document.querySelector('button[aria-label=发送消息]').disabled);
   await input.fill('恢复后发送同一份草稿');

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Real dashboard/canvas; all courseware reads and writes use in-memory fixtures.
 const out = 'spike-out/courseware-title';
@@ -52,6 +53,7 @@ const open = async () => { await title().click(); await name.waitFor(); };
 const saved = async text => { await page.getByRole('button', { name: `重命名课件：${text}`, exact: true }).waitFor(); await row(text).waitFor(); };
 const submit = async text => { await open(); await name.fill(text); await name.press('Enter'); await saved(text); };
 try {
+  await stubConstructionDraft(page);
   await page.goto(`${base}/dashboard?history_id=${first}`);
   await ready();
   await page.addStyleTag({ content: 'nextjs-portal {display:none !important;}' });

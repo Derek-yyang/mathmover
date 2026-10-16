@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // Isolated API fixtures: no Agent calls, key changes or courseware writes.
 const base = process.argv[2] ?? 'http://localhost:3000';
@@ -21,6 +22,7 @@ try {
     assert.equal(route.request().method(), 'GET', 'never invoke the Agent');
     return route.fulfill({ json: { runtimes: [runtime] } });
   });
+  await stubConstructionDraft(page);
   await page.goto(`${base}/dashboard`, { waitUntil: 'domcontentloaded' });
   const trigger = page.getByRole('button', { name: /^选择模型与推理档位/ });
   await trigger.click();
