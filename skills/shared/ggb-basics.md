@@ -7,5 +7,6 @@
 - **点**：`A = (sqrt(3), -1/2)`，常量写精确分数/根式，不写小数近似；三维点写 `(x, y, z)`。独立定点用 `SetFixed(A, true)` 锁定，驱动点不锁定。派生点保留原表达式（如 `M = Midpoint(B, C)`），不能把当前坐标抄成常量。
 - **线**：`Segment(A, B)` 有限线段、`Line(A, B)` 无限直线、`Ray(A, B)` 单向射线、`Vector(A, B)` 向量——按题意选，别把有限画成无限。
 - **标签**：`ShowLabel(A, true)` 显示标签，`SetLabelMode(A, 1)` 名称与值（按展示要求替换模式）。
-- **样式**：`SetColor(f, "Red")` 颜色、`SetLineStyle(f, 2)` 虚线、`SetLineThickness(f, 3)` 线宽、`SetPointSize(A, 4)` 点大小、`SetFilling(poly, 0.3)` 填充透明度。**默认值不要写**：线/线段/圆/圆锥曲线默认就是黑色实线（写 `"Black"` 或 `0` 是空转）；点与函数另有自己的默认色，要改色才写。按约定需要写的只有驱动点 Red、关系点 Blue、辅助线 Gray + 虚线。
+- **样式**：`SetColor(f, "Red")` 颜色、`SetLineStyle(f, 2)` 虚线、`SetLineThickness(f, n)` 线宽、`SetPointSize(A, n)` 点大小、`SetFilling(poly, 0.3)` 填充透明度。**默认值不要写**：线/线段/圆/圆锥曲线默认**黑色实线、线宽 5**（粗细合宜，不必调）；点与函数另有自己的默认色，要改色才写。按约定需要写的只有驱动点 Red、关系点 Blue、辅助线 Gray + 虚线。
+- **3D 取景**：`CenterView((x, y, z))` 定画面中心、`SetViewDirection((x, y, z))` 定观察方向（`SetViewDirection()` 回默认朝向）、`ZoomIn(倍率)` 是**相对当前的倍数**（>1 放大、<1 缩小；**绝不给负值**——负值会把缩放写成负数，画面直接报废）。默认视域约 ±9 单位，棱长 1 的图形通常要 `ZoomIn(5~10)` 才占得住画面；图形太小或太大都是缩放的事，别拿朝向去救。
 - **规矩**：以上都是输入栏命令，不是 JavaScript API（`setAxesVisible`、`setColor` 之类一律不能写入指令流）。属性行写在该对象定义之后，先定义后引用；名字避开题目已用名。
