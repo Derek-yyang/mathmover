@@ -29,6 +29,26 @@ export function constructionPath(coursewareId: string | undefined): string {
   return path.join(workspaceDir(coursewareId), 'construction.ggb.txt');
 }
 
+/**
+ * 预建**空**工作稿（已有草稿绝不覆盖），返回它的绝对路径。
+ *
+ * agent 的第一反应是「先读再改」，而新课件根本没有这份文件——实测它第一轮先吃一个
+ * Read 失败、用户那边多一条"工具返回错误"，白烧一次往返。空文件让「读 → 追加 → apply」
+ * 这条链路从第一轮就成立。
+ *
+ * daemon 侧读缺文件本来就不报错（按空处理），所以这里要解决的只是 **agent 的原生 Read**。
+ */
+export function ensureConstructionDraft(coursewareId: string | undefined): string {
+  const file = constructionPath(coursewareId);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  try {
+    fs.writeFileSync(file, '', { flag: 'wx', mode: 0o600 });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+  }
+  return file;
+}
+
 let cachedMcpConfig: string | null = null;
 
 /**

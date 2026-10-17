@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const { workspaceDir, constructionPath, ensureMcpConfig, resetMcpConfigCache } = await import(
+const { workspaceDir, constructionPath, ensureConstructionDraft, ensureMcpConfig, resetMcpConfigCache } = await import(
   new URL('../lib/server/workspace.ts', import.meta.url).href
 );
 
@@ -43,6 +43,29 @@ test('沙箱每**课件**一份、落在数据目录下；无课件 id 时落 _d
   // 这个值要当目录名用——不合法的一律兜底，绝不拼出 `workspaces//` 或越界路径
   assert.match(workspaceDir('../../escape'), /workspaces[/\\]_default$/);
   assert.match(workspaceDir('a/b'), /workspaces[/\\]_default$/);
+});
+
+test('预建空工作稿：agent 第一轮读得到，且绝不覆盖已有草稿', () => {
+  // agent 先 Read 再改，新课件没有这份文件时它第一轮就吃一个失败（实测白烧一次调用）
+  const dir = mkdtempSync(path.join(tmpdir(), 'mm-draft-test-'));
+  const previous = process.env.MATHMOVER_DATA_DIR;
+  process.env.MATHMOVER_DATA_DIR = dir;
+  try {
+    const file = ensureConstructionDraft('course-1');
+    assert.equal(readFileSync(file, 'utf8'), '', '新建的是空文件');
+    assert.ok(existsSync(path.dirname(file)), '沙箱目录一并建好（第一次发消息时还不存在）');
+
+    writeFileSync(file, 'A = (0, 0)\n');
+    ensureConstructionDraft('course-1');
+    assert.equal(readFileSync(file, 'utf8'), 'A = (0, 0)\n', '已有草稿一个字都不能动');
+
+    // 无课件 id 时同样落 _default，不抛错
+    assert.equal(readFileSync(ensureConstructionDraft(undefined), 'utf8'), '');
+  } finally {
+    if (previous === undefined) delete process.env.MATHMOVER_DATA_DIR;
+    else process.env.MATHMOVER_DATA_DIR = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('同一次进程内配置只写一次（记忆化）', () => {

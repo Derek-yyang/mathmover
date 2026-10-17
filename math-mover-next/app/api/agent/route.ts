@@ -28,7 +28,7 @@ import { agentRequestHistory } from '@/lib/agent-request-history';
 import { connectMcpTools } from '@/lib/byok-mcp';
 import { loadByokConfig, isByokRunnable, maskByokConfig } from '@/lib/byok-store';
 import { buildSystemBrief } from '@/lib/server/system-brief';
-import { constructionPath, ensureMcpConfig, workspaceDir } from '@/lib/server/workspace';
+import { constructionPath, ensureConstructionDraft, ensureMcpConfig, workspaceDir } from '@/lib/server/workspace';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -241,7 +241,9 @@ export async function POST(req: Request): Promise<Response> {
   // 无课件 id 时落 `_default`（workspaceDir 的兜底），与 daemon 同一套规则。
   const coursewareKey = body.coursewareId?.trim() || undefined;
   const sandbox = workspaceDir(coursewareKey);
-  fs.mkdirSync(sandbox, { recursive: true });
+  // 空工作稿先建好：agent 会「先读再改」，新课件没有这份文件时它第一轮就吃一个 Read 失败
+  //（实测白烧一次工具调用 + 用户看到一条"工具返回错误"）。已有草稿不会被覆盖。
+  ensureConstructionDraft(coursewareKey);
   const pathLine = `工作稿路径：${constructionPath(coursewareKey)}（写构造就写进这个绝对路径，别处写的 daemon 读不到）`;
 
   // 首轮 = 既没有前序轮次，也没有可续的原生会话。编辑历史轮次（restartFromHistory）带着
