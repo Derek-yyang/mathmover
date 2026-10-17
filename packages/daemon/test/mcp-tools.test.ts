@@ -141,9 +141,10 @@ describe('MCP 工具面', () => {
     const apply = describeTool(tools, 'ggb_apply').description;
     const cards = describeTool(tools, 'get_sop_cards').description;
 
-    expect(expert).toContain('题目增强');            // 增强能力，不是「专用链路」
-    expect(expert).toContain('纯画图/改图不必取');   // 指路：非做题不用取
-    expect(expert).toContain('分类标准');            // 分类学随工具下发
+    expect(expert).toContain('题目增强');                    // 增强能力，不是「专用链路」
+    expect(expert).toContain('只在带了题目图片时取');        // 触发键是题图，不是「文字题面」
+    expect(expert).toContain('都不要取');                    // 反例在位：直接指令不算题面
+    expect(expert).toContain('分类标准');                    // 分类学随工具下发
     expect(apply).toContain('动点自洽');              // 校验并进 apply 后的语义检查
     expect(apply).toContain('自查');                  // 回执带明细，别让 agent 以为只管下发
     expect(cards).toContain('不要凭记忆编指令');     // 防幻觉的核心纪律

@@ -47,6 +47,15 @@ test('byok 面多一段文件读写工具说明，cli 面没有', () => {
   assert.ok(!cli.includes('write_construction'), '真 CLI 自带 Read/Edit，简报不该提兜底工具');
 });
 
+test('题目增强只认题图：不把「文字题面」当触发条件', () => {
+  // 触发键必须是宿主可判定的机械事实（本轮带没带题图）。写成「图片/题面」时，
+  // 「画一个正方体，边长为1」会被读成题面而误取增强——实测就是这么发生的。
+  const brief = buildSystemBrief(REPO_ROOT, 'cli');
+  assert.match(brief, /带了题目图片/);
+  assert.match(brief, /直接指令/);
+  assert.ok(!brief.includes('图片/题面'), '旧的宽触发措辞不得回潮：纯文字题面不算');
+});
+
 test('简报不再含 get_drawing_pack（内容已内联，工具已删）', () => {
   const brief = buildSystemBrief(REPO_ROOT, 'cli');
   assert.ok(!brief.includes('get_drawing_pack'));

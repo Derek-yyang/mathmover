@@ -192,7 +192,7 @@ export function buildCardIndex(rootDir: string): SopIndexEntry[] {
  * 画图基础包：公共约定 + 通用 GGB 写法，**不含题目建模流程**。
  *
  * 一条链路：把用户意图变成 GeoGebra 构造。本包人人都先取；
- * 碰到题目图片/题面时另取 assembleSkill（8 步建模方法，题目增强）。
+ * **带了题目图片**时另取 assembleSkill（8 步建模方法，题目增强；纯文字题面不算）。
  */
 export function assembleDrawingPack(rootDir: string): { text: string; characters: number } {
   const text = [

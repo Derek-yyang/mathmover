@@ -18,13 +18,13 @@
 ## 一条链路，题目是增强
 
 产品是 **agent 驱动的 GeoGebra 画图工作台**——一条链路：把用户意图变成 GeoGebra 构造。
-题目图片只是输入形态，碰到时多拿一套建模知识（`get_expert_prompt`），不是换链路。
+题目图片只是输入形态，**带了题图**时多拿一套建模知识（`get_expert_prompt`），不是换链路。
 **要调的东西随「取了哪些知识包」而不同**：
 
 | 场景 | 取什么 | 用到哪些变量 |
 |---|---|---|
 | 一般画图/改图 | `get_drawing_pack` | `generation-rules` + `ggb-basics` + **全库 18 张卡** + 工具描述 |
-| 发了题目图片/题面 | 上面 + `get_expert_prompt` | 再加 **4 份 SKILL 的 8 步建模方法论** + 本类清单 |
+| 带了题目图片 | 上面 + `get_expert_prompt` | 再加 **4 份 SKILL 的 8 步建模方法论** + 本类清单（**纯文字题面不算**——只有题图才取） |
 
 判据侧随之：语义检查 2026-10-15 起**只剩动点自洽**（free_param / orphan_slider），
 与类别无关，每次 `ggb_apply` 都跑。按类别的形状检查（`category_structure` / `no_text`）
