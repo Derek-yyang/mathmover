@@ -56,6 +56,14 @@ test('题目增强只认题图：不把「文字题面」当触发条件', () =>
   assert.ok(!brief.includes('图片/题面'), '旧的宽触发措辞不得回潮：纯文字题面不算');
 });
 
+test('线框画法统一：一步到位构造器不用（所有场景都拿到这条）', () => {
+  // 多轮微调是常态：第一轮用 Cube(A,B) 省事，第二轮「在这条棱上加个动点」就给不出
+  // 可引用的棱对象。规则落在共同输出约定里，自由画图同样受约束。
+  const brief = buildSystemBrief(REPO_ROOT, 'cli');
+  assert.match(brief, /不要用 `Cube`/);
+  assert.match(brief, /3d-edges/);
+});
+
 test('简报不再含 get_drawing_pack（内容已内联，工具已删）', () => {
   const brief = buildSystemBrief(REPO_ROOT, 'cli');
   assert.ok(!brief.includes('get_drawing_pack'));

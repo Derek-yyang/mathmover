@@ -26,6 +26,12 @@
 | 一般画图/改图 | `get_drawing_pack` | `generation-rules` + `ggb-basics` + **全库 18 张卡** + 工具描述 |
 | 带了题目图片 | 上面 + `get_expert_prompt` | 再加 **4 份 SKILL 的 8 步建模方法论** + 本类清单（**纯文字题面不算**——只有题图才取） |
 
+**画法统一**（2026-10-17）：立体图形的线框一律「建系 → 具名顶点 → 逐条 Segment 连真实棱」，
+一步到位的 `Cube` / `Prism` / `Pyramid` **连自由画图也不用**。理由是**多轮微调是常态**：
+第一轮图省事的 `Cube(A,B)`，到第二轮「在这条棱上加个动点」就给不出可引用的棱对象，
+只能推倒重来。规则写在共同输出约定（`skills/shared/generation-rules.md`），所有场景都拿到，
+具体写法指向 `3d-frame` / `3d-edges` 两张卡。
+
 判据侧随之：语义检查 2026-10-15 起**只剩动点自洽**（free_param / orphan_slider），
 与类别无关，每次 `ggb_apply` 都跑。按类别的形状检查（`category_structure` / `no_text`）
 已移除——它们与 SKILL 里的骨架要求重复，再 nag 一遍是同一件事说两遍。
