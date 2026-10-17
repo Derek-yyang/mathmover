@@ -32,6 +32,12 @@
 只能推倒重来。规则写在共同输出约定（`skills/shared/generation-rules.md`），所有场景都拿到，
 具体写法指向 `3d-frame` / `3d-edges` 两张卡。
 
+**回默认的样式行不写**（2026-10-17，实测）：线/线段/圆/圆锥曲线默认就是黑色实线——
+`getColor` 为 `#000000`、线型 0，加不加 `SetColor(..., "Black")` / `SetLineStyle(..., 0)` 的
+style XML 逐字节相同，写它们纯属空转（点与函数另有自己的默认色，要改色才写）。
+于是 `3d-edges` / `circle-tangent` / `curve-definition` 三张卡里这类行全部去掉：
+同一道正方体的指令数从 51 行降到约 24 行
+
 判据侧随之：语义检查 2026-10-15 起**只剩动点自洽**（free_param / orphan_slider），
 与类别无关，每次 `ggb_apply` 都跑。按类别的形状检查（`category_structure` / `no_text`）
 已移除——它们与 SKILL 里的骨架要求重复，再 nag 一遍是同一件事说两遍。

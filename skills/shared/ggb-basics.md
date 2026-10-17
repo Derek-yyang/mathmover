@@ -7,5 +7,5 @@
 - **点**：`A = (sqrt(3), -1/2)`，常量写精确分数/根式，不写小数近似；三维点写 `(x, y, z)`。独立定点用 `SetFixed(A, true)` 锁定，驱动点不锁定。派生点保留原表达式（如 `M = Midpoint(B, C)`），不能把当前坐标抄成常量。
 - **线**：`Segment(A, B)` 有限线段、`Line(A, B)` 无限直线、`Ray(A, B)` 单向射线、`Vector(A, B)` 向量——按题意选，别把有限画成无限。
 - **标签**：`ShowLabel(A, true)` 显示标签，`SetLabelMode(A, 1)` 名称与值（按展示要求替换模式）。
-- **样式**：`SetColor(f, "Red")` 颜色——主线 Black/Blue、辅助线 Gray、驱动点 Red、关系点 Blue；`SetLineStyle(f, 2)` 虚线（0 为实线）；`SetLineThickness(f, 3)` 线宽；`SetPointSize(A, 4)` 点大小；`SetFilling(poly, 0.3)` 填充透明度。
+- **样式**：`SetColor(f, "Red")` 颜色、`SetLineStyle(f, 2)` 虚线、`SetLineThickness(f, 3)` 线宽、`SetPointSize(A, 4)` 点大小、`SetFilling(poly, 0.3)` 填充透明度。**默认值不要写**：线/线段/圆/圆锥曲线默认就是黑色实线（写 `"Black"` 或 `0` 是空转）；点与函数另有自己的默认色，要改色才写。按约定需要写的只有驱动点 Red、关系点 Blue、辅助线 Gray + 虚线。
 - **规矩**：以上都是输入栏命令，不是 JavaScript API（`setAxesVisible`、`setColor` 之类一律不能写入指令流）。属性行写在该对象定义之后，先定义后引用；名字避开题目已用名。

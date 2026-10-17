@@ -5,7 +5,6 @@
 <!-- example: circle-center-radius -->
 ```ggb
 circleC = Circle(O, radiusR)
-SetColor(circleC, "Black")
 ```
 
 <!-- example: circle-three-points -->
