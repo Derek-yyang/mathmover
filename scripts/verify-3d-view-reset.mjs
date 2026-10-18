@@ -65,8 +65,9 @@ try {
 
   // 打开时的 3D 课件就是标准视角——这是后面要回的那个基准
   const opened = await readCamera(page);
-  assert.deepEqual(opened, { xZero: 0, yZero: 0, zZero: -1.5, scale: 50, xAngle: 20, zAngle: -60 },
+  assert.deepEqual(opened, { xZero: 0, yZero: 0, zZero: 0, scale: 50, xAngle: 20, zAngle: -60 },
     `fresh 3D courseware opens on the standard view (got ${JSON.stringify(opened)})`);
+
   const beforePng = await readPng(page);
 
   // 拖动转视角 + 滚轮改缩放：相机与画面都得变（不变的话后面的断言等于没测）
@@ -97,7 +98,8 @@ try {
   await page.keyboard.up('Shift');
   await page.waitForTimeout(800);
   const panned = await readCamera(page);
-  assert(panned.zZero !== opened.zZero, `shift+drag actually panned the 3D view (zZero ${panned.zZero})`);
+  assert(panned.xZero !== opened.xZero || panned.yZero !== opened.yZero || panned.zZero !== opened.zZero,
+    `shift+drag actually panned the 3D view (got ${JSON.stringify(panned)})`);
 
   const button = page.getByRole('button', { name: '重置视图居中', exact: true });
   assert(await button.isEnabled(), 'reset button is enabled once the courseware is open');
@@ -127,6 +129,43 @@ try {
   await button.click();
   await page.waitForTimeout(1000);
   assert.deepEqual(await readCamera(page), opened, 'clicking reset twice stays on the standard view');
+
+  // 「板要居中」：灰色底板贴 z=0 画，相机中心 z 决定它在屏幕上的高低。标准视角取 zZero=0，
+  // 板的重心应落在画布中心（实测相机 z=-1.5 时低 70px / 11%）。判据用「带板/不带板」两张
+  // PNG 相减求板的重心——这是用户一眼能看出的性质，值得守。
+  const plate = await page.evaluate(async () => {
+    const api = window.ggbApplet;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const shot = async () => {
+      const b64 = api.getPNGBase64(1, false);
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/png;base64,' + b64; });
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+      return g.getImageData(0, 0, c.width, c.height);
+    };
+    const setPlate = (show) => {
+      const xml = api.getXML();
+      const block = /<euclidianView3D>[\s\S]*?<\/euclidianView3D>/.exec(xml)[0];
+      api.setXML(xml.replace(block, block.replace(/<plate show="\w+"\/>/, '<plate show="' + show + '"/>')));
+      api.refreshViews();
+    };
+    setPlate(true); await wait(350);
+    const on = await shot();
+    setPlate(false); await wait(350);
+    const off = await shot();
+    setPlate(true); await wait(350);                    // 复原，后面的像素比对要按原样
+    let sx = 0, sy = 0, n = 0;
+    for (let y = 0; y < on.height; y++) for (let x = 0; x < on.width; x++) {
+      const i = (y * on.width + x) * 4;
+      if (Math.abs(on.data[i] - off.data[i]) > 6 || Math.abs(on.data[i + 1] - off.data[i + 1]) > 6 || Math.abs(on.data[i + 2] - off.data[i + 2]) > 6) { sx += x; sy += y; n += 1; }
+    }
+    return { platePixels: n, centroidY: n ? Math.round(sy / n) : null, canvasMidY: on.height / 2 };
+  });
+  assert.ok(plate.platePixels > 10_000, `the ground plate is visible (got ${plate.platePixels} px)`);
+  assert.ok(Math.abs(plate.centroidY - plate.canvasMidY) < 15,
+    `the ground plate sits at the canvas centre (got ${JSON.stringify(plate)})`);
+
 
   // 注：跳变路径（prefers-reduced-motion / 大构造）在**平移过**之后会留下显式的 y/z 缩放，
   // 画面与全新视图差约 1.3% 像素；清除它需要 setCoordSystem 再等 ~400ms，代价是可见的二次跳动。
