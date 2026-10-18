@@ -113,6 +113,54 @@ function capturePng(api: GeoGebraApi): { png: string | null; source: RawState['p
 }
 
 /**
+ * 盯住画布的 WebGL 上下文。
+ *
+ * 3D 视图整块变白、而 kernel 里对象都在（`ggb_get_state` 有对象、`getPNGBase64` 却全白）时，
+ * 头号嫌疑就是**上下文丢失**：浏览器在显存紧张或驱动重启时回收 WebGL 上下文，画面就没了，
+ * GeoGebra 的 kernel 不受影响；再 apply 一次（重绘）往往就回来——实测现场正是这个形状。
+ *
+ * 凭据要留给现场：`console` 只在 DevTools 开着时才有，所以同时写一条 localStorage 痕迹
+ *（`mm:render-trouble`，只留最近 10 条），复现后读这一行即可：
+ *   JSON.parse(localStorage.getItem('mm:render-trouble'))
+ *
+ * `preventDefault()` 是声明「我要这个上下文回来」，不调它浏览器可能不给恢复；
+ * 恢复后顺手让 GeoGebra 重绘一帧（不调也无妨，下一次绘制会自己来）。
+ */
+function watchCanvasContext(api: GeoGebraApi): void {
+  const note = (event: string, extra: Record<string, unknown> = {}) => {
+    const entry = { at: new Date().toISOString(), event, ...extra };
+    try {
+      const key = 'mm:render-trouble';
+      const previous = JSON.parse(localStorage.getItem(key) ?? '[]') as unknown[];
+      localStorage.setItem(key, JSON.stringify([...previous.slice(-9), entry]));
+    } catch { /* 存不下就算了，console 那条还在 */ }
+    (window as unknown as Record<string, unknown>).__mmRenderTrouble = entry;
+    console.warn('[mathmover] 画布渲染异常:', entry);
+  };
+
+  const attach = () => {
+    for (const canvas of document.querySelectorAll('canvas')) {
+      const tagged = canvas as HTMLCanvasElement & { __mmContextWatched?: boolean };
+      if (tagged.__mmContextWatched) continue;
+      tagged.__mmContextWatched = true;
+      canvas.addEventListener('webglcontextlost', (event) => {
+        event.preventDefault();   // 声明想要恢复
+        note('webgl-context-lost', { canvas: [canvas.width, canvas.height] });
+      }, false);
+      canvas.addEventListener('webglcontextrestored', () => {
+        note('webgl-context-restored');
+        try { api.refreshViews?.(); } catch { /* 下一次绘制会自己来 */ }
+      }, false);
+    }
+  };
+
+  attach();
+  // 画布可能在 applet 就绪之后才挂上（各视图是懒创建的），隔几拍再补挂
+  setTimeout(attach, 2000);
+  setTimeout(attach, 6000);
+}
+
+/**
  * 采集派生视图。**取图前必须等画布绘制完成**——否则会拍到空白坐标系。
  */
 async function collectState(
@@ -273,6 +321,7 @@ export function attachGgbBridge(
   };
 
   (window as unknown as Record<string, unknown>)[BRIDGE_KEY] = bridge;
+  watchCanvasContext(api);
 
   // —— WebSocket 通道：daemon 反向调用 ——
   const connection = connectGgbDaemon({

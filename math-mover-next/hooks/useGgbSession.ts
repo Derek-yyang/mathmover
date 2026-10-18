@@ -251,6 +251,16 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
             if (ggbApplet.recalcDisplay) ggbApplet.recalcDisplay();
           } catch {}
 
+          // 落地之后再确认一次「3D 视图还在布局里」。白帧的现场就是「kernel 里对象都在、
+          // 屏幕上什么都没有」——重发一次透视切换（已在该视角时是空操作、重复无害）
+          // 把它拉回来；agent 手工自救做的也正是这一步。
+          if (!opts.incremental && targetMode === '3D' && !viewReady()) {
+            try {
+              ggbApplet.setPerspective('T');
+              ggbApplet.refreshViews();
+            } catch {}
+          }
+
           const mergedCommands = opts.incremental
             ? [...lastExecutedCommands, ...commandsToRun]
             : commandsToRun;
