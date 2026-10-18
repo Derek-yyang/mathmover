@@ -134,25 +134,48 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
         }
 
         // 视图就绪等待探针
+        //
+        // ⚠ 3D 的就绪判据**不能**用 `getViewProperties`：3D 下 `getViewProperties(2)` 返回 `{}`，
+        // `!!{}` 为真——探针等于空转；而 `getViewProperties(3)` 与 `getGraphicsOptions(-1)`
+        // 更坑：3D 视图**还不存在**时，前者返回 2D 的几何、后者照样返回一份像样的 3D 选项对象
+        //（三条都实测过）。唯一说真话的是**透视 XML 里 3D 视图（id 512）的 visible 位**：
+        // 不存在时 false、就位后 true。
+        //
+        // 空转的代价实测过：命令灌进还没初始化的 3D 视图 → 用户看到整块**白帧**，
+        // agent 取到的截图也是白的（它只能自己反复 poke 才渲染出来，白烧几轮往返）。
+        const viewReady = (): boolean => {
+          if (targetMode === '3D') {
+            if (typeof ggbApplet.getPerspectiveXML !== 'function') return true;   // 老 applet：不拦
+            try {
+              return /view id="512"[^>]*visible="true"/.test(ggbApplet.getPerspectiveXML());
+            } catch {
+              return true;
+            }
+          }
+          // 2D 视图从 applet 创建起就在，这一支实际从不等待（保留原判据）
+          return typeof ggbApplet.getViewProperties === 'function'
+            ? !!ggbApplet.getViewProperties(1)
+            : true;
+        };
         const waitForView = (cb: () => void) => {
           if (opts.incremental) {
             cb();
             return;
           }
-          const viewIndex = targetMode === '2D' ? 1 : 2;
           let waited = 0;
           const tick = () => {
             if (execSessionRef.current !== session) { done(null); return; }
-            let ready = false;
-            try {
-              ready =
-                typeof ggbApplet.getViewProperties === 'function'
-                  ? !!ggbApplet.getViewProperties(viewIndex)
-                  : true;
-            } catch {
-              ready = true;
-            }
+            const ready = viewReady();
             if (ready || waited >= 2500) {
+              // 等到点了仍没就绪（冷启动下实测出现过整块白帧：3D 视图没进布局，
+              // 3D 对象在 2D 视图里又不可见，于是看着就是白的）。把透视切换重发一次——
+              // 已在该视角时是空操作、重复无害；agent 遇白帧时手工做的也正是这一步。
+              if (!ready && targetMode === '3D') {
+                try {
+                  ggbApplet.setPerspective('T');
+                  ggbApplet.refreshViews();
+                } catch {}
+              }
               cb();
               return;
             }
