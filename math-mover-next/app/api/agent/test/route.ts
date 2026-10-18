@@ -5,10 +5,10 @@
  *   ready          就绪（可跑）
  *   not-logged-in  起得来但没登录/密钥未授权
  *   broken         起不来 / 端点不可达
- *   unconfigured   BYOK 还没填端点与模型
+ *   unconfigured   内置位还没填端点与模型
  *
  * CLI 侧复用 detectRuntimes 的探测（版本门 + 登录预检），不发任何模型请求；
- * BYOK 侧探 `${baseUrl}/models`（多数 OpenAI 兼容端点都有；404/405 视为可达）。
+ * 内置位侧探 `${baseUrl}/models`（多数 OpenAI 兼容端点都有；404/405 视为可达）。
  */
 
 import { RUNTIMES, detectRuntimes } from '@mathmover/agent-runtime';

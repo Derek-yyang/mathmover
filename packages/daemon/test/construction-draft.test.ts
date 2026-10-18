@@ -45,7 +45,7 @@ describe('工作稿读写', () => {
     expect(readConstructionFile(cfg())).toEqual(lines);
   });
 
-  it('文件只存指令、不加头注释——原生 Read 与 read_construction 必须同形', () => {
+  it('文件只存指令、不加头注释——agent 的 Read 与 daemon 的读必须同形', () => {
     writeConstructionFile(cfg(), ['A = (0, 0)']);
     const body = fs.readFileSync(path.join(dir, 'construction.ggb.txt'), 'utf8');
     // 同一文件两种长度会让 agent 误判「不同步」——头注释是元凶，不能加

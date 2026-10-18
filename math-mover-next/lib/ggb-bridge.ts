@@ -77,7 +77,7 @@ function capturePng(api: GeoGebraApi): { png: string | null; source: RawState['p
   if (typeof api?.getPNGBase64 === 'function') {
     try {
       const b64 = api.getPNGBase64(1, false);
-      if (b64 && b64.length > 100) return { png: b64, source: 'ggb-export' };
+      if (b64 && b64.length > 100) return { png: b64, source: 'get-base64' };
     } catch { /* fallthrough */ }
   }
   try {

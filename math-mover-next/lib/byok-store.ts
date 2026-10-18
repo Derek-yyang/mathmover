@@ -1,5 +1,5 @@
 /**
- * BYOK 内置构造 Agent 的端点配置仓 —— **应用数据目录**（对齐 OpenDesign 的
+ * 内置 Agent（OpenCode）的端点配置仓 —— **应用数据目录**（对齐 OpenDesign 的
  * 密钥模型：key 交给本机应用保管，界面只回显掩码）。
  *
  * 形态（桌面化前置）：配置存 <dataDir>/byok.json，与课件库同属用户的本机资产；

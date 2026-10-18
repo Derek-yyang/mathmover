@@ -123,13 +123,10 @@ function errContent(e: unknown) {
 export function createMcpServer(
   tools: GgbTools,
   info: { name: string; version: string },
-  opts: { rootDir?: string; toolset?: 'cli' | 'byok' } = {},
+  opts: { rootDir?: string } = {},
 ): McpServer {
   const server = new McpServer({ name: info.name, version: info.version });
   const rootDir = opts.rootDir ?? process.cwd();
-  // toolset 决定工具面宽窄：真 CLI 自带 Read/Edit，那对文件兜底工具只会让它们
-  // 混用两套路径、徒增往返——只在 BYOK 面前注册。
-  const toolset = opts.toolset ?? 'cli';
 
   // 一条链路：把用户意图变成 GeoGebra 构造。题目图片只是输入形态，碰到时多拿
   // 一套建模知识（get_expert_prompt），不是「换模式」。无会话级 category 账本——
@@ -157,7 +154,7 @@ export function createMcpServer(
     description:
       '把工作稿 `construction.ggb.txt`（在受管工作目录下，绝对路径见系统简报）下发到画布。' +
       '**没有别的入口**——像改代码一样' +
-      '编辑该文件（真 CLI 用原生编辑能力；BYOK 用 write_construction），改完调本工具生效。' +
+      '编辑该文件（用你的原生编辑能力），改完调本工具生效。' +
       '返回新状态、体检结果、相对上一版的改动说明，以及**行级与语义自查**：' +
       '不可解析/未知命令的行、动点自洽（引用了未定义的名字、或滑块没驱动任何对象）。' +
       '**边构边调**：每完成一段就 apply 一次，用户能看着图一点点长出来，而不是等很久一次出全图。',
@@ -350,60 +347,12 @@ export function createMcpServer(
   //  - 课件命名改走正文标记 `<mm-title>`（agent-runtime 的 title-marker.ts），
   //    宿主剥出来发 title 事件——不吃工具调用频次，某轮一次工具都没调也拿得到。
   // 于是「交卷」这个动作没有剩余职责了。
-
-  // BYOK 等无原生文件能力的 agent 走这两个工具读写工作稿；
-  // 真 CLI（claude/codex/dsh）直接用自带的 Read/Edit——它们见了这对工具反而会
-  // 混用两套路径、徒增往返，故只在 BYOK 面前注册。
-  if (toolset === 'byok') {
-    server.registerTool('read_construction', {
-      title: '读构造工作稿',
-      description:
-        '读取当前构造工作稿 `construction.ggb.txt` 的内容（每行一条 GeoGebra 指令）。' +
-        '真 CLI 有原生读文件能力，直接读文件即可；本工具给没有文件能力的 agent 用。',
-      inputSchema: {},
-    }, async () => {
-      const lines = await tools.readConstruction();
-      return {
-        content: [{
-          type: 'text',
-          text: lines.length
-            ? lines.join('\n')
-            : '（工作稿为空——画布上还没有构造）',
-        }],
-        isError: false,
-      };
-    });
-
-    server.registerTool('write_construction', {
-      title: '写构造工作稿',
-      description:
-        '用完整清单**覆盖**工作稿 `construction.ggb.txt`。真 CLI 有原生编辑能力，直接改文件即可；' +
-        '本工具给没有文件能力的 agent（BYOK）用。' +
-        'apply:true = 写完顺手下发画布（省一轮 ggb_apply）；默认只写草稿不下发。',
-      inputSchema: {
-        commands: z.array(z.string()).min(1).describe('完整 GeoGebra 指令清单，每行一条（含 MODE: 首行可选、// 注释可选）'),
-        apply: z.boolean().optional().describe('写完是否顺手下发画布，默认 false。BYOK 建议 true——省一轮 ggb_apply。'),
-      },
-    }, async (args) => {
-      const commands = (args?.commands ?? []).map((c) => String(c));
-      const file = await tools.writeConstruction(commands);
-      if (args?.apply) {
-        const r = await tools.apply(undefined, { png: true });
-        return {
-          content: [
-            { type: 'text', text: `工作稿已写入 ${commands.length} 行并下发画布。` },
-            { type: 'text', text: describeDiff(r.diff) },
-            { type: 'text', text: describeState(r.state) },
-          ],
-          isError: false,
-        };
-      }
-      return {
-        content: [{ type: 'text', text: `工作稿已写入 ${commands.length} 行${file ? `（${file}）` : ''}。要生效请调 ggb_apply()。` }],
-        isError: false,
-      };
-    });
-  }
+  //
+  // 2026-10-18 删除 read_construction / write_construction 与整个 byok 工具集：
+  // 它们只为「没有原生文件能力的 agent」存在，而那个自研 BYOK 循环已经被
+  // 自带分发的 OpenCode runtime 取代（内置位与三条 CLI 同构，自带 Read/Edit）。
+  // 工作稿的读写仍在 daemon 内部走 GgbTools（HTTP 面与 ggb_apply 都用它），
+  // 只是不再作为一种 MCP 工具暴露给 agent。
 
   return server;
 }
@@ -412,7 +361,7 @@ export function createMcpServer(
 export async function serveStdio(
   tools: GgbTools,
   info: { name: string; version: string },
-  opts: { rootDir?: string; toolset?: 'cli' | 'byok' } = {},
+  opts: { rootDir?: string } = {},
 ): Promise<void> {
   const server = createMcpServer(tools, info, opts);
   const transport = new StdioServerTransport();

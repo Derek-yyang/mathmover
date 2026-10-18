@@ -78,7 +78,7 @@ export function runAgent(opts: RunOptions): RunHandle {
   const images = opts.images ?? [];
   const needsFiles = images.length > 0 && (delivery === 'argv-paths' || delivery === 'prompt-path');
   const materialized = needsFiles
-    ? materializeImages(images)
+    ? materializeImages(images, opts.def.imageMaterializeInCwd ? opts.cwd : undefined)
     : { paths: [] as string[], cleanup: () => {} };
   const imageNote = images.length === 0 ? ''
     : delivery === 'prompt-path' ? toImagePathNote(materialized.paths)
@@ -111,6 +111,9 @@ export function runAgent(opts: RunOptions): RunHandle {
     imagePaths: materialized.paths,
     model: opts.model,
     reasoningEffort: opts.reasoningEffort,
+    // 与下面 spawn 的 cwd 取同一个值——需要把工作目录写进 argv 的定义（opencode
+    // 的 --dir）才不会和真实 cwd 说的不是一回事。
+    cwd: opts.cwd,
   });
 
   // 不经 shell：参数走 argv 数组，避免命令注入（见 resolve.ts）。

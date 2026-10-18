@@ -129,7 +129,7 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
 
   return (
     <div>
-      <p className="mt-1 max-w-[68ch] text-sm leading-6 text-[var(--mm-text-stone-600)]">不安装任何 agent CLI 也能生成课件：填一个 OpenAI 兼容端点、密钥和模型即可。</p>
+      <p className="mt-1 max-w-[68ch] text-sm leading-6 text-[var(--mm-text-stone-600)]">不安装任何 agent CLI 也能生成课件：运行时随应用自带（OpenCode），填一个 OpenAI 兼容端点、密钥和模型即可。</p>
 
       <div className={`mt-4 rounded-xl border transition-colors motion-reduce:transition-none ${selected ? 'border-[var(--mm-border-emerald-700)]/40 bg-[var(--mm-bg-emerald-50)]/50' : 'border-[var(--mm-border-stone-200)] bg-[var(--mm-surface)] hover:border-[var(--mm-border-stone-300)]'}`}>
         <div className="flex flex-wrap items-start gap-3 p-4">
@@ -138,8 +138,8 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
           </span>
           <div className="min-w-0 flex-1">
             <h3 className="flex flex-wrap items-baseline gap-x-2 text-base font-semibold text-[var(--mm-text-stone-900)]">
-              <span className="min-w-0 truncate">内置构造 Agent（BYOK）</span>
-              <span className="text-xs font-medium text-[var(--mm-text-stone-600)]">· 直连 OpenAI 兼容端点 · 无需安装</span>
+              <span className="min-w-0 truncate">内置 Agent（OpenCode）</span>
+              <span className="text-xs font-medium text-[var(--mm-text-stone-600)]">· 自带 OpenCode runtime · 直连 OpenAI 兼容端点</span>
             </h3>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-[var(--mm-text-stone-600)]">
               <SettingsStatusBadge tone={configured ? 'success' : 'neutral'}>
@@ -148,17 +148,17 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <SettingsButton type="button" aria-label="测试 内置构造 Agent（BYOK）" title={testHint ?? '测试已保存的端点是否可达'}
+            <SettingsButton type="button" aria-label="测试 内置 Agent（OpenCode）" title={testHint ?? '测试已保存的端点是否可达'}
               aria-describedby={testHint ? statusId : undefined}
               disabled={test.running || detecting || !!testHint} aria-busy={test.running} onClick={runTest}>
               {test.running ? <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />测试中…</> : '测试'}
             </SettingsButton>
-            {selected ? <span aria-label="当前使用 内置构造 Agent（BYOK）"
+            {selected ? <span aria-label="当前使用 内置 Agent（OpenCode）"
               className="inline-flex h-8 items-center gap-1.5 px-3 text-sm font-medium text-[var(--mm-text-emerald-800)]">
               <Check className="h-4 w-4" aria-hidden="true" />当前使用
             </span> : <SettingsButton type="button"
               disabled={busy || detecting || runtime?.usable === false} onClick={() => selectRuntime('byok')}
-              aria-label="使用 内置构造 Agent（BYOK）">使用</SettingsButton>}
+              aria-label="使用 内置 Agent（OpenCode）">使用</SettingsButton>}
           </div>
         </div>
 

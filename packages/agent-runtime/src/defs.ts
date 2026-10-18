@@ -19,6 +19,7 @@ import path from 'node:path';
 import { formatClaudeStreamJsonInput, type ImageInput } from './images.ts';
 import { claudeConfiguredModels, claudeDefaultEffort } from './claude-env.ts';
 import { getCapabilities, HIDDEN_FLAG_PROBE_VALUE } from './capabilities.ts';
+import { opencodeModelId } from './opencode-config.ts';
 import { spawnCapture } from './spawn.ts';
 
 /** 归一后的事件——前端 useChat 与上层编排都只认这个。 */
@@ -186,7 +187,7 @@ export function resumesSession(def: Pick<RuntimeDefinition, 'resumesSessionViaCl
 
 export interface RuntimeDefinition {
   /** 稳定 id，用于日志与前端展示 */
-  id: 'claude-code' | 'codex' | 'dsh';
+  id: 'claude-code' | 'codex' | 'dsh' | 'opencode';
   /** 展示名 */
   displayName: string;
   /** PATH 上的可执行名 */
@@ -206,6 +207,11 @@ export interface RuntimeDefinition {
     sessionId?: string;
     resumeSessionId?: string;
     extraArgs?: string[];
+    /**
+     * 本次的工作目录（= spawn 的 cwd，未设时 runAgent 用 process.cwd()）。
+     * 只有需要把它写进 argv 的定义才用（opencode 的 `--dir`：它不认进程 cwd）。
+     */
+    cwd?: string;
     /** 已落盘的图片文件路径（codex `-i` 用）；claude 的图走 formatStdinInput，忽略此项 */
     imagePaths?: string[];
     /**
@@ -289,6 +295,14 @@ export interface RuntimeDefinition {
    */
   imageDelivery?: 'stdin-json' | 'argv-paths' | 'prompt-path';
   /**
+   * 图片落盘到**本次工作目录**（`runAgent` 的 opts.cwd）而不是系统临时目录。
+   *
+   * 有的 CLI 有项目边界：工作区外的文件会被它自己的策略拒（opencode 就是——
+   * 附件路径必须落在 `--dir` 指的那棵树里）。默认不设 = 落系统临时目录，
+   * 三条既有 CLI 的行为不变。
+   */
+  imageMaterializeInCwd?: boolean;
+  /**
    * 自定义 stdin 载荷格式。缺省 = prompt 原文（codex/dsh）。
    * claude 在有图时必须走 stream-json JSONL（Anthropic image 块）。
    * 设置了它且有图时，图片不再落临时文件。
@@ -363,6 +377,16 @@ function parseJsonLine(line: string): Record<string, unknown> | null {
  */
 function normalizeToolName(name: string): string {
   return name.replace(/^mcp__\w+__/, '');
+}
+
+/**
+ * opencode 的工具命名是 `<server>_<tool>`（实测 MCP server 叫 mathmover 时，
+ * 画布工具在流里是 `mathmover_ggb_apply`），与 claude 的 `mcp__mathmover__x`
+ * 不同形。只剥我们自己的 server 名——比按第一个下划线切更保守，不会误伤
+ * 用户自带 MCP 的工具名。
+ */
+function normalizeOpencodeToolName(name: string): string {
+  return normalizeToolName(name).replace(/^mathmover_/, '');
 }
 
 /**
@@ -1112,6 +1136,147 @@ export const dsh: RuntimeDefinition = {
       default:
         return { kind: 'raw', line };
     }
+  },
+};
+
+/**
+ * 内置 Agent（OpenCode）——我们随应用自带分发的 runtime，替掉原先自研的
+ * BYOK 进程内循环（`byok.ts`）。形态与三条本机 CLI 完全一致：spawn + MCP + 事件归一，
+ * 所以它只是**第四个定义**，不是又一条特例通路。
+ *
+ * 调用形态（2026-10-18 在 1.19.3 上逐条实测）：
+ *   opencode run --format json --dir <工作区> --dangerously-skip-permissions \
+ *            -m mathmover-byok/<模型> [--file=<图> …]     ← prompt 走 stdin
+ *
+ * 几条实测结论（都写进下面的定义里了，别再猜）：
+ * - **`--dir` 必传**：OpenCode 不认进程 cwd，会向上找 git root 当 worktree。
+ *   漏了它交付物会静默写进仓库根（对齐 OpenDesign 的血泪注释）。
+ * - **`--dangerously-skip-permissions` 不在 `run --help` 里但能传**（该版本 yargs
+ *   不 strict，未知旗标静默吞掉）——所以**不能**拿 help 探测当门禁，只能无条件传。
+ *   实测它的真实作用只是「没人应答的询问直接放行」；文件写入在 headless 下本来就
+ *   自动放行（不带它也能写），而它**绕不过**配置里显式的 deny（见 opencode-config.ts
+ *   的 `permission.bash`）——两者可以并存。
+ * - **会话是 capture-style**：`sessionID` 顶在**每一个**事件的顶层，首轮从
+ *   `step_start` 就带出来；续接用 `-s <id>`，实测回程 sessionID 与传入的完全相同。
+ * - **正文不分块**：一次 `text` 事件给整段，不是逐 token 增量（所以下发 `text-delta`
+ *   让前端照常追加，但观感上是一次性落地）。
+ * - MCP 工具在流里叫 `mathmover_<工具名>`（不是 claude 的 `mcp__x__y`）。
+ */
+export const opencode: RuntimeDefinition = {
+  id: 'opencode',
+  displayName: '内置 Agent（OpenCode）',
+  // 自带分发的可执行名；用户 PATH 上自己装的 `opencode` 只作兜底。
+  executable: 'opencode-cli',
+  fallbackBins: ['opencode'],
+  probeArgs: ['--version'],
+  // 实测 1.19.3；1.x 线内不逐一警告（旗标漂移由 fail-closed 兜底）。
+  versionPolicy: {
+    supportedVersions: ['1.19.3'],
+    supportedVersionPattern: /^1\./,
+    requireVersion: true,
+    parse: extractSemverish,
+  },
+  // 会话旗标续接 + capture-style：id 由 CLI 自铸、我方从事件流顶层 sessionID 捕获
+  resumesSessionViaCli: true,
+  capturesSessionIdFromStream: true,
+  inactivityTimeoutMs: 180_000,
+  firstOutputTimeoutMs: 300_000,
+  promptViaStdin: true,
+  // 附件走 `--file=<绝对路径>`（buildArgs 消费 imagePaths）
+  imageDelivery: 'argv-paths',
+  // 附件得落在工作区里：它有项目边界，树外的文件会被拒
+  imageMaterializeInCwd: true,
+  // 模型由 MathMover 的 BYOK 配置给出，不列清单、不探目录（不留手填入口，同 codex）
+  fallbackModels: [DEFAULT_MODEL_OPTION],
+  buildArgs({ resumeSessionId, imagePaths = [], extraArgs = [], model, cwd }) {
+    const args = [
+      'run',
+      '--format', 'json',
+      // 工作区：不传它 OpenCode 会把最近的 git root 当 worktree（静默写错地方）。
+      // 用 spawn 的 cwd 同一个值，两者永远一致。
+      '--dir', cwd ?? process.cwd(),
+      // 版本已钉死；这个旗标不在 --help 里（见定义头），所以无条件传、不做能力探测。
+      '--dangerously-skip-permissions',
+    ];
+    // `-m` 收 `provider/model`：我们的自定义 provider 见 opencode-config.ts
+    if (model) args.push('-m', opencodeModelId(model));
+    if (resumeSessionId) args.push('-s', resumeSessionId);
+    args.push(...extraArgs);
+    // 附件放最后：`-f/--file` 是 yargs 数组、会贪婪吞后续非旗标 token，
+    // 用等号形式 + 放到末尾，配上「prompt 走 stdin」就没有位置参数可吞。
+    for (const p of imagePaths) args.push(`--file=${p}`);
+    return args;
+  },
+  parseLine(line) {
+    const e = parseJsonLine(line);
+    if (!e) return { kind: 'raw', line };
+    const type = String(e.type ?? '');
+    const part = (e.part && typeof e.part === 'object' && !Array.isArray(e.part))
+      ? e.part as Record<string, unknown>
+      : {};
+
+    // 回合开场：会话 id 在这里就带出来了（每个事件都带，取这一次即可）
+    if (type === 'step_start') {
+      const sid = pick(e, 'sessionID') ?? pick(part, 'sessionID');
+      return sid ? { kind: 'session', sessionId: String(sid) } : null;
+    }
+
+    // 正文：整块到达（不分块）。下发 text-delta 让前端照常追加。
+    if (type === 'text') {
+      const t = String(pick(part, 'text') ?? '');
+      if (!t) return null;
+      const messageId = pick(part, 'messageID');
+      return { kind: 'text-delta', text: t, ...(typeof messageId === 'string' ? { messageId } : {}) };
+    }
+
+    // 工具：调用与结果在**同一个事件**里（完成时才发），一次给两条。
+    // callID 是稳定键——前端按它去重/更新，所以缺了它退回 part.id 而不是空串。
+    if (type === 'tool_use') {
+      const callId = String(pick(part, 'callID') ?? pick(part, 'id') ?? '');
+      const st = (part.state && typeof part.state === 'object' && !Array.isArray(part.state))
+        ? part.state as Record<string, unknown>
+        : {};
+      const events: AgentEvent[] = [{
+        kind: 'tool-call',
+        name: normalizeOpencodeToolName(String(pick(part, 'tool') ?? 'tool')),
+        toolCallId: callId,
+        input: pick(st, 'input'),
+      }];
+      const status = String(pick(st, 'status') ?? '').toLowerCase();
+      if (status === 'completed' || status === 'error' || status === 'failed') {
+        const err = pick(st, 'error');
+        events.push({
+          kind: 'tool-result',
+          toolCallId: callId,
+          output: err ?? pick(st, 'output'),
+          isError: status !== 'completed' || err != null,
+        });
+      }
+      return events;
+    }
+
+    // 回合收尾：token 用量（对端点的 cache 命中在这里读得到）
+    if (type === 'step_finish') {
+      const tokens = pick(part, 'tokens');
+      if (!tokens || typeof tokens !== 'object') return null;
+      const it = pick(tokens, 'input');
+      const ot = pick(tokens, 'output');
+      return {
+        kind: 'usage',
+        inputTokens: typeof it === 'number' ? it : undefined,
+        outputTokens: typeof ot === 'number' ? ot : undefined,
+      };
+    }
+
+    // 错误帧：opencode 出错也**退出码 0**，不认它就等于把失败当成功收场
+    if (type === 'error') {
+      const err = pick(e, 'error');
+      const msg = pick(err, 'data', 'message') ?? pick(err, 'message') ?? pick(e, 'message') ?? err;
+      return { kind: 'error', message: String(msg ?? 'opencode 运行失败') };
+    }
+
+    // step-start / step-finish 的其余帧与未知 type 都是噪音，不透传给前端
+    return null;
   },
 };
 

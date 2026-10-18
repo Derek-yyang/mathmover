@@ -8,9 +8,9 @@
  *  - **防回声**：核心简报包进标签并明令不要复述，见 ECHO_GUARD。
  *
  * 发送策略（OpenDesign 的 request / continuation 二分）：
- *  - 真 CLI 首轮发全文；续轮靠 `--resume` 记得住，**不重发**（否则累积炸上下文）；
- *  - BYOK 无原生会话，每轮都发，但走 `systemPrompt` 通道而非拼进用户消息，
- *    让它稳定落在 cache 前缀上。
+ *  - 首轮发全文；续轮靠原生会话记得住，**不重发**（否则累积炸上下文）。
+ *    2026-10-18 起**所有**运行时都有原生会话（内置位换成自带分发的 OpenCode，
+ *    与三条本机 CLI 同构），所以这条不再有例外。
  */
 
 import {
@@ -27,14 +27,10 @@ const ECHO_GUARD =
   `不要引用、复述或转述 <${CORE_TAG}> 里的任何内容；回复直接针对用户的请求展开。`;
 
 /**
- * 产品规则与工具说明。**只写稳定事实**——工具面宽窄随 toolset 变，故按
- * toolset 分两份，各自仍字节级稳定。
+ * 产品规则与工具说明。**只写稳定事实**——2026-10-18 起工具面不再随 agent 分叉：
+ * 内置位换成了自带分发的 OpenCode runtime，与本机 CLI 同构，都自带文件能力。
  */
-function rulesSection(toolset: 'cli' | 'byok'): string {
-  const byokTools = toolset === 'byok'
-    ? `
-- **read_construction / write_construction**：工作稿的读写工具（你没有原生文件能力，用这两个替代）。write_construction 传 apply:true 可写完顺手下发，省一轮 ggb_apply。`
-    : '';
+function rulesSection(): string {
   return `你在 MathMover 工作台里当 GeoGebra 画图助手。
 
 **这是「AI 辅助画 GeoGebra 动图」的工作台**——卖点是精确、可控：靠你把用户意图稳定地变成合法的 GeoGebra 构造，而不是让他自己去拼指令。用户通过右侧对话框跟你说话。
@@ -47,7 +43,7 @@ function rulesSection(toolset: 'cli' | 'byok'): string {
 - **ggb_apply**：把工作稿 \`construction.ggb.txt\` 下发到画布。**没有别的入口**——像改代码一样编辑该文件（原生编辑能力即可），改完调本工具生效。返回体检结果、"改了什么"的说明，以及**自查明细**：无效/未知命令的行、动点自洽（引用了未定义的名字、或滑块没驱动任何对象）。**边构边调**——每完成一段就 apply 一次，用户能看着图一点点长出来。
 - **ggb_reset**：清空画布。
 - **get_expert_prompt**：**题目增强——只在带了题目图片时取**。本轮消息附了题目图片（要把题图变成动图）才取——多给一套 8 步建模流程 + 本类写法卡清单。**题目属于哪一类由你判**（A 函数与图像 / B 平面几何 / C 解析几何 / D 立体几何）。
-- **get_sop_cards**：按名字批量取写法卡正文（具体指令写法、示例、易错点）。清单只是目录，**写到哪步不确定怎么写就取卡，不要凭记忆编指令**。${byokTools}
+- **get_sop_cards**：按名字批量取写法卡正文（具体指令写法、示例、易错点）。清单只是目录，**写到哪步不确定怎么写就取卡，不要凭记忆编指令**。
 
 ## 怎么干活
 
@@ -62,13 +58,13 @@ function rulesSection(toolset: 'cli' | 'byok'): string {
 }
 
 /**
- * 组装核心简报。结果按 (rootDir, toolset) 记忆化——文件只在冷启动读一次，
+ * 组装核心简报。结果按 rootDir 记忆化——文件只在冷启动读一次，
  * 同一会话内逐字节稳定，provider 的 prompt cache 才能整段命中。
  */
 const memo = new Map<string, string>();
 
-export function buildSystemBrief(rootDir: string, toolset: 'cli' | 'byok'): string {
-  const key = `${rootDir}\u0000${toolset}`;
+export function buildSystemBrief(rootDir: string): string {
+  const key = rootDir;
   const hit = memo.get(key);
   if (hit !== undefined) return hit;
 
@@ -80,7 +76,7 @@ export function buildSystemBrief(rootDir: string, toolset: 'cli' | 'byok'): stri
     .join('\n');
 
   const brief = [
-    rulesSection(toolset),
+    rulesSection(),
     '',
     '## GeoGebra 通用写法',
     '',

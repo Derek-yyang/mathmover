@@ -135,6 +135,7 @@ const AGENT_BIN_ENV_KEYS: Record<string, string> = {
   'claude-code': 'CLAUDE_BIN',
   codex: 'CODEX_BIN',
   dsh: 'DSH_BIN',
+  opencode: 'OPENCODE_BIN',
 };
 
 /** 该 agent 的 *_BIN 环境变量名（诊断/引导 UI 用）。 */
@@ -179,6 +180,56 @@ function codexAppBundleTarget(id: string | undefined): SpawnTarget | null {
   return null;
 }
 
+/**
+ * OpenCode 是**我们自带分发**的 runtime，所以它有一处别人没有的落点：
+ * 作为依赖装进 node_modules 时，真实二进制由**平台包**提供
+ * （`opencode-<平台>` 下的 `bin/opencode[.exe]`）。
+ *
+ * 刻意**不走** `opencode-ai` 那个 bin 壳：壳要靠包自己的 postinstall 才成形，
+ * 装的时候跳过脚本（`--ignore-scripts`、pnpm 默认行为、CI 缓存复用）就会留下
+ * 一个只会打印 "postinstall script was not run" 的几百字节的壳——实测踩过，
+ * 与 claude 的 stub 是同一类坑（[[claude-cli-native-binary-stub]]）。
+ * 直接认平台包的二进制，绕开这次成形。
+ *
+ * 只按「`opencode-` 前缀的兄弟目录」找，不硬编码平台包名（它的命名规则不是
+ * 我们能保证的），因此不存在过时的映射表。从 cwd 向上找若干层，覆盖
+ * 「从 math-mover-next 起 dev」与「从仓库根起」两种。
+ */
+/**
+ * npm 上那个**包装包**：它的 `bin/opencode[.exe]` 是靠自身 postinstall 才成形的
+ * 启动壳（跳过脚本时就是个只会报错的几百字节文件）。真二进制在平台包里，
+ * 所以按名字把它排除——实测同一棵 node_modules 里两个包并存。
+ */
+const OPENCODE_WRAPPER_PACKAGE = 'opencode-ai';
+
+function opencodeBundledTarget(): SpawnTarget | null {
+  let dir = process.cwd();
+  for (let depth = 0; depth < 5; depth++) {
+    const modules = path.join(dir, 'node_modules');
+    let entries: string[];
+    try {
+      entries = fs.readdirSync(modules);
+    } catch {
+      entries = [];
+    }
+    // `-baseline` 是给老 CPU 的构建，两者都能跑；按名字排一下让非 baseline 稳定优先
+    // （readdir 顺序不保证，否则同一台机器上跑的是哪个构建会看运气）。
+    const candidates = entries
+      .filter((e) => e.startsWith('opencode-') && e !== OPENCODE_WRAPPER_PACKAGE)
+      .sort((a, b) => Number(a.includes('baseline')) - Number(b.includes('baseline')) || a.localeCompare(b));
+    for (const entry of candidates) {
+      for (const rel of [path.join('bin', 'opencode.exe'), path.join('bin', 'opencode')]) {
+        const target = spawnTargetFromFile(path.join(modules, entry, rel), 'opencode');
+        if (target) return target;
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
 export function resolveRuntimeTarget(def: {
   id?: string;
   executable: string;
@@ -189,6 +240,13 @@ export function resolveRuntimeTarget(def: {
   if (override) {
     // 显式选择不做 PATH 回退：指错了就如实不可用（不静默换二进制）
     return spawnTargetFromFile(path.resolve(override), def.executable);
+  }
+  // 自带分发的 runtime（opencode）先认**随包分发**的那个二进制：
+  // 版本是我们钉死的，用户 PATH 上的同名命令只作兜底——反过来的话
+  // 实际跑的版本会随用户环境漂，而我们对旗标集是按钉死版本负责的。
+  if (def.id === 'opencode') {
+    const bundled = opencodeBundledTarget();
+    if (bundled) return bundled;
   }
   for (const name of [def.executable, ...(def.fallbackBins ?? [])]) {
     const target = resolveSpawnTarget(name);

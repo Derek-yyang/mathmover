@@ -85,11 +85,20 @@ export function formatClaudeStreamJsonInput(prompt: string, images?: ImageInput[
 }
 
 /**
- * 把图片落到临时文件目录（codex `-i` 需要文件路径）。
+ * 把图片落到临时文件目录（codex `-i` / opencode `--file` 需要文件路径）。
  * 调用方负责在 spawn 结束后调 cleanup。
+ *
+ * `baseDir` 不设时落系统临时目录（三条既有 CLI 的行为）；设了则落进去——
+ * 有的 CLI 有项目边界，工作区外的文件会被它自己的策略拒（见 defs.ts 的
+ * `imageMaterializeInCwd`）。
  */
-export function materializeImages(images: ImageInput[]): { paths: string[]; cleanup: () => void } {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-img-'));
+export function materializeImages(
+  images: ImageInput[],
+  baseDir?: string,
+): { paths: string[]; cleanup: () => void } {
+  const dir = baseDir
+    ? fs.mkdtempSync(path.join(baseDir, 'mm-img-'))
+    : fs.mkdtempSync(path.join(os.tmpdir(), 'mm-img-'));
   const paths: string[] = [];
   images.forEach((img, i) => {
     const ext = img.mediaType.split('/')[1] ?? 'png';

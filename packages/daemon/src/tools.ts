@@ -124,8 +124,9 @@ export function buildBoardState(raw: RawState, cfg: ToolsConfig): BoardState {
  * agent 用原生 Read/Edit 改它（像改代码），改完调 `ggb_apply()`（不带参数）生效。
  * daemon 在 apply/reset 后回写规范化后的清单。
  *
- * **文件只存指令行，不加任何头注释**——否则原生 Read 与 read_construction
- * 会看到两种长度（头被后者剥掉），agent 会误判「文件不同步」而反复倒腾。
+ * **文件只存指令行，不加任何头注释**——agent 读这个文件（原生 Read）与 daemon
+ * 读这个文件（readConstructionFile）必须看到同样的内容；加了头注释，后者会把头
+ * 剥掉、两者长度不一致，agent 就会误判「文件不同步」而反复倒腾。
  * 「这文件能改、改完 apply」的说明放工具描述与 SYSTEM_BRIEF，不放文件里。
  */
 export function writeConstructionFile(cfg: ToolsConfig, commands: string[]): string {

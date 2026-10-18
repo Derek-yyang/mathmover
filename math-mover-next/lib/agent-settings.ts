@@ -29,9 +29,9 @@ const guides: Record<string, AgentGuide> = {
   },
   byok: {
     docsUrl: 'https://platform.openai.com/docs/api-reference/chat',
-    installUrl: 'https://platform.openai.com/docs/api-reference/chat',
-    configure: '任何 OpenAI 兼容端点均可（含本地代理）。端点与模型在此配置，密钥由本机 MathMover 保管。',
-    subtitle: '直连 OpenAI 兼容端点 · 无需安装',
+    installUrl: 'https://github.com/sst/opencode',
+    configure: '任何 OpenAI 兼容端点均可（含本地代理）。端点与模型在此配置，密钥由本机 MathMover 保管；运行时随应用自带，无需另行安装。',
+    subtitle: '自带 OpenCode runtime · 无需安装',
   },
 };
 

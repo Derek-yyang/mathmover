@@ -13,7 +13,7 @@ const { workspaceDir, constructionPath } = await import(
 
 test('简报含通用写法 + 命令表 + 卡片目录（原 get_drawing_pack 的内容）', () => {
   resetSystemBriefCache();
-  const brief = buildSystemBrief(REPO_ROOT, 'cli');
+  const brief = buildSystemBrief(REPO_ROOT);
   // 通用写法（来自 skills/shared/ggb-basics.md）
   assert.match(brief, /MODE: 2D/);
   // 命令白名单（2D+3D 全列，不按类别裁剪）
@@ -25,7 +25,7 @@ test('简报含通用写法 + 命令表 + 卡片目录（原 get_drawing_pack �
 });
 
 test('简报带防回声标签：稳定前缀 + 不许复述', () => {
-  const brief = buildSystemBrief(REPO_ROOT, 'cli');
+  const brief = buildSystemBrief(REPO_ROOT);
   assert.match(brief, /<mathmover_core_system_prompt>[\s\S]*<\/mathmover_core_system_prompt>/);
   assert.match(brief, /不要引用、复述或转述/);
   // 用户原话要占「最近位置」，故标签闭合后只留防回声句
@@ -35,22 +35,23 @@ test('简报带防回声标签：稳定前缀 + 不许复述', () => {
 
 test('简报逐字节稳定（prompt cache 要靠前缀命中）', () => {
   resetSystemBriefCache();
-  const a = buildSystemBrief(REPO_ROOT, 'cli');
-  const b = buildSystemBrief(REPO_ROOT, 'cli');
+  const a = buildSystemBrief(REPO_ROOT);
+  const b = buildSystemBrief(REPO_ROOT);
   assert.equal(a, b);
 });
 
-test('byok 面多一段文件读写工具说明，cli 面没有', () => {
-  const cli = buildSystemBrief(REPO_ROOT, 'cli');
-  const byok = buildSystemBrief(REPO_ROOT, 'byok');
-  assert.match(byok, /write_construction/);
-  assert.ok(!cli.includes('write_construction'), '真 CLI 自带 Read/Edit，简报不该提兜底工具');
+test('简报不再提已删的兜底工具（write_construction 随自研 BYOK 循环一起删了）', () => {
+  // 内置位换成自带分发的 OpenCode 之后，所有运行时都自带文件能力 ⇒
+  // 简报里不该再出现那对只在 BYOK 面前注册过的工具名（提了 agent 会去找不存在的工具）。
+  const brief = buildSystemBrief(REPO_ROOT);
+  assert.ok(!brief.includes('write_construction'), '工作稿读写工具已删，简报不得再提');
+  assert.ok(!brief.includes('read_construction'), '工作稿读写工具已删，简报不得再提');
 });
 
 test('题目增强只认题图：不把「文字题面」当触发条件', () => {
   // 触发键必须是宿主可判定的机械事实（本轮带没带题图）。写成「图片/题面」时，
   // 「画一个正方体，边长为1」会被读成题面而误取增强——实测就是这么发生的。
-  const brief = buildSystemBrief(REPO_ROOT, 'cli');
+  const brief = buildSystemBrief(REPO_ROOT);
   assert.match(brief, /带了题目图片/);
   assert.match(brief, /直接指令/);
   assert.ok(!brief.includes('图片/题面'), '旧的宽触发措辞不得回潮：纯文字题面不算');
@@ -59,18 +60,18 @@ test('题目增强只认题图：不把「文字题面」当触发条件', () =>
 test('线框画法统一：一步到位构造器不用（所有场景都拿到这条）', () => {
   // 多轮微调是常态：第一轮用 Cube(A,B) 省事，第二轮「在这条棱上加个动点」就给不出
   // 可引用的棱对象。规则落在共同输出约定里，自由画图同样受约束。
-  const brief = buildSystemBrief(REPO_ROOT, 'cli');
+  const brief = buildSystemBrief(REPO_ROOT);
   assert.match(brief, /不要用 `Cube`/);
   assert.match(brief, /3d-edges/);
 });
 
 test('简报不再含 get_drawing_pack（内容已内联，工具已删）', () => {
-  const brief = buildSystemBrief(REPO_ROOT, 'cli');
+  const brief = buildSystemBrief(REPO_ROOT);
   assert.ok(!brief.includes('get_drawing_pack'));
 });
 
 test('简报不含绝对路径（会破坏 cache 前缀）；工作区按课件而异、落在数据目录下', () => {
-  const brief = buildSystemBrief(REPO_ROOT, 'cli');
+  const brief = buildSystemBrief(REPO_ROOT);
   // 简报要字节级稳定，路径含课件 id，不能混进去
   assert.ok(!brief.includes('workspaces'), '稳定简报不该含每课件的路径');
 

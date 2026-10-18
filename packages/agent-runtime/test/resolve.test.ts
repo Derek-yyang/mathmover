@@ -135,10 +135,11 @@ describe('resolveRuntimeTarget — *_BIN 显式覆盖（对齐 OpenDesign 的 AG
     clearResolveCache();
   });
 
-  it('键名映射：claude-code/codex/dsh → CLAUDE_BIN/CODEX_BIN/DSH_BIN', () => {
+  it('键名映射：claude-code/codex/dsh/opencode → CLAUDE_/CODEX_/DSH_/OPENCODE_BIN', () => {
     expect(agentBinEnvKey('claude-code')).toBe('CLAUDE_BIN');
     expect(agentBinEnvKey('codex')).toBe('CODEX_BIN');
     expect(agentBinEnvKey('dsh')).toBe('DSH_BIN');
+    expect(agentBinEnvKey('opencode')).toBe('OPENCODE_BIN');
     expect(agentBinEnvKey('unknown')).toBeNull();
     expect(codexAppBundleCandidates()).toEqual([]);   // Windows 无 app bundle 形态
   });
@@ -159,5 +160,60 @@ describe('resolveRuntimeTarget — *_BIN 显式覆盖（对齐 OpenDesign 的 AG
     fakeBin({ 'pathcli.cmd': 'node "%dp0%\\pathcli.js" %*\r\n', 'pathcli.js': 'console.log(1)\n' });
     setEnv('CLAUDE_BIN', path.join(os.tmpdir(), 'mm-no-such-bin-xyz'));
     expect(resolveRuntimeTarget({ id: 'claude-code', executable: 'pathcli' })).toBeNull();
+  });
+});
+
+describe('resolveRuntimeTarget — 自带二进制（opencode 作为依赖装进 node_modules）', () => {
+  const cwd = process.cwd();
+  afterEach(() => { process.chdir(cwd); clearResolveCache(); });
+
+  /** 造一棵假的 node_modules 树并 chdir 进去（解析是从 cwd 向上找）。 */
+  function fakeTree(packages: Record<string, string[]>): string {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-resolve-test-bundled-'));
+    dirs.push(root);
+    const modules = path.join(root, 'node_modules');
+    for (const [name, files] of Object.entries(packages)) {
+      for (const rel of files) {
+        const f = path.join(modules, name, rel);
+        fs.mkdirSync(path.dirname(f), { recursive: true });
+        fs.writeFileSync(f, '');
+      }
+    }
+    process.chdir(root);
+    clearResolveCache();
+    return root;
+  }
+
+  it('命中平台包里的二进制（不经 PATH）', () => {
+    const root = fakeTree({ 'opencode-windows-x64': [path.join('bin', 'opencode.exe')] });
+    const target = resolveRuntimeTarget({ id: 'opencode', executable: 'mm-not-here-abc', fallbackBins: ['mm-not-here-def'] });
+    expect(target).not.toBeNull();
+    expect(target!.command).toBe(path.join(root, 'node_modules', 'opencode-windows-x64', 'bin', 'opencode.exe'));
+    expect(target!.prefixArgs).toEqual([]);
+  });
+
+  it('跳过包装包 opencode-ai 的启动壳（那是 postinstall 才成形的，跳过脚本就成了报错壳）', () => {
+    const root = fakeTree({
+      'opencode-ai': [path.join('bin', 'opencode.exe')],
+      'opencode-windows-x64': [path.join('bin', 'opencode.exe')],
+    });
+    const target = resolveRuntimeTarget({ id: 'opencode', executable: 'mm-not-here-abc', fallbackBins: ['mm-not-here-def'] });
+    expect(target!.command).not.toContain(`opencode-ai${path.sep}`);
+    expect(target!.command).toBe(path.join(root, 'node_modules', 'opencode-windows-x64', 'bin', 'opencode.exe'));
+  });
+
+  it('baseline 构建让位给正式构建（readdir 顺序不保证，不能看运气）', () => {
+    const root = fakeTree({
+      'opencode-windows-x64-baseline': [path.join('bin', 'opencode.exe')],
+      'opencode-windows-x64': [path.join('bin', 'opencode.exe')],
+    });
+    const target = resolveRuntimeTarget({ id: 'opencode', executable: 'mm-not-here-abc', fallbackBins: ['mm-not-here-def'] });
+    expect(target!.command).toBe(path.join(root, 'node_modules', 'opencode-windows-x64', 'bin', 'opencode.exe'));
+  });
+
+  it('只有别的 runtime 才走 PATH：这三条 CLI 不受影响', () => {
+    fakeTree({ 'opencode-windows-x64': [path.join('bin', 'opencode.exe')] });
+    // 树里有 opencode，但 claude-code 的解析不该去看它
+    expect(resolveRuntimeTarget({ id: 'claude-code', executable: 'mm-not-here-abc', fallbackBins: ['mm-not-here-def'] })).toBeNull();
   });
 });

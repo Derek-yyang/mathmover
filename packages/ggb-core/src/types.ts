@@ -178,8 +178,12 @@ export interface RawState {
   sliders: Array<{ name: string; value: number }>;
   /** canvas.toDataURL 的 base64 段（不含 dataURL 前缀），失败为 null */
   png: string | null;
-  /** PNG 来源，供降级诊断 */
-  pngSource: 'canvas-to-data-url' | 'none';
+  /**
+   * PNG 来源，供降级诊断。名字用**工具层那套**（见上面的 `PngSource`）：
+   * 页面采集的原始值会直接填进 `PngResult.source`，两边各叫一个名字会在那一处
+   * 类型对不上（而且读的人也无从知道「ggb-export」等于「get-base64」）。
+   */
+  pngSource: 'canvas-to-data-url' | 'get-base64' | 'none';
   generation: number;
 }
 

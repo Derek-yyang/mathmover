@@ -1,5 +1,6 @@
 /**
- * BYOK 内置构造 Agent 的配置接口。
+ * 内置 Agent（OpenCode）的端点配置接口 —— BYOK：端点与密钥由用户自带，
+ * 运行时随应用内置（2026-10-18 起那是个自带的 OpenCode，不再是自研循环）。
  *
  * GET：掩码视图（baseUrl / model / apiKeyConfigured / apiKeyTail）——
  * **完整 key 永不回传**（对齐 OpenDesign 的 apiKeyConfigured + 尾 4 位模式）。

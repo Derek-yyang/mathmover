@@ -40,8 +40,8 @@ function rawState(commands: string[] = []): RawState {
   };
 }
 
-async function openClient(opts: { wrapAsync?: boolean; toolset?: 'cli' | 'byok' } = {}) {
-  const { wrapAsync = false, toolset = 'cli' } = opts;
+async function openClient(opts: { wrapAsync?: boolean; seed?: string[] } = {}) {
+  const { wrapAsync = false, seed } = opts;
   const bridge: Pick<GgbBridgeClient, 'connected' | 'snapshot' | 'call'> = {
     connected: true,
     snapshot: null,
@@ -79,12 +79,30 @@ async function openClient(opts: { wrapAsync?: boolean; toolset?: 'cli' | 'byok' 
   const server = createMcpServer(
     tools as never,
     { name: 'mcp-tools-test', version: '0.0.0' },
-    { rootDir: REPO_ROOT, toolset },
+    { rootDir: REPO_ROOT },
   );
+  // 备稿：**直接写文件**——真 agent 就是这么干的（原生 Write/Edit）。
+  // 2026-10-18 起 MCP 面上没有 write_construction 了（那对兜底工具随自研 BYOK 循环一起删）。
+  if (seed) writeDraft(workdir, seed);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'mcp-tools-test', version: '0.0.0' });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-  return client;
+  return { client, workdir };
+}
+
+/** 工作稿文件名（与 tools.ts 的 CONSTRUCTION_FILE 同源）。 */
+const DRAFT = 'construction.ggb.txt';
+
+function draftPath(workdir: string): string {
+  return path.join(workdir, DRAFT);
+}
+
+function writeDraft(workdir: string, commands: string[]): void {
+  fs.writeFileSync(draftPath(workdir), [...commands, ''].join('\n'), 'utf-8');
+}
+
+function readDraft(workdir: string): string {
+  return fs.readFileSync(draftPath(workdir), 'utf-8');
 }
 
 /** 一个工具的接线摘要。 */
@@ -102,40 +120,30 @@ function textBlocks(r: unknown): string[] {
 
 describe('MCP 工具面', () => {
   it('工具名单与数量钉死（防误删/误加）', async () => {
-    // 真 CLI 自带 Read/Edit——文件兜底工具不该出现在它面前（会诱导混用、徒增往返）
-    const cli = await openClient();
-    expect((await cli.listTools()).tools.map((t) => t.name).sort()).toEqual([
+    // agent 自带 Read/Edit——文件兜底工具不该出现在它面前（会诱导混用、徒增往返）。
+    // 2026-10-18 起这一面**只有这一种**了：曾经还有个 byok 面多挂两个读写工作稿的工具，
+    // 随自研 BYOK 循环一起删了。
+    const { client } = await openClient();
+    expect((await client.listTools()).tools.map((t) => t.name).sort()).toEqual([
       'get_expert_prompt', 'get_sop_cards',
       'ggb_apply', 'ggb_get_state', 'ggb_reset',
-    ]);
-    // BYOK 无原生文件能力，需要 read/write_construction 兜底
-    const byok = await openClient({ toolset: 'byok' });
-    expect((await byok.listTools()).tools.map((t) => t.name).sort()).toEqual([
-      'get_expert_prompt', 'get_sop_cards',
-      'ggb_apply', 'ggb_get_state', 'ggb_reset',
-      'read_construction', 'write_construction',
     ]);
   });
 
   it('必填参数钉死：题目增强要类别', async () => {
-    // 含 read/write_construction 的参数钉，需 byok 面
-    const client = await openClient({ toolset: 'byok' });
+    const { client } = await openClient();
     const { tools } = await client.listTools();
 
     // 题目增强：category 必填——改回可选会让 agent 不判类就拿 skill
     expect(describeTool(tools, 'get_expert_prompt').required).toEqual(['category']);
     // 取卡按名字批量拿
     expect(describeTool(tools, 'get_sop_cards').required).toEqual(['names']);
-    // 工作稿是唯一入口：ggb_apply 无 commands；读零参，写必带 commands（可选 apply 联动下发）
+    // 工作稿是唯一入口：ggb_apply 无 commands（不带参数 = 读工作稿下发）
     expect(describeTool(tools, 'ggb_apply').params).not.toContain('commands');
-    expect(describeTool(tools, 'read_construction').params).toEqual([]);
-    expect(describeTool(tools, 'write_construction').required).toEqual(['commands']);
-    expect(describeTool(tools, 'write_construction').params).toContain('apply');
-    expect(describeTool(tools, 'write_construction').required).not.toContain('apply');
   });
 
   it('关键引导语在（删了会让 agent 行为漂移）', async () => {
-    const client = await openClient();
+    const { client } = await openClient();
     const { tools } = await client.listTools();
     const expert = describeTool(tools, 'get_expert_prompt').description;
     const apply = describeTool(tools, 'ggb_apply').description;
@@ -151,7 +159,7 @@ describe('MCP 工具面', () => {
   });
 
   it('get_expert_prompt 实跑：专家流程 + 本类清单（带步骤号）', async () => {
-    const client = await openClient();
+    const { client } = await openClient();
     const r = await client.callTool({ name: 'get_expert_prompt', arguments: { category: 'A' } });
     const texts = textBlocks(r);
 
@@ -167,14 +175,9 @@ describe('MCP 工具面', () => {
   });
 
   it('取过哪类知识包都不影响 apply（无会话账本）', async () => {
-    // 用 write_construction 备稿，需 byok 面
-    const client = await openClient({ toolset: 'byok' });
+    const { client } = await openClient({ seed: ['A = (0, 0)', 'B = (1, 1)'] });
     // 先取题目增强（category 只用来选知识包）
     await client.callTool({ name: 'get_expert_prompt', arguments: { category: 'A' } });
-    await client.callTool({
-      name: 'write_construction',
-      arguments: { commands: ['A = (0, 0)', 'B = (1, 1)'] },
-    });
     // apply 不带类别（2026-10-15 起写路径与类别彻底解耦），也不会把上面那次分类记下来
     const r = await client.callTool({ name: 'ggb_apply', arguments: { png: false } });
     expect(textBlocks(r).some((t) => t.includes('已按类别'))).toBe(false);
@@ -183,31 +186,24 @@ describe('MCP 工具面', () => {
   it('ggb_apply 报告无效行但**不剔除**——它们还在工作稿里', async () => {
     // 剔了 daemon 会把净化后的账本回写工作稿，agent 刚写的那行就从它自己的文件里消失。
     // 而 apply 是「每完成一段就调一次」的高频动作，等于在它编辑到一半时抽走它脚下的行。
-    const client = await openClient({ toolset: 'byok' });
     const commands = ['A = (0, 0)', 'Tangnet(A, 1)'];
-    await client.callTool({ name: 'write_construction', arguments: { commands } });
+    const { client, workdir } = await openClient({ seed: commands });
     const r = await client.callTool({ name: 'ggb_apply', arguments: { png: false } });
     const texts = textBlocks(r);
     // 问题行放第一条（别埋在一堆 text 块中间），且明说没替它删
     expect(texts[0]).toContain('Tangnet(A, 1)');
     expect(texts[0]).toContain('没有替你删');
-    // 文件没被动过
-    const read = await client.callTool({ name: 'read_construction', arguments: {} });
-    expect(textBlocks(read).some((t) => t.includes('Tangnet(A, 1)'))).toBe(true);
+    // 文件没被动过——读的是**真文件**（agent 改的就是它，不是某个工具视图）
+    expect(readDraft(workdir)).toContain('Tangnet(A, 1)');
   });
 
-  it('异步工具面（真 agent 走的 HTTP 路径）：read/write/apply 都不崩', async () => {
-    // tools-http 的 readConstruction 返回 Promise。漏 await 时 read_construction 会拿
-    // Promise.length 当数组长度、恒报「工作稿为空」——同步 GgbTools 测不出来，必须走异步包装。
-    const client = await openClient({ wrapAsync: true, toolset: 'byok' });
-    await client.callTool({
-      name: 'write_construction',
-      arguments: { commands: ['A = (0, 0)', 'B = (1, 1)'] },
-    });
-    const read = await client.callTool({ name: 'read_construction', arguments: {} });
-    expect(textBlocks(read).some((t) => t.includes('A = (0, 0)'))).toBe(true);
-    expect(textBlocks(read).some((t) => t.includes('工作稿为空'))).toBe(false);
+  it('异步工具面（真 agent 走的 HTTP 路径）：不带 commands 的 apply 照样读得到工作稿', async () => {
+    // tools-http 的 readConstruction 返回 Promise。漏 await 时 apply 会拿
+    // Promise.length 当数组长度、把工作稿当空的——同步 GgbTools 测不出来，必须走异步包装。
+    const { client } = await openClient({ wrapAsync: true, seed: ['A = (0, 0)', 'B = (1, 1)'] });
     const apply = await client.callTool({ name: 'ggb_apply', arguments: { png: false } });
-    expect(textBlocks(apply).some((t) => t.includes('对象') || t.includes('构造'))).toBe(true);
+    const texts = textBlocks(apply);
+    expect(texts.some((t) => t.includes('工作稿是空的'))).toBe(false);
+    expect(texts.some((t) => t.includes('对象') || t.includes('构造'))).toBe(true);
   });
 });

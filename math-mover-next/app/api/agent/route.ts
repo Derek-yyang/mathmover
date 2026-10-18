@@ -23,9 +23,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken, dataDirectory } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, runAgent, runByokAgent, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, createTitleExtractor, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { RUNTIMES, runAgent, opencode, buildOpenCodeConfigContent, OPENCODE_BYOK_API_KEY_ENV, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, createTitleExtractor, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 import { agentRequestHistory } from '@/lib/agent-request-history';
-import { connectMcpTools } from '@/lib/byok-mcp';
 import { loadByokConfig, isByokRunnable, maskByokConfig } from '@/lib/byok-store';
 import { buildSystemBrief } from '@/lib/server/system-brief';
 import { constructionPath, ensureConstructionDraft, ensureMcpConfig, workspaceDir } from '@/lib/server/workspace';
@@ -145,57 +144,65 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  // BYOK 内置构造通路：不需要本机 agent CLI（对齐 OpenDesign 的 byok-tools 模式）。
-  // 端点/密钥/模型来自**应用数据目录的配置仓**（key 由本机应用保管、完整值
-  // 永不回传界面），请求体不再携带——与桌面化形态一致。
-  const isByok = body.runtimeId === 'byok';
-  const byokCfg = isByok ? loadByokConfig(dataDirectory()) : null;
-  if (isByok && !isByokRunnable(byokCfg)) {
+  // 内置 Agent（OpenCode）：与我们自带的 runtime 跑，**不需要本机 agent CLI**。
+  // 与三条 CLI 的唯一区别是「定义从哪来」——端点/密钥/模型来自**应用数据目录的
+  // 配置仓**（key 由本机应用保管、完整值永不回传界面），请求体不再携带。
+  const isBuiltin = body.runtimeId === 'byok';
+  const builtinCfg = isBuiltin ? loadByokConfig(dataDirectory()) : null;
+  if (isBuiltin && !isByokRunnable(builtinCfg)) {
     return new Response(
-      line({ kind: 'error', message: '内置构造 Agent 尚未配置：请在设置里填写 API 端点与模型。' }),
+      line({ kind: 'error', message: '内置 Agent 尚未配置：请在设置里填写 API 端点与模型。' }),
       { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
     );
   }
 
-  const picked = isByok ? null : findRuntime(body.runtimeId);
-  if (!picked && !isByok) {
+  const picked = isBuiltin ? null : findRuntime(body.runtimeId);
+  if (!picked && !isBuiltin) {
     const wanted = body.runtimeId?.trim();
     const message = wanted
       ? `你选的 agent（${wanted}）当前不可用：要么没安装，要么起不来。` +
         `请在面板里换一个已安装的，或先安装该 CLI。（不会自动降级到别的 agent）`
-      : '本机没有可用的 agent CLI。请安装 Claude Code / Codex / dsh 其一，或在设置里配置内置构造 Agent（BYOK）。';
+      : '本机没有可用的 agent CLI。请安装 Claude Code / Codex / dsh 其一，或在设置里配置内置 Agent。';
     return new Response(
       line({ kind: 'error', message }),
       { status: 503, headers: { 'content-type': 'application/x-ndjson' } },
     );
   }
-  const def = picked?.def;
+  // 内置位用我们自带的定义（与本机 CLI 走**同一条** spawn 通路）。
+  // 走到这里必有其一：picked 命中，或就是内置位。
+  const def: RuntimeDefinition = picked ? picked.def : opencode;
   const target = picked?.target;
 
-  // 模型校验只查 GET 健康检查已发现的 liveModels 缓存，不再 spawn CLI。
-  // 推理档位同理：清单取自 agent 自己的配置，有清单就校验。
-  // BYOK 的模型在设置表单里，不走清单校验。
+  // 模型：三条 CLI 只查 GET 健康检查已发现的 liveModels 缓存（不再 spawn CLI）；
+  // 内置位的模型在设置表单里，不走清单校验（provider 前缀由定义自己加）。
   let model: string | undefined;
-  const effort = typeof body.reasoningEffort === 'string' && body.reasoningEffort.trim()
+  let effort = typeof body.reasoningEffort === 'string' && body.reasoningEffort.trim()
     ? body.reasoningEffort.trim().slice(0, 32) : undefined;
-  if (def && typeof body.model === 'string' && body.model.trim()) {
-    const resolved = resolveModel(def.id, body.model);
-    if (!resolved.ok) {
-      return new Response(
-        line({ kind: 'error', message: resolved.reason }),
-        { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
-      );
+  if (picked) {
+    if (typeof body.model === 'string' && body.model.trim()) {
+      const resolved = resolveModel(def.id, body.model);
+      if (!resolved.ok) {
+        return new Response(
+          line({ kind: 'error', message: resolved.reason }),
+          { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
+        );
+      }
+      model = resolved.model;
     }
-    model = resolved.model;
-  }
-  if (def && effort) {
-    const checked = resolveEffort(def.id, model ?? 'default', effort);
-    if (!checked.ok) {
-      return new Response(
-        line({ kind: 'error', message: checked.reason }),
-        { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
-      );
+    if (effort) {
+      const checked = resolveEffort(def.id, model ?? 'default', effort);
+      if (!checked.ok) {
+        return new Response(
+          line({ kind: 'error', message: checked.reason }),
+          { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
+        );
+      }
     }
+  } else if (builtinCfg) {
+    model = builtinCfg.model;
+    // 档位不传：opencode 的 `--variant` 是**各家 provider 私有**的枚举，
+    // BYOK 端点无从枚举（同「档位清单永远取自 agent 自己的配置」这条口径）。
+    effort = undefined;
   }
 
   // 题目图片：这里只校验载荷。递送通道分流、prompt 说明、argv 预算守卫都归
@@ -207,33 +214,24 @@ export async function POST(req: Request): Promise<Response> {
       { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
     );
   }
-  if (isByok && checked.images.length) {
-    return new Response(
-      line({ kind: 'error', message: '内置构造 Agent（BYOK）暂不支持图片，请用文字描述题目。' }),
-      { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
-    );
-  }
+  // 图片能不能送达由 runAgent 按 def 的 imageDelivery 分流（没有通道时它会在
+  // prompt 里如实说明「未送达」）——本层不再替它判死，内置位与三条 CLI 同规则。
+
 
   // Only fresh edited native sessions need a retained transcript. Resumed sessions
   // already own their history and must not receive duplicate context.
   // resumesSession() 闸双重上下文（OpenDesign agy -c 教训）：即使某个 def 误把
   // recomposesHistory 和原生会话同时打开，也绝不注入转写。
-  // BYOK 无原生会话（每次都是新对话），照 recomposesHistory 语义注入前序。
-  const priorTurns = agentRequestHistory(body,
-    isByok || (def ? def.recomposesHistory === true && !resumesSession(def) : false));
+  const priorTurns = agentRequestHistory(body, def.recomposesHistory === true && !resumesSession(def));
   const transcript = priorTurns.length ? buildTranscript(priorTurns) : '';
   // 纯图发题（没打字）：不伪造用户话语，如实说只发了图片。
   const userTurn = prompt || '（只发了题目图片，没写文字——请直接看图理解题意并作图）';
 
   // 简报只发首轮（对齐 OpenDesign 的 request / continuation 二分）：
-  //  - 真 CLI 带 sessionId = --resume 续接，模型自带上一轮的简报——再发一遍会
-  //    在上下文里累积多份，每轮都重读，越聊越贵。
-  //  - BYOK 无原生会话，每轮都得带，但走 systemPrompt 通道（稳定前缀，吃 cache），
-  //    不拼进用户消息。
-  const isContinuation = !isByok && Boolean(body.sessionId);
-  const toolset = isByok ? 'byok' : 'cli';
-  const systemPrompt = isByok ? buildSystemBrief(REPO_ROOT, toolset) : undefined;
-  const head = isContinuation ? '' : (systemPrompt ? '' : buildSystemBrief(REPO_ROOT, toolset));
+  //  真会话续接时模型自带上一轮的简报——再发一遍会在上下文里累积多份，
+  //  每轮都重读，越聊越贵。内置位（OpenCode）也有原生会话，同一条规则。
+  const isContinuation = Boolean(body.sessionId);
+  const head = isContinuation ? '' : buildSystemBrief(REPO_ROOT);
 
   // 工作稿路径**按课件而异**（`<dataDir>/workspaces/<课件id>/`），不进稳定简报——
   // 那会破坏 cache 前缀。单起一行、每轮都带：体积小，而 agent 每次动笔都要它。
@@ -270,46 +268,25 @@ export async function POST(req: Request): Promise<Response> {
     cancel: () => void;
     proc: unknown;
   };
-  if (isByok && byokCfg) {
-    // 真工具经 MCP stdio（与真实 agent 同一条链路）；连不上就明着失败
-    let mcp: Awaited<ReturnType<typeof connectMcpTools>>;
-    try {
-      mcp = await connectMcpTools({
-        scriptPath: path.join(REPO_ROOT, 'packages/daemon/src/mcp-stdio.ts'),
-        env: {
-          MATHMOVER_DAEMON_URL: DAEMON_URL,
-          MATHMOVER_WINDOW_ID: body.windowId ?? '',
-          MATHMOVER_COURSEWARE_ID: coursewareKey ?? '',
-          // BYOK 无原生文件能力，才需要 read/write_construction 这对兜底工具。
-          // 真 CLI 自带 Read/Edit，见了这对工具反而会混用、徒增往返。
-          MATHMOVER_TOOLSET: 'byok',
+  // 内置位的 provider/MCP 注入走 OPENCODE_CONFIG_CONTENT（**不**写用户的全局配置；
+  // 没有内容时它是 null，此时不动这个环境变量）。密钥另走一个环境变量、配置里
+  // 用 {env:…} 引用——不落文件也不进 argv。
+  const opencodeConfig = isBuiltin && builtinCfg
+    ? buildOpenCodeConfigContent({
+        provider: { baseUrl: builtinCfg.baseUrl, model: builtinCfg.model, apiKey: builtinCfg.apiKey },
+        // 与 ensureMcpConfig 同一份实体：同一个 node、同一个 mcp-stdio 入口、同一个 daemon 地址。
+        mcp: {
+          command: process.execPath,
+          args: [path.join(REPO_ROOT, 'packages', 'daemon', 'src', 'mcp-stdio.ts')],
+          env: { MATHMOVER_DAEMON_URL: DAEMON_URL },
         },
-      });
-    } catch (e) {
-      return new Response(
-        line({ kind: 'error', message: `内置构造 Agent 启动失败：${e instanceof Error ? e.message : String(e)}` }),
-        { status: 503, headers: { 'content-type': 'application/x-ndjson' } },
-      );
-    }
-    const run = runByokAgent({
-      prompt: composedPrompt,
-      systemPrompt,
-      baseUrl: byokCfg.baseUrl,
-      apiKey: byokCfg.apiKey,
-      model: byokCfg.model,
-      tools: mcp.tools,
-      onEvent: (e) => sink(e),
-    });
-    handle = {
-      done: run.done,
-      cancel: () => { run.cancel(); mcp.close(); },
-      proc: {},   // 无子进程可拒启；占位满足流层的统一形状
-    };
-  } else {
+      })
+    : null;
   handle = runAgent({
-    def: def!,
+    def,
     prompt: composedPrompt,
-    // 沙箱 = 数据目录下的工作区：--restricted 把写入框在 cwd 里，工作稿必须在里面，
+    // 沙箱 = 数据目录下的工作区：claude 的 --restricted 把写入框在 cwd 里、
+    // opencode 的 --dir 同此（且它不认进程 cwd，必须显式给），工作稿必须在里面，
     // 而用户数据要归数据目录、软件要归软件（别把工作稿塞进仓库目录换解 bug）。
     mcpConfigPath: ensureMcpConfig(REPO_ROOT, DAEMON_URL),
     cwd: sandbox,
@@ -318,20 +295,26 @@ export async function POST(req: Request): Promise<Response> {
     images: checked.images,
     model,
     reasoningEffort: effort,
-    env: { MATHMOVER_WINDOW_ID: body.windowId ?? '', MATHMOVER_COURSEWARE_ID: coursewareKey ?? '' },
+    env: {
+      MATHMOVER_WINDOW_ID: body.windowId ?? '',
+      MATHMOVER_COURSEWARE_ID: coursewareKey ?? '',
+      ...(opencodeConfig ? { OPENCODE_CONFIG_CONTENT: opencodeConfig } : {}),
+      ...(opencodeConfig && builtinCfg?.apiKey.trim()
+        ? { [OPENCODE_BYOK_API_KEY_ENV]: builtinCfg.apiKey.trim() }
+        : {}),
+    },
     // 长任务保护：**静默**超时与**首输出**硬顶（语义见 run.ts / defs.ts）。
     // per-agent 推荐值在定义上，环境变量仍优先（运维要压测时不用改代码）。
-    inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? def!.inactivityTimeoutMs ?? 180_000),
-    firstOutputTimeoutMs: Number(process.env.MATHMOVER_AGENT_FIRST_OUTPUT_TIMEOUT_MS ?? def!.firstOutputTimeoutMs ?? 0),
+    inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? def.inactivityTimeoutMs ?? 180_000),
+    firstOutputTimeoutMs: Number(process.env.MATHMOVER_AGENT_FIRST_OUTPUT_TIMEOUT_MS ?? def.firstOutputTimeoutMs ?? 0),
     onEvent: (e) => sink(e),
   });
-  }
 
   // 拒启（如 prompt 超 argv 预算）：明着 400，不要拿 200 + 流内错误糊弄
   if (!handle.proc) {
     const first = queued.find((e) => e.kind === 'error');
     return new Response(
-      line({ kind: 'error', message: first?.kind === 'error' ? first.message : `启动 ${def!.displayName} 被拒绝` }),
+      line({ kind: 'error', message: first?.kind === 'error' ? first.message : `启动 ${def.displayName} 被拒绝` }),
       { status: 400, headers: { 'content-type': 'application/x-ndjson' } },
     );
   }
@@ -415,20 +398,27 @@ export async function GET(req: Request): Promise<Response> {
         models,
       };
     }));
-    // BYOK 内置通路恒在：不依赖本机 CLI。配置状态如实反映（未配置 → 选择器标出）
+    // 内置 Agent：**运行时不依赖本机 CLI**（随应用自带），但那份二进制缺失时要如实
+    // 报出来——选择器说「可用」而真跑起来 spawn 失败才是最糟的形态。
+    // **id 保持 'byok'**：设置仓、已存偏好、前端的 runtimeId 都不用动，换个标签就够了。
     const byokRaw = loadByokConfig(dataDirectory());
     const byokView = maskByokConfig(byokRaw);
+    const builtinBinary = resolveRuntimeTarget(opencode);
+    const builtinReady = Boolean(builtinBinary) && isByokRunnable(byokRaw);
     detected.push({
       id: 'byok',
-      name: '内置构造 Agent（BYOK）',
-      version: '直连 API · 无需安装',
-      usable: true,
+      name: '内置 Agent（OpenCode）',
+      version: builtinBinary ? '自带 runtime · 无需安装' : '自带 runtime 缺失',
+      usable: Boolean(builtinBinary),
       versionWarning: undefined,
-      authStatus: isByokRunnable(byokRaw) ? 'ok' : 'missing',
-      authMessage: byokView.baseUrl && byokView.model
-        ? (byokView.apiKeyConfigured ? `已配置（•••• ${byokView.apiKeyTail}）` : '已配置（本地端点，无密钥）')
-        : '未配置端点与模型，请在设置里填写',
-      canAttachImages: false,
+      authStatus: builtinReady ? 'ok' : 'missing',
+      authMessage: !builtinBinary
+        ? '内置 runtime 缺失：重装应用即可恢复（或设 OPENCODE_BIN 指向一个 opencode 可执行文件）。'
+        : byokView.baseUrl && byokView.model
+          ? (byokView.apiKeyConfigured ? `已配置（•••• ${byokView.apiKeyTail}）` : '已配置（本地端点，无密钥）')
+          : '未配置端点与模型，请在设置里填写',
+      // 有原生附件通道（--file=<路径>）——题目图片能直接递送
+      canAttachImages: true,
       models: { list: [{ id: 'default', label: '默认（用设置里配置的模型）' }], source: 'live' },
     });
     detectionCache = { at: Date.now(), runtimes: detected };

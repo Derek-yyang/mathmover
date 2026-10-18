@@ -47,11 +47,10 @@ async function main(): Promise<void> {
   log('MCP stdio 就绪，等待 agent 连接…');
 
   // createMcpServer 内部会注册 ggb_get_state / ggb_apply（含行级与动点自洽自查）/ ggb_reset，
-  // 以及知识供给三件套。
-  // read_construction / write_construction 只在 BYOK 面前出现（见 MATHMOVER_TOOLSET）。
+  // 以及知识供给三件套。工作稿的读写不再是 MCP 工具——agent 自带 Read/Edit
+  //（2026-10-18：那对兜底工具随自研 BYOK 循环一起删了）。
   await serveStdio(tools as never, { name: 'mathmover', version: '0.1.0' }, {
     rootDir: findAssetRoot(),
-    toolset: process.env.MATHMOVER_TOOLSET === 'byok' ? 'byok' : 'cli',
   });
 }
 
