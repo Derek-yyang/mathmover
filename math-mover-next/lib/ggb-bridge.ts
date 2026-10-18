@@ -14,6 +14,7 @@
 
 import type { GeoGebraApi } from '@/components/dashboard/types';
 import { connectGgbDaemon, type GgbConnectionStatus } from './ggb-connection';
+import { noteRenderTrouble } from './render-trouble';
 // 页面侧与 daemon 共用同一份原始状态契约。只走 /types 子路径，不从整包引
 // （barrel 会把 sop/whitelist 连同 node:fs 拖进浏览器产物）。
 import type { RawState, RawApplyResult } from '@mathmover/ggb-core/types';
@@ -119,25 +120,10 @@ function capturePng(api: GeoGebraApi): { png: string | null; source: RawState['p
  * 头号嫌疑就是**上下文丢失**：浏览器在显存紧张或驱动重启时回收 WebGL 上下文，画面就没了，
  * GeoGebra 的 kernel 不受影响；再 apply 一次（重绘）往往就回来——实测现场正是这个形状。
  *
- * 凭据要留给现场：`console` 只在 DevTools 开着时才有，所以同时写一条 localStorage 痕迹
- *（`mm:render-trouble`，只留最近 10 条），复现后读这一行即可：
- *   JSON.parse(localStorage.getItem('mm:render-trouble'))
- *
  * `preventDefault()` 是声明「我要这个上下文回来」，不调它浏览器可能不给恢复；
  * 恢复后顺手让 GeoGebra 重绘一帧（不调也无妨，下一次绘制会自己来）。
  */
 function watchCanvasContext(api: GeoGebraApi): void {
-  const note = (event: string, extra: Record<string, unknown> = {}) => {
-    const entry = { at: new Date().toISOString(), event, ...extra };
-    try {
-      const key = 'mm:render-trouble';
-      const previous = JSON.parse(localStorage.getItem(key) ?? '[]') as unknown[];
-      localStorage.setItem(key, JSON.stringify([...previous.slice(-9), entry]));
-    } catch { /* 存不下就算了，console 那条还在 */ }
-    (window as unknown as Record<string, unknown>).__mmRenderTrouble = entry;
-    console.warn('[mathmover] 画布渲染异常:', entry);
-  };
-
   const attach = () => {
     for (const canvas of document.querySelectorAll('canvas')) {
       const tagged = canvas as HTMLCanvasElement & { __mmContextWatched?: boolean };
@@ -145,10 +131,10 @@ function watchCanvasContext(api: GeoGebraApi): void {
       tagged.__mmContextWatched = true;
       canvas.addEventListener('webglcontextlost', (event) => {
         event.preventDefault();   // 声明想要恢复
-        note('webgl-context-lost', { canvas: [canvas.width, canvas.height] });
+        noteRenderTrouble('webgl-context-lost', { canvas: [canvas.width, canvas.height] });
       }, false);
       canvas.addEventListener('webglcontextrestored', () => {
-        note('webgl-context-restored');
+        noteRenderTrouble('webgl-context-restored');
         try { api.refreshViews?.(); } catch { /* 下一次绘制会自己来 */ }
       }, false);
     }

@@ -9,6 +9,7 @@ import { resetStandard3DView } from '@/lib/ggb-view-reset';
 import { createCoursewareHTML } from '@/lib/ggb-html-export';
 import { getCoursewarePNG } from '@/lib/ggb-png-export';
 import { watchGgbGraphics } from '@/lib/ggb-graphics-state';
+import { noteRenderTrouble } from '@/lib/render-trouble';
 
 interface UseGgbSessionOptions {
   onAuditCompleted?: (audit: AuditResult) => void;
@@ -189,11 +190,21 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
           const tick = () => {
             if (execSessionRef.current !== session) { done(null); return; }
             const ready = viewReady();
-            if (ready || waited >= 2500) {
-              // 等到点了仍没就绪（冷启动下实测出现过整块白帧：3D 视图没进布局，
-              // 3D 对象在 2D 视图里又不可见，于是看着就是白的）。把透视切换重发一次——
-              // 已在该视角时是空操作、重复无害；agent 遇白帧时手工做的也正是这一步。
+            if (ready || waited >= 4000) {
+              // 等到点了仍没就绪：留一条痕迹（同一通道，复现后一行读出）——
+              // 「客户端看不见的白屏」只能靠这种落盘的证据来查。
               if (!ready && targetMode === '3D') {
+                noteRenderTrouble('3d-view-not-ready', {
+                  waited,
+                  view512: (() => {
+                    try { return /view id="512"[^>]*visible="(\w+)"/.exec(ggbApplet.getPerspectiveXML?.() ?? '')?.[1] ?? null; } catch { return null; }
+                  })(),
+                  pngBytes: (() => {
+                    try { return ggbApplet.getPNGBase64?.(1, false)?.length ?? null; } catch { return null; }
+                  })(),
+                });
+                // 止损：把透视切换重发一次（已在该视角时是空操作、重复无害），
+                // agent 遇白帧时手工做的也正是这一步。
                 try {
                   ggbApplet.setPerspective('T');
                   ggbApplet.refreshViews();
