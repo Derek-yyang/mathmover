@@ -65,7 +65,7 @@ try {
 
   // 打开时的 3D 课件就是标准视角——这是后面要回的那个基准
   const opened = await readCamera(page);
-  assert.deepEqual(opened, { xZero: 0, yZero: 0, zZero: 0, scale: 50, xAngle: 20, zAngle: -60 },
+  assert.deepEqual(opened, { xZero: 0, yZero: 0, zZero: -0.5, scale: 50, xAngle: 20, zAngle: -60 },
     `fresh 3D courseware opens on the standard view (got ${JSON.stringify(opened)})`);
 
   const beforePng = await readPng(page);
@@ -163,8 +163,11 @@ try {
     return { platePixels: n, centroidY: n ? Math.round(sy / n) : null, canvasMidY: on.height / 2 };
   });
   assert.ok(plate.platePixels > 10_000, `the ground plate is visible (got ${plate.platePixels} px)`);
-  assert.ok(Math.abs(plate.centroidY - plate.canvasMidY) < 15,
-    `the ground plate sits at the canvas centre (got ${JSON.stringify(plate)})`);
+  // 设计意图：板落在**中间偏下一点**（给 z 轴留头顶空间），既不是正中（0）、也不是出厂的 -1.5
+  // （实测标准缩放下分别偏 0px 与 70px）。
+  const plateDrop = plate.centroidY - plate.canvasMidY;
+  assert.ok(plateDrop > 5 && plateDrop < 45,
+    `the ground plate sits slightly below centre (got ${JSON.stringify(plate)}, drop ${Math.round(plateDrop)}px)`);
 
 
   // 注：跳变路径（prefers-reduced-motion / 大构造）在**平移过**之后会留下显式的 y/z 缩放，

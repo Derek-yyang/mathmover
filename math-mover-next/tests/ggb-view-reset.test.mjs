@@ -34,7 +34,7 @@ test('replaces the whole 3D camera — orientation, centre and zoom', () => {
   assert.ok(patched);
   assert.equal(attr3d(patched, 'xAngle'), '20');
   assert.equal(attr3d(patched, 'zAngle'), '-60');
-  assert.equal(attr3d(patched, 'zZero'), '0');
+  assert.equal(attr3d(patched, 'zZero'), '-0.5');
   assert.equal(attr3d(patched, 'xZero'), '0');
   assert.equal(attr3d(patched, 'yZero'), '0');
   assert.equal(attr3d(patched, 'scale'), '50', 'zoom goes back to the standard too');
@@ -117,7 +117,7 @@ test('a view that only differs in zoom still animates back', () => {
   const frames = [];
   const c = fakeClock();
   const api = {
-    getXML: () => xmlWith3D('xZero="0" yZero="0" zZero="0" scale="400" xAngle="20" zAngle="-60"'),
+    getXML: () => xmlWith3D('xZero="0" yZero="0" zZero="-0.5" scale="400" xAngle="20" zAngle="-60"'),
     setXML: (xml) => { frames.push(cameraOf(xml)); },
     refreshViews: () => {},
   };
@@ -126,7 +126,7 @@ test('a view that only differs in zoom still animates back', () => {
   for (const ts of [0, 100, 200, 300, 340]) { if (c.pendingFrames) c.frame(ts); }
   const last = frames.at(-1);
   assert.equal(last.scale, 50);
-  assert.deepEqual({ ...last, scale: 0 }, { ...cameraOf(xmlWith3D('xZero="0" yZero="0" zZero="0" scale="50" xAngle="20" zAngle="-60"')), scale: 0 },
+  assert.deepEqual({ ...last, scale: 0 }, { ...cameraOf(xmlWith3D('xZero="0" yZero="0" zZero="-0.5" scale="50" xAngle="20" zAngle="-60"')), scale: 0 },
     'and the orientation is left exactly as it was');
 });
 
@@ -154,7 +154,7 @@ test('animates frame by frame toward the standard view and lands exactly on it',
   assert.deepEqual(zAngles, [...zAngles].sort((a, b) => a - b), 'zAngle approaches -60 monotonically');
   assert.ok(zAngles.every((z) => z >= -235 - 1e-9 && z <= -60 + 1e-9), 'and never overshoots onto the long way round');
   const last = frames.at(-1);
-  assert.deepEqual(last, { xZero: 0, yZero: 0, zZero: 0, scale: 50, xAngle: 20, zAngle: -60 },
+  assert.deepEqual(last, { xZero: 0, yZero: 0, zZero: -0.5, scale: 50, xAngle: 20, zAngle: -60 },
     `final frame is the exact standard camera (got ${JSON.stringify(last)})`);
   const scales = frames.map((f) => f.scale);
   assert.deepEqual(scales, [...scales].sort((a, b) => b - a), 'zoom eases back toward the standard too');
@@ -164,7 +164,7 @@ test('animates frame by frame toward the standard view and lands exactly on it',
 test('an already-standard view does nothing at all', () => {
   let writes = 0;
   const api = {
-    getXML: () => xmlWith3D(`xZero="0" yZero="0" zZero="0" scale="50" xAngle="20" zAngle="-60"`),
+    getXML: () => xmlWith3D(`xZero="0" yZero="0" zZero="-0.5" scale="50" xAngle="20" zAngle="-60"`),
     setXML: () => { writes += 1; },
     refreshViews: () => {},
   };
@@ -215,7 +215,7 @@ test('an expensive frame stretches the animation instead of dropping frames', ()
   resetStandard3DView(api, { clock: c.clock });
   for (let i = 0; i < 80 && c.pendingFrames; i++) c.frame(c.time);
   assert.ok(frames.length > 12, `stretched past the base 300ms (drew ${frames.length} frames)`);
-  assert.deepEqual(frames.at(-1), { xZero: 0, yZero: 0, zZero: 0, scale: 50, xAngle: 20, zAngle: -60 });
+  assert.deepEqual(frames.at(-1), { xZero: 0, yZero: 0, zZero: -0.5, scale: 50, xAngle: 20, zAngle: -60 });
 });
 
 test('resetStandard3DView reports failure instead of throwing', () => {
