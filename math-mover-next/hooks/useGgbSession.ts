@@ -165,6 +165,17 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
         waitForView(() => {
           if (execSessionRef.current !== session) { done(null); return; }
 
+          // 全量重建的 3D：**相机也回标准**，给稿子里的取景一个确定起点。
+          //
+          // 稿子里的取景只有相对手段：`ZoomIn/ZoomOut` 是「相对当前」的倍数，而 3D 相机
+          // 跨课件残留（切课件不重置它）——于是同一份稿子在别的画布上会落到不同远近，
+          // 实测有一轮叠到了立方体内部（视域只剩 ±0.08 单位，图看着像没了）。
+          // 绝对手段都不在指令面上（实测）：`SetViewDirection()` 只回朝向不动缩放、
+          // 2D 的框缩放重载 `ZoomIn(x1,y1,x2,y2)` 在 3D 下完全无效、`setCoordSystem`
+          // 是 JS API 不许写进指令流。所以确定性只能由宿主这边给。
+          // 一次到位不带过渡：用户此刻看的是「正在长出来的图」，不需要视角动画。
+          if (!opts.incremental && targetMode === '3D') resetStandard3DView(ggbApplet, { durationMs: 0 });
+
           const execList = (list: string[]) => {
             const failed: string[] = [];
             list.forEach((cmd) => {

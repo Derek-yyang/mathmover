@@ -132,6 +132,25 @@ try {
   // 画面与全新视图差约 1.3% 像素；清除它需要 setCoordSystem 再等 ~400ms，代价是可见的二次跳动。
   // 权衡后保留现状，故不在此断言——详见 lib/ggb-view-reset.ts 的「已知残留」注释。
 
+  // 打开课件时相机回标准 —— 稿子里的相对缩放因此有确定起点
+  // （不这样做的话，ZoomIn 会跟画布残留的缩放叠加：实测有一轮叠到了立方体内部）
+  await page.evaluate(() => window.ggbApplet.evalCommand('ZoomIn(8)'));
+  await page.waitForTimeout(500);
+  assert.notEqual((await readCamera(page)).scale, opened.scale, 'the ledger-style zoom actually changed the scale');
+
+  await page.reload();
+  await page.waitForFunction(() => !!window.ggbApplet?.getXML, null, { timeout: 90_000 });
+  await page.getByRole('button', { name: '3D重置验证', exact: true }).click();
+  await page.getByRole('button', { name: '重命名课件：3D重置验证', exact: true }).waitFor();
+  await page.waitForFunction(() => !document.querySelector('[data-slot=board-interaction-guard]'));
+  await page.waitForTimeout(1000);
+  assert.deepEqual(await readCamera(page), opened, 'opening the courseware resets the camera to the standard view');
+
+  await page.evaluate(() => window.ggbApplet.evalCommand('ZoomIn(8)'));
+  await page.waitForTimeout(500);
+  const framed = (await readCamera(page)).scale;
+  assert.ok(Math.abs(framed - opened.scale * 8) < 0.5, `the ledger's relative zoom is reproducible from that start (got ${framed})`);
+
   assert.deepEqual(errors, []);
-  console.log('PASS: 3D 夹具课件：拖动+滚轮+平移后点真按钮逐帧滑回标准视角与缩放（非瞬移）、渲染逐字节复现、按钮可重复点；0 浏览器错误。');
+  console.log('PASS: 3D 夹具课件：拖动+滚轮+平移后点真按钮逐帧滑回标准视角与缩放（非瞬移）、渲染逐字节复现、按钮可重复点、打开课件时相机回标准使稿子取景可复现；0 浏览器错误。');
 } finally { await browser.close(); }
