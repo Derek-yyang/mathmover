@@ -108,12 +108,35 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
           return trimmed && !trimmed.startsWith('//') && !trimmed.startsWith('MODE:');
         });
 
-        // 仅在非增量模式下清空画布
+        /**
+         * 画布**当前显示**的是不是 3D。视图设置该不该跑要看它，不能只看 `opts.incremental`：
+         *
+         * daemon 的增量判定是「新账本是不是当前账本的纯追加」，而**空画布 + 任何新账本**都算
+         * 纯追加（`pureAppendDelta([], list)` 非空）。于是新建课件 / `ggb_reset` 之后的
+         * 第一份 3D 稿会被判成增量 → 这段视图设置整段被跳过 → 透视没切 → 3D 对象在 2D 视图里
+         * 根本不画 → **用户看到整块白屏**（agent 取到的截图也是白的，只能自己往稿子里补
+         * `SetActiveView(3)` 自救）。三个现场（新建课件、清屏后、2D 课件改画立体）都是这条路。
+         */
+        const liveIs3D = (): boolean => {
+          if (typeof ggbApplet.getPerspectiveXML !== 'function') return targetMode === '3D';
+          try {
+            return /view id="512"[^>]*visible="true"/.test(ggbApplet.getPerspectiveXML());
+          } catch {
+            return targetMode === '3D';
+          }
+        };
+
+        // 换模式 = 视图也得换：与增量无关（增量只决定要不要清屏）
+        const switchView = !opts.incremental || liveIs3D() !== (targetMode === '3D');
+
+        // 清屏只在非增量时做（增量的语义是「同一份构造继续长」）
         if (!opts.incremental) {
           try {
             ggbApplet.newConstruction();
           } catch {}
+        }
 
+        if (switchView) {
           if (targetMode === '2D') {
             try {
               ggbApplet.setPerspective('G');
@@ -158,7 +181,7 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
             : true;
         };
         const waitForView = (cb: () => void) => {
-          if (opts.incremental) {
+          if (!switchView) {
             cb();
             return;
           }
@@ -197,7 +220,7 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
           // 2D 的框缩放重载 `ZoomIn(x1,y1,x2,y2)` 在 3D 下完全无效、`setCoordSystem`
           // 是 JS API 不许写进指令流。所以确定性只能由宿主这边给。
           // 一次到位不带过渡：用户此刻看的是「正在长出来的图」，不需要视角动画。
-          if (!opts.incremental && targetMode === '3D') resetStandard3DView(ggbApplet, { durationMs: 0 });
+          if (switchView && targetMode === '3D') resetStandard3DView(ggbApplet, { durationMs: 0 });
 
           const execList = (list: string[]) => {
             const failed: string[] = [];
@@ -225,7 +248,7 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
           }
 
           // 2D 坐标自适应中心与视野 (仅全量初始构建时执行)
-          if (!opts.incremental && targetMode === '2D') {
+          if (switchView && targetMode === '2D') {
             const coords: number[][] = [];
             commandsToRun.forEach((cmd) => {
               const pairs = cmd.matchAll(/\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g);
@@ -254,7 +277,7 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
           // 落地之后再确认一次「3D 视图还在布局里」。白帧的现场就是「kernel 里对象都在、
           // 屏幕上什么都没有」——重发一次透视切换（已在该视角时是空操作、重复无害）
           // 把它拉回来；agent 手工自救做的也正是这一步。
-          if (!opts.incremental && targetMode === '3D' && !viewReady()) {
+          if (switchView && targetMode === '3D' && !viewReady()) {
             try {
               ggbApplet.setPerspective('T');
               ggbApplet.refreshViews();
