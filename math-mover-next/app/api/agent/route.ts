@@ -23,10 +23,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken, dataDirectory } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, runAgent, opencode, buildOpenCodeConfigContent, OPENCODE_BYOK_API_KEY_ENV, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, createTitleExtractor, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { RUNTIMES, runAgent, opencode, buildOpenCodeConfigContent, effectiveReasoningLevels, normalizeReasoningLevels, reasoningDialect, OPENCODE_BYOK_API_KEY_ENV, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, createTitleExtractor, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 import { agentRequestHistory } from '@/lib/agent-request-history';
 import { loadByokConfig, isByokRunnable, maskByokConfig } from '@/lib/byok-store';
+import { fetchByokModels } from '@/lib/byok-probe';
 import { buildSystemBrief } from '@/lib/server/system-brief';
+import { readFreshDetectionCache, writeDetectionCache, type DetectedRuntime } from '@/lib/server/detection-cache';
 import { constructionPath, ensureConstructionDraft, ensureMcpConfig, workspaceDir } from '@/lib/server/workspace';
 
 /**
@@ -199,10 +201,16 @@ export async function POST(req: Request): Promise<Response> {
       }
     }
   } else if (builtinCfg) {
-    model = builtinCfg.model;
-    // 档位不传：opencode 的 `--variant` 是**各家 provider 私有**的枚举，
-    // BYOK 端点无从枚举（同「档位清单永远取自 agent 自己的配置」这条口径）。
-    effort = undefined;
+    // 合成器里选的模型优先（那份清单就是同一个端点的真清单，见 GET）；
+    // 没选、或选了哨兵「默认」，就用设置里配的那个。
+    const pickedModel = typeof body.model === 'string' ? body.model.trim() : '';
+    model = pickedModel && pickedModel !== 'default' ? pickedModel : builtinCfg.model;
+    // 档位：只认**设置里手填过的那份清单**里的值（不自造档位），且**该格式得有档位方言**
+    // ——Anthropic/Gemini 下这个字段会被 provider 丢掉，传了也是骗人（见 REASONING_DIALECTS）。
+    const levels = reasoningDialect(builtinCfg.apiFormat)
+      ? effectiveReasoningLevels(builtinCfg.reasoningLevels)
+      : [];
+    effort = levels.includes(effort ?? '') ? effort : undefined;
   }
 
   // 题目图片：这里只校验载荷。递送通道分流、prompt 说明、argv 预算守卫都归
@@ -273,7 +281,18 @@ export async function POST(req: Request): Promise<Response> {
   // 用 {env:…} 引用——不落文件也不进 argv。
   const opencodeConfig = isBuiltin && builtinCfg
     ? buildOpenCodeConfigContent({
-        provider: { baseUrl: builtinCfg.baseUrl, model: builtinCfg.model, apiKey: builtinCfg.apiKey },
+        // ⚠ 声明的必须是**这一轮真正要跑的那个模型**（合成器里可能换过），
+        // 不是设置里存的那个——声明错了 opencode 会找不到模型。
+        // 档位同理：variants 要挂在同一个模型条目上。
+        provider: {
+          baseUrl: builtinCfg.baseUrl,
+          model: model ?? builtinCfg.model,
+          apiKey: builtinCfg.apiKey,
+          apiFormat: builtinCfg.apiFormat,
+          reasoningLevels: reasoningDialect(builtinCfg.apiFormat)
+            ? effectiveReasoningLevels(builtinCfg.reasoningLevels)
+            : [],
+        },
         // 与 ensureMcpConfig 同一份实体：同一个 node、同一个 mcp-stdio 入口、同一个 daemon 地址。
         mcp: {
           command: process.execPath,
@@ -360,27 +379,27 @@ export async function POST(req: Request): Promise<Response> {
   });
 }
 
-/** 探测结果缓存：探测要 spawn 各家 CLI（冷启动数秒），页面加载/设置面板会反复问。
- *  TTL 60 秒；「刷新检测」带 ?fresh=1 强制重探。画布健康检查不缓存。 */
-let detectionCache: { at: number; runtimes: unknown[] } | null = null;
-
 /** 健康检查：有哪些 agent 可用 + 画布是否连着。 */
 export async function GET(req: Request): Promise<Response> {
   const { detectRuntimes, listAgentModels } = await import('@mathmover/agent-runtime');
   const fresh = new URL(req.url).searchParams.has('fresh');
-  if (fresh || !detectionCache || Date.now() - detectionCache.at > 60_000) {
+  // 缓存放 lib/server/detection-cache.ts：`/api/byok` 保存后要作废它，
+  // 否则配置变了 60 秒内重开页面还是旧清单。
+  let runtimes = fresh ? null : readFreshDetectionCache();
+  if (!runtimes) {
     // 清单发现与探测**并行**发：两边都含 CLI 冷启动（秒级），串行会让墙钟翻倍
     // （实测 14s → 并行后≈单阶段）。探失败不影响运行时本身可用——只是没得选。
     const listingPromises = new Map(RUNTIMES.map((def) => [def.id,
       listAgentModels(def, resolveRuntimeTarget(def) ?? def.executable).catch(() => null)]));
+    // 内置位的模型清单也**同时**发：它是一次对端点的网络请求（超时 8s），
+    // 串在 CLI 冷启动后面会白等一轮（实测整条 GET 因此从 ~4s 涨到 ~11s）。
+    const byokRaw = loadByokConfig(dataDirectory());
+    const byokModelsPromise = isByokRunnable(byokRaw)
+      ? fetchByokModels(byokRaw!, fetch, { allPages: false }).catch(() => null)
+      : Promise.resolve(null);
     const runs = await detectRuntimes();
     // 显式宽类型：BYOK 合成条目不在 def 的字面量 id 联合里
-    const detected: Array<{
-      id: string; name: string; version: string | null; usable: boolean;
-      versionWarning?: string; authStatus?: string; authMessage?: string;
-      canAttachImages: boolean;
-      models?: { list: Array<{ id: string; label: string }>; source: string };
-    }> = await Promise.all(runs.map(async (d) => {
+    const detected: DetectedRuntime[] = await Promise.all(runs.map(async (d) => {
       let models: { list: Array<{ id: string; label: string }>; source: string } | undefined;
       if (d.usable) {
         const listing = await listingPromises.get(d.def.id);
@@ -401,10 +420,38 @@ export async function GET(req: Request): Promise<Response> {
     // 内置 Agent：**运行时不依赖本机 CLI**（随应用自带），但那份二进制缺失时要如实
     // 报出来——选择器说「可用」而真跑起来 spawn 失败才是最糟的形态。
     // **id 保持 'byok'**：设置仓、已存偏好、前端的 runtimeId 都不用动，换个标签就够了。
-    const byokRaw = loadByokConfig(dataDirectory());
     const byokView = maskByokConfig(byokRaw);
     const builtinBinary = resolveRuntimeTarget(opencode);
     const builtinReady = Boolean(builtinBinary) && isByokRunnable(byokRaw);
+    // 模型清单：取**端点上的真清单**（与设置页「获取模型列表」同一份数据、同一个探针）。
+    // 为什么必须给真清单：合成器的模型选择器要求「>1 个选项」才渲染，只给一条
+    // 「默认」时它整块藏起来——内置位看起来就是"没有模型可选"（2026-10-18 用户报的）。
+    // 取不到就退回单条默认：如实说"由设置决定"，**不编假模型**。
+    // 档位：**挂在模型上**（合成器与设置页都从选中模型取），所以每个模型条目都带上
+    // 同一份清单——档位清单是端点级的，不随模型变。两处都不给假数据：
+    // 没填、或该格式根本没有档位方言（Anthropic/Gemini）→ 留空，合成器会如实显示
+    // 「由 Agent 配置决定」，而不是给一个点了没反应的控件。
+    const levels = reasoningDialect(byokRaw?.apiFormat)
+      ? effectiveReasoningLevels(byokRaw?.reasoningLevels ?? '')
+      : [];
+    const reasoningOptions = levels.map((id) => ({ id, label: id }));
+    let builtinModels: { list: Array<{ id: string; label: string; reasoningOptions?: typeof reasoningOptions }>; source: 'live' | 'fallback' } =
+      { list: [{ id: 'default', label: '默认（用设置里配置的模型）' }], source: 'fallback' };
+    if (builtinReady && byokRaw) {
+      const listed = await byokModelsPromise;
+      if (listed?.ok && listed.models?.length) {
+        // 设置里已配好的那个**始终在列**——端点清单里没有它（改过名/私有部署）时
+        // 也不能让用户选不回来。
+        const list = [...listed.models];
+        if (byokRaw.model && !list.some((m) => m.id === byokRaw.model)) {
+          list.unshift({ id: byokRaw.model, label: `${byokRaw.model}（设置里配置的）` });
+        }
+        builtinModels = { list, source: 'live' };
+      }
+    }
+    if (reasoningOptions.length) {
+      builtinModels = { ...builtinModels, list: builtinModels.list.map((m) => ({ ...m, reasoningOptions })) };
+    }
     detected.push({
       id: 'byok',
       name: '内置 Agent（OpenCode）',
@@ -419,9 +466,10 @@ export async function GET(req: Request): Promise<Response> {
           : '未配置端点与模型，请在设置里填写',
       // 有原生附件通道（--file=<路径>）——题目图片能直接递送
       canAttachImages: true,
-      models: { list: [{ id: 'default', label: '默认（用设置里配置的模型）' }], source: 'live' },
+      models: builtinModels,
     });
-    detectionCache = { at: Date.now(), runtimes: detected };
+    writeDetectionCache(detected);
+    runtimes = detected;
   }
 
   let canvasConnected = false;
@@ -436,7 +484,7 @@ export async function GET(req: Request): Promise<Response> {
     ok: true,
     daemon: DAEMON_URL,
     canvasConnected,
-    runtimes: detectionCache?.runtimes ?? [],
+    runtimes,
     activeRuntime: RUNTIMES[0].id,
   });
 }

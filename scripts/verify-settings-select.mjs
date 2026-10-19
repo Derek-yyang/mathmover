@@ -29,6 +29,7 @@ try {
   await page.goto('http://localhost:3000/dashboard?action=new');
   await page.getByRole('button', { name: '设置', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '设置', exact: true });
+  await dialog.getByRole('tab', { name: /^本机 Agent/ }).click();
   const model = dialog.getByRole('combobox', { name: '选择模型', exact: true });
   const effort = dialog.getByRole('combobox', { name: '选择推理档位', exact: true });
   await model.waitFor();

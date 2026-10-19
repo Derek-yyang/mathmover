@@ -23,6 +23,8 @@
  * 决定不动这个环境变量。
  */
 
+import { API_FORMATS, resolveApiFormat, type ApiFormat } from './api-format.ts';
+
 /** 自定义 provider 的 id（模型下发给 CLI 时形如 `mathmover-byok/<模型>`）。 */
 export const OPENCODE_BYOK_PROVIDER_ID = 'mathmover-byok';
 
@@ -43,12 +45,23 @@ const CONTEXT_TOKEN_LIMIT = 200_000;
 const OUTPUT_TOKEN_LIMIT = 8_192;
 
 export interface OpenCodeProviderInput {
-  /** OpenAI 兼容端点根（形如 https://api.example.com/v1）。 */
+  /** Protocol base URL, including its version prefix (not the request path). */
   baseUrl: string;
+  apiFormat?: ApiFormat;
   /** 用户填的模型名。 */
   model: string;
   /** 密钥本体；空串 = 本地端点不需要（配置里就不写 apiKey 项）。 */
   apiKey: string;
+  /**
+   * 用户自填的推理档位清单（设置里那一栏）。空/不传 = 不提供档位。
+   *
+   * 自造 provider 在 OpenCode 的模型目录里没有条目，所以它**认不出任何 variant**——
+   * `--variant high` 会被静默忽略（实测）。真正的通道是在这里**声明 variants**：
+   * 每一项 `{ reasoningEffort: <值> }` 会被 provider 的 request 转换器并进请求体
+   * （实测端点收到 `reasoning_effort: "high"`）。这也正是 OpenCode 自己对
+   * `reasoning_options` 的做法。
+   */
+  reasoningLevels?: string[];
 }
 
 export interface OpenCodeMcpInput {
@@ -74,16 +87,86 @@ export function opencodeModelId(model: string): string {
     : `${OPENCODE_BYOK_PROVIDER_ID}/${raw}`;
 }
 
+/**
+ * 可选档位词汇表 —— 取自 **opencode 自己的档位集合**，不是我们编的。
+ * 二进制里它的定义是 `["none","minimal",...["low","medium","high"],"xhigh"]`，
+ * provider options 的枚举则是 `low|medium|high|xhigh|max`。
+ */
+export const REASONING_LEVEL_VOCABULARY = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const;
+
+/**
+ * 默认档位 —— **与 opencode 自己的默认一致**：它内部 `let Z = [...u]` 里
+ * `u = ["low","medium","high"]`。所以这个默认值有出处，不是我们拍的。
+ */
+export const DEFAULT_REASONING_LEVELS = ['low', 'medium', 'high'] as const;
+
+/**
+ * 生效的档位清单：存的是逗号串，**空 = 用默认三个**（不是"没有档位"）。
+ * 想表示"不要推理档位"，用词汇表里的 `none` 这个值——它本身就是一个真值。
+ */
+export function effectiveReasoningLevels(stored: string | undefined): string[] {
+  // 收 undefined：老配置、或桩数据里根本没这个字段时都得活（实测这一条炸过整个设置卡）
+  const saved = normalizeReasoningLevels((stored ?? '').split(','));
+  if (!saved.length) return [...DEFAULT_REASONING_LEVELS];
+  // 按**词汇表顺序**排：点阵的顺序不该取决于点击先后（用户先点 high 再点 low，
+  // 圆点却变成 high 在左，看着像坏了）。词表外的值（老配置/自填）原序接在后面。
+  const inVocab = REASONING_LEVEL_VOCABULARY.filter(value => saved.includes(value));
+  return [...inVocab, ...saved.filter(value => !(REASONING_LEVEL_VOCABULARY as readonly string[]).includes(value))];
+}
+
+/**
+ * 哪些**接口格式**有「推理档位」这个方言，以及它的建议值。
+ *
+ * 档位不是通用概念，是各家私有的方言——同一个 `--variant`，OpenCode 的 provider
+ * 转换器会把它映射成不同形状，**映射不出来的直接丢掉**（2026-10-18 逐格式实测）：
+ *
+ * | 格式 | 请求路径 | `reasoningEffort` 变成 |
+ * |---|---|---|
+ * | openai-chat | `/chat/completions` | `reasoning_effort: "<值>"` |
+ * | openai-responses | `/responses` | `reasoning: { effort: "<值>" }` |
+ * | anthropic | `/messages` | **丢掉**（那边是 `thinking.budget_tokens`） |
+ * | gemini | `:streamGenerateContent` | **丢掉**（那边是 `thinkingConfig.thinkingBudget`） |
+ *
+ * 所以：**没有条目的格式就不该给档位控件**——给一个点了没反应的控件是骗人。
+ * 条目里的 `suggestions` 是**服务商文档里写着的值**，不是我们自造的档位表；
+ * 用户仍可加自己的值（"任意 OpenAI 兼容端点"口径太宽，不能假装确定）。
+ */
+export const REASONING_DIALECTS: Partial<Record<ApiFormat, { field: string; suggestions: readonly string[] }>> = {
+  'openai-chat': { field: 'reasoning_effort', suggestions: ['minimal', 'low', 'medium', 'high'] },
+  'openai-responses': { field: 'reasoning.effort', suggestions: ['minimal', 'low', 'medium', 'high'] },
+};
+
+/** 该格式的档位方言；`undefined` = 这个格式没有档位可配（UI 据此收起控件）。 */
+export function reasoningDialect(apiFormat: ApiFormat | undefined): { field: string; suggestions: readonly string[] } | undefined {
+  return REASONING_DIALECTS[resolveApiFormat(apiFormat)];
+}
+
+/**
+ * 档位值清洗：去空白、去重、只留能当 variant 名的短 token（字母数字开头，含 `._-`）。
+ * 值会被当成 JSON 键与命令行参数用，形状必须收窄。
+ */
+export function normalizeReasoningLevels(levels: readonly string[] | undefined): string[] {
+  const seen = new Set<string>();
+  for (const raw of levels ?? []) {
+    const value = String(raw ?? '').trim();
+    if (!value || value.length > 32) continue;
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)) continue;
+    seen.add(value);
+  }
+  return [...seen];
+}
+
 function providerEntry(input: OpenCodeProviderInput): Record<string, unknown> | null {
   const baseUrl = (input.baseUrl ?? '').trim().replace(/\/+$/, '');
   const model = (input.model ?? '').trim();
   if (!baseUrl || !model) return null;
   const apiKey = (input.apiKey ?? '').trim();
+  const apiFormat = resolveApiFormat(input.apiFormat);
+  const levels = normalizeReasoningLevels(input.reasoningLevels);
   return {
     [OPENCODE_BYOK_PROVIDER_ID]: {
       name: 'MathMover',
-      // 我们的端点是 OpenAI 兼容的 /chat/completions（原 BYOK 循环也只走这条）。
-      npm: '@ai-sdk/openai-compatible',
+      npm: API_FORMATS.find(format => format.id === apiFormat)!.npm,
       options: {
         baseURL: baseUrl,
         ...(apiKey ? { apiKey: `{env:${OPENCODE_BYOK_API_KEY_ENV}}` } : {}),
@@ -94,6 +177,10 @@ function providerEntry(input: OpenCodeProviderInput): Record<string, unknown> | 
           // 声明收图，让附件能转发到端点（端点认不认是端点的事，不在这里判死）。
           modalities: { input: ['text', 'image'], output: ['text'] },
           limit: { context: CONTEXT_TOKEN_LIMIT, output: OUTPUT_TOKEN_LIMIT },
+          // 档位：每一项声明成一个 variant，`--variant <值>` 时并进请求体（见类型注释）
+          ...(levels.length
+            ? { variants: Object.fromEntries(levels.map((level) => [level, { reasoningEffort: level }])) }
+            : {}),
         },
       },
     },

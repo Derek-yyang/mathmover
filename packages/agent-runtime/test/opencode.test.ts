@@ -147,6 +147,12 @@ describe('opencode.buildArgs — 实测过的旗标集', () => {
     expect(again[again.indexOf('-m') + 1]).toBe(`${OPENCODE_BYOK_PROVIDER_ID}/deepseek-v3`);
   });
 
+  it('--variant 只在有档位时加（值必须是那次配置里声明过的 variant）', () => {
+    expect(opencode.buildArgs(base)).not.toContain('--variant');
+    const args = opencode.buildArgs({ ...base, reasoningEffort: 'high' });
+    expect(args[args.indexOf('--variant') + 1]).toBe('high');
+  });
+
   it('图片以 --file=<路径> 追加在最末（等号形式 + 无位置参数，绕开贪婪吞参）', () => {
     const args = opencode.buildArgs({ ...base, imagePaths: ['/sandbox/cw-1/mm-img-a/0.png', '/sandbox/cw-1/mm-img-a/1.jpg'] });
     expect(args.slice(-2)).toEqual([

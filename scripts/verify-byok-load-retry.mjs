@@ -38,16 +38,16 @@ await page.route('**/api/byok', async route => {
 await page.route('**/api/coursewares**', route => route.fulfill({ json: { records: [], bindingToken: 'fixture', capabilities: { archive: true, permanentDelete: true } } }));
 await page.routeWebSocket('ws://127.0.0.1:8787', socket => socket.onMessage(() => {}));
 await stubConstructionDraft(page);
-const panel = page.getByRole('tabpanel', { name: 'API 提供商', exact: true });
+const panel = page.getByRole('tabpanel', { name: '模型 API', exact: true });
 const retry = panel.getByRole('button', { name: '重试', exact: true });
 const endpoint = panel.getByRole('textbox', { name: 'API 端点', exact: true });
 const model = panel.getByRole('textbox', { name: '模型', exact: true });
 const key = panel.locator('input[type=password]');
-const test = panel.getByRole('button', { name: '测试 内置构造 Agent（BYOK）', exact: true });
+const test = panel.getByRole('button', { name: /^测试 / });
 const save = panel.getByRole('button', { name: '保存', exact: true });
 const open = async () => {
   await page.getByRole('button', { name: '设置', exact: true }).click();
-  await page.getByRole('tab', { name: 'API 提供商', exact: true }).click();
+  await page.getByRole('tab', { name: '模型 API', exact: true }).click();
 };
 const waitRead = async () => {
   for (let i = 0; i < 200 && !releaseRead; i++) await new Promise(resolve => setTimeout(resolve, 20));

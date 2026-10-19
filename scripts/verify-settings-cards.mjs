@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import { stubConstructionDraft } from './lib/stub-construction.mjs';
 
 // 设置卡片重构（2026-10-13 评审后）的验收：双 Tab、卡片信息设计（模型一眼可见）、
-// 状态芯片、连接测试、设置与聊天区共写同一份模型状态、BYOK 归位 API 提供商 Tab。
+// 状态芯片、连接测试、设置与聊天区共写同一份模型状态、BYOK 归位 模型 API Tab。
 // agent 检测走真实接口（真版本/真芯片）；仅 /api/agent/test 打桩（避免真跑 CLI 探测）。
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const context = await browser.newContext({ viewport: { width: 1544, height: 900 } });
@@ -15,7 +15,7 @@ const chip = () => page.locator('li .rounded-full', { hasText: /已登录|未登
 const openSettings = async () => {
   for (let attempt = 0; attempt < 4; attempt++) {
     await page.getByRole('button', { name: '设置', exact: true }).click({ timeout: 2_000 }).catch(() => {});
-    if (await page.getByRole('tab', { name: /^本机 CLI/ }).count()) return;
+    if (await page.getByRole('tab', { name: /^本机 Agent/ }).count()) return;
     await page.waitForTimeout(500);
   }
   throw new Error('设置弹窗未打开');
@@ -39,12 +39,13 @@ try {
   await nav.getByRole('button', { name: '帮助与快捷键', exact: true }).waitFor();
   await nav.getByRole('button', { name: '关于', exact: true }).waitFor();
 
-  // 1. 双 Tab：默认「本机 CLI」，BYOK 不在 CLI 列表里
-  const cliTab = page.getByRole('tab', { name: /^本机 CLI/ });
-  const providerTab = page.getByRole('tab', { name: 'API 提供商', exact: true });
+  // 1. 双 Tab：默认「模型 API」，本机 Agent 在右侧且不含 BYOK
+  const cliTab = page.getByRole('tab', { name: /^本机 Agent/ });
+  const providerTab = page.getByRole('tab', { name: '模型 API', exact: true });
   await cliTab.waitFor();
-  assert.equal(await cliTab.getAttribute('aria-selected'), 'true', 'CLI tab active by default');
-  assert.equal(await page.getByRole('heading', { name: '内置构造 Agent（BYOK）' }).count(), 0, 'BYOK lives in the provider tab, not the CLI list');
+  assert.equal(await providerTab.getAttribute('aria-selected'), 'true', 'model API tab active by default');
+  await cliTab.click();
+  assert.equal(await page.getByRole('heading', { name: '内置 Agent' }).count(), 0, 'BYOK lives in the provider tab, not the CLI list');
 
   // 2. 卡片信息设计：名称 + 官方来源副标题 + 版本 + 状态芯片 + 测试/使用
   await page.getByText('Anthropic 官方 CLI').first().waitFor();
@@ -105,20 +106,20 @@ try {
       'install wizard collapsed when agents are detected');
   }
 
-  // 7. Tab 键盘切换 + BYOK 卡片在 API 提供商里（含测试按钮与密钥掩码语义）
+  // 7. Tab 键盘切换 + BYOK 卡片在 模型 API里（含测试按钮与密钥掩码语义）
   await cliTab.focus();
-  await page.keyboard.press('End');
-  await page.getByRole('heading', { name: '内置构造 Agent（BYOK）' }).waitFor();
-  await page.getByRole('button', { name: '测试 内置构造 Agent（BYOK）' }).waitFor();
-  const providerPanel = page.getByRole('tabpanel', { name: 'API 提供商' });
+  await page.keyboard.press('Home');
+  await page.getByRole('heading', { name: '内置 Agent' }).waitFor();
+  await page.getByRole('button', { name: '测试 内置 Agent' }).waitFor();
+  const providerPanel = page.getByRole('tabpanel', { name: '模型 API' });
   const endpointInput = providerPanel.getByRole('textbox', { name: 'API 端点', exact: true });
   await page.waitForFunction(() => document.querySelector('#settings-panel-providers input[type=url]')?.value === 'https://fixture.invalid/v1');
-  await page.getByRole('button', { name: '测试 内置构造 Agent（BYOK）' }).click();
+  await page.getByRole('button', { name: '测试 内置 Agent' }).click();
   await providerPanel.getByRole('status').filter({ hasText: '就绪 · 已登录（验收桩）' }).waitFor();
   await endpointInput.fill('https://draft.invalid/v1');
   await providerPanel.getByRole('textbox', { name: '模型', exact: true }).fill('draft-model');
   await providerPanel.getByLabel('API 密钥（本地端点可留空）', { exact: true }).fill('fixture-draft-key');
-  assert(await page.getByRole('button', { name: '测试 内置构造 Agent（BYOK）' }).isDisabled(), 'unsaved configuration cannot be tested');
+  assert(await page.getByRole('button', { name: '测试 内置 Agent' }).isDisabled(), 'unsaved configuration cannot be tested');
   await providerPanel.getByText('配置已修改，请先保存再测试。', { exact: true }).waitFor();
   assert.equal(await providerPanel.getByRole('status').filter({ hasText: '就绪 · 已登录（验收桩）' }).count(), 0, 'editing clears the old test result');
 
@@ -128,7 +129,7 @@ try {
   await nav.getByRole('button', { name: '关于', exact: true }).click();
   await page.getByText('数据与密钥', { exact: true }).first().waitFor();
   await nav.getByRole('button', { name: '模型与提供商', exact: true }).click();
-  await page.getByRole('tab', { name: 'API 提供商', exact: true }).waitFor();
+  await page.getByRole('tab', { name: '模型 API', exact: true }).waitFor();
   assert.equal(await endpointInput.inputValue(), 'https://draft.invalid/v1', 'section switching retains unsaved endpoint');
   assert.equal(await providerPanel.getByRole('textbox', { name: '模型', exact: true }).inputValue(), 'draft-model', 'section switching retains unsaved model');
   assert.equal(await providerPanel.getByLabel('API 密钥（本地端点可留空）', { exact: true }).inputValue(), 'fixture-draft-key', 'section switching retains unsaved key');
@@ -136,8 +137,8 @@ try {
 
   await mkdir(new URL('../spike-out/verify-settings/', import.meta.url), { recursive: true });
   await page.screenshot({ path: new URL('../spike-out/verify-settings/providers-tab.png', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
-  await page.getByRole('tab', { name: /^本机 CLI/ }).click();
-  await page.getByRole('tabpanel', { name: /^本机 CLI/ }).getByRole('status').filter({ hasText: '就绪 · 已登录（验收桩）' }).waitFor();
+  await page.getByRole('tab', { name: /^本机 Agent/ }).click();
+  await page.getByRole('tabpanel', { name: /^本机 Agent/ }).getByRole('status').filter({ hasText: '就绪 · 已登录（验收桩）' }).waitFor();
   await page.waitForTimeout(300);   // 等边框过渡收尾，避免截到中间帧
   await page.screenshot({ path: new URL('../spike-out/verify-settings/cli-tab.png', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
 

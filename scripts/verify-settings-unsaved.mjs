@@ -52,7 +52,7 @@ const continueEditing = confirm.getByRole('button', { name: '继续编辑', exac
 const discard = confirm.getByRole('button', { name: '放弃并关闭', exact: true });
 async function openApi() {
   await trigger.click();
-  await settings.getByRole('tab', { name: 'API 提供商', exact: true }).click();
+  await settings.getByRole('tab', { name: '模型 API', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('#settings-panel-providers input[type=url]')?.disabled);
 }
 async function expectClosed() {

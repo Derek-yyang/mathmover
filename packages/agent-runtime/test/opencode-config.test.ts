@@ -6,7 +6,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildOpenCodeConfigContent,
+  DEFAULT_REASONING_LEVELS,
+  effectiveReasoningLevels,
+  normalizeReasoningLevels,
   opencodeModelId,
+  reasoningDialect,
+  REASONING_LEVEL_VOCABULARY,
   OPENCODE_BYOK_API_KEY_ENV,
   OPENCODE_BYOK_PROVIDER_ID,
 } from '../src/opencode-config.ts';
@@ -25,6 +30,60 @@ describe('opencodeModelId', () => {
 });
 
 describe('buildOpenCodeConfigContent', () => {
+  it.each([
+    ['openai-chat', '@ai-sdk/openai-compatible'],
+    ['openai-responses', '@ai-sdk/openai'],
+    ['anthropic', '@ai-sdk/anthropic'],
+    ['gemini', '@ai-sdk/google'],
+  ] as const)('uses the %s SDK, while preserving the supplied base URL and env key', (apiFormat, npm) => {
+    const source = buildOpenCodeConfigContent({ provider: { ...provider, apiFormat } });
+    const entry = parse(source).provider[OPENCODE_BYOK_PROVIDER_ID];
+    expect(entry.npm).toBe(npm);
+    expect(entry.options.baseURL).toBe(provider.baseUrl);
+    expect(entry.options.apiKey).toBe(`{env:${OPENCODE_BYOK_API_KEY_ENV}}`);
+    expect(source).not.toContain(provider.apiKey);
+  });
+
+  it('does not silently fall back on an unsupported format', () => {
+    expect(() => buildOpenCodeConfigContent({ provider: { ...provider, apiFormat: 'unknown' as any } })).toThrow('接口格式');
+  });
+
+  it('档位：每个值声明成一个 variant（`--variant <值>` 时并进请求体）', () => {
+    const cfg = parse(buildOpenCodeConfigContent({ provider: { ...provider, reasoningLevels: ['low', 'high'] }, mcp }));
+    expect(cfg.provider[OPENCODE_BYOK_PROVIDER_ID].models['deepseek-v3'].variants).toEqual({
+      low: { reasoningEffort: 'low' },
+      high: { reasoningEffort: 'high' },
+    });
+  });
+
+  it('档位默认：空配置 = 默认那三个（与 opencode 自己的默认一致），不是"没有档位"', () => {
+    expect(effectiveReasoningLevels('')).toEqual([...DEFAULT_REASONING_LEVELS]);
+    expect(effectiveReasoningLevels(undefined)).toEqual([...DEFAULT_REASONING_LEVELS]);
+    expect(effectiveReasoningLevels('   ')).toEqual(['low', 'medium', 'high']);
+    expect(effectiveReasoningLevels('xhigh')).toEqual(['xhigh']);
+    expect(effectiveReasoningLevels('none')).toEqual(['none']);
+    // 按词汇表顺序排：点阵的顺序不该取决于点击先后
+    expect(effectiveReasoningLevels('high,minimal,low')).toEqual(['minimal', 'low', 'high']);
+    // 词表外的值（老配置/自填）原序接在后面，不丢
+    expect(effectiveReasoningLevels('high,turbo')).toEqual(['high', 'turbo']);
+    // 词汇表取自 opencode 自己的档位集合
+    expect([...REASONING_LEVEL_VOCABULARY]).toEqual(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
+    expect(DEFAULT_REASONING_LEVELS).toEqual(['low', 'medium', 'high']);
+  });
+
+  it('档位：不填就不声明 variants（别给自造 provider 编一套档位）', () => {
+    for (const levels of [undefined, [] as string[]]) {
+      const cfg = parse(buildOpenCodeConfigContent({ provider: { ...provider, reasoningLevels: levels }, mcp }));
+      expect(cfg.provider[OPENCODE_BYOK_PROVIDER_ID].models['deepseek-v3'].variants).toBeUndefined();
+    }
+  });
+
+  it('normalizeReasoningLevels：去空白/去重，形状不合的丢掉（它要当 JSON 键与命令行参数）', () => {
+    expect(normalizeReasoningLevels([' low ', 'high', 'high', '', 'bad value!', 'x'.repeat(40), 'gpt-5.1-mini']))
+      .toEqual(['low', 'high', 'gpt-5.1-mini']);
+    expect(normalizeReasoningLevels(undefined)).toEqual([]);
+  });
+
   it('provider：OpenAI 兼容包 + baseURL + 密钥走 {env:…} 引用（不落明文）', () => {
     const cfg = parse(buildOpenCodeConfigContent({ provider, mcp }));
     const entry = cfg.provider[OPENCODE_BYOK_PROVIDER_ID];

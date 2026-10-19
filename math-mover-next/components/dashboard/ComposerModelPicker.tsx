@@ -19,7 +19,7 @@
 import { useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { Popover } from 'radix-ui';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/assistant-ui/ui/tooltip';
+import EffortDots from '@/components/EffortDots';
 import { effortDisplay, modelPresentation, type EffortOption } from '@/lib/agent-picker';
 
 export type { EffortOption };
@@ -159,54 +159,9 @@ export default function ComposerModelPicker({
           </div>}
           <div className={`${models.length > 1 ? 'border-t border-[var(--mm-border-stone-200)]' : ''} px-3 py-2.5`}>
             {effort ? (
-              <div className="flex items-center gap-2.5">
-                <span id="composer-effort-label" className="shrink-0 whitespace-nowrap text-xs text-[var(--mm-text-stone-600)]"
-                  title={effort.pinned ? undefined : '当前使用 Agent 的默认档位'}>
-                  推理档位{!effort.pinned && <span className="sr-only">（默认）</span>}
-                </span>
-                {/* 小圆点保持原有外观，每个档位的整格都可点；较高的按钮借用已有纵向留白。
-                    悬停与键盘聚焦时提示名称，右端仍显示当前档位。 */}
-                <TooltipProvider delayDuration={250} skipDelayDuration={100} disableHoverableContent>
-                  <div
-                    role="radiogroup"
-                    aria-labelledby="composer-effort-label"
-                    className="relative flex h-4 min-w-0 flex-1 items-center"
-                  >
-                    {reasoningOptions!.map((o, index) => {
-                      const active = o.id === effort.option.id;
-                      return (
-                        <Tooltip key={o.id}>
-                          <TooltipTrigger asChild>
-                            <button
-                              ref={(el) => { dotRefs.current[index] = el; }}
-                              type="button"
-                              role="radio"
-                              aria-checked={active}
-                              aria-label={o.label}
-                              tabIndex={active ? 0 : -1}
-                              onClick={() => pickEffort(o.id)}
-                              onKeyDown={(event) => onDotKeyDown(event, index)}
-                              className="group relative flex h-7 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]"
-                            >
-                              <span aria-hidden className={`pointer-events-none absolute top-1/2 h-px -translate-y-1/2 bg-[var(--mm-bg-stone-200)] ${index === 0 ? 'left-1/2' : 'left-0'} ${index === reasoningOptions!.length - 1 ? 'right-1/2' : 'right-0'}`} />
-                              <span aria-hidden className={`pointer-events-none relative shrink-0 rounded-full transition-colors motion-reduce:transition-none ${active ? 'h-3.5 w-3.5 bg-[var(--mm-bg-emerald-700)]' : 'h-2 w-2 bg-[var(--mm-bg-stone-300)] group-hover:bg-[var(--mm-bg-stone-400)]'}`} />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top" sideOffset={6} collisionPadding={12} className="pointer-events-none px-2 py-1 motion-reduce:animate-none">
-                            {o.label}
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    })}
-                  </div>
-                </TooltipProvider>
-                <span className="grid shrink-0 whitespace-nowrap text-xs text-[var(--mm-text-stone-700)]">
-                  {/* Overlapping hidden labels reserve the actual widest option without measuring the DOM. */}
-                  {reasoningOptions!.map(option => <span key={option.id} aria-hidden="true"
-                    className="invisible col-start-1 row-start-1">（{option.label}）</span>)}
-                  <span className="col-start-1 row-start-1 text-right">（{effort.option.label}）</span>
-                </span>
-              </div>
+              // 点阵与设置页的实时预览**共用同一个组件**（见 components/EffortDots.tsx）
+              <EffortDots options={reasoningOptions!} currentId={effort.option.id} pinned={effort.pinned}
+                onSelect={pickEffort} onDotKeyDown={onDotKeyDown} dotRefs={dotRefs} labelId="composer-effort-label" />
             ) : (
               <p className="text-xs leading-5 text-[var(--mm-text-stone-500)]">推理档位：由 Agent 配置决定</p>
             )}

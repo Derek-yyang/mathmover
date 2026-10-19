@@ -1188,7 +1188,7 @@ export const opencode: RuntimeDefinition = {
   imageMaterializeInCwd: true,
   // 模型由 MathMover 的 BYOK 配置给出，不列清单、不探目录（不留手填入口，同 codex）
   fallbackModels: [DEFAULT_MODEL_OPTION],
-  buildArgs({ resumeSessionId, imagePaths = [], extraArgs = [], model, cwd }) {
+  buildArgs({ resumeSessionId, imagePaths = [], extraArgs = [], model, reasoningEffort, cwd }) {
     const args = [
       'run',
       '--format', 'json',
@@ -1200,6 +1200,9 @@ export const opencode: RuntimeDefinition = {
     ];
     // `-m` 收 `provider/model`：我们的自定义 provider 见 opencode-config.ts
     if (model) args.push('-m', opencodeModelId(model));
+    // 推理档位：值必须是那次配置里**声明过的 variant**（见 opencode-config.ts 的
+    // `reasoningLevels` → `variants`）。没声明就传 = 被静默忽略，不报错也不生效。
+    if (reasoningEffort) args.push('--variant', reasoningEffort);
     if (resumeSessionId) args.push('-s', resumeSessionId);
     args.push(...extraArgs);
     // 附件放最后：`-f/--file` 是 yargs 数组、会贪婪吞后续非旗标 token，

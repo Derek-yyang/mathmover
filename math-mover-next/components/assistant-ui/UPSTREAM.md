@@ -48,6 +48,25 @@ Local integration changes:
   motion; long labels are constrained to the viewport. Model/effort state is
   still owned by the existing AgentRuntimeProvider.
 
+- The API format field reuses the same Select and dialog portal boundary. Its
+  four protocol choices are shared with the server-side OpenCode configuration;
+  the browser does not import any SDK. Missing legacy values default to Chat
+  Completions. Format edits participate in the existing unsaved-draft guard and
+  invalidate test results; tests use the saved format's model-list API/auth,
+  without generating model output or treating a missing list as success.
+
+- API model discovery uses the official shadcn/ui `command.json` (cmdk),
+  retrieved 2026-10-18, inside the existing Radix Popover. Its imports, search
+  divider and icon accessibility are adapted to the host; upstream filtering,
+  keyboard selection and scrolling remain intact. The list stays in Settings'
+  focus scope and collision boundary; Escape closes it before the dialog. The
+  ordinary model text field remains available for manual IDs. Discovery uses
+  the current draft through a same-origin POST, resolves blank keys only on the
+  server, follows Anthropic/Gemini pagination and never writes configuration.
+  Endpoint/format/key changes abort pending discovery and clear the old list;
+  request identity checks also ignore stale responses. No polling or browser
+  persistence is added.
+
 - The canvas export menu uses a local Radix DropdownMenu wrapper, the same
   foundation as the official ThreadListItemMore primitives. Both share menu
   surface styles; keyboard navigation, dismissal and focus restoration use

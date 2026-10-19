@@ -17,6 +17,12 @@ interface AgentRuntimeState {
   setBusy: (busy: boolean) => void;
   selectRuntime: (id: string) => void;
   refreshRuntimes: (options?: { fresh?: boolean }) => Promise<void>;
+  /**
+   * 就地更新某个运行时条目 —— 设置页保存后立刻生效，**不重跑一遍探测**。
+   * 为什么需要它：运行时清单是进页面时取一次的，而一轮重探测含三条 CLI 的冷启动
+   * （~10s）。保存个档位却让用户等一轮重探测、或者看到旧值直到刷新页面，都不对。
+   */
+  patchRuntime: (id: string, patch: Partial<RuntimeOption>) => void;
   /** 当前 agent 的模型选择。聊天区 composer 选择器与设置卡片写同一份状态。 */
   selectedModel: string;
   /** 当前「agent + 模型」的推理档位；undefined = 用 agent 配置的默认档。 */
@@ -79,6 +85,10 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
     return () => { pending.current?.abort(); pending.current = null; };
   }, [refreshRuntimes]);
 
+  const patchRuntime = useCallback((id: string, patch: Partial<RuntimeOption>) => {
+    setRuntimes(prev => prev.map(item => (item.id === id ? { ...item, ...patch } : item)));
+  }, []);
+
   const selectRuntime = useCallback((id: string) => {
     if (busy || !runtimes.some(item => item.id === id && item.usable)) return;
     setActiveRuntimeId(id);
@@ -133,7 +143,7 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
     [effortByModel],
   );
 
-  return <AgentRuntimeContext.Provider value={{ runtimes, activeRuntimeId, detecting, detectionError, runtimeFailures, recordFailure, clearFailure, busy, setBusy, selectRuntime, refreshRuntimes, selectedModel, selectedEffort, selectModel, selectEffort, modelFor, effortFor }}>
+  return <AgentRuntimeContext.Provider value={{ runtimes, activeRuntimeId, detecting, detectionError, runtimeFailures, recordFailure, clearFailure, busy, setBusy, selectRuntime, refreshRuntimes, patchRuntime, selectedModel, selectedEffort, selectModel, selectEffort, modelFor, effortFor }}>
     {children}
   </AgentRuntimeContext.Provider>;
 }

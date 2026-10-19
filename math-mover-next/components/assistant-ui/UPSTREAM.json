@@ -205,6 +205,12 @@
       "url": "https://r.assistant-ui.com/badge.json",
       "file": "components/assistant-ui/ui/badge.tsx",
       "sha256": "d8386d947b8a8c6d965de680503e6af5ed66068cd61b4d9ecc722a4cee1d6ffc"
+    },
+    {
+      "url": "https://ui.shadcn.com/r/styles/new-york/command.json",
+      "file": "components/assistant-ui/ui/command.tsx",
+      "sha256": "bafb47a1bf2378230b53d4105cd6d246ac3ddd812d11b032157a1f9ddb38bad7",
+      "retrievedAt": "2026-10-18"
     }
   ]
 }

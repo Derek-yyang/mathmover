@@ -16,7 +16,7 @@ const runtimes = [
   { id: 'claude-code', name: 'Claude Code', version: '2.1.300', usable: true, authStatus: 'ok', models },
   { id: 'codex', name: 'Codex', version: '0.162.1', usable: true, authStatus: 'missing', models },
   { id: 'dsh', name: 'DeepSeek Harness', version: '0.1.1-rc.1', usable: true, authStatus: 'unknown', models },
-  { id: 'byok', name: '内置构造 Agent（BYOK）', version: null, usable: true },
+  { id: 'byok', name: '内置 Agent（OpenCode）', version: null, usable: true },
 ];
 let releaseTest, releaseDetection;
 await page.route('**/api/agent**', async route => {
@@ -39,14 +39,20 @@ try {
   await page.goto('http://localhost:3000/dashboard?action=new', { timeout: 60_000 });
   await page.getByRole('button', { name: '设置', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: '设置', exact: true });
-  const cliTab = dialog.getByRole('tab', { name: /^本机 CLI/ });
-  const apiTab = dialog.getByRole('tab', { name: 'API 提供商', exact: true });
+  const cliTab = dialog.getByRole('tab', { name: /^本机 Agent/ });
+  const apiTab = dialog.getByRole('tab', { name: '模型 API', exact: true });
   const cli = dialog.locator('#settings-panel-cli');
   const api = dialog.locator('#settings-panel-providers');
   const nav = dialog.getByRole('navigation', { name: '设置分区' });
-  await cli.getByRole('button', { name: '测试 Claude Code', exact: true }).waitFor();
+  await api.waitFor({ state: 'visible' });
+  assert.equal(await apiTab.getAttribute('aria-selected'), 'true', 'model API is the default tab');
+  assert((await apiTab.boundingBox()).x < (await cliTab.boundingBox()).x, 'model API comes first visually');
+  await apiTab.focus();
+  await apiTab.press('End');
+  await cli.waitFor({ state: 'visible' });
+  assert(await cliTab.evaluate(el => el === document.activeElement));
   await cliTab.focus();
-  await cliTab.press('End');
+  await cliTab.press('Home');
   await api.waitFor({ state: 'visible' });
   assert.equal(await apiTab.getAttribute('aria-selected'), 'true');
   assert(await apiTab.evaluate(el => el === document.activeElement));
@@ -56,13 +62,13 @@ try {
   await endpoint.fill('https://draft.invalid/v1');
   await api.getByRole('textbox', { name: '模型', exact: true }).fill('draft-model');
   await apiTab.focus();
-  await apiTab.press('Home');
+  await apiTab.press('End');
   await cli.waitFor({ state: 'visible' });
   assert(await cliTab.evaluate(el => el === document.activeElement));
-  await cliTab.press('ArrowRight');
+  await cliTab.press('ArrowLeft');
   await api.waitFor({ state: 'visible' });
   assert.equal(await endpoint.inputValue(), 'https://draft.invalid/v1');
-  await apiTab.press('ArrowLeft');
+  await apiTab.press('ArrowRight');
   await cli.waitFor({ state: 'visible' });
 
   const test = cli.getByRole('button', { name: '测试 Claude Code', exact: true });

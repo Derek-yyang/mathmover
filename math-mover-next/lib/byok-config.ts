@@ -6,11 +6,33 @@
  * 传空 = 保留原 key（改端点/模型不必重填）。
  */
 
+import { resolveApiFormat, type ApiFormat } from '../../packages/agent-runtime/src/api-format.ts';
+
+export { API_FORMATS, DEFAULT_API_FORMAT, isApiFormat, type ApiFormat } from '../../packages/agent-runtime/src/api-format.ts';
+
 export interface ByokConfigView {
+  apiFormat: ApiFormat;
   baseUrl: string;
   model: string;
+  /** 用户手填的推理档位清单（逗号分隔）；空 = 不提供档位 */
+  reasoningLevels: string;
   apiKeyConfigured: boolean;
   apiKeyTail: string;
+}
+
+export interface ByokModel { id: string; label: string }
+
+/** Read using the current draft; a blank key is resolved server-side from saved config. */
+export async function fetchByokModelList(input: { apiFormat: ApiFormat; baseUrl: string; apiKey: string }, signal: AbortSignal): Promise<ByokModel[]> {
+  const res = await fetch('/api/byok/models', {
+    method: 'POST', signal, cache: 'no-store',
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+  });
+  const data = await res.json() as { ok?: boolean; models?: ByokModel[]; message?: string; error?: string };
+  if (!res.ok || data.ok !== true || !Array.isArray(data.models)) {
+    throw new Error(data.message ?? data.error ?? `获取模型列表失败（HTTP ${res.status}）`);
+  }
+  return data.models;
 }
 
 /**
@@ -26,12 +48,16 @@ export function purgeLegacyByokKey(): void {
 export async function fetchByokConfig(): Promise<ByokConfigView> {
   const res = await fetch('/api/byok');
   if (!res.ok) throw new Error(`读取 BYOK 配置失败（HTTP ${res.status}）`);
-  return res.json();
+  const view = await res.json() as ByokConfigView;
+  return { ...view, apiFormat: resolveApiFormat(view.apiFormat) };
 }
 
 export async function saveByokConfig(input: {
   baseUrl: string;
   model: string;
+  apiFormat?: ApiFormat;
+  /** 推理档位清单（逗号分隔）。不传 = 保留原值。 */
+  reasoningLevels?: string;
   /** 空 = 保留已存的 key */
   apiKey?: string;
 }): Promise<ByokConfigView> {
@@ -41,5 +67,6 @@ export async function saveByokConfig(input: {
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(`保存 BYOK 配置失败（HTTP ${res.status}）`);
-  return res.json();
+  const view = await res.json() as ByokConfigView;
+  return { ...view, apiFormat: resolveApiFormat(view.apiFormat) };
 }

@@ -2,8 +2,8 @@
 
 /**
  * 设置壳（2026-10-13 评审后二次重构）：**左侧分区导航**——设置域会持续增长
- * （OpenDesign 型的可扩展性），导航即目录；「模型与提供商」域内保留本机 CLI /
- * API 提供商双 Tab（装机与填密钥是两种心智）。弹窗壳保留：设置是打断而非
+ * （OpenDesign 型的可扩展性），导航即目录；「模型与提供商」域内保留本机 Agent /
+ * 模型 API 双 Tab（装机与填密钥是两种心智）。弹窗壳保留：设置是打断而非
  * 目的地，画布才是核心（PRODUCT.md）。全局动作（刷新检测）在头部。
  */
 
@@ -51,7 +51,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     if (!state.dirty && !state.saving) setConfirmClose(false);
   }, []);
   const [section, setSection] = useState<Section>('agents');
-  const [tab, setTab] = useState<'cli' | 'providers'>('cli');
+  const [tab, setTab] = useState<'cli' | 'providers'>('providers');
   const { runtimes, detecting, refreshRuntimes } = useAgentRuntimeState();
   const cliCount = runtimes.filter(item => item.id !== 'byok' && item.usable).length;
   const requestClose = (proceed = onClose) => {
@@ -123,19 +123,19 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
             <Tabs value={tab} onValueChange={value => { if (value === 'cli' || value === 'providers') setTab(value); }} className="gap-0">
               <TabsList variant="line" aria-label="模型与提供商"
                 className="mb-4 h-10 w-full justify-start border-b border-[var(--mm-border-stone-200)] p-0 group-data-[orientation=horizontal]/tabs:h-10">
-                <TabsTrigger value="cli" id="settings-tab-cli" aria-controls="settings-panel-cli" className={settingsTab}>
-                  本机 CLI{cliCount > 0 ? `（${cliCount}）` : ''}
-                </TabsTrigger>
                 <TabsTrigger value="providers" id="settings-tab-providers" aria-controls="settings-panel-providers" className={settingsTab}>
-                  API 提供商
+                  模型 API
+                </TabsTrigger>
+                <TabsTrigger value="cli" id="settings-tab-cli" aria-controls="settings-panel-cli" className={settingsTab}>
+                  本机 Agent{cliCount > 0 ? `（${cliCount}）` : ''}
                 </TabsTrigger>
               </TabsList>
               {/* 两个面板保持挂载（hidden 切换）：表单草稿与测试结果不因切 Tab 蒸发 */}
-              <TabsContent forceMount value="cli" id="settings-panel-cli" aria-labelledby="settings-tab-cli" hidden={tab !== 'cli'}>
-                <AgentSettings />
-              </TabsContent>
               <TabsContent forceMount value="providers" id="settings-panel-providers" aria-labelledby="settings-tab-providers" hidden={tab !== 'providers'}>
                 <ByokSettings onDraftStateChange={handleDraftState} />
+              </TabsContent>
+              <TabsContent forceMount value="cli" id="settings-panel-cli" aria-labelledby="settings-tab-cli" hidden={tab !== 'cli'}>
+                <AgentSettings />
               </TabsContent>
             </Tabs>
           </div>

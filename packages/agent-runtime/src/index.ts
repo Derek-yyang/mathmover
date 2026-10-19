@@ -1,5 +1,6 @@
 export * from './defs.ts';
 export * from './opencode-config.ts';
+export * from './api-format.ts';
 export * from './resolve.ts';
 export * from './capabilities.ts';
 export * from './detect.ts';

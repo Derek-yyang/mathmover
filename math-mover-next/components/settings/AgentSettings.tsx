@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * 「本机 CLI」设置面 —— 卡片化布局（对比评审 2026-10-13 后重构）。
+ * 「本机 Agent」设置面 —— 卡片化布局（对比评审 2026-10-13 后重构）。
  *
  * 信息设计目标：老师两秒回答「在用哪个 agent、跑什么模型、能不能跑通」。
  *   卡片 = 徽标 + 名称与状态 + 次要来源与版本 + 测试 + 使用；
@@ -190,7 +190,7 @@ function AgentCard({ runtime, selected }: { runtime: RuntimeOption; selected: bo
 export default function AgentSettings() {
   const { runtimes, activeRuntimeId, detecting, detectionError, runtimeFailures, refreshRuntimes } = useAgentRuntimeState();
   const groups = groupAgents(runtimes, activeRuntimeId);
-  // BYOK 是「API 提供商」Tab 的居民，不进本机 CLI 卡片列表
+  // BYOK 是「模型 API」Tab 的居民，不进本机 Agent 卡片列表
   const detected = groups.detected.filter(runtime => runtime.id !== 'byok');
   const unavailable = groups.unavailable.filter(runtime => runtime.id !== 'byok');
   const currentUnavailable = groups.currentUnavailable?.id === 'byok' ? undefined : groups.currentUnavailable;

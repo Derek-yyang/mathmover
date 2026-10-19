@@ -1,40 +1,30 @@
 /**
  * 连接测试 —— 设置页每张卡片的「测试」按钮。
  *
- * 语义：回答老师课前唯一真正关心的问题「它现在跑得通吗」，三态收口：
- *   ready          就绪（可跑）
+ * 语义：非生成式预检，不保证真实生成与工具调用能力：
+ *   ready          CLI 预检通过 / API 模型列表可读
  *   not-logged-in  起得来但没登录/密钥未授权
  *   broken         起不来 / 端点不可达
  *   unconfigured   内置位还没填端点与模型
+ *   unverified     端点未提供预期的模型列表，无法验证
  *
  * CLI 侧复用 detectRuntimes 的探测（版本门 + 登录预检），不发任何模型请求；
- * 内置位侧探 `${baseUrl}/models`（多数 OpenAI 兼容端点都有；404/405 视为可达）。
+ * 内置位按已保存协议认证并读取模型列表，不调用模型；列表缺失时不冒充测试通过。
  */
 
 import { RUNTIMES, detectRuntimes } from '@mathmover/agent-runtime';
 import { dataDirectory } from '../../../../../packages/daemon/src/data-directory.ts';
-import { loadByokConfig, isByokRunnable, maskByokConfig } from '@/lib/byok-store';
+import { loadByokConfig, isByokRunnable } from '@/lib/byok-store';
+import { probeByokConfig } from '@/lib/byok-probe';
 
-type TestResult = { ok: boolean; status: 'ready' | 'not-logged-in' | 'broken' | 'unconfigured'; message: string; version?: string | null };
+type TestResult = { ok: boolean; status: 'ready' | 'not-logged-in' | 'broken' | 'unconfigured' | 'unverified'; message: string; version?: string | null };
 
 async function testByok(): Promise<TestResult> {
   const config = loadByokConfig(dataDirectory());
   if (!isByokRunnable(config)) {
     return { ok: false, status: 'unconfigured', message: '未配置 API 端点与模型，请先填好并保存。' };
   }
-  const base = config.baseUrl.trim().replace(/\/+$/, '');
-  try {
-    const res = await fetch(`${base}/models`, {
-      headers: { ...(config.apiKey.trim() ? { authorization: `Bearer ${config.apiKey.trim()}` } : {}) },
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (res.ok) return { ok: true, status: 'ready', message: `端点可达${maskByokConfig(config).apiKeyConfigured ? '，密钥已授权' : ''}。` };
-    if (res.status === 401 || res.status === 403) return { ok: false, status: 'not-logged-in', message: '端点可达，但密钥未授权（请检查 API 密钥）。' };
-    if (res.status === 404 || res.status === 405) return { ok: true, status: 'ready', message: '端点可达（该端点未开放 /models，按可达计）。' };
-    return { ok: false, status: 'broken', message: `端点返回 ${res.status}。` };
-  } catch (e) {
-    return { ok: false, status: 'broken', message: `无法连接端点：${e instanceof Error ? e.message : String(e)}` };
-  }
+  return probeByokConfig(config);
 }
 
 export async function POST(req: Request): Promise<Response> {

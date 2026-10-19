@@ -96,7 +96,7 @@ try {
   await page.keyboard.press('Escape');
   const nav = page.getByRole('navigation', { name: '设置分区' });
   await nav.getByRole('button', { name: '模型与提供商' }).click();
-  await page.getByRole('tab', { name: 'API 提供商' }).click();
+  await page.getByRole('tab', { name: '模型 API' }).click();
   await page.waitForTimeout(200);
   await page.screenshot({ path: screenshotPath('dark-provider-settings.png') });
   await nav.getByRole('button', { name: '数据与存储' }).click();
