@@ -7,18 +7,12 @@
  */
 
 import { resolveApiFormat, type ApiFormat } from '../../packages/agent-runtime/src/api-format.ts';
+import type { ByokConfigView } from './byok-store';
 
 export { API_FORMATS, DEFAULT_API_FORMAT, isApiFormat, type ApiFormat } from '../../packages/agent-runtime/src/api-format.ts';
 
-export interface ByokConfigView {
-  apiFormat: ApiFormat;
-  baseUrl: string;
-  model: string;
-  /** 用户手填的推理档位清单（逗号分隔）；空 = 不提供档位 */
-  reasoningLevels: string;
-  apiKeyConfigured: boolean;
-  apiKeyTail: string;
-}
+// 掩码视图的唯一定义在服务端仓（maskByokConfig 生产它）；这里只转发类型。
+export type { ByokConfigView };
 
 export interface ByokModel { id: string; label: string }
 
