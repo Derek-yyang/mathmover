@@ -38,9 +38,8 @@
 
 - 待发送和已发送的题图共用预览：滚轮围绕光标缩放、拖动查看、适应窗口、原始比例；同条消息或当前输入中的多图可用按钮 / 左右方向键切换。缩放范围为适应窗口到原图的 8 倍，拖动有边界，避免整张图片移出窗口。
 - 图片加载失败提供重试。关闭预览后恢复入口焦点，保留输入草稿和附件；切换课件时关闭旧预览。
-- 公式悬停或键盘聚焦时出现复制入口，复制 KaTeX 注释中的原始 LaTeX，不是渲染后的文字；块公式和表格可放大阅读，横向滚动限定在内容区域。复制失败有明确反馈。
-- 超过 12 行或 2000 字符的代码、构造指令默认显示局部预览，可展开全文；复制始终包含完整源文。正常解答正文不折叠。
-- 使用 assistant-ui Markdown 渲染扩展点，改编官方代码头、复制钩子和图库交互模式；弹窗及折叠组合沿用其 Radix 组件实现。缩放 / 拖动、公式级复制和本地附件接入是 MathMover 扩展，并非安装后自动获得。MIT 许可见仓库 `THIRD_PARTY_NOTICES.md`。
+- 代码块头部提供复制入口，复制始终包含完整源码；对话里的构造指令在工具组中用 `CodeBlock` 展示，`geogebra` 语言走懒加载的语法高亮，高亮初始化失败时退回纯文本。
+- Markdown 直接用 assistant-ui 官方渲染器（`elements/markdown-text.tsx`），代码头、复制钩子与消息组件都取自 registry 原样；弹窗与折叠组合沿用其 Radix 实现。图片缩放 / 拖动、多图切换与本地附件接入是 MathMover 扩展，并非安装后自动获得。MIT 许可与来源见 `components/assistant-ui/UPSTREAM.md` 及 `LICENSE.assistant-ui`。
 - 不改变 Agent 协议、课件保存字段、会话索引或 GeoGebra 实例。
 
 ## 检查
@@ -51,7 +50,7 @@ npx tsc --noEmit
 node --test tests/assistant-chat-adapter.test.mjs tests/agent-progress.test.mjs
 node --test tests/agent-run-presentation.test.mjs
 node --test tests/conversation-index.test.mjs
-node --test tests/reading-content.test.mjs
+node --test tests/image-view.test.mjs
 npm run build
 ```
 

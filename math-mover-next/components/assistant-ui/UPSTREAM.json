@@ -142,16 +142,6 @@
       "sha256": "dc85ba3e84c99deb63ec7285dbd12d05f4c28e168ed4ae034a22a662f53eb71b"
     },
     {
-      "url": "https://r.assistant-ui.com/elements-tool-timeline.json",
-      "file": "components/assistant-ui/elements/tool-timeline.tsx",
-      "sha256": "bb9e3cf5d498c0339ab33590db5f86c3412a06e80db0094287e48380d997adfe"
-    },
-    {
-      "url": "https://r.assistant-ui.com/elements-range.json",
-      "file": "components/assistant-ui/utils/range.ts",
-      "sha256": "3506d5f07865c042a4ef9b96904f687d19372a14e7dfccf946749860a3606182"
-    },
-    {
       "url": "https://r.assistant-ui.com/thread-list.json",
       "file": "components/assistant-ui/elements/thread-list.aui.tsx",
       "sha256": "3902d93ad5f3b4d8228a88cdcd18844ed8e96d00b77166e3d30d88af3b1a7103"

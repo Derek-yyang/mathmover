@@ -1,6 +1,6 @@
 # Adapted assistant-ui components
 
-The dialog/collapsible wrappers, Markdown code-header and clipboard composition, and image-gallery selection/navigation patterns are adapted from assistant-ui:
+The dialog wrappers, Markdown code-header, vendored registry components and image-gallery selection/navigation patterns are adapted from assistant-ui:
 https://github.com/assistant-ui/assistant-ui
 
 MIT License

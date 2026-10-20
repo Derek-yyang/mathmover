@@ -98,7 +98,7 @@ Local integration changes:
   error/unconfirmed outcome icons; returned is not a construction audit.
   Activity and call toggles use useScrollLock, with Radix data-state selectors for
   chevrons and panel animations. Outline borders use the host border token
-  explicitly under Tailwind v4. The ToolTimeline trial source remains available.
+  explicitly under Tailwind v4.
 - RunActivity keeps the current activity in its single-line disclosure trigger,
   with truncation and a separate duration suffix. The host supplies an optional
   `currentActivityLabel` from observed tool states: active calls show the running
