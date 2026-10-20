@@ -142,11 +142,6 @@
       "sha256": "dc85ba3e84c99deb63ec7285dbd12d05f4c28e168ed4ae034a22a662f53eb71b"
     },
     {
-      "url": "https://r.assistant-ui.com/elements-surfaces.json",
-      "file": "components/assistant-ui/elements/surfaces.tsx",
-      "sha256": "5d81fbb669e67ae20026cd30ed57efc51a5e3ee0f4f5d265e1723de75359b8fa"
-    },
-    {
       "url": "https://r.assistant-ui.com/elements-tool-timeline.json",
       "file": "components/assistant-ui/elements/tool-timeline.tsx",
       "sha256": "bb9e3cf5d498c0339ab33590db5f86c3412a06e80db0094287e48380d997adfe"
@@ -170,21 +165,6 @@
       "url": "https://r.assistant-ui.com/threadlist-sidebar.json",
       "file": "components/assistant-ui/elements/threadlist-sidebar.aui.tsx",
       "sha256": "2077042381015411a5e383caf8a13837929a0c8619c63ed3d8cb67903d590a0a"
-    },
-    {
-      "url": "https://ui.shadcn.com/r/styles/new-york/sidebar.json",
-      "file": "components/assistant-ui/ui/sidebar-layout.tsx",
-      "sha256": "3b68133c7293a5ecfca107b8497b1d3e5636e096e5416b4b1ee06be8428abc89",
-      "extractedExports": [
-        "SidebarHeader",
-        "SidebarContent",
-        "SidebarFooter"
-      ]
-    },
-    {
-      "url": "https://r.assistant-ui.com/elements-run-activity.json",
-      "file": "components/assistant-ui/elements/run-activity.tsx",
-      "sha256": "1b838ae6054c2c45535701af231291436e77da1d6215a2c2a80a313de5aaeace"
     },
     {
       "url": "https://r.assistant-ui.com/elements-shiki-highlighter.json",

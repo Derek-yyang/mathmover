@@ -2,7 +2,7 @@
 'use client';
 
 import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react';
-import { SidebarContent, SidebarFooter, SidebarHeader } from '@/components/assistant-ui/ui/sidebar-layout';
+import { SidebarContent, SidebarFooter, SidebarHeader } from '@/components/dashboard/SidebarSections';
 import { cn } from '@/components/assistant-ui/utils';
 import { ThreadList } from './thread-list.aui';
 

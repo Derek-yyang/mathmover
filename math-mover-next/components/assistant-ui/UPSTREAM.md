@@ -230,9 +230,11 @@ controls follow the runtime's supported capabilities.
   composition. Brand and footer slots replace its external links, and the host
   supplies the existing courseware runtime. The native aside keeps the existing
   dashboard clip/rail, focus restoration and canvas resize preview instead of
-  installing a second collapse provider. `ui/sidebar-layout.tsx` extracts only
-  SidebarHeader, SidebarContent and SidebarFooter from the official shadcn
-  Sidebar; original full-source hashes are recorded in `UPSTREAM.json`.
+  installing a second collapse provider. The Header/Content/Footer containers are
+  **host-owned** (`components/dashboard/SidebarSections.tsx`, taken over on
+  2026-10-20): the vendored `ui/sidebar-layout.tsx` only ever used three of the
+  official shadcn Sidebar's ~700 lines, so it carried the upstream URL/hash
+  bookkeeping without any of the behaviour. No upstream entry tracks them now.
 - Sidebar spacing and row padding are unified. Search appears only for a
   nonempty current view or an existing query; batch selection is hidden for an
   empty view. Empty views use a compact icon, title and explanation. Footer entries
