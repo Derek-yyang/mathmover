@@ -312,7 +312,7 @@ export class GgbTools {
     return writeConstructionFile(this.cfg, commands);
   }
 
-  /** 清空画布。 */
+  /** 清空画布**与工作稿**（两者一起归零——工作稿是画布的真相来源）。 */
   async reset(): Promise<void> {
     this.requireLive();
     await this.bridge.call('reset');

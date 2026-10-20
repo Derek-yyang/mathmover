@@ -249,13 +249,28 @@ export function createMcpServer(
   });
 
   server.registerTool('ggb_reset', {
-    title: '清空画布',
-    description: '清空当前 GeoGebra 构造。谨慎调用。',
+    title: '清空画布与工作稿',
+    // 「工作稿也会被清空」必须写在描述里：2026-10-20 实跑中 agent 拿 reset 当「画板卡住了」的
+    // 自救手段，结果 57 行工作稿一起没了，下一次 apply 直接报「工作稿是空的」，只好整份重写
+    // （多花一次 49 秒的全量下发）。描述与返回文案都说清楚，它才知道接下来该重写。
+    description: '清空当前 GeoGebra 构造，**同时清空工作稿 construction.ggb.txt**'
+      + '（那份文件会变成空文件——它就是画布的真相来源，留着就等于留着一份用户已经删掉的图）。'
+      + '清空后要重画，请把完整指令重新写进工作稿再 ggb_apply。谨慎调用。',
     inputSchema: {},
   }, async () => {
     try {
+      // 先数一下要清掉几行，好让 agent 知道自己丢了什么、要不要重写
+      const before = await tools.readConstruction();
       await tools.reset();
-      return { content: [{ type: 'text', text: '画布已清空。' }], isError: false };
+      const lines = before.filter((line) => line.trim()).length;
+      return {
+        content: [{
+          type: 'text',
+          text: `画布与工作稿都已清空（工作稿原有 ${lines} 行）。`
+            + (lines > 0 ? '要恢复刚才那张图，需把完整指令重新写进工作稿再 ggb_apply。' : ''),
+        }],
+        isError: false,
+      };
     } catch (e) {
       return errContent(e);
     }

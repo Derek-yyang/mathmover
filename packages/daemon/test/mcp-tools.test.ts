@@ -206,4 +206,24 @@ describe('MCP 工具面', () => {
     expect(texts.some((t) => t.includes('工作稿是空的'))).toBe(false);
     expect(texts.some((t) => t.includes('对象') || t.includes('构造'))).toBe(true);
   });
+
+  it('ggb_reset 明说工作稿也被清空', async () => {
+    // 2026-10-20 实跑：agent 把 reset 当「画板卡住了」的自救手段，结果 57 行工作稿一起没了，
+    // 下一次 apply 立刻报「工作稿是空的」，只好整份重写（多花一次 49 秒的全量下发）。
+    // 清空工作稿本身是**对的**（它是画布的真相来源，留着就是留一份已被删掉的图），
+    // 要修的是「没说」——描述与回执都得写清楚，并告诉它怎么写回去。
+    for (const wrapAsync of [false, true]) {
+      const { client, workdir } = await openClient({ wrapAsync, seed: ['A = (0, 0)', 'B = (1, 1)'] });
+      const { tools } = await client.listTools();
+      expect(describeTool(tools, 'ggb_reset').description).toContain('工作稿');
+
+      const r = await client.callTool({ name: 'ggb_reset', arguments: {} });
+      const text = textBlocks(r).join('\n');
+      expect(text).toContain('工作稿');
+      expect(text).toContain('2 行');      // 丢了几行要报出来
+      expect(text).toContain('ggb_apply'); // 以及接下来怎么恢复
+      // 稿子确实被清空——这是设计意图，不是副作用
+      expect(readDraft(workdir).trim()).toBe('');
+    }
+  });
 });
