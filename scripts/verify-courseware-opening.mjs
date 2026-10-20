@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { stubConstructionDraft } from './lib/stub-construction.mjs';
+import { uploadImages } from './lib/upload-image.mjs';
 
 // Real local GeoGebra; all data, credentials, Agent and socket traffic isolated.
 const out = 'spike-out/courseware-opening';
@@ -70,19 +71,19 @@ try {
   await ready(0);
   await page.addStyleTag({ content: 'nextjs-portal{display:none!important}' });
   const applet = await page.evaluateHandle(() => window.ggbApplet);
-  const upload = page.locator('input[type=file]');
+  const upload = files => uploadImages(page, files);
   const img = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = c.height = 20; c.getContext('2d').fillRect(0, 0, 20, 20); return c.toDataURL().split(',')[1]; });
   const file = i => ({ name: `题图${i}.png`, mimeType: 'image/png', buffer: Buffer.from(img, 'base64') });
-  await upload.setInputFiles([1, 2, 3, 4, 5].map(file));
+  await upload([1, 2, 3, 4, 5].map(file));
   const limit = page.getByText('一次最多添加 4 张题目图片。', { exact: true });
   await limit.waitFor();
   await page.getByRole('button', { name: '移除图片：题图1.png', exact: true }).click();
   await limit.waitFor({ state: 'detached' });
   assert.equal(await page.locator('[aria-label=待发送图片] img').count(), 3);
-  await upload.setInputFiles([file(6)]);
+  await upload([file(6)]);
   await page.waitForFunction(() => document.querySelectorAll('[aria-label=待发送图片] img').length === 4);
   assert.equal(await limit.count(), 0, 'adding a fourth valid image does not revive a resolved warning');
-  await upload.setInputFiles({ name: '错误格式.txt', mimeType: 'text/plain', buffer: Buffer.from('fixture') });
+  await upload({ name: '错误格式.txt', mimeType: 'text/plain', buffer: Buffer.from('fixture') });
   const formatError = page.getByText('请使用 PNG、JPEG、WebP 或 GIF 图片。', { exact: true });
   await formatError.waitFor();
   await page.getByRole('button', { name: '移除图片：题图2.png', exact: true }).click();

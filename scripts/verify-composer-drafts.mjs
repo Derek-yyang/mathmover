@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { stubConstructionDraft } from './lib/stub-construction.mjs';
+import { uploadImages } from './lib/upload-image.mjs';
 
 // Real UI/GeoGebra with isolated courseware writes, images and Agent streams.
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -69,7 +70,7 @@ const open = async id => {
   await page.locator(`header span[title="${records.get(id).title}"]`).waitFor();
   await page.getByText('已保存到本地', { exact: true }).waitFor();
 };
-const upload = files => page.locator('input[type=file]').setInputFiles(files);
+const upload = files => uploadImages(page, files);
 const assertText = expected => page.waitForFunction(expected => document.querySelector('[aria-label=题目描述]')?.value === expected, expected);
 const finish = async () => {
   await page.evaluate(() => window.__finishAgent());

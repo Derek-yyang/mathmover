@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { stubConstructionDraft } from './lib/stub-construction.mjs';
+import { uploadImages } from './lib/upload-image.mjs';
 
 // Actual UI and local GeoGebra, isolated database/config/socket/model fixtures.
 const out = 'spike-out/send-readiness';
@@ -90,7 +91,7 @@ try {
     canvas.getContext('2d').fillRect(0, 0, 10, 10);
     return canvas.toDataURL('image/png').split(',')[1];
   });
-  await page.locator('input[type=file]').setInputFiles({ name: '题图.png', mimeType: 'image/png', buffer: Buffer.from(data, 'base64') });
+  await uploadImages(page, { name: '题图.png', mimeType: 'image/png', buffer: Buffer.from(data, 'base64') });
   await draftImages.waitFor();
   await assertBlocked('画板未连接，连接后即可发送。');
   await page.screenshot({ path: `${out}/disconnected.png` });

@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { AssistantRuntimeProvider, SimpleImageAttachmentAdapter, ThreadPrimitive, useExternalStoreRuntime, type AttachmentAdapter } from '@assistant-ui/react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { AssistantRuntimeProvider, ComposerPrimitive, SimpleImageAttachmentAdapter, ThreadPrimitive, useExternalStoreRuntime, type AttachmentAdapter } from '@assistant-ui/react';
 import { ChevronDown, Loader2, Sparkles } from 'lucide-react';
 import type { AgentChatMessage, ChatAttachment } from './types';
 import AgentDiagnosticNotice from './AgentDiagnosticNotice';
@@ -16,6 +16,11 @@ import { createConversationTurnSelector } from '@/lib/conversation-index';
 import { ChatMessageVisibility } from './ChatMessageVisibility';
 import { ComposerDrafts } from '@/lib/composer-drafts';
 import { useComposerDraft } from '@/hooks/useComposerDraft';
+import {
+  ATTACHMENT_ACCEPT, ATTACHMENT_CHANNEL_MESSAGE, ATTACHMENT_FORMAT_MESSAGE,
+  ATTACHMENT_LIMIT, ATTACHMENT_LIMIT_MESSAGE, ATTACHMENT_MAX_BYTES, ATTACHMENT_SIZE_MESSAGE,
+  attachmentSlots, isSupportedAttachmentType,
+} from '@/lib/attachment-policy';
 import type { SendBlock } from '@/lib/agent-send-readiness';
 
 export interface RuntimeOption {
@@ -52,12 +57,15 @@ const getServerReducedMotion = () => true;
 function ChatThread({ messages, isLoading, sendDisabled = false, sendBlock, onReconnectBoard, onOpenSettings, loadingStatusText = '等待 Agent 回复…',
   onSendMessage, onEditMessage, onStopRun, canAttachImages,
   models, modelSource, selectedModel, onSelectModel,
-  reasoningOptions, selectedEffort, onSelectEffort, drafts, draftId }: AgentChatPanelProps & {
+  reasoningOptions, selectedEffort, onSelectEffort, drafts, draftId, header }: AgentChatPanelProps & {
     drafts: ComposerDrafts; draftId: string;
     canAttachImages: boolean;
     models?: Array<PickableModel>;
     modelSource?: 'live' | 'fallback';
     reasoningOptions?: Array<{ id: string; label: string; default?: boolean }>;
+    /** 面板标题行。由外层传进来渲染——**必须落在拖入区里面**，否则拖到那 56px 上
+        还是会落到浏览器的默认行为（导航到那个文件、把页面顶掉）。 */
+    header?: ReactNode;
   }) {
   const { detecting, detectionError, refreshRuntimes } = useAgentRuntimeState();
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -67,20 +75,38 @@ function ChatThread({ messages, isLoading, sendDisabled = false, sendBlock, onRe
   const selectTurns = useMemo(() => createConversationTurnSelector(), []);
   const turns = selectTurns(messages);
   const browseIndex = useCallback(() => setIndexBrowsing(true), []);
+  // 上限要看「库里已有的 + 正在读取还没落库的」，而 adapter 是在 provider **之上**建的
+  // （`useExternalStoreRuntime` 需要它才能建运行时），拿不到 `useAui()`——只能经这个 ref
+  // 读运行时里的实时附件表。render 期赋值即可：每次渲染刷成最新的那个运行时。
+  const runtimeRef = useRef<ReturnType<typeof useExternalStoreRuntime> | null>(null);
+  const pendingAdds = useRef(new Map<File, number>());
   const imageAdapter = useMemo<AttachmentAdapter>(() => {
     const base = new SimpleImageAttachmentAdapter();
     return {
-      accept: 'image/png,image/jpeg,image/webp,image/gif',
+      accept: ATTACHMENT_ACCEPT,
       async *add({ file }) {
-        if (!canAttachImages) throw new Error('当前 Agent 没有图片通道。');
-        if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) throw new Error('请使用 PNG、JPEG、WebP 或 GIF 图片。');
-        if (file.size > 6 * 1024 * 1024) throw new Error('单张题目图片不能超过 6 MB。');
-        const pending = await base.add({ file });
-        // Publish the File before the preview read finishes, so switching away
-        // during that read still preserves the selected attachment.
-        yield { ...pending, status: { type: 'running' as const, reason: 'uploading' as const, progress: 0 } };
-        const complete = await base.send(pending);
-        yield { ...pending, content: complete.content };
+        // 三条入口（上传 / 粘贴 / 拖入）都汇到这里，规则与文案只此一份
+        //（见 lib/attachment-policy.ts：拖入那条不经过 composer 的 addImages）。
+        if (!canAttachImages) throw new Error(ATTACHMENT_CHANNEL_MESSAGE);
+        if (!isSupportedAttachmentType(file.type)) throw new Error(ATTACHMENT_FORMAT_MESSAGE);
+        if (file.size > ATTACHMENT_MAX_BYTES) throw new Error(ATTACHMENT_SIZE_MESSAGE);
+        const attached = runtimeRef.current?.thread.composer.getState().attachments ?? [];
+        if (attachmentSlots(attached, pendingAdds.current) >= ATTACHMENT_LIMIT) {
+          throw new Error(ATTACHMENT_LIMIT_MESSAGE);
+        }
+        pendingAdds.current.set(file, (pendingAdds.current.get(file) ?? 0) + 1);
+        try {
+          const pending = await base.add({ file });
+          // Publish the File before the preview read finishes, so switching away
+          // during that read still preserves the selected attachment.
+          yield { ...pending, status: { type: 'running' as const, reason: 'uploading' as const, progress: 0 } };
+          const complete = await base.send(pending);
+          yield { ...pending, content: complete.content };
+        } finally {
+          const remaining = (pendingAdds.current.get(file) ?? 1) - 1;
+          if (remaining) pendingAdds.current.set(file, remaining);
+          else pendingAdds.current.delete(file);
+        }
       },
       remove: () => base.remove(),
       async send(attachment) {
@@ -105,9 +131,22 @@ function ChatThread({ messages, isLoading, sendDisabled = false, sendBlock, onRe
       await onSendMessage(input.text, input.attachments);
     },
   });
+  // 供 adapter 读实时附件表（见上：它在 provider 之上，够不着 useAui）
+  runtimeRef.current = runtime;
   const draftError = useComposerDraft(runtime.thread.composer, drafts, draftId);
   return <AssistantRuntimeProvider runtime={runtime}>
-    <ThreadPrimitive.Root className="aui-root flex min-h-0 flex-1 flex-col" style={{ '--composer-radius': '1rem', '--composer-padding': '8px' } as React.CSSProperties}>
+    {/* 拖入区是**整个对话区**，不只是输入框。
+        库的 dropzone 用 capture 阶段接管 dragenter/over/leave/drop（消息区里子元素自己的
+        交互不受影响），拖拽期间给自己挂 `data-dragging="true"` 供 CSS 用（下面的蒙层就靠它）。
+        `disabled`（agent 没有图片通道）时它**照样** preventDefault——不拦的话浏览器的默认行为
+        是导航到那个文件、把整个页面顶掉——但把 dropEffect 设成 none，也就是「禁止」光标。 */}
+    <ComposerPrimitive.AttachmentDropzone disabled={!canAttachImages}
+      aria-label="题目图片放置区"
+      className="group/dropzone relative flex min-h-0 flex-1 flex-col">
+      {/* 蒙层必须 pointer-events-none：不然它自己会把 drop 吃掉 */}
+      <span aria-hidden className="pointer-events-none absolute inset-2 z-10 hidden items-center justify-center rounded-xl border-2 border-dashed border-[var(--mm-border-emerald-600)] bg-[color-mix(in_oklab,var(--mm-bg-emerald-50)_88%,transparent)] text-sm font-medium text-[var(--mm-text-emerald-800)] group-data-[dragging=true]/dropzone:flex">把题图拖到这里</span>
+      {header}
+      <ThreadPrimitive.Root className="aui-root flex min-h-0 flex-1 flex-col" style={{ '--composer-radius': '1rem', '--composer-padding': '8px' } as React.CSSProperties}>
       <div className="relative min-h-0 flex-1">
         <ThreadPrimitive.Viewport ref={viewportRef} autoScroll={!indexBrowsing} scrollToBottomOnRunStart={!indexBrowsing}
           tabIndex={0} role="region" aria-label="聊天消息"
@@ -135,7 +174,8 @@ function ChatThread({ messages, isLoading, sendDisabled = false, sendBlock, onRe
         models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel}
         reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort} />
       {draftError && <p role="alert" className="px-3 pb-3 text-xs leading-5 text-[var(--mm-text-amber-900)]">{draftError}</p>}
-    </ThreadPrimitive.Root>
+      </ThreadPrimitive.Root>
+    </ComposerPrimitive.AttachmentDropzone>
   </AssistantRuntimeProvider>;
 }
 
@@ -164,13 +204,15 @@ export default function AgentChatPanel(props: AgentChatPanelProps) {
   // 档位是**当前模型**的属性：换模型要跟着换，所以从选中项取，不从 agent 取。
   const selected = models.find((m) => m.id === (selectedModel || 'default')) ?? models[0];
   const reasoningOptions = selected?.reasoningOptions ?? [];
+  // 标题行交给 ChatThread 渲染：它要落在拖入区**里面**（见那边的注释）。
+  const header = <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--mm-border-divider)] px-4">
+    <span className="shrink-0 text-sm font-semibold text-[var(--mm-text-stone-800)]">对话</span>
+    <span role="status" aria-label={active ? `当前 Agent：${active.name}` : agentLabel} title={agentLabel}
+      className="min-w-0 max-w-40 truncate text-xs text-[var(--mm-text-stone-500)]">{agentLabel}</span>
+  </div>;
   return <aside aria-label="对话" className="flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-[var(--mm-border-divider)] bg-[var(--mm-canvas-shell)]">
-    <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--mm-border-divider)] px-4">
-      <span className="shrink-0 text-sm font-semibold text-[var(--mm-text-stone-800)]">对话</span>
-      <span role="status" aria-label={active ? `当前 Agent：${active.name}` : agentLabel} title={agentLabel}
-        className="min-w-0 max-w-40 truncate text-xs text-[var(--mm-text-stone-500)]">{agentLabel}</span>
-    </div>
     <ImagePreviewProvider key={editorKey}><ChatThread {...props} canAttachImages={canAttachImages} drafts={drafts} draftId={conversationId ?? editorKey}
+      header={header}
       models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel}
         reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort} /></ImagePreviewProvider>
   </aside>;
