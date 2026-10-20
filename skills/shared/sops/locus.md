@@ -17,4 +17,4 @@ locQ = Locus(Q, t)
 SetColor(locQ, "Red")
 ```
 
-写法注意：Locus(Q,P) 的 P 是驱动路径点；Locus(Q,t) 的 t 是相关滑块。两参数 Point(path,t) 或 PathParameter 相关构造可能使 Locus 未定义，优先直接拖动点分支或解析坐标滑块分支。三维轨迹不能默认套二维 Locus；可用已验证的 Curve(x(t),y(t),z(t),t,tMin,tMax)。路径和轨迹重合时无需重复对象。
+写法注意：Locus(Q,P) 的 P 是驱动路径点；Locus(Q,t) 的 t 是相关滑块。两参数 Point(path,t) 或 PathParameter 相关构造可能使 Locus 未定义，优先直接拖动点分支或解析坐标滑块分支。三维轨迹不能默认套二维 Locus；可用已验证的 Curve(x(t),y(t),z(t),t,tMin,tMax)。路径和轨迹重合时无需重复对象。**三维里同样不要用滑块驱动**（`t = Slider(...)` 在 3D 不可见）：用可拖的路径点当驱动、轨迹用 `Curve(...)`。

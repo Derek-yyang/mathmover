@@ -29,4 +29,4 @@ P = Point(arcUV)
 SetColor(P, "Red")
 ```
 
-写法注意：Point(pathObj) 可直接拖动；Point(pathObj,t) 由 t 驱动，两种写法择需使用。0..1 是路径参数，不是角度/横坐标/匀速时间，无界路径需核对实际覆盖。Arc(conicC,U,V) 按逆时针取弧。Point(region) 只在边界；区域内点用 PointIn。与 Locus 组合时避免无条件使用双参数 Point。
+写法注意：Point(pathObj) 可直接拖动；Point(pathObj,t) 由 t 驱动，两种写法择需使用。0..1 是路径参数，不是角度/横坐标/匀速时间，无界路径需核对实际覆盖。Arc(conicC,U,V) 按逆时针取弧。Point(region) 只在边界；区域内点用 PointIn。与 Locus 组合时避免无条件使用双参数 Point。**三维视图里不要用滑块分支**（`t = Slider(...)`）：滑块只画在二维视图，3D 视角下看不到也拖不到，直接用 `Point(pathObj)` 让用户沿路径拖。
