@@ -393,6 +393,14 @@ body {
    don't force unrelated dashboard content through the same layout pass. */
 .geogebra-stage { contain: layout paint; }
 
+/* GeoGebra 自己会给 applet 外框上色，而且写在**行内** style 上：平时是 applet 参数里的
+   浅灰 `#D3D3D3`，文件拖进画板时改成红（2026-10-20 实测），而用户现场还见过它变成
+   纯黑 1px（截图取样：画板顶边 y=57 / 左缘 x=256 各一条 `#000000`，正是外框边框的位置；
+   本地没复现出那条触发路径，聚焦/清空/切透视/宿主 apply/恢复快照/setSize 都不改它）。
+   画板的外观不该由 applet 的内部状态决定，钉死成浅灰——`!important` 是必须的，
+   因为它的值在行内。 */
+.geogebra-stage .GeoGebraFrame { border-color: #d3d3d3 !important; }
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-sidebar, .sidebar-expanded-clip, .sidebar-expanded, .sidebar-rail {
     transition: none !important;
