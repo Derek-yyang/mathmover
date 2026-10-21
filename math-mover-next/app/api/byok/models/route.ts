@@ -2,12 +2,13 @@ import { dataDirectory } from '../../../../../packages/daemon/src/data-directory
 import { isApiFormat } from '../../../../../packages/agent-runtime/src/api-format.ts';
 import { loadByokConfig } from '@/lib/byok-store';
 import { fetchByokModels } from '@/lib/byok-probe';
+import { isSameLocalOrigin } from '@/lib/server/same-origin';
 
 /** Read-only discovery from a draft. Never persists draft fields or returns stored keys. */
 export async function POST(req: Request): Promise<Response> {
   const headers = { 'cache-control': 'no-store' };
   const origin = req.headers.get('origin');
-  if (origin && origin !== new URL(req.url).origin) {
+  if (!isSameLocalOrigin(req.url, origin)) {
     return Response.json({ error: '只接受工作台同源请求' }, { status: 403, headers });
   }
   const body: unknown = await req.json().catch(() => null);

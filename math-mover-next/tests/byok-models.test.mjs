@@ -13,6 +13,7 @@ for (const [specifier, target] of [
   ['../../../../../packages/daemon/src/data-directory.ts', '../../packages/daemon/src/data-directory.ts'],
   ['../../../../../packages/agent-runtime/src/api-format.ts', '../../packages/agent-runtime/src/api-format.ts'],
   ['@/lib/byok-store', '../lib/byok-store.ts'], ['@/lib/byok-probe', '../lib/byok-probe.ts'],
+  ['@/lib/server/same-origin', '../lib/server/same-origin.ts'],
 ]) source = source.replaceAll(`'${specifier}'`, JSON.stringify(new URL(target, import.meta.url).href));
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ES2022 } }).outputText;
 const { POST } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));

@@ -1,0 +1,18 @@
+{
+  "name": "mathmover-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MathMover 桌面壳：拉起 daemon 与 Next standalone，再由 Electron 窗口加载",
+  "author": "Derek Yang",
+  "main": "src/main.cjs",
+  "scripts": {
+    "prepare:assets": "node scripts/prepare.mjs",
+    "dev": "npm run prepare:assets && electron .",
+    "pack": "npm run prepare:assets && electron-builder --dir",
+    "dist": "npm run prepare:assets && electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0"
+  }
+}

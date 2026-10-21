@@ -23,11 +23,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken, dataDirectory } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, runAgent, opencode, buildOpenCodeConfigContent, effectiveReasoningLevels, normalizeReasoningLevels, reasoningDialect, OPENCODE_BYOK_API_KEY_ENV, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, listAgentModels, resolveModel, resolveEffort, createTitleExtractor, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { RUNTIMES, runAgent, opencode, buildOpenCodeConfigContent, effectiveReasoningLevels, reasoningDialect, OPENCODE_BYOK_API_KEY_ENV, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, resolveModel, resolveEffort, createTitleExtractor, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 import { agentRequestHistory } from '@/lib/agent-request-history';
 import { loadByokConfig, isByokRunnable, maskByokConfig } from '@/lib/byok-store';
 import { fetchByokModels } from '@/lib/byok-probe';
 import { buildSystemBrief } from '@/lib/server/system-brief';
+import { isSameLocalOrigin } from '@/lib/server/same-origin';
 import { readFreshDetectionCache, writeDetectionCache, type DetectedRuntime } from '@/lib/server/detection-cache';
 import { constructionPath, ensureConstructionDraft, ensureMcpConfig, workspaceDir } from '@/lib/server/workspace';
 
@@ -50,8 +51,6 @@ function findRepoRoot(): string {
 }
 
 const REPO_ROOT = findRepoRoot();
-const MCP_CONFIG_PATH =
-  process.env.MATHMOVER_MCP_CONFIG ?? path.join(REPO_ROOT, 'packages', 'daemon', 'mcp', 'claude-mcp.json');
 const DAEMON_URL = process.env.MATHMOVER_DAEMON_URL ?? 'http://127.0.0.1:8788';
 
 /**
@@ -102,7 +101,7 @@ function line(e: AgentEvent): string {
 
 export async function POST(req: Request): Promise<Response> {
   const origin = req.headers.get('origin');
-  if (origin && origin !== new URL(req.url).origin) return Response.json({ error: '只接受工作台同源请求' }, { status: 403 });
+  if (!isSameLocalOrigin(req.url, origin)) return Response.json({ error: '只接受工作台同源请求' }, { status: 403 });
   const body = (await req.json().catch(() => ({}))) as {
     text?: string;
     sessionId?: string;

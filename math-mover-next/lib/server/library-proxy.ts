@@ -1,4 +1,5 @@
 import { libraryToken } from '../../../packages/daemon/src/data-directory';
+import { isSameLocalOrigin } from './same-origin';
 
 export async function proxyLibrary(request: Request, parts: string[] = []): Promise<Response> {
   const url = new URL(request.url);
@@ -6,7 +7,7 @@ export async function proxyLibrary(request: Request, parts: string[] = []): Prom
     return Response.json({ error: '本地课件库仅支持本机工作台' }, { status: 403 });
   const origin = request.headers.get('origin');
   const site = request.headers.get('sec-fetch-site');
-  if ((origin && origin !== url.origin) || (site && !['same-origin', 'none'].includes(site)))
+  if (!isSameLocalOrigin(request.url, origin) || (site && !['same-origin', 'none'].includes(site)))
     return Response.json({ error: '课件库只接受本机工作台请求' }, { status: 403 });
   if (parts.some(p => !/^[a-zA-Z0-9_.-]+$/.test(p) || p === '.' || p === '..'))
     return Response.json({ error: '课件路径无效' }, { status: 400 });

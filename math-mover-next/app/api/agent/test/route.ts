@@ -16,6 +16,7 @@ import { RUNTIMES, detectRuntimes } from '@mathmover/agent-runtime';
 import { dataDirectory } from '../../../../../packages/daemon/src/data-directory.ts';
 import { loadByokConfig, isByokRunnable } from '@/lib/byok-store';
 import { probeByokConfig } from '@/lib/byok-probe';
+import { isSameLocalOrigin } from '@/lib/server/same-origin';
 
 type TestResult = { ok: boolean; status: 'ready' | 'not-logged-in' | 'broken' | 'unconfigured' | 'unverified'; message: string; version?: string | null };
 
@@ -29,7 +30,7 @@ async function testByok(): Promise<TestResult> {
 
 export async function POST(req: Request): Promise<Response> {
   const origin = req.headers.get('origin');
-  if (origin && origin !== new URL(req.url).origin) return Response.json({ error: '只接受工作台同源请求' }, { status: 403 });
+  if (!isSameLocalOrigin(req.url, origin)) return Response.json({ error: '只接受工作台同源请求' }, { status: 403 });
   const body = (await req.json().catch(() => ({}))) as { runtimeId?: string };
   const id = (body.runtimeId ?? '').trim();
   if (!id) return Response.json({ error: '缺少 runtimeId' }, { status: 400 });

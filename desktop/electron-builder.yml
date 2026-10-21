@@ -1,0 +1,25 @@
+appId: com.mathmover.desktop
+productName: MathMover
+
+directories:
+  output: release
+
+# 壳本身只有主进程；其余全部走 extraResources（asar 里执行不了子进程与二进制）
+files:
+  - src/**/*
+  - package.json
+
+extraResources:
+  - from: build/next
+    to: next
+  - from: build/next/node_modules
+    to: next/node_modules
+  - from: build/app
+    to: app
+  - from: build/node
+    to: node
+  - from: build/bin
+    to: bin
+
+asar: true
+npmRebuild: false

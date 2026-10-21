@@ -77,3 +77,9 @@ spike-out/
 
 # 会话历史实验落盘（claude 风格 jsonl，本地状态）
 math-mover-next/projects/
+
+# 桌面壳（Electron）：依赖、打包中间产物、安装包输出
+desktop/node_modules/
+desktop/build/
+desktop/release/
+math-mover-next/.next-desktop/

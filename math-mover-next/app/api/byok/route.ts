@@ -11,17 +11,18 @@
 import { dataDirectory } from '../../../../packages/daemon/src/data-directory.ts';
 import { loadByokConfig, maskByokConfig, saveByokConfig, type ByokConfig } from '@/lib/byok-store';
 import { invalidateDetectionCache } from '@/lib/server/detection-cache';
+import { isSameLocalOrigin } from '@/lib/server/same-origin';
 import { isApiFormat } from '../../../../packages/agent-runtime/src/api-format.ts';
 
 export async function GET(req: Request): Promise<Response> {
   const origin = req.headers.get('origin');
-  if (origin && origin !== new URL(req.url).origin) return Response.json({ error: '只接受工作台同源请求' }, { status: 403 });
+  if (!isSameLocalOrigin(req.url, origin)) return Response.json({ error: '只接受工作台同源请求' }, { status: 403 });
   return Response.json(maskByokConfig(loadByokConfig(dataDirectory())));
 }
 
 export async function POST(req: Request): Promise<Response> {
   const origin = req.headers.get('origin');
-  if (origin && origin !== new URL(req.url).origin) return Response.json({ error: '只接受工作台同源请求' }, { status: 403 });
+  if (!isSameLocalOrigin(req.url, origin)) return Response.json({ error: '只接受工作台同源请求' }, { status: 403 });
   const raw: unknown = await req.json().catch(() => null);
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return Response.json({ error: '配置必须是 JSON 对象' }, { status: 400 });

@@ -1,4 +1,5 @@
 import { libraryToken } from '../../../packages/daemon/src/data-directory';
+import { isSameLocalOrigin } from './same-origin';
 
 /**
  * 工作稿读写的同源代理。
@@ -15,7 +16,7 @@ export async function proxyConstruction(request: Request): Promise<Response> {
     return Response.json({ error: '本地工作稿仅支持本机工作台' }, { status: 403 });
   const origin = request.headers.get('origin');
   const site = request.headers.get('sec-fetch-site');
-  if ((origin && origin !== url.origin) || (site && !['same-origin', 'none'].includes(site)))
+  if (!isSameLocalOrigin(request.url, origin) || (site && !['same-origin', 'none'].includes(site)))
     return Response.json({ error: '工作稿只接受本机工作台请求' }, { status: 403 });
 
   try {
