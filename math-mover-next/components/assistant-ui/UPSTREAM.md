@@ -197,6 +197,9 @@ controls follow the runtime's supported capabilities.
   height. Overflow menus use a light stone border and subtle shadow. The
   MathMover brand, collapsed rail and settings are hosted
   by the existing `DashboardSidebar` shell.
+- Overflow buttons retain the same reveal conditions while disabled during
+  generation. The shared Button's disabled opacity only dims revealed actions;
+  it does not expose the actions on every idle row.
 - `CoursewareThreadList` supplies an external-store list adapter. It reads
   `/api/coursewares?archived=all`, uses revision-checked rename/archive, and selects
   the existing `history_id` route. `useCoursewareLibrary` still saves/restores

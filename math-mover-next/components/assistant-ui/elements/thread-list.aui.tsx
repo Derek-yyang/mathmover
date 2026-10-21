@@ -565,7 +565,12 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
           variant="ghost"
           size="icon"
           data-slot="aui_thread-list-item-more"
-          className={cn("hover:bg-[var(--mm-bg-stone-200)] focus-visible:bg-[var(--mm-bg-stone-200)] data-[state=open]:bg-[var(--mm-bg-stone-200)] group-data-active:hover:bg-[var(--mm-bg-emerald-100)] group-data-active:focus-visible:bg-[var(--mm-bg-emerald-100)] group-data-active:data-[state=open]:bg-[var(--mm-bg-emerald-100)] absolute end-1.5 top-1/2 size-6 -translate-y-1/2 rounded-full p-0 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100", deleteOpen && 'bg-[var(--mm-bg-stone-200)] group-data-active:bg-[var(--mm-bg-emerald-100)] opacity-100')}
+          className={cn(
+            "hover:bg-[var(--mm-bg-stone-200)] focus-visible:bg-[var(--mm-bg-stone-200)] data-[state=open]:bg-[var(--mm-bg-stone-200)] group-data-active:hover:bg-[var(--mm-bg-emerald-100)] group-data-active:focus-visible:bg-[var(--mm-bg-emerald-100)] group-data-active:data-[state=open]:bg-[var(--mm-bg-emerald-100)] absolute end-1.5 top-1/2 size-6 -translate-y-1/2 rounded-full p-0 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100",
+            // Button's disabled opacity must not reveal every idle row.
+            "disabled:opacity-0 group-hover:disabled:opacity-50 group-has-focus-visible:disabled:opacity-50 group-data-active:disabled:opacity-50 data-[state=open]:disabled:opacity-50 [@media(hover:none)]:disabled:opacity-50",
+            deleteOpen && 'bg-[var(--mm-bg-stone-200)] group-data-active:bg-[var(--mm-bg-emerald-100)] opacity-100 disabled:opacity-50'
+          )}
         >
           <MoreHorizontalIcon className="size-3.5" />
           <span className="sr-only">课件操作</span>
