@@ -15,7 +15,8 @@ import test from 'node:test';
 
 const read = (relative) => readFileSync(new URL(relative, import.meta.url), 'utf8');
 const hook = read('../hooks/useCoursewareLibrary.ts');
-const page = read('../app/dashboard/page.tsx');
+// 桌面版把 page.tsx 拆成“服务端入口 + 客户端组件”，页面接线在 DashboardClient 里
+const page = read('../app/dashboard/DashboardClient.tsx');
 const route = read('../app/api/agent/route.ts');
 const proxy = read('../lib/server/construction-proxy.ts');
 

@@ -3,6 +3,13 @@ productName: MathMover
 
 directories:
   output: release
+  # 默认是 build/，而 build/ 是运行时资产（几百 MB）。图标等打包资源单独放。
+  buildResources: build-resources
+
+copyright: Copyright © 2026 MathMover
+
+win:
+  icon: build-resources/icon.png
 
 # 壳本身只有主进程；其余全部走 extraResources（asar 里执行不了子进程与二进制）
 files:

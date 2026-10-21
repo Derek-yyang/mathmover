@@ -50,9 +50,15 @@ function getJson(url) {
 }
 
 const debugPort = await freePort();
+// 先占住 8787，逼桌面壳去挑别的 WebSocket 端口（动态端口验证）
+const squatter = net.createServer();
+const squatted = await new Promise((resolve) => {
+  squatter.once('error', () => resolve(false));
+  squatter.listen(8787, '127.0.0.1', () => resolve(true));
+});
 const app = spawn(exe, [`--remote-debugging-port=${debugPort}`], {
   cwd: path.dirname(exe),
-  env,
+  env: { ...env, ELECTRON_ENABLE_LOGGING: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 const appLog = [];
@@ -96,6 +102,12 @@ try {
   await page.waitForFunction(() => !!window.ggbApplet?.getXML, null, { timeout: 120_000 });
   await page.waitForFunction(() => typeof window.__mmGgb?.apply === 'function', null, { timeout: 60_000 });
 
+  // 首次启动引导：数据目录是全新的，设置弹窗应该自动打开
+  const onboarding = await page.locator('[data-slot="settings-dialog"]').waitFor({ timeout: 15_000 }).then(() => true, () => false);
+  if (!onboarding) throw new Error('首次启动没有自动打开设置弹窗');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-slot="settings-dialog"]').waitFor({ state: 'detached', timeout: 10_000 });
+
   // 真画一条：Next → daemon → WebSocket → GeoGebra 整条写路径
   const drawn = await page.evaluate(async () => {
     await window.__mmGgb.apply({
@@ -129,8 +141,10 @@ try {
 
   console.log(`PASS: 桌面壳启动并完成一次构造 → ${info.href}`);
   console.log(`  title=${info.title} objects=${info.objects}（A/B/c 已落到画布）0 浏览器错误`);
+  console.log(`  首次启动引导：设置弹窗已自动打开；8787 被占用=${squatted}（WebSocket 改用动态端口）`);
   console.log(`  临时数据目录：${tempData}`);
 } finally {
   await browser?.close().catch(() => {});
   killApp();
+  squatter.close();
 }

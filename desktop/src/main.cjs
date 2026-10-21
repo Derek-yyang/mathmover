@@ -10,7 +10,7 @@
  *
  * 所有子进程日志写到 <dataDir>/logs/，崩溃时错误框里给路径。
  */
-const { app, BrowserWindow, shell, dialog } = require('electron');
+const { app, BrowserWindow, shell, dialog, clipboard, Menu } = require('electron');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -18,7 +18,7 @@ const net = require('node:net');
 const path = require('node:path');
 
 const IS_WIN = process.platform === 'win32';
-const WS_PORT = 8787;
+const WS_PORT_START = 8787;
 const HTTP_PORT_START = 8788;
 const NEXT_PORT_START = 3123;
 
@@ -37,15 +37,26 @@ let mainWindow = null;
 let daemonChild = null;
 let nextChild = null;
 let quitting = false;
+const ports = { ws: null, http: null, next: null };
 
 function log(...args) {
   console.log('[mathmover-desktop]', ...args);
 }
 
 function fail(message, detail) {
+  quitting = true;
   const text = detail ? `${message}\n\n${detail}` : message;
   log(text);
-  dialog.showErrorBox('MathMover 启动失败', text + `\n\n日志：${LOG_DIR}`);
+  const choice = dialog.showMessageBoxSync({
+    type: 'error',
+    title: 'MathMover 启动失败',
+    message,
+    detail: (detail ? detail + '\n\n' : '') + `日志：${LOG_DIR}`,
+    buttons: ['打开日志目录', '退出'],
+    defaultId: 1,
+    cancelId: 1,
+  });
+  if (choice === 0) void shell.openPath(LOG_DIR);
   app.quit();
 }
 
@@ -58,8 +69,9 @@ function portFree(port) {
   });
 }
 
-async function pickPort(start, end, label) {
+async function pickPort(start, end, label, exclude = []) {
   for (let port = start; port <= end; port++) {
+    if (exclude.includes(port)) continue;
     if (await portFree(port)) return port;
   }
   throw new Error(`找不到空闲的${label}端口（${start}-${end}）`);
@@ -117,17 +129,18 @@ function envWithoutUndefined(env) {
 async function startServices() {
   fs.mkdirSync(LOG_DIR, { recursive: true });
 
-  if (!(await portFree(WS_PORT))) {
-    throw new Error(`WebSocket 端口 ${WS_PORT} 已被占用。请先关闭另一个 MathMover 或占用该端口的程序。`);
-  }
-  const httpPort = await pickPort(HTTP_PORT_START, HTTP_PORT_START + 99, 'daemon HTTP');
-  const nextPort = await pickPort(NEXT_PORT_START, NEXT_PORT_START + 199, 'Next');
+  // 三个端口都动态挑：渲染进程的 wsUrl 由 Next 服务端按运行时 env 注入，
+  // 不再是构建期常量（见 app/dashboard/page.tsx）。
+  const wsPort = await pickPort(WS_PORT_START, WS_PORT_START + 99, 'WebSocket');
+  const httpPort = await pickPort(HTTP_PORT_START, HTTP_PORT_START + 99, 'daemon HTTP', [wsPort]);
+  const nextPort = await pickPort(NEXT_PORT_START, NEXT_PORT_START + 199, 'Next', [wsPort, httpPort]);
   const daemonUrl = `http://127.0.0.1:${httpPort}`;
+  ports.ws = wsPort; ports.http = httpPort; ports.next = nextPort;
 
-  log(`daemon：ws=${WS_PORT} http=${httpPort}`);
+  log(`daemon：ws=${wsPort} http=${httpPort}`);
   daemonChild = spawnLogged('daemon', NODE_BIN, [
     DAEMON_ENTRY,
-    '--ws-port', String(WS_PORT),
+    '--ws-port', String(wsPort),
     '--http-port', String(httpPort),
     '--data-dir', DATA_DIR,
     '--workdir', DATA_DIR,
@@ -151,6 +164,9 @@ async function startServices() {
       MATHMOVER_DATA_DIR: DATA_DIR,
       MATHMOVER_ROOT: ASSET_ROOT,
       MATHMOVER_DAEMON_URL: daemonUrl,
+      MATHMOVER_WS_PORT: String(wsPort),
+      MATHMOVER_WS_URL: `ws://127.0.0.1:${wsPort}`,
+      MATHMOVER_DESKTOP: '1',
       OPENCODE_BIN: fs.existsSync(OPENCODE_BIN) ? OPENCODE_BIN : undefined,
     }),
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -158,6 +174,64 @@ async function startServices() {
   await waitForHttp(`http://127.0.0.1:${nextPort}/`, 90_000);
 
   return nextPort;
+}
+
+function diagnosticsText() {
+  return [
+    `MathMover ${app.getVersion()}`,
+    `Electron ${process.versions.electron} / Chromium ${process.versions.chrome} / Node ${process.versions.node}`,
+    `安装位置：${BUILD_ROOT}`,
+    `数据目录：${DATA_DIR}`,
+    `日志目录：${LOG_DIR}`,
+    `端口：ws=${ports.ws} http=${ports.http} next=${ports.next}`,
+  ].join('\n');
+}
+
+function openLogs() {
+  void shell.openPath(LOG_DIR);
+}
+
+function installMenu() {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: 'MathMover',
+      submenu: [
+        { label: '打开日志目录', click: openLogs },
+        { label: '复制诊断信息', click: () => clipboard.writeText(diagnosticsText()) },
+        { type: 'separator' },
+        { role: 'quit', label: '退出' },
+      ],
+    },
+    {
+      label: '视图',
+      submenu: [
+        { role: 'reload', label: '重新加载' },
+        { role: 'toggleDevTools', label: '开发者工具' },
+        { type: 'separator' },
+        { role: 'resetZoom', label: '实际大小' },
+        { role: 'zoomIn', label: '放大' },
+        { role: 'zoomOut', label: '缩小' },
+      ],
+    },
+    {
+      label: '帮助',
+      submenu: [{
+        label: '关于 MathMover',
+        click: () => {
+          const choice = dialog.showMessageBoxSync({
+            type: 'info',
+            title: '关于 MathMover',
+            message: `MathMover ${app.getVersion()}`,
+            detail: diagnosticsText(),
+            buttons: ['打开日志目录', '确定'],
+            defaultId: 1,
+            cancelId: 1,
+          });
+          if (choice === 0) openLogs();
+        },
+      }],
+    },
+  ]));
 }
 
 function createWindow(nextPort) {
@@ -185,7 +259,12 @@ function createWindow(nextPort) {
     }
   });
 
-  mainWindow.loadURL(`http://127.0.0.1:${nextPort}/dashboard`);
+  // 首次启动且还没配过端点：把设置弹窗带出来。普通用户不知道还要先配模型；
+  // 只看一次（marker 落盘），之后关掉就不会再自动弹。
+  const marker = path.join(DATA_DIR, '.desktop-onboarded');
+  const onboarding = !fs.existsSync(marker) && !fs.existsSync(path.join(DATA_DIR, 'byok.json'));
+  mainWindow.loadURL(`http://127.0.0.1:${nextPort}/dashboard${onboarding ? '?onboarding=1' : ''}`);
+  try { fs.writeFileSync(marker, new Date().toISOString()); } catch { /* 只影响下次是否再弹 */ }
   if (process.env.MATHMOVER_DEVTOOLS === '1') mainWindow.webContents.openDevTools({ mode: 'detach' });
 }
 
@@ -201,6 +280,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     try {
       const nextPort = await startServices();
+      installMenu();
       createWindow(nextPort);
     } catch (e) {
       fail(e instanceof Error ? e.message : String(e));
