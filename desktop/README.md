@@ -45,6 +45,9 @@ WebSocket 地址由 Next 服务端在每请求时按 `MATHMOVER_WS_URL` 注入
 自动弹出设置弹窗——普通用户需要先填端点/模型。只弹一次（数据目录落一个
 `.desktop-onboarded` 标记）。
 
+**首个版本默认 BYOK**：内置 OpenCode 负责"零安装运行"，但模型端点与 key 由用户自备；
+不提供免费代理/配额通道。设置弹窗里同时列出本机已装的 Claude Code / Codex / dsh 作为备选。
+
 菜单：`MathMover → 打开日志目录 / 复制诊断信息`，`帮助 → 关于`（含版本、端口、路径）；
 启动失败的错误框也带「打开日志目录」按钮。
 
@@ -88,11 +91,24 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
   脚本会起一个支持 Range 的本地更新源；`MATHMOVER_UPDATE_URL` 让客户端改指向它，
   `MATHMOVER_UPDATE_AUTOINSTALL=1` 让下载完直接静默安装，便于无人值守验证。
 
+## 分发注意（未签名）
+
+本项目**不做代码签名**。实际影响与应对：
+
+- 用户第一次运行安装包时，Windows 会弹「Windows 已保护你的电脑 / 未知发布者」，
+  需要点「更多信息 → 仍要运行」。这不是故障，是未签名应用的标准提示。
+- 部分杀毒软件可能对未签名的新 exe 误报；首次发布前建议在干净机器上跑一遍
+  VirusTotal 之类的基础检查，并在下载页写明绕过方式。
+- 自动更新的**完整性**不受影响：`latest.yml` 里的 sha512 会校验下载文件，传输走 HTTPS；
+  但**来源真实性**依赖 GitHub Releases 本身，没有签名做二次证明。
+- 未签名状态下不要频繁改 `appId` / `productName` / 安装包文件名——SmartScreen 的
+  信誉是按文件与发布者累积的，改名会让提示重新开始。
+
 ## 已知限制（MVP 范围）
 
 
-- **只验证了 Windows x64**；安装器（NSIS）与自动更新链路已实测，**代码签名还没配**，
-  所以安装/更新时仍会出现 SmartScreen 警告。
+- **只验证了 Windows x64**；安装器（NSIS）与自动更新链路已实测。按项目决定**不做代码签名**，
+  安装/更新时会有 SmartScreen 提示（见上一节）。
 - **三个端口都是动态的**；页面的 WebSocket 地址经运行时 env 注入，不再依赖构建期常量。
 - 安装包体积目前约 **450 MB**（Next 186 + Node 88 + opencode 173 + Electron 运行时）。
   opencode 只打一份非 baseline；GeoGebra 仍是完整 vendor。
