@@ -13,7 +13,7 @@ npm run dev
 
 当前设备已安装官方运行库 5.4.931.2。之后启动、刷新画板不访问 GeoGebra CDN，也不依赖浏览器缓存；只需本机 Next.js 服务正常运行。`ggb:check` 会校验所有资源，不会联网。开发、构建和启动前会自动检查，资源缺失时明确报错而不回退到 CDN。
 
-运行库放在 `public/vendor/geogebra/`，未纳入 Git。换电脑或重新克隆后需安装一次，也可以使用已下载的 ZIP：`npm run ggb:install -- <ZIP路径>`。安装脚本固定官方版本并验证 SHA-256，保留原始文件与字体许可；Windows 使用自带 PowerShell，Linux/macOS 需要 `unzip`。Docker 构建前在本机安装，现有 Dockerfile 会把 public 资源一起打包。升级时需同步更新 `geogebra-runtime.json` 中的版本、地址和校验值。
+运行库放在 `public/vendor/geogebra/`，未纳入 Git。换电脑或重新克隆后需安装一次，也可以使用已下载的 ZIP：`npm run ggb:install -- <ZIP路径>`。安装脚本固定官方版本并验证 SHA-256，保留原始文件与字体许可；Windows 使用自带 PowerShell，Linux/macOS 需要 `unzip`。升级时需同步更新 `geogebra-runtime.json` 中的版本、地址和校验值。
 
 这只保证项目内画板本地加载与已有课件交互。AI 生成功能仍需联网；导出的 HTML 仍使用在线运行库；引用网络图片或在线素材的课件仍需要其对应资源。
 
