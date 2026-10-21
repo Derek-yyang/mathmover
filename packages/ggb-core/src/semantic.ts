@@ -15,8 +15,6 @@
  * 参数级命令校验（ggb_catalog.inspect_line）不在本层——未知命令名记 command_error。
  */
 
-import { classifyLine } from './parse.ts';
-
 export interface SemanticFailure {
   check: string;
   detail: string;

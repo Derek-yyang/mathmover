@@ -102,11 +102,6 @@ export function loadCatalog(rootDir: string): Catalog {
   return value;
 }
 
-/** 测试用：清掉记忆化。 */
-export function resetCatalogCache(): void {
-  cached = null;
-}
-
 /**
  * 切参数：保留空参数、尊重嵌套定界符与字符串转义。
  * 例：`Circle((0, 0), "a,b")` → `['(0, 0)', '"a,b"']`

@@ -5,7 +5,7 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../lib/assistant-chat-adapter.ts', import.meta.url), 'utf8');
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ES2020 } }).outputText;
-const { toAssistantMessage, fromAssistantInput, assistantMessagePhase, canCopyAgentMessage, historyBeforeUserMessage } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+const { toAssistantMessage, fromAssistantInput, assistantMessagePhase, historyBeforeUserMessage } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 const message = (meta = {}, role = 'assistant') => ({id:'stable-id',role,content:'$x^2$',createdAt:1000,meta});
 
 test('editing keeps only earlier turns and rejects missing or non-user targets without mutating history', () => {
@@ -46,12 +46,6 @@ test('copy action stays unavailable while a message is running', () => {
   assert.equal(assistantMessagePhase(message({status:'completed'})), 'complete');
   assert.equal(assistantMessagePhase(message()), 'complete');
   assert.equal(assistantMessagePhase(message({status:'error'})), 'error');
-
-  assert.equal(canCopyAgentMessage(message({status:'generating'})), false);
-  assert.equal(canCopyAgentMessage(message({execution:{status:'running'}})), false);
-  assert.equal(canCopyAgentMessage(message({status:'completed'})), true);
-  assert.equal(canCopyAgentMessage(message({status:'error'})), true);
-  assert.equal(canCopyAgentMessage({...message(), content:'   '}), false);
 });
 
 test('UI projection never registers executable tool parts', () => {
@@ -92,12 +86,10 @@ test('user-stopped runs are distinct from errors and completions', () => {
   const stopped = message({ status: 'stopped' });
   assert.equal(assistantMessagePhase(stopped), 'stopped');
   assert.deepEqual(toAssistantMessage(stopped).status, { type: 'incomplete', reason: 'cancelled' });
-  assert.equal(canCopyAgentMessage(stopped), true);
 
   // 执行层的 stopped 同样认
   const byExecution = message({ execution: { status: 'stopped', startedAt: 1, steps: [] } });
   assert.equal(assistantMessagePhase(byExecution), 'stopped');
-  assert.equal(canCopyAgentMessage(byExecution), true);
 
   // 不要把 stopped 误判成 error 或 complete
   assert.notEqual(assistantMessagePhase(stopped), 'error');

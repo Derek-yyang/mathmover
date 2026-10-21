@@ -41,10 +41,6 @@ export function rememberLiveModels(agentId: string, models: RuntimeModelOption[]
   if (ok.length) liveModels.set(agentId, new Map(ok.map((m) => [m.id, m])));
 }
 
-export function liveModelIds(agentId: string): string[] {
-  return [...(liveModels.get(agentId)?.keys() ?? [])];
-}
-
 /**
  * 校验用户选的模型 id。
  *

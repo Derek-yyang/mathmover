@@ -154,7 +154,6 @@ describe('GgbTools.apply 的工作稿与增量', () => {
     const { bridge } = fakeBridge([]);
     const tools = new GgbTools(bridge, cfg());
     await tools.apply(['A = (0, 0)']);
-    const file = path.join(dir, 'construction.ggb.txt');
     expect(readConstructionFile(cfg())).toEqual(['A = (0, 0)']);
 
     // 模拟 agent 改了草稿但还没 apply

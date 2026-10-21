@@ -19,7 +19,6 @@ import { SessionId, type SessionEvent, type TurnEndReason } from '@deepseek-ai/d
 import { admitEncodedImages, type EncodedImageAttachment } from '@deepseek-ai/dsh-attachment';
 import type {} from '@deepseek-ai/dsh-cmdline';
 import {
-  CAPABILITIES,
   identityFrame,
   modelsFrame,
   parseHostCommand,
@@ -495,17 +494,3 @@ export function apply(ctx: Context): void {
     exit(1);
   });
 }
-
-export const internals = {
-  contentText,
-  createCancellationLatch,
-  errorFacts,
-  emitSessionEvent,
-  execute,
-  listModelCatalog,
-  requestProfileExit,
-  resultStatus,
-  resultError,
-  serve,
-  terminalOutput,
-};

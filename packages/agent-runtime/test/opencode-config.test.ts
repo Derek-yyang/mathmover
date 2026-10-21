@@ -10,7 +10,6 @@ import {
   effectiveReasoningLevels,
   normalizeReasoningLevels,
   opencodeModelId,
-  reasoningDialect,
   REASONING_LEVEL_VOCABULARY,
   OPENCODE_BYOK_API_KEY_ENV,
   OPENCODE_BYOK_PROVIDER_ID,

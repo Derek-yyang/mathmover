@@ -18,8 +18,6 @@ export const CATEGORY_LABEL: Record<string, string> = {
   D: '立体几何',
 };
 
-const TOOL_SUFFIX = /^(?:mcp__[^_]+__)?([a-z_]+)$/;
-
 /** 工具名归一：`mcp__mathmover__get_expert_prompt` → `get_expert_prompt`。 */
 export function toolBaseName(name: unknown): string {
   const raw = typeof name === 'string' ? name : '';

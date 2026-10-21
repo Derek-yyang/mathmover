@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   arityMatches, callsIn, compatible, inferType, inspectLedger, inspectLine,
-  loadCatalog, splitArgs, type Catalog,
+  loadCatalog, splitArgs,
 } from '../src/catalog.ts';
 import { fileURLToPath } from 'node:url';
 

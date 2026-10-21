@@ -13,10 +13,6 @@ export function assistantMessagePhase(message: AgentChatMessage): AssistantMessa
   return 'complete';
 }
 
-export function canCopyAgentMessage(message: AgentChatMessage): boolean {
-  return message.content.trim().length > 0 && assistantMessagePhase(message) !== 'running';
-}
-
 /** Presentation projection only: the host remains the source of truth and saves its own format. */
 export function toAssistantMessage(message: AgentChatMessage): ThreadMessageLike {
   const phase = assistantMessagePhase(message);

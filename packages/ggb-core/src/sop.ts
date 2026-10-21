@@ -15,7 +15,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadWhitelist, type WhitelistNames } from './whitelist.ts';
+import type { WhitelistNames } from './whitelist.ts';
 
 export const CATEGORY_TO_SKILL: Record<string, string> = {
   A: 'function-expert',

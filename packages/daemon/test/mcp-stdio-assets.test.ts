@@ -17,7 +17,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const MCP_STDIO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'mcp-stdio.ts');
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 const spawned: ChildProcessWithoutNullStreams[] = [];
 const servers: http.Server[] = [];

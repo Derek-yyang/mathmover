@@ -15,7 +15,6 @@ import {
   rememberLiveModels,
   resolveEffort,
   resolveModel,
-  liveModelIds,
 } from '../src/models.ts';
 import { claudeConfiguredModels, claudeDefaultEffort } from '../src/claude-env.ts';
 import { codex, readCodexConfiguredModels, parseClaudeEffortValues, DEFAULT_MODEL_OPTION as DEF_DEFAULT, type RuntimeDefinition } from '../src/defs.ts';
@@ -106,12 +105,6 @@ describe('resolveModel —— fallback 不是真清单', () => {
     const bad = resolveModel('claude-code', 'hand-typed');
     expect(bad.ok).toBe(false);
     if (!bad.ok) expect(bad.reason).toContain('改该 Agent 自己的配置');
-  });
-
-  it('liveModelIds 反映缓存', () => {
-    rememberLiveModels('codex', [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }]);
-    expect(liveModelIds('codex')).toEqual(['a', 'b']);
-    expect(liveModelIds('never-seen')).toEqual([]);
   });
 });
 
