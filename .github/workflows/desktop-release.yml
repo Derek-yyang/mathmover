@@ -1,0 +1,63 @@
+name: Desktop Release
+
+# 打 v* tag 触发；也可以在 Actions 页面手动跑（此时用 package.json 里的版本）。
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: math-mover-next
+        run: npm ci
+
+      - name: Fetch vendored GeoGebra
+        working-directory: math-mover-next
+        run: npm run ggb:install
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build Next standalone + daemon assets
+        working-directory: desktop
+        run: npm run prepare:assets
+
+      - name: Build installer and publish to GitHub Releases
+        working-directory: desktop
+        run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 不签名时不要尝试证书相关的探测
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mathmover-windows
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+            desktop/release/latest.yml
+          if-no-files-found: error

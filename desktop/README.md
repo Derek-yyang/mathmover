@@ -59,9 +59,40 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
 是空操作），这样运行时代码一行不用改。`app/packages/daemon/package.json` 里声明
 `"type": "module"`，避免 Node 先按 CJS 试解析再告警。
 
+## 自动更新
+
+- 发布源：`electron-builder.yml` 的 `publish`（GitHub Releases，仓库公开、客户端匿名可读）。
+- 行为：启动 15 秒后静默检查；有新版本就后台下载，下载完弹「立即重启 / 稍后」；
+  选「稍后」会在下次正常退出时安装。菜单「检查更新…」可手动触发。
+- 发布：
+  ```powershell
+  # 先把 desktop/package.json 的 version 改成新版本
+  npm run prepare:assets
+  npx electron-builder --publish always   # 需要 GH_TOKEN；自动上传 exe / blockmap / latest.yml
+  ```
+- 本地验证（不需要真实发布）：
+  ```powershell
+  # 1) 用当前版本打一个"旧版"，产物在 release/update-old
+  npx electron-builder --publish never
+  mkdir release/update-old
+  copy release\MathMover-<旧版本>-Setup.exe release\update-old\
+  copy release\MathMover-<旧版本>-Setup.exe.blockmap release\update-old\
+  copy release\latest.yml release\update-old\
+
+  # 2) 临时改版本号再打一个"新版"，产物放 release/update-new，然后改回版本号
+  #    （脚本会从 package.json 读版本，建议先备份）
+
+  # 3) 装旧版 → 本地源 → 自动升级 → 校验版本 → 卸载
+  node desktop/scripts/verify-update.mjs --old desktop/release/update-old --feed desktop/release/update-new --expected <新版本>
+  ```
+  脚本会起一个支持 Range 的本地更新源；`MATHMOVER_UPDATE_URL` 让客户端改指向它，
+  `MATHMOVER_UPDATE_AUTOINSTALL=1` 让下载完直接静默安装，便于无人值守验证。
+
 ## 已知限制（MVP 范围）
 
-- **只验证了 Windows x64**；安装器（NSIS）能出包，但图标外的签名、自动更新还没配。
+
+- **只验证了 Windows x64**；安装器（NSIS）与自动更新链路已实测，**代码签名还没配**，
+  所以安装/更新时仍会出现 SmartScreen 警告。
 - **三个端口都是动态的**；页面的 WebSocket 地址经运行时 env 注入，不再依赖构建期常量。
 - 安装包体积目前约 **450 MB**（Next 186 + Node 88 + opencode 173 + Electron 运行时）。
   opencode 只打一份非 baseline；GeoGebra 仍是完整 vendor。

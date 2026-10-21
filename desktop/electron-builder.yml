@@ -8,8 +8,19 @@ directories:
 
 copyright: Copyright © 2026 MathMover
 
+# 安装包文件名不要带空格：latest.yml 里会写成连字符形式，带空格会导致更新请求 404。
+artifactName: ${productName}-${version}-Setup.${ext}
+
 win:
   icon: build-resources/icon.png
+
+# 自动更新的发布源。仓库公开后客户端可以匿名读 Releases。
+# 发布用 `npx electron-builder --publish always`（需要 GH_TOKEN）；本地构建默认不传。
+publish:
+  provider: github
+  owner: Derek-yyang
+  repo: mathmover
+  releaseType: release
 
 # 壳本身只有主进程；其余全部走 extraResources（asar 里执行不了子进程与二进制）
 files:

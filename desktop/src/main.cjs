@@ -11,6 +11,7 @@
  * 所有子进程日志写到 <dataDir>/logs/，崩溃时错误框里给路径。
  */
 const { app, BrowserWindow, shell, dialog, clipboard, Menu } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -191,11 +192,87 @@ function openLogs() {
   void shell.openPath(LOG_DIR);
 }
 
+let updateCheck = null;
+let updatePrompted = false;
+
+/**
+ * 自动更新。
+ *
+ * 发布源在 electron-builder.yml 的 `publish`（GitHub Releases，仓库公开、可匿名读）。
+ * 本地验证用 `MATHMOVER_UPDATE_URL` 指向一个 generic 静态目录（见 scripts/verify-update.mjs）；
+ * `MATHMOVER_UPDATE_AUTOINSTALL=1` 时下载完直接静默安装，便于自动化跑完整升级闭环。
+ */
+function setupUpdater() {
+  if (!app.isPackaged) return;
+  if (process.env.MATHMOVER_UPDATE_URL) {
+    autoUpdater.setFeedURL({ provider: 'generic', url: process.env.MATHMOVER_UPDATE_URL });
+  }
+  autoUpdater.logger = { info: log, warn: log, error: log, debug: () => {} };
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('error', (e) => log('更新检查失败：', e instanceof Error ? e.message : e));
+  autoUpdater.on('update-available', (info) => log(`发现新版本 ${info.version}，开始下载`));
+  autoUpdater.on('update-downloaded', (info) => {
+    if (process.env.MATHMOVER_UPDATE_AUTOINSTALL === '1') {
+      log(`更新 ${info.version} 已下载，静默安装`);
+      setImmediate(() => autoUpdater.quitAndInstall(true, true));
+      return;
+    }
+    if (updatePrompted) return;
+    updatePrompted = true;
+    const choice = dialog.showMessageBoxSync({
+      type: 'info',
+      title: '更新已就绪',
+      message: `MathMover ${info.version} 已下载`,
+      detail: '重启应用即可完成更新。选择「稍后」会在下次退出时自动安装。',
+      buttons: ['立即重启', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice === 0) autoUpdater.quitAndInstall(true, true);
+  });
+
+  // 启动后静默检查一次；新版本会在后台下载，下载完才打扰用户
+  setTimeout(() => { void checkForUpdates({ silent: true }); }, 15_000);
+}
+
+async function checkForUpdates({ silent = false } = {}) {
+  if (!app.isPackaged) {
+    if (!silent) dialog.showMessageBoxSync({ type: 'info', title: '检查更新', message: '开发模式下不检查更新。' });
+    return;
+  }
+  if (updateCheck) return updateCheck;
+  updateCheck = (async () => {
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      if (!silent && result?.updateInfo?.version === app.getVersion()) {
+        dialog.showMessageBoxSync({
+          type: 'info', title: '检查更新',
+          message: '当前已是最新版本。', detail: `版本 ${app.getVersion()}`,
+        });
+      }
+    } catch (e) {
+      log('更新检查失败：', e instanceof Error ? e.message : e);
+      if (!silent) {
+        dialog.showMessageBoxSync({
+          type: 'error', title: '检查更新失败', message: '无法连接更新服务。',
+          detail: e instanceof Error ? e.message : String(e),
+        });
+      }
+    } finally {
+      updateCheck = null;
+    }
+  })();
+  return updateCheck;
+}
+
 function installMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     {
       label: 'MathMover',
       submenu: [
+        { label: '检查更新…', click: () => { void checkForUpdates(); } },
         { label: '打开日志目录', click: openLogs },
         { label: '复制诊断信息', click: () => clipboard.writeText(diagnosticsText()) },
         { type: 'separator' },
@@ -281,6 +358,7 @@ if (!app.requestSingleInstanceLock()) {
     try {
       const nextPort = await startServices();
       installMenu();
+      setupUpdater();
       createWindow(nextPort);
     } catch (e) {
       fail(e instanceof Error ? e.message : String(e));
