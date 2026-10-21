@@ -64,6 +64,11 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
 
 ## 自动更新
 
+- 官网下载入口固定为
+  `https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe`。
+  `Desktop Release` 工作流把版本化安装包复制为 `MathMover-Setup.exe` 一起发布，
+  上传完成后将该版本标记为 latest。后续通过工作流发布新版本，无需修改首页或重新部署官网。
+  手动发布时也需要上传这个固定名称副本；保留原版安装包、blockmap 和 latest.yml 供自动更新使用。
 - 发布源：`electron-builder.yml` 的 `publish`（GitHub Releases，仓库公开、客户端匿名可读）。
 - 行为：启动 15 秒后静默检查；有新版本就后台下载，下载完弹「立即重启 / 稍后」；
   选「稍后」会在下次正常退出时安装。菜单「检查更新…」可手动触发。

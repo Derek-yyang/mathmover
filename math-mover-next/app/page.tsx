@@ -8,6 +8,9 @@ import { FaqItem } from '@/components/landing/FaqItem';
 import { BrandIcon } from '@/components/settings/BrandIcon';
 import styles from './landing.module.css';
 
+// Each desktop release publishes this fixed-name copy alongside versioned assets.
+const desktopDownloadUrl = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe';
+
 export const metadata: Metadata = {
   title: 'MathMover · 让数学问题，成为可探索的图形',
   description: 'MathMover 桌面端，让你通过数学题或题图，与 Agent 一起构建和调整 GeoGebra 动态课件，探索函数、几何与空间中的关系。',
@@ -34,7 +37,7 @@ export default function LandingPage() {
       <LandingHeader>
           <Link href="/" className={styles.brand} aria-label="MathMover 首页"><span className={styles.brandMark} aria-hidden="true">M</span><span>MathMover</span></Link>
           <nav className={styles.navLinks} aria-label="首页导航"><a href="#demo">交互演示</a><a href="#examples">探索案例</a><a href="#questions">常见问题</a></nav>
-          <div className={styles.navActions}><ThemeMenu /><a href="#download" className={styles.navAction}>下载桌面端 <Download size={15} aria-hidden="true" /></a></div>
+          <div className={styles.navActions}><ThemeMenu /><a href={desktopDownloadUrl} className={styles.navAction} aria-label="下载 Windows x64 版 MathMover">下载桌面端 <Download size={15} aria-hidden="true" /></a></div>
       </LandingHeader>
       <main id="main">
         <section className={`${styles.container} ${styles.hero}`} aria-labelledby="hero-title">
@@ -42,7 +45,7 @@ export default function LandingPage() {
             <h1 id="hero-title">让数学问题，<span>成为可探索的图形。</span></h1>
             <div className={styles.heroAside}>
               <p>在桌面端输入题目或上传截图，<br className={styles.mobileBreak} />与 Agent 一起构建、调整。<br />让抽象关系在画板上清晰可见。</p>
-              <div className={styles.heroActions}><a href="#download" className={styles.primaryButton}>下载桌面端 <Download size={17} aria-hidden="true" /></a></div>
+              <div className={styles.heroActions}><a href={desktopDownloadUrl} className={styles.primaryButton}>下载 Windows 版 <Download size={17} aria-hidden="true" /></a></div>
             </div>
           </div>
           <div id="demo" className={styles.demoAnchor}><HeroDemo /></div>
@@ -59,7 +62,7 @@ export default function LandingPage() {
               <li><span className={styles.stepNumber}>02</span><h3>一起构建</h3><p>让 Agent 操作画板。<br />通过对话补充条件、核对并调整。</p></li>
               <li><span className={styles.stepNumber}>03</span><h3>继续探索</h3><p>拖动图形，观察变化。<br />保存课件，或从画板导出成果。</p></li>
             </ol>
-            <a href="#download" className={styles.workflowLink}>下载桌面端 <MoveUpRight size={18} aria-hidden="true" /></a>
+            <a href={desktopDownloadUrl} className={styles.workflowLink} aria-label="下载 Windows x64 版 MathMover">下载桌面端 <MoveUpRight size={18} aria-hidden="true" /></a>
           </div>
         </section>
         <section className={`${styles.container} ${styles.connectionSection}`} aria-labelledby="connection-title">
@@ -77,9 +80,8 @@ export default function LandingPage() {
         <section id="download" className={`${styles.container} ${styles.closing}`} aria-labelledby="closing-title">
           <span className={styles.closingSymbol} aria-hidden="true">↗</span>
           <h2 id="closing-title">下一个发现，<br />从你的问题开始。</h2>
-          {/* Replace this placeholder with the desktop installer link when available. */}
-          <button type="button" className={styles.primaryButton} disabled>下载桌面端 <Download size={17} aria-hidden="true" /></button>
-          <p>下载 MathMover，连接自己的模型 API 或本机 Agent。</p>
+          <a href={desktopDownloadUrl} className={styles.primaryButton}>下载 Windows 版 <Download size={17} aria-hidden="true" /></a>
+          <p>适用于 Windows x64，连接自己的模型 API 或本机 Agent。</p>
         </section>
       </main>
       <footer className={styles.footer}><div className={styles.container}><Link href="/" className={styles.brand}><span className={styles.brandMark} aria-hidden="true">M</span><span>MathMover</span></Link><p>让数学关系，看得见，也动得起来。</p><span>© {new Date().getFullYear()} MathMover</span></div></footer>
