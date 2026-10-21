@@ -49,10 +49,24 @@ async function install() {
     let bytes;
     if (archive) bytes = await readFile(resolve(archive));
     else {
-      console.log(`下载官方 GeoGebra ${config.version}（约 32 MB）…`);
-      const response = await fetch(config.url, { signal: AbortSignal.timeout(180_000) });
-      if (!response.ok) throw new Error(`下载失败：HTTP ${response.status}`);
-      bytes = Buffer.from(await response.arrayBuffer());
+      // 主源是仓库自己的 Release 资产（GitHub runner 访问官方下载源会失败），
+      // 官方地址留作回退；两个都过同一个 SHA-256 校验。
+      const urls = [config.url, ...(config.fallbackUrls ?? [])];
+      let lastError;
+      for (const url of urls) {
+        try {
+          console.log(`下载 GeoGebra ${config.version}（约 32 MB）：${url}`);
+          const response = await fetch(url, { signal: AbortSignal.timeout(180_000) });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          bytes = Buffer.from(await response.arrayBuffer());
+          lastError = undefined;
+          break;
+        } catch (error) {
+          lastError = error;
+          console.warn(`下载失败：${error instanceof Error ? error.message : error}`);
+        }
+      }
+      if (!bytes) throw new Error(`所有下载源都失败：${lastError instanceof Error ? lastError.message : lastError}`);
     }
     if (digest(bytes) !== config.sha256) throw new Error('运行库 SHA-256 校验失败，未安装。');
     const zip = join(work, 'bundle.zip');
