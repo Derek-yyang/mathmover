@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Check, Download, MoveUpRight } from 'lucide-react';
+import { Check, Download, Github, MoveUpRight } from 'lucide-react';
 import { HeroDemo, ExampleGallery } from '@/components/landing/LandingExperience';
 import { LandingHeader } from '@/components/landing/LandingHeader';
-import { ThemeMenu } from '@/components/landing/ThemeMenu';
+import { ThemeToggle } from '@/components/landing/ThemeToggle';
 import { FaqItem } from '@/components/landing/FaqItem';
 import { BrandIcon } from '@/components/settings/BrandIcon';
 import styles from './landing.module.css';
@@ -37,7 +37,13 @@ export default function LandingPage() {
       <LandingHeader>
           <Link href="/" className={styles.brand} aria-label="MathMover 首页"><span className={styles.brandMark} aria-hidden="true">M</span><span>MathMover</span></Link>
           <nav className={styles.navLinks} aria-label="首页导航"><a href="#demo">交互演示</a><a href="#examples">探索案例</a><a href="#questions">常见问题</a></nav>
-          <div className={styles.navActions}><ThemeMenu /><a href={desktopDownloadUrl} className={styles.navAction} aria-label="下载 Windows x64 版 MathMover">下载桌面端 <Download size={15} aria-hidden="true" /></a></div>
+          <div className={styles.navActions}>
+            <a href="https://github.com/Derek-yyang/mathmover" className={styles.githubLink} target="_blank" rel="noopener noreferrer" aria-label="查看 MathMover 的 GitHub 仓库（新窗口打开）" title="GitHub 源码仓库">
+              <Github size={20} aria-hidden="true" />
+            </a>
+            <ThemeToggle />
+            <a href={desktopDownloadUrl} className={styles.navAction} aria-label="下载 Windows x64 版 MathMover">下载桌面端 <Download size={15} aria-hidden="true" /></a>
+          </div>
       </LandingHeader>
       <main id="main">
         <section className={`${styles.container} ${styles.hero}`} aria-labelledby="hero-title">

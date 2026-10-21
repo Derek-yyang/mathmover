@@ -15,6 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className="scroll-smooth" suppressHydrationWarning>
+      <head>
+        {/* Use our native themes without extension mutations before hydration. */}
+        <meta name="darkreader-lock" />
+      </head>
       <body className="font-sans antialiased"><ThemeProvider>{children}</ThemeProvider></body>
     </html>
   );

@@ -18,6 +18,9 @@
 /.next-library-*/
 /.next-assistant-*/
 /out/
+/site/out/
+/site/.next/
+/site/next-env.d.ts
 
 # production
 /build

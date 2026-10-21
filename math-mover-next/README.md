@@ -2,6 +2,10 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+### 官网首页部署
+
+首页可以单独构建为静态网站：`npm run build:site`，产物位于 `site/out/`，无需 GeoGebra 运行库或后端服务。Cloudflare Pages 的完整构建设置与操作步骤见 [首页部署说明](site/README.md)。
+
 ### 本地 GeoGebra 画板（无需外网）
 
 首次配置需要联网，先在本目录运行：
