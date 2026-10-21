@@ -1,6 +1,6 @@
 {
   "name": "mathmover-desktop",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
   "description": "MathMover 桌面壳：拉起 daemon 与 Next standalone，再由 Electron 窗口加载",
   "author": "Derek Yang",
