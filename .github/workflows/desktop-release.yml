@@ -44,13 +44,30 @@ jobs:
         working-directory: desktop
         run: npm run prepare:assets
 
-      - name: Build installer and publish to GitHub Releases
+      - name: Build installer
         working-directory: desktop
-        run: npx electron-builder --publish always
+        run: npx electron-builder --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 不签名时不要尝试证书相关的探测
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      # 不用 electron-builder 的 GitHub publisher：它在首次发布时会并发上传并在
+      # “release 不存在”上竞态，实测会创建出两个同 tag 的 Release（一个只有
+      # blockmap、一个只有 exe）。改为自己建一个 Release，再三个文件一起传。
+      - name: Publish GitHub Release
+        working-directory: desktop
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "$VERSION" --notes "MathMover $VERSION"
+          gh release upload "$TAG" \
+            "release/MathMover-${VERSION}-Setup.exe" \
+            "release/MathMover-${VERSION}-Setup.exe.blockmap" \
+            "release/latest.yml" --clobber
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
