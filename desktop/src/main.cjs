@@ -44,6 +44,39 @@ function log(...args) {
   console.log('[mathmover-desktop]', ...args);
 }
 
+/**
+ * Electron 的 profile（localStorage、缓存、窗口状态）默认在 %APPDATA%\mathmover-desktop。
+ * 把它收进 %LOCALAPPDATA%\MathMover\electron：本机数据集中在一个根目录，也不让缓存
+ * 跟着 Roaming 漫游。首次升级时把旧目录整体迁移过去（同一个盘时是 rename，很快）。
+ * 必须在 app ready / 单实例锁之前调用。
+ */
+function setupUserData() {
+  const target = path.join(DATA_DIR, 'electron');
+  const legacy = app.getPath('userData');
+  if (legacy !== target && fs.existsSync(legacy) && !fs.existsSync(target)) {
+    try {
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.renameSync(legacy, target);
+      log('已迁移 Electron 配置：', legacy, '→', target);
+    } catch (e) {
+      log('迁移 Electron 配置失败，改为复制：', e instanceof Error ? e.message : e);
+      try {
+        fs.mkdirSync(target, { recursive: true });
+        fs.cpSync(legacy, target, { recursive: true });
+      } catch (copyError) {
+        log('复制 Electron 配置失败：', copyError instanceof Error ? copyError.message : copyError);
+      }
+    }
+  }
+  fs.mkdirSync(target, { recursive: true });
+  app.setPath('userData', target);
+  try {
+    app.setPath('sessionData', target);
+  } catch (e) {
+    log('设置 sessionData 失败：', e instanceof Error ? e.message : e);
+  }
+}
+
 function fail(message, detail) {
   quitting = true;
   const text = detail ? `${message}\n\n${detail}` : message;
@@ -386,6 +419,8 @@ function createWindow(nextPort) {
   try { fs.writeFileSync(marker, new Date().toISOString()); } catch { /* 只影响下次是否再弹 */ }
   if (process.env.MATHMOVER_DEVTOOLS === '1') mainWindow.webContents.openDevTools({ mode: 'detach' });
 }
+
+setupUserData();
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();

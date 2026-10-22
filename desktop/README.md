@@ -29,6 +29,9 @@ npx electron-builder --dir  # 产出 release/win-unpacked/MathMover.exe
 - 创建开始菜单与桌面快捷方式；卸载不删除 `%LOCALAPPDATA%\MathMover` 里的用户数据；
 - 自选目录请确保可写。应用运行时不写安装目录：MCP 配置与 dsh patch 会落到
   `%LOCALAPPDATA%\MathMover\mcp`（`MATHMOVER_MCP_DIR`），日志与课件也都在数据目录。
+- Electron 自己的 profile（localStorage、缓存、窗口状态）也收在
+  `%LOCALAPPDATA%\MathMover\electron`，不再是 `%APPDATA%\mathmover-desktop`；
+  首次升级会把旧目录整体迁移过去。因此本机所有数据都在 `%LOCALAPPDATA%\MathMover` 下。
 
 ## 运行时布局
 

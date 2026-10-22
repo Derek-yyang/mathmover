@@ -19,9 +19,16 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 
 const exe = path.resolve(process.argv[2] || 'desktop/release/win-unpacked/MathMover.exe');
-// 冒烟不碰真实数据目录：LOCALAPPDATA 指向临时目录，主进程的 DATA_DIR 随之隔离
 const tempData = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-desktop-'));
-const env = { ...process.env, LOCALAPPDATA: tempData };
+// 冒烟不碰真实数据目录：LOCALAPPDATA/APPDATA 都指向临时目录，数据目录与 Electron
+// profile 一起隔离（主进程会把 profile 收进 <LOCALAPPDATA>\MathMover\electron）。
+const tempRoaming = path.join(tempData, 'Roaming');
+fs.mkdirSync(tempRoaming, { recursive: true });
+// 伪造旧的 Roaming profile：验证主进程会把整个目录迁到 <LOCALAPPDATA>\MathMover\electron
+const legacyProfile = path.join(tempData, 'legacy-profile');
+fs.mkdirSync(path.join(legacyProfile, 'Local Storage'), { recursive: true });
+fs.writeFileSync(path.join(legacyProfile, 'Local Storage', 'migrated.txt'), 'old-profile');
+const env = { ...process.env, LOCALAPPDATA: tempData, APPDATA: tempRoaming };
 // 开发 shell 里可能全局有 ELECTRON_RUN_AS_NODE=1：那会让 exe 以纯 Node 启动、主进程不执行
 delete env.ELECTRON_RUN_AS_NODE;
 
@@ -56,7 +63,7 @@ const squatted = await new Promise((resolve) => {
   squatter.once('error', () => resolve(false));
   squatter.listen(8787, '127.0.0.1', () => resolve(true));
 });
-const app = spawn(exe, [`--remote-debugging-port=${debugPort}`], {
+const app = spawn(exe, [`--remote-debugging-port=${debugPort}`, `--user-data-dir=${legacyProfile}`], {
   cwd: path.dirname(exe),
   env: { ...env, ELECTRON_ENABLE_LOGGING: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -101,6 +108,12 @@ try {
 
   await page.waitForFunction(() => !!window.ggbApplet?.getXML, null, { timeout: 120_000 });
   await page.waitForFunction(() => typeof window.__mmGgb?.apply === 'function', null, { timeout: 60_000 });
+
+  // Electron profile 已收进数据目录，且旧 Roaming 目录被整体迁移（不是复制后留着）
+  const profileDir = path.join(tempData, 'MathMover', 'electron');
+  if (!fs.existsSync(path.join(profileDir, 'Local Storage', 'migrated.txt'))) {
+    throw new Error('Electron profile 没有迁移到数据目录：' + profileDir);
+  }
 
   // 首次启动引导：数据目录是全新的，设置弹窗应该自动打开
   const onboarding = await page.locator('[data-slot="settings-dialog"]').waitFor({ timeout: 15_000 }).then(() => true, () => false);

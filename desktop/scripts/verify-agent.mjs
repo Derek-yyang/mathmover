@@ -57,7 +57,9 @@ fs.writeFileSync(path.join(dataDir, 'byok.json'), JSON.stringify({
   reasoningLevels: '',
 }, null, 2));
 
-const env = { ...process.env, LOCALAPPDATA: tempData };
+const tempRoaming = path.join(tempData, 'Roaming');
+fs.mkdirSync(tempRoaming, { recursive: true });
+const env = { ...process.env, LOCALAPPDATA: tempData, APPDATA: tempRoaming };
 delete env.ELECTRON_RUN_AS_NODE;
 
 function freePort() {
@@ -82,7 +84,7 @@ function getJson(url) {
 }
 
 const debugPort = await freePort();
-const app = spawn(exe, [`--remote-debugging-port=${debugPort}`], { cwd: path.dirname(exe), env, stdio: ['ignore', 'pipe', 'pipe'] });
+const app = spawn(exe, [`--remote-debugging-port=${debugPort}`, `--user-data-dir=${path.join(tempData, 'profile')}`], { cwd: path.dirname(exe), env, stdio: ['ignore', 'pipe', 'pipe'] });
 const appLog = [];
 app.stdout.on('data', (c) => appLog.push(String(c)));
 app.stderr.on('data', (c) => appLog.push(String(c)));

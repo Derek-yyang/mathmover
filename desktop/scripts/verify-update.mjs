@@ -113,15 +113,18 @@ try {
   log('旧版版本：', fileVersion());
 
   // ── 启动旧版，让它自己更新 ─────────────────────────────────────
+  const tempRoaming = path.join(tempData, 'Roaming');
+  fs.mkdirSync(tempRoaming, { recursive: true });
   const env = {
     ...process.env,
     LOCALAPPDATA: tempData,
+    APPDATA: tempRoaming,
     MATHMOVER_UPDATE_URL: feedUrl,
     MATHMOVER_UPDATE_AUTOINSTALL: '1',
     ELECTRON_ENABLE_LOGGING: '1',
   };
   delete env.ELECTRON_RUN_AS_NODE;
-  const app = spawn(exe, [], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  const app = spawn(exe, [`--user-data-dir=${path.join(tempData, 'profile')}`], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   const appLog = [];
   app.stdout.on('data', (c) => appLog.push(String(c)));
   app.stderr.on('data', (c) => appLog.push(String(c)));
