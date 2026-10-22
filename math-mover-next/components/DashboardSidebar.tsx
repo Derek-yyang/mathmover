@@ -76,6 +76,8 @@ export default function DashboardSidebar() {
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--mm-bg-emerald-600)] text-sm font-bold text-white">M</span>
             <span className="text-sm font-semibold text-[var(--mm-text-stone-900)]">MathMover</span>
           </Link>
+          {/* 桌面端品牌在应用标题栏，侧栏头部改为分区标题（网页版仍用品牌链接）。 */}
+          <span className="desktop-sidebar-title mr-auto text-sm font-semibold text-[var(--mm-text-stone-900)]">课件库</span>
           {sidebar && <button id={sidebar.closeButtonId} type="button" className={iconButton} aria-label="收起侧栏" title="收起侧栏"
             aria-expanded={true} aria-controls={sidebar.sidebarId} onClick={() => { beginSidebarResizePreview(); sidebar.toggleSidebar(); }}>
             <PanelLeftClose className="h-4 w-4" />
