@@ -389,6 +389,15 @@ body {
    因为它的值在行内。 */
 .geogebra-stage .GeoGebraFrame { border-color: #d3d3d3 !important; }
 
+/* Electron 桌面构建：应用内标题栏。整条可拖动，按钮/菜单区不可拖动。 */
+:root[data-desktop] { --desktop-titlebar-height: 40px; }
+.desktop-titlebar { -webkit-app-region: drag; }
+.desktop-titlebar button,
+.desktop-titlebar [role="menu"] { -webkit-app-region: no-drag; }
+/* 品牌只在应用标题栏出现一次；侧栏不再重复，按钮靠右 */
+:root[data-desktop] [data-sidebar="sidebar"] a[aria-label="MathMover 首页"] { display: none; }
+:root[data-desktop] [data-sidebar="sidebar"] a[aria-label="MathMover 首页"] + button { margin-left: auto; }
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-sidebar, .sidebar-expanded-clip, .sidebar-expanded, .sidebar-rail {
     transition: none !important;

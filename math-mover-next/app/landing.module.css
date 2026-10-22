@@ -30,7 +30,7 @@
 .headerSpace { height: 80px; position: relative; }
 .headerSentinel { position: absolute; top: 95px; left: 0; width: 1px; height: 1px; pointer-events: none; }
 .headerExpandSentinel { top: 39px; }
-.header { position: fixed; top: 8px; inset-inline: 0; width: min(1280px, calc(100% - 112px)); margin-inline: auto; z-index: 20; pointer-events: none; }
+.header { position: fixed; top: calc(8px + var(--desktop-titlebar-height, 0px)); inset-inline: 0; width: min(1280px, calc(100% - 112px)); margin-inline: auto; z-index: 20; pointer-events: none; }
 .navInner { position: relative; isolation: isolate; width: 100%; max-width: 1280px; margin-inline: auto; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 8px 0; border-radius: 999px; pointer-events: auto; transition: width .5s cubic-bezier(.22, 1, .36, 1), max-width .5s cubic-bezier(.22, 1, .36, 1), padding .5s cubic-bezier(.22, 1, .36, 1), var(--theme-colors); }
 .navInner::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; border: 1px solid var(--lp-line); background: var(--lp-bg); opacity: 0; box-shadow: 0 8px 24px rgb(10 20 14 / .05); transition: opacity .4s ease, var(--theme-colors); }
 @supports (backdrop-filter: blur(12px)) { .navInner::before { background: var(--lp-nav-glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); } }

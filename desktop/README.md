@@ -51,6 +51,21 @@ WebSocket 地址由 Next 服务端在每请求时按 `MATHMOVER_WS_URL` 注入
 菜单：`MathMover → 打开日志目录 / 复制诊断信息`，`帮助 → 关于`（含版本、端口、路径）；
 启动失败的错误框也带「打开日志目录」按钮。
 
+## 窗口外观
+
+系统标题栏已隐藏（`titleBarStyle: 'hidden'`），只保留系统绘制的窗口按钮
+（`titleBarOverlay`）；应用内标题栏由 `app/layout.tsx` 渲染，显示品牌、版本与
+「⋯」菜单（检查更新 / 日志 / 诊断 / 关于）。整条标题栏是窗口拖拽区，按钮区
+`-webkit-app-region: no-drag`。
+
+- 标题栏只在**桌面构建**里出现：`prepare.mjs` 在 `next build` 时注入
+  `MATHMOVER_DESKTOP=1`，网页版（含 dev server）不受影响。
+- 原生菜单栏默认隐藏（`autoHideMenuBar`），按 Alt 仍可唤出；常用动作在应用内菜单里。
+- 深浅主题切换时，渲染进程通过 preload 的 `setTitleBarTheme` 通知主进程，
+  原生按钮、窗口边框与标题栏颜色一起切换。
+- `src/preload.cjs` 只暴露 `isDesktop / action / setTitleBarTheme` 三个能力，
+  IPC 动作在主进程里按白名单处理。
+
 日志写在 `%LOCALAPPDATA%\MathMover\logs\{daemon,next}.log`。退出时用 `taskkill /T /F`
 结束整棵子进程树；单实例锁避免第二个实例再抢端口。
 
@@ -123,7 +138,8 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
 ## 验收记录（2026-10-21）
 
 - `verify.mjs`：先占住 8787，桌面壳自动改用 8788 的 WebSocket，仍能完成构造；
-  全新数据目录下设置弹窗自动打开（首次启动引导），Esc 可关闭；窗口加载 `/dashboard`，
+  全新数据目录下设置弹窗自动打开（首次启动引导），Esc 可关闭且重新加载不再弹出；
+  窗口加载 `/dashboard`，应用内标题栏存在、菜单可开合，深色主题下标题栏变 `#181818`；
   经 `__mmGgb` 下发 `A/B/c` 三个对象成功，无脚本错误、无失败请求。
 - `verify-agent.mjs`：本地 mock 端点收到两轮 `/v1/chat/completions`，第二轮请求体里
   带第一轮用户消息与助手回复——原生会话续接成立；密钥以 Bearer 头发出。

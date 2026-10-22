@@ -10,7 +10,7 @@
  *
  * 所有子进程日志写到 <dataDir>/logs/，崩溃时错误框里给路径。
  */
-const { app, BrowserWindow, shell, dialog, clipboard, Menu } = require('electron');
+const { app, BrowserWindow, shell, dialog, clipboard, Menu, ipcMain, nativeTheme } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -192,6 +192,49 @@ function openLogs() {
   void shell.openPath(LOG_DIR);
 }
 
+function showAbout() {
+  const choice = dialog.showMessageBoxSync({
+    type: 'info',
+    title: '关于 MathMover',
+    message: `MathMover ${app.getVersion()}`,
+    detail: diagnosticsText(),
+    buttons: ['打开日志目录', '确定'],
+    defaultId: 1,
+    cancelId: 1,
+  });
+  if (choice === 0) openLogs();
+}
+
+const TITLEBAR_COLORS = {
+  light: { color: '#fdfcf8', symbolColor: '#1c1917' },
+  dark: { color: '#181818', symbolColor: '#fafaf9' },
+};
+
+/** 原生窗口按钮与窗口边框跟随应用主题（Windows 的 DWM 也看 nativeTheme）。 */
+function applyTitleBarTheme(theme) {
+  const dark = theme === 'dark';
+  nativeTheme.themeSource = dark ? 'dark' : 'light';
+  if (process.platform === 'darwin' || !mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    mainWindow.setTitleBarOverlay({ ...TITLEBAR_COLORS[dark ? 'dark' : 'light'], height: 40 });
+  } catch (e) {
+    log('设置标题栏颜色失败：', e instanceof Error ? e.message : e);
+  }
+}
+
+/** 渲染进程标题栏菜单 → 主进程动作。只接受白名单，避免把 IPC 变成任意命令入口。 */
+function installDesktopIpc() {
+  ipcMain.on('desktop-action', (_event, action) => {
+    if (action === 'check-updates') void checkForUpdates();
+    else if (action === 'open-logs') openLogs();
+    else if (action === 'copy-diagnostics') clipboard.writeText(diagnosticsText());
+    else if (action === 'about') showAbout();
+  });
+  ipcMain.on('set-titlebar-theme', (_event, theme) => {
+    applyTitleBarTheme(theme === 'dark' ? 'dark' : 'light');
+  });
+}
+
 let updateCheck = null;
 let updatePrompted = false;
 
@@ -292,21 +335,7 @@ function installMenu() {
     },
     {
       label: '帮助',
-      submenu: [{
-        label: '关于 MathMover',
-        click: () => {
-          const choice = dialog.showMessageBoxSync({
-            type: 'info',
-            title: '关于 MathMover',
-            message: `MathMover ${app.getVersion()}`,
-            detail: diagnosticsText(),
-            buttons: ['打开日志目录', '确定'],
-            defaultId: 1,
-            cancelId: 1,
-          });
-          if (choice === 0) openLogs();
-        },
-      }],
+      submenu: [{ label: '关于 MathMover', click: showAbout }],
     },
   ]));
 }
@@ -320,7 +349,17 @@ function createWindow(nextPort) {
     show: false,
     backgroundColor: '#FDFCF8',
     title: 'MathMover',
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    // 隐藏系统标题栏，只保留系统画的窗口按钮（overlay）；标题栏由渲染进程绘制。
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#fdfcf8', symbolColor: '#1c1917', height: 40 },
+    // 菜单仍在（Alt 可唤出），但默认不占一条系统菜单栏；常用操作在应用内标题栏菜单里。
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
   });
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
@@ -355,6 +394,9 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
+    // 先落浅色，避免启动瞬间闪出系统暗色标题栏；渲染进程挂载后会按实际主题纠正。
+    nativeTheme.themeSource = 'light';
+    installDesktopIpc();
     try {
       const nextPort = await startServices();
       installMenu();

@@ -59,8 +59,12 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
 
   // 桌面版首次启动（main 在 URL 上带 onboarding=1）自动打开设置——普通用户不知道
   // 还要先配端点/密钥；浏览器开发环境没有这个参数，不会被打扰。
+  // 打开前把参数从地址栏摘掉：否则用户手动「重新加载」会再弹一次。
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('onboarding') !== '1') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('onboarding') !== '1') return;
+    url.searchParams.delete('onboarding');
+    window.history.replaceState(null, '', url.toString());
     const timer = setTimeout(openSettings, 800);
     return () => clearTimeout(timer);
   }, []);
@@ -525,7 +529,7 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
   }, [handleSendMessage]);
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 bg-[var(--mm-canvas-shell)] overflow-hidden">
+    <div className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--mm-canvas-shell)] [[data-desktop]_&]:h-[calc(100dvh-var(--desktop-titlebar-height,40px))]">
       {/* 工具栏与画布共用一个工作区；全屏时保留同一个 Applet 实例。 */}
       <div
         ref={canvasWorkspaceRef}

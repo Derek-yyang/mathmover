@@ -52,7 +52,7 @@ const nextBin = path.join(appDir, 'node_modules', 'next', 'dist', 'bin', 'next')
 const built = spawnSync(process.execPath, [nextBin, 'build'], {
   cwd: appDir,
   stdio: 'inherit',
-  env: { ...process.env, MATHMOVER_NEXT_DIST_DIR: DIST, NEXT_TELEMETRY_DISABLED: '1' },
+  env: { ...process.env, MATHMOVER_NEXT_DIST_DIR: DIST, NEXT_TELEMETRY_DISABLED: '1', MATHMOVER_DESKTOP: '1' },
 });
 // Next 会往 tsconfig.include 里写本轮的 distDir 类型目录；构建完恢复，别污染工作区
 if (fs.readFileSync(tsconfig, 'utf8') !== tsconfigBefore) fs.writeFileSync(tsconfig, tsconfigBefore);

@@ -108,6 +108,29 @@ try {
   await page.keyboard.press('Escape');
   await page.locator('[data-slot="settings-dialog"]').waitFor({ state: 'detached', timeout: 10_000 });
 
+  // 桌面自定义标题栏：存在、菜单能开合（放在引导关闭之后，避免弹窗遮罩拦截点击）
+  await page.locator('[data-slot="desktop-titlebar"]').waitFor({ timeout: 30_000 });
+  const desktopMenu = page.locator('[aria-label="桌面菜单"]');
+  await desktopMenu.click();
+  await page.locator('[role="menu"][aria-label="桌面菜单项"]').waitFor({ timeout: 5_000 });
+  await page.keyboard.press('Escape');
+  await page.locator('[role="menu"][aria-label="桌面菜单项"]').waitFor({ state: 'detached', timeout: 5_000 });
+
+  // 深色主题：应用内标题栏跟随；原生按钮颜色由 preload IPC 同步（这里只能断言 DOM）
+  await page.evaluate(() => localStorage.setItem('mm.theme', 'dark'));
+  await page.reload();
+  await page.waitForFunction(() => !!window.ggbApplet?.getXML, null, { timeout: 120_000 });
+  await page.waitForFunction(() => {
+    const bar = document.querySelector('[data-slot="desktop-titlebar"]');
+    return bar && getComputedStyle(bar).backgroundColor === 'rgb(24, 24, 24)';
+  }, null, { timeout: 15_000 });
+  await page.screenshot({ path: path.join(tempData, 'shell-dark.png') });
+  // 回到浅色继续构造验证
+  await page.evaluate(() => localStorage.setItem('mm.theme', 'light'));
+  await page.reload();
+  await page.waitForFunction(() => !!window.ggbApplet?.getXML, null, { timeout: 120_000 });
+  await page.waitForFunction(() => typeof window.__mmGgb?.apply === 'function', null, { timeout: 60_000 });
+
   // 真画一条：Next → daemon → WebSocket → GeoGebra 整条写路径
   const drawn = await page.evaluate(async () => {
     await window.__mmGgb.apply({
@@ -142,6 +165,10 @@ try {
   console.log(`PASS: 桌面壳启动并完成一次构造 → ${info.href}`);
   console.log(`  title=${info.title} objects=${info.objects}（A/B/c 已落到画布）0 浏览器错误`);
   console.log(`  首次启动引导：设置弹窗已自动打开；8787 被占用=${squatted}（WebSocket 改用动态端口）`);
+  console.log(`  自定义标题栏：存在且菜单可开合`);
+  const shot = path.join(tempData, 'shell.png');
+  await page.screenshot({ path: shot });
+  console.log(`  截图：${shot}`);
   console.log(`  临时数据目录：${tempData}`);
 } finally {
   await browser?.close().catch(() => {});
