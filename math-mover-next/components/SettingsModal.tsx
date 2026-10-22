@@ -9,7 +9,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { Popover } from 'radix-ui';
-import { Archive, Database, Info, Keyboard, Cpu, RefreshCw, SunMoon, X } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 import AgentSettings from './settings/AgentSettings';
 import ByokSettings, { type SettingsDraftState } from './settings/ByokSettings';
 import HelpSettings from './settings/HelpSettings';
@@ -18,25 +18,9 @@ import ArchivedCoursewares from './settings/ArchivedCoursewares';
 import DataStorageSettings from './settings/DataStorageSettings';
 import AppearanceSettings from './settings/AppearanceSettings';
 import { useAgentRuntimeState } from './dashboard/AgentRuntimeState';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './assistant-ui/ui/tabs';
+import { SettingsSections, SettingsProviderTabs, type SettingsSection, type SettingsProviderTab } from './settings/SettingsLayout';
 import { SettingsButton } from './settings/SettingsControls';
 import { Dialog, DialogClose, DialogContent, DialogTitle } from './assistant-ui/ui/dialog';
-
-const settingsTab = 'h-10 flex-none rounded-none px-4 after:bg-primary data-[state=active]:text-primary dark:data-[state=active]:text-primary group-data-[orientation=horizontal]/tabs:after:bottom-[-1px]';
-const navButton = (active: boolean) =>
-  `flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)] ${
-    active ? 'bg-[var(--mm-bg-emerald-50)] text-[var(--mm-text-emerald-900)]' : 'text-[var(--mm-text-stone-700)] hover:bg-[var(--mm-bg-stone-100)]'}`;
-
-type Section = 'agents' | 'appearance' | 'archives' | 'storage' | 'help' | 'about';
-
-const NAV: Array<{ id: Section; label: string; icon: typeof Cpu }> = [
-  { id: 'agents', label: '模型与提供商', icon: Cpu },
-  { id: 'appearance', label: '外观', icon: SunMoon },
-  { id: 'archives', label: '归档课件', icon: Archive },
-  { id: 'storage', label: '数据与存储', icon: Database },
-  { id: 'help', label: '帮助与快捷键', icon: Keyboard },
-  { id: 'about', label: '关于', icon: Info },
-];
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -50,8 +34,8 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     setDraft(previous => previous.dirty === state.dirty && previous.saving === state.saving ? previous : state);
     if (!state.dirty && !state.saving) setConfirmClose(false);
   }, []);
-  const [section, setSection] = useState<Section>('agents');
-  const [tab, setTab] = useState<'cli' | 'providers'>('providers');
+  const [section, setSection] = useState<SettingsSection>('agents');
+  const [tab, setTab] = useState<SettingsProviderTab>('providers');
   const { runtimes, detecting, refreshRuntimes } = useAgentRuntimeState();
   const cliCount = runtimes.filter(item => item.id !== 'byok' && item.usable).length;
   const requestClose = (proceed = onClose) => {
@@ -98,54 +82,18 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           </Popover.Root>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1">
-        <nav aria-label="设置分区" className="w-48 shrink-0 border-r border-[var(--mm-border-stone-200)] px-3 py-4">
-          <ul className="space-y-1">
-            {NAV.map(item => {
-              const Icon = item.icon;
-              const active = section === item.id;
-              return (
-                <li key={item.id}>
-                  <button type="button" aria-current={active ? 'page' : undefined}
-                    className={navButton(active)}
-                    onClick={() => setSection(item.id)}>
-                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    {item.label}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-        <div className="settings-scroll-viewport min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+      <SettingsSections section={section} onSectionChange={setSection}>
           {/* Keep configuration mounted across sections so drafts and test results survive. */}
           <div hidden={section !== 'agents'}>
-            <Tabs value={tab} onValueChange={value => { if (value === 'cli' || value === 'providers') setTab(value); }} className="gap-0">
-              <TabsList variant="line" aria-label="模型与提供商"
-                className="mb-4 h-10 w-full justify-start border-b border-[var(--mm-border-stone-200)] p-0 group-data-[orientation=horizontal]/tabs:h-10">
-                <TabsTrigger value="providers" id="settings-tab-providers" aria-controls="settings-panel-providers" className={settingsTab}>
-                  模型 API
-                </TabsTrigger>
-                <TabsTrigger value="cli" id="settings-tab-cli" aria-controls="settings-panel-cli" className={settingsTab}>
-                  本机 Agent{cliCount > 0 ? `（${cliCount}）` : ''}
-                </TabsTrigger>
-              </TabsList>
-              {/* 两个面板保持挂载（hidden 切换）：表单草稿与测试结果不因切 Tab 蒸发 */}
-              <TabsContent forceMount value="providers" id="settings-panel-providers" aria-labelledby="settings-tab-providers" hidden={tab !== 'providers'}>
-                <ByokSettings onDraftStateChange={handleDraftState} />
-              </TabsContent>
-              <TabsContent forceMount value="cli" id="settings-panel-cli" aria-labelledby="settings-tab-cli" hidden={tab !== 'cli'}>
-                <AgentSettings />
-              </TabsContent>
-            </Tabs>
+            <SettingsProviderTabs tab={tab} onTabChange={setTab} cliCount={cliCount}
+              api={<ByokSettings onDraftStateChange={handleDraftState} />} agents={<AgentSettings />} />
           </div>
           {section === 'archives' && <ArchivedCoursewares onOpen={onClose} onOpenRequest={requestClose} />}
           {section === 'appearance' && <AppearanceSettings />}
           <div hidden={section !== 'storage'}><DataStorageSettings active={section === 'storage'} /></div>
           {section === 'help' && <HelpSettings />}
           {section === 'about' && <AboutSettings />}
-        </div>
-      </div>
+      </SettingsSections>
     </div>
     </DialogContent>
   </Dialog>;

@@ -1,16 +1,16 @@
-import type { ReactNode } from 'react';
+import { forwardRef, type ReactNode } from 'react';
 import { Button, type ButtonProps } from '../assistant-ui/ui/button';
 import { Badge } from '../assistant-ui/ui/badge';
 import { cn } from '../assistant-ui/utils';
 
 // Shared sizing and theme for settings actions; behavior stays in the host pages.
-export function SettingsButton({ className, variant = 'ghost', size = 'sm', ...props }: ButtonProps) {
-  return <Button variant={variant} size={size} className={cn(
+export const SettingsButton = forwardRef<HTMLButtonElement, ButtonProps>(function SettingsButton({ className, variant = 'ghost', size = 'sm', ...props }, ref) {
+  return <Button ref={ref} variant={variant} size={size} className={cn(
     'rounded-lg text-sm shadow-none focus-visible:ring-primary motion-reduce:transition-none',
     variant === 'ghost' && 'text-[var(--mm-text-stone-700)] hover:bg-[var(--mm-bg-stone-100)] hover:text-[var(--mm-text-stone-900)]',
     className,
   )} {...props} />;
-}
+});
 
 const statusTone = {
   success: 'bg-[var(--mm-bg-emerald-100)] text-[var(--mm-text-emerald-900)]',

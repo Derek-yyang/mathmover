@@ -14,6 +14,10 @@ const choices = [
 
 export default function AppearanceSettings() {
   const { theme, setTheme } = useTheme();
+  return <AppearanceSettingsView theme={theme} setTheme={setTheme} />;
+}
+
+export function AppearanceSettingsView({ theme, setTheme }: { theme?: string; setTheme: (theme: string) => void }) {
   // Keep the menu inside Settings' focus scope. The mounted container
   // also guards theme-dependent content until hydration has completed.
   const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null);
