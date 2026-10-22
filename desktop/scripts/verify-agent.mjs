@@ -95,6 +95,7 @@ const killApp = () => {
 };
 
 let browser;
+let page;
 try {
   let version = null;
   for (let i = 0; i < 120 && !version; i++) {
@@ -104,7 +105,7 @@ try {
   if (!version) throw new Error('DevTools 端点没有起来\n' + appLog.join(''));
 
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${debugPort}`);
-  let page = null;
+  page = null;
   for (let i = 0; i < 480 && !page; i++) {
     page = browser.contexts().flatMap((c) => c.pages()).find((p) => p.url().includes('/dashboard')) ?? null;
     if (!page) await sleep(250);
@@ -126,7 +127,7 @@ try {
   await composer.waitFor({ timeout: 60_000 });
 
   async function turn(text) {
-    const before = await page.evaluate(() => (document.body.innerText.match(/MOCK-OK/g) ?? []).length);
+    const before = await page.locator('[data-role="assistant"]').filter({ hasText: 'MOCK-OK' }).count();
     await composer.fill(text);
     // 空输入时 Send 本来就是禁用的——先填字，再等它可用（sendBlock 会体现在 title 上）
     try {
@@ -140,7 +141,7 @@ try {
     }
     await send.click();
     await page.waitForFunction(
-      (n) => (document.body.innerText.match(/MOCK-OK/g) ?? []).length > n,
+      (n) => [...document.querySelectorAll('[data-role="assistant"]')].filter(el => el.textContent.includes('MOCK-OK')).length > n,
       before,
       { timeout: 180_000 },
     );
@@ -149,6 +150,8 @@ try {
   try {
     await turn('第一句话：只回复 MOCK-OK。');
     await turn('第二句话：再回复一次 MOCK-OK。');
+    // 等生成完成、课件落盘再退出，否则网页的未保存保护会取消 macOS 的 app.quit。
+    await page.waitForFunction(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })), null, { timeout: 30_000 });
   } catch (e) {
     console.log('turn 失败，当前界面：\n' + (await page.evaluate(() => document.body.innerText)).slice(0, 1200));
     console.log('页面错误：' + (errors.join(' | ') || '(无)'));
@@ -178,7 +181,10 @@ try {
   console.log(`PASS: 打包版完成两轮对话，第二轮请求含第一轮上下文（mock 收到 ${chatHits.length} 次）`);
   console.log(`  临时数据目录：${tempData}`);
 } finally {
-  await browser?.close().catch(() => {});
+  console.log('[verify-agent] 关闭浏览器连接与测试应用');
+  await Promise.race([browser?.close().catch(() => {}), sleep(5000)]);
   killApp();
+  // OpenCode 的 HTTP keep-alive 连接不能阻止本地 mock 服务退出。
+  mock.closeAllConnections();
   mock.close();
 }

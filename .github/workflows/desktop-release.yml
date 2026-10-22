@@ -135,10 +135,12 @@ jobs:
       - name: Verify bundle architecture and signature
         run: node desktop/scripts/verify-mac-package.mjs
       - name: Smoke test packaged workbench
+        timeout-minutes: 5
         run: node desktop/scripts/verify.mjs desktop/release/mac-arm64/MathMover.app/Contents/MacOS/MathMover
         env:
           TMPDIR: ${{ runner.temp }}
       - name: Verify bundled Agent with two mock conversation turns
+        timeout-minutes: 5
         run: node desktop/scripts/verify-agent.mjs desktop/release/mac-arm64/MathMover.app/Contents/MacOS/MathMover
         env:
           TMPDIR: ${{ runner.temp }}
