@@ -7,6 +7,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('mathmoverDesktop', {
   isDesktop: true,
+  getPreferences: () => ipcRenderer.invoke('desktop-preferences:get'),
+  setCloseToTray: (enabled) => ipcRenderer.invoke('desktop-preferences:set-close-to-tray', enabled),
   /** 检查更新 / 打开日志 / 复制诊断 / 关于 */
   action: (name) => {
     if (typeof name === 'string') ipcRenderer.send('desktop-action', name);

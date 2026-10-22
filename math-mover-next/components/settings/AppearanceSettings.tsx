@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { ChevronDown, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/assistant-ui/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/assistant-ui/ui/dropdown-menu';
+import { desktopBridge, type DesktopPreferences } from '@/lib/desktop-bridge';
 
 const choices = [
   { value: 'light', label: '浅色', icon: Sun },
@@ -14,7 +15,59 @@ const choices = [
 
 export default function AppearanceSettings() {
   const { theme, setTheme } = useTheme();
-  return <AppearanceSettingsView theme={theme} setTheme={setTheme} />;
+  return <>
+    <AppearanceSettingsView theme={theme} setTheme={setTheme} />
+    <DesktopWindowSettings />
+  </>;
+}
+
+/** 真实桌面壳的设置；首页复用的 AppearanceSettingsView 不包含此项。 */
+function DesktopWindowSettings() {
+  const descriptionId = useId();
+  const [state, setState] = useState<{ preferences: DesktopPreferences | null; error: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const bridge = desktopBridge();
+    if (!bridge) return;
+    let active = true;
+    bridge.getPreferences().then(preferences => {
+      if (active) setState({ preferences, error: '' });
+    }).catch(() => {
+      if (active) setState({ preferences: null, error: '无法读取窗口设置，请重新打开设置后重试。' });
+    });
+    return () => { active = false; };
+  }, []);
+
+  async function changeCloseToTray(enabled: boolean) {
+    const bridge = desktopBridge();
+    if (!bridge || saving) return;
+    setSaving(true);
+    try {
+      const preferences = await bridge.setCloseToTray(enabled);
+      setState({ preferences, error: '' });
+    } catch {
+      setState(previous => ({ preferences: previous?.preferences ?? null, error: '保存失败，请重试。' }));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!state) return null;
+  const { preferences, error } = state;
+  return <section className="mt-8 border-t border-[var(--mm-border-divider)] pt-6">
+    <h3 className="text-base font-semibold text-[var(--mm-text-stone-900)]">窗口行为</h3>
+    <label className="mt-5 flex items-center justify-between gap-4 text-sm font-medium text-[var(--mm-text-stone-900)]">
+      关闭窗口时收起到托盘
+      <input type="checkbox" role="switch" className="size-4 shrink-0 cursor-pointer accent-[var(--mm-text-emerald-700)] disabled:cursor-not-allowed disabled:opacity-50"
+        checked={preferences?.closeToTray ?? false} disabled={saving || !preferences?.trayAvailable}
+        aria-describedby={descriptionId} onChange={event => { void changeCloseToTray(event.target.checked); }} />
+    </label>
+    <p id={descriptionId} className="mt-2 text-sm leading-6 text-[var(--mm-text-stone-600)]">
+      {preferences && !preferences.trayAvailable ? '系统托盘当前不可用，关闭窗口时将退出应用。' : '开启后，关闭窗口仍会在后台运行。点击托盘图标可恢复窗口，右键选择“退出”可完全关闭应用。'}
+    </p>
+    {error && <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+  </section>;
 }
 
 export function AppearanceSettingsView({ theme, setTheme }: { theme?: string; setTheme: (theme: string) => void }) {

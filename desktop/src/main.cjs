@@ -17,6 +17,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
 const path = require('node:path');
+const { createSystemTray } = require('./system-tray.cjs');
 
 const IS_WIN = process.platform === 'win32';
 const WS_PORT_START = 8787;
@@ -35,6 +36,7 @@ const DATA_DIR = path.join(process.env.LOCALAPPDATA || app.getPath('appData'), '
 const LOG_DIR = path.join(DATA_DIR, 'logs');
 
 let mainWindow = null;
+let desktopTray = null;
 let daemonChild = null;
 let nextChild = null;
 let quitting = false;
@@ -266,6 +268,15 @@ function applyTitleBarTheme(theme) {
 
 /** 渲染进程标题栏菜单 → 主进程动作。只接受白名单，避免把 IPC 变成任意命令入口。 */
 function installDesktopIpc() {
+  const requireDesktopWindow = (event) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) {
+      throw new Error('无效的桌面设置请求');
+    }
+    if (!desktopTray) throw new Error('桌面设置尚未就绪');
+    return desktopTray;
+  };
+  ipcMain.handle('desktop-preferences:get', (event) => requireDesktopWindow(event).getPreferences());
+  ipcMain.handle('desktop-preferences:set-close-to-tray', (event, enabled) => requireDesktopWindow(event).setCloseToTray(enabled));
   ipcMain.on('desktop-action', (_event, action) => {
     if (action === 'check-updates') void checkForUpdates();
     else if (action === 'open-logs') openLogs();
@@ -413,6 +424,12 @@ function createWindow(nextPort) {
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.on('closed', () => { mainWindow = null; });
+  // Windows 注销/关机不会触发 before-quit，同样需要结束后台服务。
+  mainWindow.on('session-end', () => {
+    quitting = true;
+    killTree(nextChild);
+    killTree(daemonChild);
+  });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url) && !url.startsWith(`http://127.0.0.1:${nextPort}`)) shell.openExternal(url);
     return { action: 'deny' };
@@ -438,11 +455,8 @@ setupUserData();
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
-  });
+  app.on('second-instance', () => desktopTray?.showWindow());
+  app.on('activate', () => desktopTray?.showWindow());
 
   app.whenReady().then(async () => {
     // 先落浅色，避免启动瞬间闪出系统暗色标题栏；渲染进程挂载后会按实际主题纠正。
@@ -453,6 +467,13 @@ if (!app.requestSingleInstanceLock()) {
       installMenu();
       setupUpdater();
       createWindow(nextPort);
+      desktopTray = createSystemTray({
+        window: mainWindow,
+        iconPath: path.join(__dirname, '..', 'build-resources', 'icon.ico'),
+        preferencesPath: path.join(DATA_DIR, 'desktop-settings.json'),
+        onCheckUpdates: checkForUpdates,
+        log,
+      });
     } catch (e) {
       fail(e instanceof Error ? e.message : String(e));
     }

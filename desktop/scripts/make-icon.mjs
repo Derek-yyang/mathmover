@@ -1,11 +1,12 @@
 /**
- * 生成桌面应用图标（512×512 PNG，electron-builder 会自动转 .ico）。
+ * 生成桌面应用图标（512×512 PNG + 多尺寸 ICO，供 Windows 托盘使用）。
  *
  * 设计沿用 app/icon.tsx 的 favicon：品牌绿 #10b981、圆角方块、白色 M。
  * 改设计时重跑：node scripts/make-icon.mjs
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { chromium } from 'playwright';
 
 const out = path.resolve(import.meta.dirname, '..', 'build-resources', 'icon.png');
@@ -19,3 +20,14 @@ await page.setContent(`<!doctype html><html><body style="margin:0;background:tra
 await page.locator('#icon').screenshot({ path: out, omitBackground: true });
 await browser.close();
 console.log('icon:', out, fs.statSync(out).size + 'B');
+
+const require = createRequire(import.meta.url);
+const { convertIcon } = require('app-builder-lib/out/util/iconConverter.js');
+const result = await convertIcon({
+  sources: [out], fallbackSources: [], roots: [path.dirname(out)],
+  format: 'ico', outDir: path.resolve(import.meta.dirname, '..', 'release', 'app-icon'),
+});
+if (result.isFallback || result.icons.length !== 1) throw new Error('应用 ICO 生成失败');
+const ico = path.join(path.dirname(out), 'icon.ico');
+fs.copyFileSync(result.icons[0].file, ico);
+console.log('icon:', ico, fs.statSync(ico).size + 'B');

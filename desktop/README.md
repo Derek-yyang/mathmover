@@ -19,6 +19,8 @@ npx electron-builder --dir  # 产出 release/win-unpacked/MathMover.exe
 - `node scripts/verify.mjs`：启动 unpacked 应用，验证窗口、GeoGebra 实例与一次真实构造。
 - `node scripts/verify-agent.mjs`：本地 OpenAI 兼容 mock + 两轮对话，验证随包 OpenCode
   与原生会话续接（第二轮请求里带着第一轮上下文）。
+- `node scripts/verify-tray.cjs`：用真实 Electron 验证关闭、托盘恢复、设置持久化、
+  图标加载失败回退和完全退出；数据使用独立临时目录。
 
 ## 安装形态
 
@@ -26,7 +28,11 @@ npx electron-builder --dir  # 产出 release/win-unpacked/MathMover.exe
 
 - 默认按当前用户安装到 `%LOCALAPPDATA%\Programs\MathMover`，不需要管理员权限；
 - 安装向导里可以自选安装目录（`allowToChangeInstallationDirectory`）；
-- 创建开始菜单与桌面快捷方式；卸载不删除 `%LOCALAPPDATA%\MathMover` 里的用户数据；
+- 创建开始菜单快捷方式；桌面快捷方式可在安装选项页选择，默认勾选；
+- 静默安装与自动更新跳过安装选项页，自动更新保留已有的桌面快捷方式状态；
+- 安装器使用带下载标记的独立图标；修改 `build-resources/installerIcon.svg` 后，
+  在 `desktop` 目录运行 `node scripts/make-installer-icon.mjs` 重新生成 PNG 和 ICO；
+- 卸载不删除 `%LOCALAPPDATA%\MathMover` 里的用户数据；
 - 自选目录请确保可写。应用运行时不写安装目录：MCP 配置与 dsh patch 会落到
   `%LOCALAPPDATA%\MathMover\mcp`（`MATHMOVER_MCP_DIR`），日志与课件也都在数据目录。
 - Electron 自己的 profile（localStorage、缓存、窗口状态）也收在
@@ -76,11 +82,22 @@ WebSocket 地址由 Next 服务端在每请求时按 `MATHMOVER_WS_URL` 注入
 - 原生菜单栏默认隐藏（`autoHideMenuBar`），按 Alt 仍可唤出；常用动作在应用内菜单里。
 - 深浅主题切换时，渲染进程通过 preload 的 `setTitleBarTheme` 通知主进程，
   原生按钮、窗口边框与标题栏颜色一起切换。
-- `src/preload.cjs` 只暴露 `isDesktop / action / setTitleBarTheme` 三个能力，
-  IPC 动作在主进程里按白名单处理。
+- `src/preload.cjs` 仅暴露桌面标识、菜单动作、标题栏主题与窗口设置；
+  IPC 动作在主进程里按白名单处理，窗口设置请求仅接受主窗口的顶层页面。
 
 日志写在 `%LOCALAPPDATA%\MathMover\logs\{daemon,next}.log`。退出时用 `taskkill /T /F`
 结束整棵子进程树；单实例锁避免第二个实例再抢端口。
+
+## 系统托盘
+
+- 启动后显示绿色 M 托盘图标，单击或双击恢复窗口；右键提供「打开 MathMover」、
+  「检查更新…」和「退出」。再次启动应用也会唤回已隐藏的窗口。
+- 设置 → 外观 → 窗口行为中可开启「关闭窗口时收起到托盘」，默认关闭。
+  开启后，关闭按钮只隐藏窗口，正在生成的任务继续运行；从托盘选择「退出」才完全退出。
+- 偏好保存在 `%LOCALAPPDATA%\MathMover\desktop-settings.json`，重启后保留。
+  托盘创建失败时不会拦截关闭窗口，避免应用留在后台却无法重新打开。
+- 正常退出、自动更新重启以及 Windows 注销/关机时会清理托盘和后台服务。
+- 托盘图标随包放在 `build-resources/icon.ico`；`node scripts/make-icon.mjs` 可重新生成。
 
 ## 为什么 daemon 要预编译
 

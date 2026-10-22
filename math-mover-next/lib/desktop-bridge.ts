@@ -1,8 +1,15 @@
 /** 桌面壳通过 preload 暴露的最小桥；浏览器里不存在。 */
 export type DesktopAction = 'check-updates' | 'open-logs' | 'copy-diagnostics' | 'about';
 
+export interface DesktopPreferences {
+  closeToTray: boolean;
+  trayAvailable: boolean;
+}
+
 export interface DesktopBridge {
   isDesktop: true;
+  getPreferences(): Promise<DesktopPreferences>;
+  setCloseToTray(enabled: boolean): Promise<DesktopPreferences>;
   action(action: DesktopAction): void;
   setTitleBarTheme(theme: 'light' | 'dark'): void;
 }

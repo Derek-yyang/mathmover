@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <image href="icon.png" x="8" y="8" width="448" height="448" />
+  <circle cx="384" cy="384" r="112" fill="#047857" stroke="#ffffff" stroke-width="24" />
+  <path d="M384 318v100m-38-38 38 38 38-38M330 424v24h108v-24"
+    fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

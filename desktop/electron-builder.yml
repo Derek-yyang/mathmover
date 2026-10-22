@@ -15,14 +15,17 @@ win:
   icon: build-resources/icon.png
 
 nsis:
+  # 安装器使用带下载标记的独立图标，和正式应用的绿色 M 区分。
+  installerIcon: build-resources/installerIcon.ico
   # 辅助安装：允许用户自选安装目录；默认仍按当前用户安装，不需要管理员权限。
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  # 手动安装时遵循安装选项页的勾选；自动更新不重建用户已删除的快捷方式。
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: MathMover
-  # 跳过「为谁安装」页（静默安装/自动更新不会挂在自定义页上）
+  # 当前用户安装与桌面快捷方式选项（静默安装/自动更新跳过自定义页）
   include: build-resources/installer.nsh
 
 # 自动更新的发布源。仓库公开后客户端可以匿名读 Releases。
@@ -36,9 +39,14 @@ publish:
 # 壳本身只有主进程；其余全部走 extraResources（asar 里执行不了子进程与二进制）
 files:
   - src/**/*
+  - build-resources/icon.ico
   - package.json
 
 extraResources:
+  - from: ../LICENSE
+    to: LICENSE
+  - from: ../THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
   - from: build/next
     to: next
   - from: build/next/node_modules
