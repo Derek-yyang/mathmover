@@ -79,7 +79,7 @@ export default function DashboardSidebar() {
           {/* 桌面端：品牌在应用标题栏，主操作「新建课件」常驻头部（列表里的新建行隐藏）；
               网页版保留品牌链接与列表里的新建行。 */}
           <button type="button" onClick={newCourseware}
-            className="desktop-sidebar-new mr-auto h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-[var(--mm-text-stone-800)] hover:bg-[var(--mm-bg-stone-100)] focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]">
+            className="desktop-sidebar-new mr-2 h-10 flex-1 items-center gap-2 rounded-lg bg-[var(--mm-bg-emerald-50)] px-2.5 text-sm font-medium text-[var(--mm-text-emerald-800)] hover:bg-[var(--mm-bg-emerald-100)] focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]">
             <Plus aria-hidden className="h-4 w-4 text-[var(--mm-text-emerald-700)]" />
             新建课件
           </button>
