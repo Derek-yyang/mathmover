@@ -2,6 +2,7 @@
   "name": "@mathmover/ggb-core",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "MathMover 领域核心：共享类型、GGB 指令解析/目录/语义校验（零运行时依赖）",
   "exports": {

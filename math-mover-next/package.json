@@ -2,6 +2,7 @@
   "name": "math-mover-next",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "ggb:install": "node scripts/geogebra-runtime.mjs install",
     "ggb:check": "node scripts/geogebra-runtime.mjs check",

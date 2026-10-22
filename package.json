@@ -1,6 +1,7 @@
 {
   "name": "mathmover",
   "private": true,
+  "license": "MIT",
   "version": "0.1.0",
   "description": "MathMover 领域能力层：MCP 工具 + GGB 执行器（TS）。math-mover-next 为独立前端，不进 workspace。",
   "type": "module",
