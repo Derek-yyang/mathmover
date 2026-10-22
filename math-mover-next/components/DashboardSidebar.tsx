@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, PanelLeftClose, PanelLeftOpen, SquarePen, Settings2 } from 'lucide-react';
+import { Search, PanelLeftClose, PanelLeftOpen, SquarePen, Settings2, Plus } from 'lucide-react';
 import { useSidebarState } from './dashboard/SidebarState';
 import SidebarRailButton from './dashboard/SidebarRailButton';
 import SettingsModal from './SettingsModal';
@@ -76,8 +76,13 @@ export default function DashboardSidebar() {
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--mm-bg-emerald-600)] text-sm font-bold text-white">M</span>
             <span className="text-sm font-semibold text-[var(--mm-text-stone-900)]">MathMover</span>
           </Link>
-          {/* 桌面端品牌在应用标题栏，侧栏头部改为分区标题（网页版仍用品牌链接）。 */}
-          <span className="desktop-sidebar-title mr-auto text-sm font-semibold text-[var(--mm-text-stone-900)]">课件库</span>
+          {/* 桌面端：品牌在应用标题栏，主操作「新建课件」常驻头部（列表里的新建行隐藏）；
+              网页版保留品牌链接与列表里的新建行。 */}
+          <button type="button" onClick={newCourseware}
+            className="desktop-sidebar-new mr-auto h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-[var(--mm-text-stone-800)] hover:bg-[var(--mm-bg-stone-100)] focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]">
+            <Plus aria-hidden className="h-4 w-4 text-[var(--mm-text-emerald-700)]" />
+            新建课件
+          </button>
           {sidebar && <button id={sidebar.closeButtonId} type="button" className={iconButton} aria-label="收起侧栏" title="收起侧栏"
             aria-expanded={true} aria-controls={sidebar.sidebarId} onClick={() => { beginSidebarResizePreview(); sidebar.toggleSidebar(); }}>
             <PanelLeftClose className="h-4 w-4" />

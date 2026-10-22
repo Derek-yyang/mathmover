@@ -394,11 +394,11 @@ body {
 .desktop-titlebar { -webkit-app-region: drag; }
 .desktop-titlebar button,
 .desktop-titlebar [role="menu"] { -webkit-app-region: no-drag; }
-/* 品牌只在应用标题栏出现一次；侧栏头部改成「课件库」分区标题 */
+/* 品牌只在应用标题栏出现一次；侧栏头部改为常驻「新建课件」，列表里的新建行隐藏 */
 :root[data-desktop] [data-sidebar="sidebar"] a[aria-label="MathMover 首页"] { display: none; }
-:root[data-desktop] [data-sidebar="sidebar"] a[aria-label="MathMover 首页"] + button { margin-left: auto; }
-.desktop-sidebar-title { display: none; }
-:root[data-desktop] .desktop-sidebar-title { display: inline-flex; }
+:root[data-desktop] [data-sidebar="sidebar"] [data-slot="aui_thread-list-new"] { display: none; }
+.desktop-sidebar-new { display: none; }
+:root[data-desktop] .desktop-sidebar-new { display: inline-flex; }
 
 @media (prefers-reduced-motion: reduce) {
   .dashboard-sidebar, .sidebar-expanded-clip, .sidebar-expanded, .sidebar-rail {
