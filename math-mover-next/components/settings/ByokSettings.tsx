@@ -28,7 +28,7 @@ type TestState = { running: boolean; result?: { ok: boolean; message: string } }
 export type SettingsDraftState = { dirty: boolean; saving: boolean };
 
 export default function ByokSettings({ onDraftStateChange }: { onDraftStateChange?: (state: SettingsDraftState) => void }) {
-  const { runtimes, activeRuntimeId, busy, detecting, selectRuntime, patchRuntime, refreshRuntimes } = useAgentRuntimeState();
+  const { runtimes, activeRuntimeId, busy, detecting, selectRuntime, refreshRuntimes } = useAgentRuntimeState();
   const selected = activeRuntimeId === 'byok';
   const runtime = runtimes.find(item => item.id === 'byok');
   const [view, setView] = useState<ByokConfigView>({ apiFormat: DEFAULT_API_FORMAT, baseUrl: '', model: '', reasoningLevels: '', apiKeyConfigured: false, apiKeyTail: '' });
@@ -194,21 +194,9 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
       setApiKey('');
       setSaved(true);
       setError('');
-      // 就地更新运行时清单里的内置位条目：聊天区的模型面板读的就是它。
-      // 不重跑探测（那要等三条 CLI 冷启动 ~10s），只把刚存下的档位补上去——
-      // 否则用户关了设置页，对话区还是旧的（用户 2026-10-18 报的）。
-      const savedLevels = reasoningDialect(v.apiFormat) ? effectiveReasoningLevels(v.reasoningLevels) : [];
-      const existingModels = runtime?.models;
-      if (existingModels?.list.length) {
-        const reasoningOptions = savedLevels.map(id => ({ id, label: id }));
-        patchRuntime('byok', {
-          models: { ...existingModels, list: existingModels.list.map(m => ({ ...m, reasoningOptions })) },
-        });
-      } else {
-        // 探测还没回来（设置卡是静态的，不等它）——这时候没有条目可补，只能让服务端
-        // 重取一份。服务端缓存刚在保存时作废过，所以这一下拿到的是新值。
-        void refreshRuntimes({ fresh: false });
-      }
+      // 未配置时也有默认模型占位，不能据此只更新档位：authStatus 与端点模型清单
+      // 同样已过期。强制重新获取完整状态，并取消保存前可能仍在进行的检测请求。
+      void refreshRuntimes();
       onDraftStateChange?.({ dirty: false, saving: false });
     }).catch((e) => {
       setError(e instanceof Error ? e.message : String(e));

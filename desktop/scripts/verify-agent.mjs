@@ -1,5 +1,5 @@
 /**
- * 桌面壳的 Agent 多轮冒烟：本地 OpenAI 兼容 mock + 临时 BYOK 配置，
+ * 桌面壳的 Agent 多轮冒烟：全新数据目录，首次启动后从设置界面保存 BYOK 配置，
  * 在打包版界面里连发两轮，验证：
  *   1. /api/agent 能拉起随包 OpenCode，模型回复真的出现在界面上；
  *   2. 第二轮请求里带着第一轮的用户话与助手回复（原生会话续上了，不是每轮重开）。
@@ -50,13 +50,6 @@ const mockPort = mock.address().port;
 const tempData = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-agent-'));
 const dataDir = path.join(tempData, 'MathMover');
 fs.mkdirSync(dataDir, { recursive: true });
-fs.writeFileSync(path.join(dataDir, 'byok.json'), JSON.stringify({
-  apiFormat: 'openai-chat',
-  baseUrl: `http://127.0.0.1:${mockPort}/v1`,
-  model: MODEL,
-  apiKey: API_KEY,
-  reasoningLevels: '',
-}, null, 2));
 
 const tempRoaming = path.join(tempData, 'Roaming');
 fs.mkdirSync(tempRoaming, { recursive: true });
@@ -113,10 +106,20 @@ try {
   page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });
 
   await page.waitForFunction(() => !!window.ggbApplet?.getXML, null, { timeout: 120_000 });
-  // 运行时选择存在 localStorage（mm.agentId）：先切到内置 Agent，再刷新让它生效
-  await page.evaluate(() => localStorage.setItem('mm.agentId', 'byok'));
-  await page.reload();
-  await page.waitForFunction(() => !!window.ggbApplet?.getXML, null, { timeout: 120_000 });
+  // 必须从未配置状态开始，且保存后不刷新页面：预写配置/重载会掩盖首次保存的状态同步问题。
+  const settings = page.locator('[data-slot="settings-dialog"]');
+  await settings.waitFor({ timeout: 60_000 });
+  const useBuiltin = settings.getByRole('button', { name: '使用 内置 Agent', exact: true });
+  if (await useBuiltin.count()) await useBuiltin.click({ timeout: 40_000 });
+  await page.waitForFunction(() => document.body.textContent.includes('当前 Agent 尚未登录'), null, { timeout: 40_000 });
+  await settings.getByLabel('API 端点', { exact: true }).fill(`http://127.0.0.1:${mockPort}/v1`);
+  await settings.getByLabel(/API 密钥/).fill(API_KEY);
+  await settings.getByLabel('模型', { exact: true }).fill(MODEL);
+  await settings.getByRole('button', { name: '保存', exact: true }).click();
+  await settings.getByText('已保存', { exact: true }).waitFor();
+  await settings.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await settings.waitFor({ state: 'hidden' });
+  console.log('✓ 首次启动通过设置保存配置，返回工作台；全程未刷新页面');
   await page.waitForFunction(() => typeof window.__mmGgb?.apply === 'function', null, { timeout: 60_000 });
   const composer = page.locator('[aria-label="题目描述"]');
   const send = page.locator('[aria-label="发送消息"]');
