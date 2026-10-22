@@ -20,6 +20,16 @@ npx electron-builder --dir  # 产出 release/win-unpacked/MathMover.exe
 - `node scripts/verify-agent.mjs`：本地 OpenAI 兼容 mock + 两轮对话，验证随包 OpenCode
   与原生会话续接（第二轮请求里带着第一轮上下文）。
 
+## 安装形态
+
+`npx electron-builder` 产出辅助安装器（NSIS）：
+
+- 默认按当前用户安装到 `%LOCALAPPDATA%\Programs\mathmover-desktop`，不需要管理员权限；
+- 安装向导里可以自选安装目录（`allowToChangeInstallationDirectory`）；
+- 创建开始菜单与桌面快捷方式；卸载不删除 `%LOCALAPPDATA%\MathMover` 里的用户数据；
+- 自选目录请确保可写。应用运行时不写安装目录：MCP 配置与 dsh patch 会落到
+  `%LOCALAPPDATA%\MathMover\mcp`（`MATHMOVER_MCP_DIR`），日志与课件也都在数据目录。
+
 ## 运行时布局
 
 `prepare.mjs` 产出 `desktop/build/`，electron-builder 原样搬进 `resources/`：

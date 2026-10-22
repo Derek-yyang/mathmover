@@ -159,6 +159,7 @@ try {
     ['密钥以 Bearer 发出', chatHits.every((s) => s.auth === `Bearer ${API_KEY}`)],
     ['第二轮带上了第一轮用户消息', secondText.includes('第一句话')],
     ['第二轮带上了第一轮助手回复', secondText.includes('MOCK-OK')],
+    ['MCP 配置与 dsh patch 落在数据目录', fs.existsSync(path.join(dataDir, 'mcp', 'runtime-mcp.json')) && fs.existsSync(path.join(dataDir, 'mcp', 'dsh-mathmover.patch.yml'))],
     ['界面没有脚本错误', errors.length === 0],
   ];
   let failed = 0;

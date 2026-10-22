@@ -14,6 +14,15 @@ artifactName: ${productName}-${version}-Setup.${ext}
 win:
   icon: build-resources/icon.png
 
+nsis:
+  # 辅助安装：允许用户自选安装目录；默认仍按当前用户安装，不需要管理员权限。
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: MathMover
+
 # 自动更新的发布源。仓库公开后客户端可以匿名读 Releases。
 # 发布用 `npx electron-builder --publish always`（需要 GH_TOKEN）；本地构建默认不传。
 publish:

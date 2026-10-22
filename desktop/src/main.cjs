@@ -164,6 +164,8 @@ async function startServices() {
       NEXT_TELEMETRY_DISABLED: '1',
       MATHMOVER_DATA_DIR: DATA_DIR,
       MATHMOVER_ROOT: ASSET_ROOT,
+      // 安装目录可能被用户选到只读位置；MCP 配置与 dsh patch 落到数据目录。
+      MATHMOVER_MCP_DIR: path.join(DATA_DIR, 'mcp'),
       MATHMOVER_DAEMON_URL: daemonUrl,
       MATHMOVER_WS_PORT: String(wsPort),
       MATHMOVER_WS_URL: `ws://127.0.0.1:${wsPort}`,

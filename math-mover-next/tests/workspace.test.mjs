@@ -33,6 +33,26 @@ test('command 用 process.execPath——不依赖 PATH，换机器不会找不�
   assert.ok(path.isAbsolute(cfg.mcpServers.mathmover.command));
 });
 
+test('MATHMOVER_MCP_DIR：配置与 dsh patch 落到可写目录（安装目录只读也能用）', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'mm-mcp-dir-'));
+  const previous = process.env.MATHMOVER_MCP_DIR;
+  process.env.MATHMOVER_MCP_DIR = dir;
+  resetMcpConfigCache();
+  try {
+    const file = ensureMcpConfig(REPO_ROOT, 'http://127.0.0.1:8788');
+    assert.equal(path.dirname(file), path.resolve(dir));
+    // dsh 用 dirname(config) 找 patch；覆盖目录时必须一起复制过去
+    assert.ok(existsSync(path.join(dir, 'dsh-mathmover.patch.yml')));
+    const cfg = JSON.parse(readFileSync(file, 'utf8'));
+    assert.match(cfg.mcpServers.mathmover.args[0], /packages[/\\]daemon[/\\]src[/\\]mcp-stdio\.ts$/);
+  } finally {
+    if (previous === undefined) delete process.env.MATHMOVER_MCP_DIR;
+    else process.env.MATHMOVER_MCP_DIR = previous;
+    resetMcpConfigCache();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('沙箱每**课件**一份、落在数据目录下；无课件 id 时落 _default', () => {
   const id = '3f2a9c10-8e1b-4c7d-9a2f-0b6e5d4c3b2a';
   assert.match(workspaceDir(id), /workspaces[/\\]3f2a9c10-8e1b-4c7d-9a2f-0b6e5d4c3b2a$/);

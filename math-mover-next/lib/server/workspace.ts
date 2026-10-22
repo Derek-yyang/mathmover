@@ -58,13 +58,24 @@ let cachedMcpConfig: string | null = null;
  * `mcp_servers.*.args`、dsh 的 patch 都吃这份 JSON）。agent 的 cwd 要改成沙箱，
  * 相对路径就断了——所以运行时把绝对路径写进配置。
  *
- * 写在 `packages/daemon/mcp/` 下：dsh 用 `dirname(mcpConfigPath)` 找
+ * 默认写在 `packages/daemon/mcp/` 下：dsh 用 `dirname(mcpConfigPath)` 找
  * `dsh-mathmover.patch.yml`，同目录才找得到。
+ *
+ * 桌面安装版可能被装到只读目录（用户自选 Program Files 等），所以允许
+ * `MATHMOVER_MCP_DIR` 把配置目录指到可写的数据目录；dsh 的 patch 一并复制过去。
  */
 export function ensureMcpConfig(repoRoot: string, daemonUrl: string): string {
   if (cachedMcpConfig) return cachedMcpConfig;
-  const dir = path.join(repoRoot, 'packages', 'daemon', 'mcp');
+  const assetDir = path.join(repoRoot, 'packages', 'daemon', 'mcp');
+  const override = process.env.MATHMOVER_MCP_DIR?.trim();
+  const dir = override ? path.resolve(override) : assetDir;
   const file = path.join(dir, 'runtime-mcp.json');
+  fs.mkdirSync(dir, { recursive: true });
+  if (dir !== assetDir) {
+    // 升级后 patch 可能变化；每次都从当前安装目录覆盖到可写目录。
+    const source = path.join(assetDir, 'dsh-mathmover.patch.yml');
+    if (fs.existsSync(source)) fs.copyFileSync(source, path.join(dir, 'dsh-mathmover.patch.yml'));
+  }
   const cfg = {
     mcpServers: {
       mathmover: {
@@ -76,7 +87,6 @@ export function ensureMcpConfig(repoRoot: string, daemonUrl: string): string {
       },
     },
   };
-  fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(file, JSON.stringify(cfg, null, 2), 'utf-8');
   cachedMcpConfig = file;
   return file;
