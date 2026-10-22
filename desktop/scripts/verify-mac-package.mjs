@@ -8,6 +8,19 @@ assert.equal(process.platform, 'darwin');
 assert.equal(process.arch, 'arm64');
 const app = path.resolve('desktop/release/mac-arm64/MathMover.app');
 const resources = path.join(app, 'Contents/Resources');
+// 任何运行时资产都不能残留指向 CI checkout 或 node_modules 的绝对/逃逸链接。
+function verifyLinks(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = path.join(dir, entry.name);
+    if (entry.isSymbolicLink()) {
+      const link = fs.readlinkSync(file);
+      const resolved = fs.realpathSync(file);
+      assert(!path.isAbsolute(link), `绝对软链接：${file} -> ${link}`);
+      assert(!path.relative(app, resolved).startsWith('..'), `包外软链接：${file} -> ${resolved}`);
+    } else if (entry.isDirectory()) verifyLinks(file);
+  }
+}
+verifyLinks(resources);
 const binaries = [
   path.join(app, 'Contents/MacOS/MathMover'),
   path.join(resources, 'node/node'),

@@ -41,7 +41,7 @@ npx electron-builder --dir  # 产出 release/win-unpacked/MathMover.exe
 
 ## macOS Apple 芯片测试包
 
-在 GitHub Actions 的 **Desktop Release → Run workflow** 中将 `platform` 选为 `macos`。
+在 GitHub Actions 的 **Desktop Release → Run workflow** 中选择包含本改动的分支，将 `platform` 选为 `macos`。
 这条任务使用原生 arm64 Mac runner，仅上传 `mathmover-macos-arm64-test` artifact，保留 7 天；
 不会创建 Release，也不会覆盖 Windows 安装包或 `latest.yml`。
 

@@ -75,9 +75,11 @@ const serverDir = findServer(standaloneRoot);
 if (!serverDir) die(`standalone 里找不到 server.js（${standaloneRoot}）`);
 
 const nextDest = path.join(build, 'next');
-fs.cpSync(serverDir, nextDest, { recursive: true });
-fs.cpSync(path.join(appDir, DIST, 'static'), path.join(nextDest, DIST, 'static'), { recursive: true });
-fs.cpSync(path.join(appDir, 'public'), path.join(nextDest, 'public'), { recursive: true });
+// Turbopack 会为 shiki 等服务端依赖生成指向 node_modules 的绝对软链接。
+// 搬到 .app 后链接仍指向构建机：签名失败，离开构建机也无法运行。复制实际内容。
+fs.cpSync(serverDir, nextDest, { recursive: true, dereference: true });
+fs.cpSync(path.join(appDir, DIST, 'static'), path.join(nextDest, DIST, 'static'), { recursive: true, dereference: true });
+fs.cpSync(path.join(appDir, 'public'), path.join(nextDest, 'public'), { recursive: true, dereference: true });
 log(`Next 就绪：${path.relative(desktop, nextDest)}`);
 }
 const nextDest = path.join(build, 'next');
