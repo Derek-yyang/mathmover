@@ -399,6 +399,9 @@ body {
 :root[data-desktop] [data-sidebar="sidebar"] [data-slot="aui_thread-list-new"] { display: none; }
 .desktop-sidebar-new { display: none; }
 :root[data-desktop] .desktop-sidebar-new { display: inline-flex; }
+/* 桌面端标题栏已有品牌：收起态顶部的 M 换成明确的展开图标 */
+:root[data-desktop] .rail-brand-mark { display: none !important; }
+:root[data-desktop] .rail-expand-icon { display: block !important; }
 
 @media (prefers-reduced-motion: reduce) {
   .dashboard-sidebar, .sidebar-expanded-clip, .sidebar-expanded, .sidebar-rail {

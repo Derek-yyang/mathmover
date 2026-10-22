@@ -116,6 +116,21 @@ try {
   await page.keyboard.press('Escape');
   await page.locator('[role="menu"][aria-label="桌面菜单项"]').waitFor({ state: 'detached', timeout: 5_000 });
 
+  // 收起态：顶部不再重复品牌，改为明确的展开图标；新建/搜索图标仍在
+  await page.locator('[aria-label="收起侧栏"]').click();
+  await page.waitForFunction(() => document.querySelector('.dashboard-sidebar')?.getAttribute('data-collapsed') === 'true', null, { timeout: 10_000 });
+  const collapsed = await page.evaluate(() => ({
+    brand: document.querySelector('.rail-brand-mark') ? getComputedStyle(document.querySelector('.rail-brand-mark')).display : 'missing',
+    expand: document.querySelector('.rail-expand-icon') ? getComputedStyle(document.querySelector('.rail-expand-icon')).display : 'missing',
+    hasNew: !!document.querySelector('.sidebar-rail [aria-label="新建课件"]'),
+  }));
+  if (collapsed.brand !== 'none' || collapsed.expand === 'none' || !collapsed.hasNew) {
+    throw new Error('收起态图标不对：' + JSON.stringify(collapsed));
+  }
+  await page.screenshot({ path: path.join(tempData, 'shell-collapsed.png') });
+  await page.locator('[aria-label="展开侧栏"]').click();
+  await page.waitForFunction(() => document.querySelector('.dashboard-sidebar')?.getAttribute('data-collapsed') === 'false', null, { timeout: 10_000 });
+
   // 深色主题：应用内标题栏跟随；原生按钮颜色由 preload IPC 同步（这里只能断言 DOM）
   await page.evaluate(() => localStorage.setItem('mm.theme', 'dark'));
   await page.reload();

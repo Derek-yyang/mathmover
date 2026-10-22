@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, PanelLeftClose, PanelLeftOpen, SquarePen, Settings2, Plus } from 'lucide-react';
+import { Search, PanelLeftClose, PanelLeftOpen, Settings2, Plus } from 'lucide-react';
 import { useSidebarState } from './dashboard/SidebarState';
 import SidebarRailButton from './dashboard/SidebarRailButton';
 import SettingsModal from './SettingsModal';
@@ -52,12 +52,12 @@ export default function DashboardSidebar() {
           className="sidebar-rail absolute inset-y-0 left-0 flex w-14 flex-col items-center border-r border-[var(--mm-border-stone-200)] bg-[var(--mm-canvas-shell)]">
           <div className="flex h-14 shrink-0 items-center">
             <SidebarRailButton id={sidebar?.openButtonId} label="展开侧栏" controls={sidebar?.sidebarId} expanded={false} onClick={() => { beginSidebarResizePreview(); sidebar?.toggleSidebar(); }}>
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--mm-bg-emerald-700)] text-sm font-bold text-white group-hover:hidden group-focus-visible:hidden">M</span>
-              <PanelLeftOpen className="hidden h-5 w-5 group-hover:block group-focus-visible:block" />
+              <span className="rail-brand-mark flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--mm-bg-emerald-700)] text-sm font-bold text-white group-hover:hidden group-focus-visible:hidden">M</span>
+              <PanelLeftOpen className="rail-expand-icon hidden h-5 w-5 group-hover:block group-focus-visible:block" />
             </SidebarRailButton>
           </div>
           {isDashboard && <div className="flex flex-col gap-1">
-            <SidebarRailButton label="新建课件" onClick={newCourseware}><SquarePen className="h-5 w-5" /></SidebarRailButton>
+            <SidebarRailButton label="新建课件" onClick={newCourseware}><Plus className="h-5 w-5" /></SidebarRailButton>
             <SidebarRailButton label="搜索课件"  onClick={() => {
               setSearchRequest(value => value + 1);
               if (sidebar?.collapsed) beginSidebarResizePreview();
