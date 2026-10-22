@@ -13,6 +13,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { closeTestApp } from './smoke-cleanup.mjs';
 
 const exe = path.resolve(process.argv[2] || 'desktop/release/win-unpacked/MathMover.exe');
 const MODEL = 'mock-model';
@@ -88,11 +89,6 @@ const app = spawn(exe, [`--remote-debugging-port=${debugPort}`, `--user-data-dir
 const appLog = [];
 app.stdout.on('data', (c) => appLog.push(String(c)));
 app.stderr.on('data', (c) => appLog.push(String(c)));
-const killApp = () => {
-  if (app.exitCode !== null) return;
-  if (process.platform === 'win32') spawn('taskkill', ['/pid', String(app.pid), '/T', '/F'], { windowsHide: true });
-  else app.kill('SIGTERM');
-};
 
 let browser;
 let page;
@@ -182,9 +178,8 @@ try {
   console.log(`  临时数据目录：${tempData}`);
 } finally {
   console.log('[verify-agent] 关闭浏览器连接与测试应用');
-  await Promise.race([browser?.close().catch(() => {}), sleep(5000)]);
-  killApp();
   // OpenCode 的 HTTP keep-alive 连接不能阻止本地 mock 服务退出。
   mock.closeAllConnections();
   mock.close();
+  await closeTestApp(browser, app);
 }

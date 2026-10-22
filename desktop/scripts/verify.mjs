@@ -17,6 +17,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { closeTestApp } from './smoke-cleanup.mjs';
 
 const exe = path.resolve(process.argv[2] || 'desktop/release/win-unpacked/MathMover.exe');
 const tempData = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-desktop-'));
@@ -71,12 +72,6 @@ const app = spawn(exe, [`--remote-debugging-port=${debugPort}`, `--user-data-dir
 const appLog = [];
 app.stdout.on('data', (c) => appLog.push(String(c)));
 app.stderr.on('data', (c) => appLog.push(String(c)));
-
-const killApp = () => {
-  if (app.exitCode !== null) return;
-  if (process.platform === 'win32') spawn('taskkill', ['/pid', String(app.pid), '/T', '/F'], { windowsHide: true });
-  else app.kill('SIGTERM');
-};
 
 let browser;
 try {
@@ -220,6 +215,7 @@ try {
   if (!info.hasStage) throw new Error('没有找到 .geogebra-stage');
   if (failed.length) throw new Error('HTTP 失败请求：\n' + failed.join('\n'));
   if (errors.length) throw new Error('浏览器错误：\n' + errors.join('\n'));
+  await page.waitForFunction(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })), null, { timeout: 30_000 });
 
   console.log(`PASS: 桌面壳启动并完成一次构造 → ${info.href}`);
   console.log(`  title=${info.title} objects=${info.objects}（A/B/c 已落到画布）0 浏览器错误`);
@@ -230,7 +226,6 @@ try {
   console.log(`  截图：${shot}`);
   console.log(`  临时数据目录：${tempData}`);
 } finally {
-  await browser?.close().catch(() => {});
-  killApp();
   squatter.close();
+  await closeTestApp(browser, app);
 }
