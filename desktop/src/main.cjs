@@ -75,6 +75,13 @@ function setupUserData() {
   } catch (e) {
     log('设置 sessionData 失败：', e instanceof Error ? e.message : e);
   }
+  // Electron 在 JS 跑之前会先建出默认 userData 目录；如果它是空的（没有需要迁移的
+  // 用户数据），就清掉，避免 Roaming 里留一个空壳。
+  try {
+    if (legacy !== target && fs.existsSync(legacy) && fs.readdirSync(legacy).length === 0) {
+      fs.rmdirSync(legacy);
+    }
+  } catch { /* 被占用就留着，下次再清 */ }
 }
 
 function fail(message, detail) {
@@ -282,6 +289,12 @@ let updatePrompted = false;
  */
 function setupUpdater() {
   if (!app.isPackaged) return;
+  // `electron-builder --dir` 的产物没有 app-update.yml（正式安装包才有）；
+  // 本地 unpacked 调试时跳过，避免每轮启动打一条 ENOENT。
+  if (!process.env.MATHMOVER_UPDATE_URL && !fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'))) {
+    log('未找到 app-update.yml（unpacked 构建），跳过自动更新');
+    return;
+  }
   if (process.env.MATHMOVER_UPDATE_URL) {
     autoUpdater.setFeedURL({ provider: 'generic', url: process.env.MATHMOVER_UPDATE_URL });
   }
