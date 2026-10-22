@@ -172,9 +172,9 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
   脚本会起一个支持 Range 的本地更新源；`MATHMOVER_UPDATE_URL` 让客户端改指向它，
   `MATHMOVER_UPDATE_AUTOINSTALL=1` 让下载完直接静默安装，便于无人值守验证。
 
-## 分发注意（未签名）
+## Windows 分发注意（未签名）
 
-本项目**不做代码签名**。实际影响与应对：
+Windows 版本目前**不做代码签名**。实际影响与应对：
 
 - 用户第一次运行安装包时，Windows 会弹「Windows 已保护你的电脑 / 未知发布者」，
   需要点「更多信息 → 仍要运行」。这不是故障，是未签名应用的标准提示。
@@ -188,15 +188,22 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
 ## 已知限制（MVP 范围）
 
 
-- **只验证了 Windows x64**；安装器（NSIS）与自动更新链路已实测。按项目决定**不做代码签名**，
-  安装/更新时会有 SmartScreen 提示（见上一节）。
+- **Windows x64 为正式分发版本**，安装器（NSIS）与自动更新链路已实测；未做代码签名，安装/更新时会有 SmartScreen 提示（见上一节）。macOS arm64 测试包已通过原生 Mac 自动验证，首次下载后的安装体验尚需人工验收；Intel Mac 暂未支持。
 - **三个端口都是动态的**；页面的 WebSocket 地址经运行时 env 注入，不再依赖构建期常量。
 - 安装包体积目前约 **450 MB**（Next 186 + Node 88 + opencode 173 + Electron 运行时）。
   opencode 只打一份非 baseline；GeoGebra 仍是完整 vendor。
 - 内置 Agent 之外的 Claude Code / Codex / dsh 仍要求用户自己安装；没装时只是选择器里不可用。
 - 卸载/升级时的用户数据在 `%LOCALAPPDATA%\MathMover`，不随应用目录走。
 
-## 验收记录（2026-10-21）
+## macOS 测试包验收（2026-10-23）
+
+- [原生 arm64 Actions 构建](https://github.com/Derek-yyang/mathmover/actions/runs/39825333867)通过，产出 `MathMover-0.0.3-mac-arm64.dmg` 和 `.zip`；测试 artifact 保留 7 天，可重新手动构建。
+- 应用、随包 Node 和 OpenCode 均为 arm64；执行权限、包内依赖、本地签名、Dock 图标与 DMG 校验通过。
+- 打包版完成 GeoGebra 的 A/B/c 构造；两轮 mock 模型对话保留上下文，无页面脚本错误；两条测试均确认应用正常退出。
+- 托盘生命周期、平台资源选择与 Finder PATH 测试通过；Windows 打包版构造与两轮 mock 对话回归通过。
+- 尚未完成另一台 Mac 的首次下载安装、真实模型服务与外部 CLI 联调，也未配置 Developer ID、公证和 Mac 自动更新。
+
+## Windows 验收记录（2026-10-21）
 
 - `verify.mjs`：先占住 8787，桌面壳自动改用 8788 的 WebSocket，仍能完成构造；
   全新数据目录下设置弹窗自动打开（首次启动引导），Esc 可关闭且重新加载不再弹出；
