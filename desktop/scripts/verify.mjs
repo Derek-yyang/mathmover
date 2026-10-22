@@ -131,6 +131,32 @@ try {
   await page.waitForFunction(() => !!window.ggbApplet?.getXML, null, { timeout: 120_000 });
   await page.waitForFunction(() => typeof window.__mmGgb?.apply === 'function', null, { timeout: 60_000 });
 
+  // 桌面工作台不允许整页滚动（画布/对话各自内部滚动）
+  const layout = await page.evaluate(() => ({
+    innerHeight: window.innerHeight,
+    docScrollHeight: document.documentElement.scrollHeight,
+    bodyScrollHeight: document.body.scrollHeight,
+    rootHeight: document.querySelector('[data-slot="dashboard-root"]')?.getBoundingClientRect().height ?? null,
+    titlebarHeight: document.querySelector('[data-slot="desktop-titlebar"]')?.getBoundingClientRect().height ?? null,
+    offenders: [...document.querySelectorAll('*')]
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return { tag: el.tagName, slot: el.getAttribute('data-slot'), cls: String(el.className ?? '').slice(0, 90), top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height) };
+      })
+      .filter((x) => x.bottom > window.innerHeight + 1)
+      .slice(0, 12),
+  }));
+  if (layout.docScrollHeight > layout.innerHeight + 1) {
+    throw new Error('页面出现整页滚动：' + JSON.stringify(layout));
+  }
+  const sidebar = await page.evaluate(() => {
+    const el = document.querySelector('[data-sidebar="sidebar"]');
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    return { width: Math.round(rect.width), height: Math.round(rect.height) };
+  });
+  if (!sidebar || sidebar.height <= 0) throw new Error('侧栏高度异常：' + JSON.stringify(sidebar));
+
   // 真画一条：Next → daemon → WebSocket → GeoGebra 整条写路径
   const drawn = await page.evaluate(async () => {
     await window.__mmGgb.apply({

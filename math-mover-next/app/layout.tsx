@@ -24,8 +24,11 @@ export default function RootLayout({
         <meta name="darkreader-lock" />
       </head>
       <body className="font-sans antialiased"><ThemeProvider>
-        <div className={`flex min-h-dvh flex-col ${desktop ? 'pt-10' : ''}`}>
+        <div className="flex min-h-dvh flex-col">
           {desktop && <DesktopTitleBar enabled />}
+          {/* 标题栏是 fixed，用同高占位把它让出的 40px 放进文档流；不要用 padding，
+              否则 box-sizing 会在 min-h-dvh 之外再加 40px，整页滚动。 */}
+          {desktop && <div aria-hidden className="h-10 shrink-0" />}
           <div className="flex min-h-0 flex-1 flex-col">{children}</div>
         </div>
       </ThemeProvider></body>

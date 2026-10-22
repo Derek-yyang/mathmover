@@ -529,7 +529,7 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
   }, [handleSendMessage]);
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--mm-canvas-shell)] [[data-desktop]_&]:h-[calc(100dvh-var(--desktop-titlebar-height,40px))]">
+    <div data-slot="dashboard-root" className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--mm-canvas-shell)] [[data-desktop]_&]:h-[calc(100dvh-var(--desktop-titlebar-height,40px))]">
       {/* 工具栏与画布共用一个工作区；全屏时保留同一个 Applet 实例。 */}
       <div
         ref={canvasWorkspaceRef}
