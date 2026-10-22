@@ -152,12 +152,14 @@ jobs:
             desktop/release/*-mac-arm64.zip
           if-no-files-found: error
       - name: Upload smoke test diagnostics
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mathmover-macos-diagnostics
           retention-days: 3
           path: |
-            ${{ runner.temp }}/mm-desktop-*/
-            ${{ runner.temp }}/mm-agent-*/
+            ${{ runner.temp }}/mm-desktop-*/shell*.png
+            ${{ runner.temp }}/mm-agent-*/failure.png
+            ${{ runner.temp }}/mm-desktop-*/MathMover/logs/*.log
+            ${{ runner.temp }}/mm-agent-*/MathMover/logs/*.log
           if-no-files-found: ignore

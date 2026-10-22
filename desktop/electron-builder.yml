@@ -76,3 +76,4 @@ extraResources:
 
 asar: true
 npmRebuild: false
+afterPack: scripts/after-pack.cjs
