@@ -216,7 +216,7 @@ function applyTitleBarTheme(theme) {
   nativeTheme.themeSource = dark ? 'dark' : 'light';
   if (process.platform === 'darwin' || !mainWindow || mainWindow.isDestroyed()) return;
   try {
-    mainWindow.setTitleBarOverlay({ ...TITLEBAR_COLORS[dark ? 'dark' : 'light'], height: 40 });
+    mainWindow.setTitleBarOverlay({ ...TITLEBAR_COLORS[dark ? 'dark' : 'light'], height: 39 });
   } catch (e) {
     log('设置标题栏颜色失败：', e instanceof Error ? e.message : e);
   }
@@ -351,7 +351,8 @@ function createWindow(nextPort) {
     title: 'MathMover',
     // 隐藏系统标题栏，只保留系统画的窗口按钮（overlay）；标题栏由渲染进程绘制。
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#fdfcf8', symbolColor: '#1c1917', height: 40 },
+    // 39 < 标题栏的 40px：把最底下 1px 留给应用自己的分隔线，避免被原生按钮遮罩盖住
+    titleBarOverlay: { color: '#fdfcf8', symbolColor: '#1c1917', height: 39 },
     // 菜单仍在（Alt 可唤出），但默认不占一条系统菜单栏；常用操作在应用内标题栏菜单里。
     autoHideMenuBar: true,
     webPreferences: {
