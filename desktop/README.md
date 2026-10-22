@@ -1,6 +1,6 @@
 # MathMover 桌面壳（Electron）
 
-把工作台打包成可双击的 Windows 应用。壳本身只负责三件事：按顺序拉起 daemon 与
+把工作台打包成可双击的桌面应用。Windows x64 为正式分发版本；macOS Apple 芯片版先提供测试包。壳本身只负责三件事：按顺序拉起 daemon 与
 Next standalone、开窗口加载 `/dashboard`、退出时收拾干净。
 
 ## 怎么跑
@@ -39,7 +39,38 @@ npx electron-builder --dir  # 产出 release/win-unpacked/MathMover.exe
   `%LOCALAPPDATA%\MathMover\electron`，不再是 `%APPDATA%\mathmover-desktop`；
   首次升级会把旧目录整体迁移过去。因此本机所有数据都在 `%LOCALAPPDATA%\MathMover` 下。
 
-## 运行时布局
+## macOS Apple 芯片测试包
+
+在 GitHub Actions 的 **Desktop Release → Run workflow** 中将 `platform` 选为 `macos`。
+这条任务使用原生 arm64 Mac runner，仅上传 `mathmover-macos-arm64-test` artifact，保留 7 天；
+不会创建 Release，也不会覆盖 Windows 安装包或 `latest.yml`。
+
+下载 artifact 并解压后，可打开 `.dmg`，把 MathMover 拖到「应用程序」。另附 `.zip` 供直接解压。
+包名包含 `mac-arm64`；目前不支持 Intel Mac，也不宣称是 Universal 通用包。
+
+在 Apple 芯片 Mac 上本地构建（先安装 Node 24 与三个目录的 npm 依赖，并运行 `npm run ggb:install`）：
+
+```sh
+node desktop/scripts/make-mac-icons.mjs
+cd desktop
+npm run prepare:assets
+npx electron-builder --mac --arm64 --publish never
+cd ..
+node desktop/scripts/verify-mac-package.mjs
+node desktop/scripts/verify.mjs desktop/release/mac-arm64/MathMover.app/Contents/MacOS/MathMover
+node desktop/scripts/verify-agent.mjs desktop/release/mac-arm64/MathMover.app/Contents/MacOS/MathMover
+```
+
+- **原生构建**：Node 直接使用构建机的二进制，Next 含原生依赖，因此必须在 arm64 Mac 上构建；不能在 Windows 上只加一个 `--arm64`。
+- **平台资源**：OpenCode 按系统与 CPU 同时筛选，复制后恢复执行权限；打包前执行 Node/OpenCode 版本探针。
+- **系统适配**：macOS 标题栏避让红黄绿按钮；菜单栏使用黑色透明模板 M 图标，随系统深浅色变化；原生编辑菜单支持复制粘贴。
+- **本机 Agent**：从 Finder 启动时读取登录 shell 的 PATH，并补充 Homebrew、`~/.local/bin` 等常见路径；随包 Node 优先用于 CLI 的脚本入口。
+- **数据目录**：默认 `~/Library/Application Support/MathMover`；测试脚本使用临时目录，避免读取或覆盖真实配置。
+- **签名与更新**：当前仅做 ad-hoc 本地签名，尚无 Developer ID 签名和 Apple 公证。下载后可能被 Gatekeeper 拦截；确认来源后可按 macOS「系统设置 → 隐私与安全性」的提示批准打开。不要关闭系统安全检查。
+  测试版禁用自动安装更新，新版需手动替换；正式公证与更新链路后续另行验证。
+- **自动验证范围**：检查 .app 二进制架构/权限/签名、DMG 完整性、工作台启动与 GeoGebra 真实构造、随包 OpenCode 的两轮 mock 对话。下载到另一台 Mac 后的首次安装仍需人工验收。
+
+## 运行时布局（两平台共用）
 
 `prepare.mjs` 产出 `desktop/build/`，electron-builder 原样搬进 `resources/`：
 

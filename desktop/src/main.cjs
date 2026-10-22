@@ -18,8 +18,10 @@ const http = require('node:http');
 const net = require('node:net');
 const path = require('node:path');
 const { createSystemTray } = require('./system-tray.cjs');
+const { restoreMacPath } = require('./platform.cjs');
 
 const IS_WIN = process.platform === 'win32';
+const IS_MAC = process.platform === 'darwin';
 const WS_PORT_START = 8787;
 const HTTP_PORT_START = 8788;
 const NEXT_PORT_START = 3123;
@@ -32,7 +34,9 @@ const ASSET_ROOT = path.join(BUILD_ROOT, 'app');
 const OPENCODE_BIN = path.join(BUILD_ROOT, 'bin', IS_WIN ? 'opencode.exe' : 'opencode');
 const DAEMON_ENTRY = path.join(ASSET_ROOT, 'packages', 'daemon', 'src', 'cli.mjs');
 
-const DATA_DIR = path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'MathMover');
+const DATA_DIR = process.env.MATHMOVER_DATA_DIR || path.join(
+  (IS_WIN && process.env.LOCALAPPDATA) || app.getPath('appData'), 'MathMover',
+);
 const LOG_DIR = path.join(DATA_DIR, 'logs');
 
 let mainWindow = null;
@@ -142,7 +146,7 @@ function waitForHttp(url, timeoutMs) {
 
 function spawnLogged(name, command, args, options) {
   const out = fs.createWriteStream(path.join(LOG_DIR, `${name}.log`), { flags: 'a' });
-  const child = spawn(command, args, { ...options, windowsHide: true });
+  const child = spawn(command, args, { ...options, windowsHide: true, detached: IS_MAC });
   child.stdout?.pipe(out);
   child.stderr?.pipe(out);
   child.on('error', (err) => log(`${name} 启动失败：`, err));
@@ -159,6 +163,7 @@ function killTree(child) {
   if (!child || child.killed || !child.pid) return;
   try {
     if (IS_WIN) spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+    else if (IS_MAC) process.kill(-child.pid, 'SIGTERM');
     else child.kill('SIGTERM');
   } catch (e) {
     log('结束子进程失败：', e);
@@ -300,6 +305,8 @@ let updatePrompted = false;
  */
 function setupUpdater() {
   if (!app.isPackaged) return;
+  // macOS 测试包只有本地签名，不能走要求 Developer ID 的 Squirrel.Mac 更新链路。
+  if (IS_MAC) { log('macOS 测试版：跳过自动更新'); return; }
   // `electron-builder --dir` 的产物没有 app-update.yml（正式安装包才有）；
   // 本地 unpacked 调试时跳过，避免每轮启动打一条 ENOENT。
   if (!process.env.MATHMOVER_UPDATE_URL && !fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'))) {
@@ -340,6 +347,13 @@ function setupUpdater() {
 }
 
 async function checkForUpdates({ silent = false } = {}) {
+  if (IS_MAC) {
+    if (!silent) dialog.showMessageBoxSync({
+      type: 'info', title: '检查更新', message: 'macOS 测试版暂不支持自动更新。',
+      detail: '请下载新版后手动替换应用。',
+    });
+    return;
+  }
   if (!app.isPackaged) {
     if (!silent) dialog.showMessageBoxSync({ type: 'info', title: '检查更新', message: '开发模式下不检查更新。' });
     return;
@@ -374,13 +388,25 @@ function installMenu() {
     {
       label: 'MathMover',
       submenu: [
+        ...(IS_MAC ? [
+          { label: '关于 MathMover', click: showAbout },
+          { type: 'separator' },
+        ] : []),
         { label: '检查更新…', click: () => { void checkForUpdates(); } },
         { label: '打开日志目录', click: openLogs },
         { label: '复制诊断信息', click: () => clipboard.writeText(diagnosticsText()) },
         { type: 'separator' },
+        ...(IS_MAC ? [
+          { role: 'hide', label: '隐藏 MathMover' },
+          { role: 'hideOthers', label: '隐藏其他应用' },
+          { role: 'unhide', label: '显示全部' },
+          { type: 'separator' },
+        ] : []),
         { role: 'quit', label: '退出' },
       ],
     },
+    // Mac 的文本输入、剪贴板快捷键依赖原生 Edit 菜单。
+    ...(IS_MAC ? [{ role: 'editMenu', label: '编辑' }] : []),
     {
       label: '视图',
       submenu: [
@@ -411,7 +437,9 @@ function createWindow(nextPort) {
     // 隐藏系统标题栏，只保留系统画的窗口按钮（overlay）；标题栏由渲染进程绘制。
     titleBarStyle: 'hidden',
     // 39 < 标题栏的 40px：把最底下 1px 留给应用自己的分隔线，避免被原生按钮遮罩盖住
-    titleBarOverlay: { color: '#fdfcf8', symbolColor: '#1c1917', height: 39 },
+    ...(IS_MAC
+      ? { trafficLightPosition: { x: 14, y: 13 } }
+      : { titleBarOverlay: { color: '#fdfcf8', symbolColor: '#1c1917', height: 39 } }),
     // 菜单仍在（Alt 可唤出），但默认不占一条系统菜单栏；常用操作在应用内标题栏菜单里。
     autoHideMenuBar: true,
     webPreferences: {
@@ -463,13 +491,14 @@ if (!app.requestSingleInstanceLock()) {
     nativeTheme.themeSource = 'light';
     installDesktopIpc();
     try {
+      await restoreMacPath(path.dirname(NODE_BIN), log);
       const nextPort = await startServices();
       installMenu();
       setupUpdater();
       createWindow(nextPort);
       desktopTray = createSystemTray({
         window: mainWindow,
-        iconPath: path.join(__dirname, '..', 'build-resources', 'icon.ico'),
+        iconPath: path.join(__dirname, '..', 'build-resources', IS_MAC ? 'trayTemplate.png' : 'icon.ico'),
         preferencesPath: path.join(DATA_DIR, 'desktop-settings.json'),
         onCheckUpdates: checkForUpdates,
         log,
@@ -486,4 +515,8 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('window-all-closed', () => app.quit());
+  if (IS_MAC) {
+    process.on('SIGTERM', () => app.quit());
+    process.on('SIGINT', () => app.quit());
+  }
 }

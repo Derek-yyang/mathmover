@@ -28,7 +28,7 @@ fs.mkdirSync(tempRoaming, { recursive: true });
 const legacyProfile = path.join(tempData, 'legacy-profile');
 fs.mkdirSync(path.join(legacyProfile, 'Local Storage'), { recursive: true });
 fs.writeFileSync(path.join(legacyProfile, 'Local Storage', 'migrated.txt'), 'old-profile');
-const env = { ...process.env, LOCALAPPDATA: tempData, APPDATA: tempRoaming };
+const env = { ...process.env, LOCALAPPDATA: tempData, APPDATA: tempRoaming, MATHMOVER_DATA_DIR: path.join(tempData, 'MathMover') };
 // 开发 shell 里可能全局有 ELECTRON_RUN_AS_NODE=1：那会让 exe 以纯 Node 启动、主进程不执行
 delete env.ELECTRON_RUN_AS_NODE;
 
@@ -74,7 +74,8 @@ app.stderr.on('data', (c) => appLog.push(String(c)));
 
 const killApp = () => {
   if (app.exitCode !== null) return;
-  spawn('taskkill', ['/pid', String(app.pid), '/T', '/F'], { windowsHide: true });
+  if (process.platform === 'win32') spawn('taskkill', ['/pid', String(app.pid), '/T', '/F'], { windowsHide: true });
+  else app.kill('SIGTERM');
 };
 
 let browser;
@@ -123,6 +124,10 @@ try {
 
   // 桌面自定义标题栏：存在、菜单能开合（放在引导关闭之后，避免弹窗遮罩拦截点击）
   await page.locator('[data-slot="desktop-titlebar"]').waitFor({ timeout: 30_000 });
+  if (process.platform === 'darwin') {
+    const padding = await page.locator('[data-slot="desktop-titlebar"]').evaluate(el => getComputedStyle(el).paddingLeft);
+    if (padding !== '88px') throw new Error('macOS 标题栏未避让原生窗口按钮：' + padding);
+  }
   const desktopMenu = page.locator('[aria-label="桌面菜单"]');
   await desktopMenu.click();
   await page.locator('[role="menu"][aria-label="桌面菜单项"]').waitFor({ timeout: 5_000 });

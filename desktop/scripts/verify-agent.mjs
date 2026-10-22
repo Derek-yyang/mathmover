@@ -59,7 +59,7 @@ fs.writeFileSync(path.join(dataDir, 'byok.json'), JSON.stringify({
 
 const tempRoaming = path.join(tempData, 'Roaming');
 fs.mkdirSync(tempRoaming, { recursive: true });
-const env = { ...process.env, LOCALAPPDATA: tempData, APPDATA: tempRoaming };
+const env = { ...process.env, LOCALAPPDATA: tempData, APPDATA: tempRoaming, MATHMOVER_DATA_DIR: dataDir };
 delete env.ELECTRON_RUN_AS_NODE;
 
 function freePort() {
@@ -88,7 +88,11 @@ const app = spawn(exe, [`--remote-debugging-port=${debugPort}`, `--user-data-dir
 const appLog = [];
 app.stdout.on('data', (c) => appLog.push(String(c)));
 app.stderr.on('data', (c) => appLog.push(String(c)));
-const killApp = () => { if (app.exitCode === null) spawn('taskkill', ['/pid', String(app.pid), '/T', '/F'], { windowsHide: true }); };
+const killApp = () => {
+  if (app.exitCode !== null) return;
+  if (process.platform === 'win32') spawn('taskkill', ['/pid', String(app.pid), '/T', '/F'], { windowsHide: true });
+  else app.kill('SIGTERM');
+};
 
 let browser;
 try {

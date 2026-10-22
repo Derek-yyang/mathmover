@@ -18,7 +18,7 @@ export default function RootLayout({
   // 隐藏了系统标题栏，这里补一条应用内标题栏并给内容让出 40px。网页版不受影响。
   const desktop = process.env.MATHMOVER_DESKTOP === '1';
   return (
-    <html lang="zh-CN" className="scroll-smooth" data-desktop={desktop ? '1' : undefined} suppressHydrationWarning>
+    <html lang="zh-CN" className="scroll-smooth" data-desktop={desktop ? '1' : undefined} data-desktop-platform={desktop ? process.platform : undefined} suppressHydrationWarning>
       <head>
         {/* Use our native themes without extension mutations before hydration. */}
         <meta name="darkreader-lock" />

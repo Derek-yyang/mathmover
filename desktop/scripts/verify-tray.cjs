@@ -26,7 +26,7 @@ if (!process.versions.electron) {
   app.setPath('userData', path.join(temp, 'profile'));
   app.on('window-all-closed', () => {});
   const preferencesPath = path.join(temp, 'desktop-settings.json');
-  const iconPath = path.resolve(__dirname, '..', 'build-resources', 'icon.ico');
+  const iconPath = path.resolve(__dirname, '..', 'build-resources', process.platform === 'darwin' ? 'trayTemplate.png' : 'icon.ico');
   const make = (options = {}) => {
     const window = new BrowserWindow({ width: 480, height: 320, show: false });
     const controller = createSystemTray({

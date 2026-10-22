@@ -45,8 +45,11 @@ function createSystemTray({ window, iconPath, preferencesPath, onCheckUpdates, l
       { type: 'separator' },
       { label: '退出', click: () => app.quit() },
     ]));
-    tray.on('click', showWindow);
-    tray.on('double-click', showWindow);
+    // macOS 左键由系统展开菜单；不要同时恢复窗口，避免菜单与焦点抢占。
+    if (process.platform !== 'darwin') {
+      tray.on('click', showWindow);
+      tray.on('double-click', showWindow);
+    }
   } catch (error) {
     if (available()) tray.destroy();
     tray = null;
