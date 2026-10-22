@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import dynamic from 'next/dynamic';
 import { ArrowDown, ArrowRight, ArrowUp, Check, ChevronDown, ChevronRight, ImagePlus, MousePointer2, PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, RotateCcw, RotateCw, Search, Settings2, Square } from 'lucide-react';
 import ControlDeck from '@/components/dashboard/ControlDeck';
 import styles from '@/app/landing.module.css';
 import { createCaseWheelGesture } from './case-wheel-gesture';
 import { GraphHandle } from './GraphHandle';
+
+const DemoSettings = dynamic(() => import('./DemoSettings'));
 
 type Example = 'ellipse' | 'function' | 'space';
 type Point = [number, number];
@@ -123,7 +126,9 @@ function useOnScreen() {
 
 const demoPrompt = '画一个椭圆，标出焦点，让动点 P 与两焦点围成三角形，展示面积变化。';
 // One local playback clock keeps the conversation and construction in sync.
-const demoStepStarts = [0, 1200, 2200, 3500, 5000, 6500, 8000, 10000];
+// Front-load the setup so the first visible result arrives quickly, while the
+// geometry itself still unfolds one understandable step at a time.
+const demoStepStarts = [0, 400, 800, 1400, 2200, 3100, 4000, 4800];
 const demoTools = [
   { step: 2, title: '读取画板', tool: 'ggb_get_state', detail: '检查当前画板，从空白坐标系开始。' },
   { step: 3, title: '构建椭圆', tool: 'ggb_apply', detail: '以原点为中心，长半轴 4，短半轴 3。' },
@@ -138,6 +143,24 @@ export function HeroDemo() {
   const [angle, setAngle] = useState(48);
   const [playing, setPlaying] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [demoSettingsOpen, setDemoSettingsOpen] = useState(false);
+  const [settingsVisited, setSettingsVisited] = useState(false);
+  const closeDemoSettings = useCallback(() => setDemoSettingsOpen(false), []);
+  const sidebarId = useId();
+  const sidebarCloseRef = useRef<HTMLButtonElement>(null);
+  const sidebarOpenRef = useRef<HTMLButtonElement>(null);
+  const sidebarSearchRef = useRef<HTMLInputElement>(null);
+  const sidebarFocus = useRef<'toggle' | 'search' | null>(null);
+  const toggleSidebar = (open: boolean, focus: 'toggle' | 'search' = 'toggle') => {
+    sidebarFocus.current = focus;
+    setSidebarOpen(open);
+  };
+  useEffect(() => {
+    if (!sidebarFocus.current) return;
+    const target = sidebarFocus.current === 'search' ? sidebarSearchRef : sidebarOpen ? sidebarCloseRef : sidebarOpenRef;
+    sidebarFocus.current = null;
+    target.current?.focus({ preventScroll: true });
+  }, [sidebarOpen]);
   const [search, setSearch] = useState('');
   const [showAxes, setShowAxes] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
@@ -255,7 +278,7 @@ export function HeroDemo() {
     return cancel;
   }, [visibleStep, activityOpen, reducedMotion, conversationOpen]);
   useEffect(() => {
-    if (!active || reducedMotion !== false || !playing) return;
+    if (!active || reducedMotion !== false || !playing || demoSettingsOpen) return;
     let frame = 0;
     let last = 0;
     let rendered = 0;
@@ -277,7 +300,13 @@ export function HeroDemo() {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [active, playing, reducedMotion]);
+  }, [active, playing, reducedMotion, demoSettingsOpen]);
+  const openDemoSettings = () => {
+    cancelMessageFollow.current();
+    setSettingsOpen(false);
+    setSettingsVisited(true);
+    setDemoSettingsOpen(true);
+  };
   const updateAngle = (value: number) => { setPlaying(false); setAngle(value); };
   const sendDemoPrompt = () => { elapsed.current = demoStepStarts[1]; stepRef.current = 1; setStep(1); setPlaying(true); };
   const replay = () => { elapsed.current = 0; stepRef.current = 0; followMessages.current = true; setActivityOpen(true); setAngle(48); setStep(0); setPlaying(true); };
@@ -285,20 +314,28 @@ export function HeroDemo() {
   const currentStep = visibleStep === 0 ? '准备发送题目' : visibleStep === 1 ? '正在分析题目…' : visibleStep === 7 ? '构建完成 · 可拖动探索' : `${demoTools[visibleStep - 2].title}…`;
   return (
     <div ref={stageRef} className={styles.workbenchStage}>
-    <div ref={ref} className={styles.workbench} data-sidebar-open={sidebarOpen} data-demo-step={visibleStep} data-animating={active && playing && !reducedMotion}>
+    <div ref={ref} className={styles.workbench} data-sidebar-open={sidebarOpen} data-demo-step={visibleStep} data-animating={active && playing && !reducedMotion && !demoSettingsOpen}>
       <div className={styles.previewWorkspace}>
-        <aside className={styles.previewSidebar} aria-label="演示课件侧栏" inert={!sidebarOpen}>
-          <div className={styles.previewBrand}><span className={styles.previewMark}>M</span><strong>MathMover</strong><button type="button" onClick={() => setSidebarOpen(false)} aria-label="收起演示侧栏"><PanelLeftClose size={15} /></button></div>
+        <div className={styles.previewSidebarShell}>
+        <aside id={sidebarId} className={styles.previewSidebar} aria-label="演示课件侧栏" aria-hidden={!sidebarOpen} inert={!sidebarOpen}>
+          <div className={styles.previewBrand}><span className={styles.previewMark}>M</span><strong>MathMover</strong><button ref={sidebarCloseRef} type="button" onClick={() => toggleSidebar(false)} aria-label="收起演示侧栏" aria-controls={sidebarId} aria-expanded={true}><PanelLeftClose size={15} /></button></div>
           <button type="button" onClick={replay} className={styles.previewNew} aria-label="重新开始课件演示"><Plus size={15} aria-hidden="true" />新建课件</button>
-          <label className={styles.previewSearch}><Search size={14} aria-hidden="true" /><input value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索课件标题" aria-label="搜索演示课件" /></label>
+          <label className={styles.previewSearch}><Search size={14} aria-hidden="true" /><input ref={sidebarSearchRef} value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索课件标题" aria-label="搜索演示课件" /></label>
           <span className={styles.previewListLabel}>最近课件</span><span className={styles.previewDay}>今天</span>
           {'椭圆与动点'.includes(search.trim()) ? <button type="button" className={styles.previewCourseware} onClick={replay}>椭圆与动点<RotateCcw size={13} aria-hidden="true" /></button> : <p className={styles.previewNoResults}>没有匹配的课件</p>}
-          <div className={styles.previewSidebarFooter}><div className={styles.previewSettingsEntry}><Settings2 size={15} aria-hidden="true" /><span>设置</span></div></div>
+          <div className={styles.previewSidebarFooter}><button type="button" onClick={openDemoSettings} className={styles.previewSettingsEntry} aria-label="打开演示设置" aria-haspopup="dialog"><Settings2 size={15} aria-hidden="true" /><span>设置</span></button></div>
         </aside>
+        <aside className={styles.previewSidebarRail} aria-label="演示快捷侧栏" aria-hidden={sidebarOpen} inert={sidebarOpen}>
+          <div className={styles.previewRailHeader}><button ref={sidebarOpenRef} type="button" onClick={() => toggleSidebar(true)} aria-label="展开演示侧栏" title="展开侧栏" aria-controls={sidebarId} aria-expanded={false}><span className={styles.previewMark}>M</span><PanelLeftOpen size={16} aria-hidden="true" /></button></div>
+          <button type="button" onClick={replay} aria-label="重新开始课件演示" title="新建课件"><Plus size={15} aria-hidden="true" /></button>
+          <button type="button" onClick={() => toggleSidebar(true, 'search')} aria-label="搜索演示课件" title="搜索课件"><Search size={14} aria-hidden="true" /></button>
+          <button type="button" className={styles.previewRailSettings} onClick={openDemoSettings} aria-label="打开演示设置" aria-haspopup="dialog" title="设置"><Settings2 size={15} aria-hidden="true" /></button>
+        </aside>
+        </div>
         <div className={styles.previewMain}>
           <div className={styles.previewBoard}>
             <div className={styles.previewToolbar}>
-              {!sidebarOpen && <button type="button" className={styles.previewExpand} onClick={() => setSidebarOpen(true)} aria-label="展开演示侧栏"><PanelLeftOpen size={16} /></button>}
+              <button type="button" className={styles.previewMobileSettings} onClick={openDemoSettings} aria-label="打开演示设置" aria-haspopup="dialog" title="设置"><Settings2 size={15} aria-hidden="true" /></button>
               <ControlDeck title="椭圆与动点" showAxes={showAxes} showGrid={showGrid} settingsOpen={settingsOpen} onToggleSettings={() => setSettingsOpen(previous => !previous)} isFullscreen={fullscreen} onToggleAxes={() => setShowAxes(previous => !previous)} onToggleGrid={() => setShowGrid(previous => !previous)} onResetView={() => { updateAngle(48); setShowAxes(true); setShowGrid(true); }} onToggleFullscreen={() => { if (document.fullscreenElement) void document.exitFullscreen(); else void ref.current?.requestFullscreen().catch(() => {}); }} />
             </div>
             {settingsOpen && <div className={styles.previewSettings} role="group" aria-label="演示画板设置"><label><input type="checkbox" checked={showAxes} onChange={event => setShowAxes(event.target.checked)} />坐标轴</label><label><input type="checkbox" checked={showGrid} onChange={event => setShowGrid(event.target.checked)} />网格</label><button type="button" onClick={() => setSettingsOpen(false)}>完成</button></div>}
@@ -334,6 +371,7 @@ export function HeroDemo() {
           </section>
         </div>
       </div>
+      {settingsVisited && <DemoSettings open={demoSettingsOpen} container={ref.current} onClose={closeDemoSettings} />}
     </div>
     </div>
   );
