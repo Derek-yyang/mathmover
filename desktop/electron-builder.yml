@@ -22,6 +22,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: MathMover
+  # 跳过「为谁安装」页（静默安装/自动更新不会挂在自定义页上）
+  include: build-resources/installer.nsh
 
 # 自动更新的发布源。仓库公开后客户端可以匿名读 Releases。
 # 发布用 `npx electron-builder --publish always`（需要 GH_TOKEN）；本地构建默认不传。

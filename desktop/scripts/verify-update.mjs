@@ -9,7 +9,8 @@
  *
  * 说明：
  * - 更新源是一个本地 HTTP 服务，**支持 Range**（差分下载需要）；
- * - 旧版安装到 `%LOCALAPPDATA%\Programs\mathmover-desktop`（one-click 的默认位置）；
+ * - 旧版安装到 `%LOCALAPPDATA%\Programs\MathMover`（辅助安装的默认位置；旧的
+ *   one-click 安装包会落 mathmover-desktop，需用当前安装器构建的旧版）；
  * - 启动旧版时把 `LOCALAPPDATA` 指到临时目录，避免污染真实用户数据；
  * - 结束会卸掉测试版本。
  */
@@ -26,7 +27,7 @@ function arg(name, fallback) {
 const oldDir = path.resolve(arg('old', 'desktop/release/update-old'));
 const feedDir = path.resolve(arg('feed', 'desktop/release/update-new'));
 const expected = arg('expected', '');
-const installDir = path.join(process.env.LOCALAPPDATA, 'Programs', 'mathmover-desktop');
+const installDir = path.join(process.env.LOCALAPPDATA, 'Programs', 'MathMover');
 const exe = path.join(installDir, 'MathMover.exe');
 const uninstaller = path.join(installDir, 'Uninstall MathMover.exe');
 const tempData = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-update-'));
@@ -53,7 +54,7 @@ function fileVersion() {
 function killInstallDir() {
   try {
     execFileSync('powershell', ['-NoProfile', '-Command',
-      `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '*mathmover-desktop*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
+      `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like '*MathMover*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
     ], { stdio: 'ignore' });
   } catch { /* 没有匹配的进程 */ }
 }
