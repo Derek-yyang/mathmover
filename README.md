@@ -16,9 +16,9 @@
   [提交问题](https://github.com/Derek-yyang/mathmover/issues)
 </div>
 
-[![MathMover 演示](./docs/assets/mathmover-demo-poster.jpg)](./docs/assets/mathmover-demo.mp4)
+![MathMover 演示：输入题目，Agent 构建椭圆与三角形，再拖动滑块观察面积变化](./docs/assets/mathmover-demo.gif)
 
-<sub>点击封面播放演示。视频共 23.8 秒，Agent 构建过程的等待片段已加速，最后的拖动探索保持原速。</sub>
+<sub>演示自动循环，共 23.8 秒。Agent 构建过程的等待片段已加速，最后的拖动探索保持原速。需要更清晰的画面，可[下载 MP4 视频](https://github.com/Derek-yyang/mathmover/raw/refs/heads/master/docs/assets/mathmover-demo.mp4)。</sub>
 
 ## MathMover 是什么
 
@@ -115,7 +115,7 @@ packages/daemon/         本地 daemon、WebSocket、MCP 工具面与课件存�
 desktop/                 Electron 桌面壳、安装器与自动更新
 skills/                  四类数学题目的建模知识和写法卡
 ggb_commands.json        GeoGebra 命令目录
-docs/assets/             README 演示视频与封面
+docs/assets/             README 演示动图、视频与封面
 ```
 
 ## 数据与隐私
