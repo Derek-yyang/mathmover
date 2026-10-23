@@ -73,7 +73,9 @@ app.whenReady().then(async()=>{
   const bridge=await loadSparkleBridgeForApp(console.log); if(!bridge)throw Error('Native addon unavailable');
   const original=bridge.setEventHandler; bridge.setEventHandler=handler=>original(handler?e=>{record(e);handler(e);if(e.type==='error')setTimeout(()=>updater.check({silent:true}),2500);}:null);
   const {createSparkleUpdater}=require('./sparkle-updates.cjs');
-  const updater=createSparkleUpdater({loadBridge:async()=>bridge,config:${JSON.stringify({ feedUrl, publicEdKey })},fallback:{check:()=>{throw Error('Unexpected manual fallback');}},showMessageBox:async()=>0,openExternal:()=>{},log:console.log});
+  // 0.0.6 起就绪不再弹系统对话框，改为标题栏状态环；这里模拟用户点「立即重启」。
+  const restart=state=>{record({type:'update-state',...state});if(state.status==='ready')setTimeout(()=>{try{updater.installNow();}catch(e){record({type:'harness-error',message:String(e)});}},500);};
+  const updater=createSparkleUpdater({loadBridge:async()=>bridge,config:${JSON.stringify({ feedUrl, publicEdKey })},fallback:{check:()=>{throw Error('Unexpected manual fallback');}},showMessageBox:async()=>0,openExternal:()=>{},log:console.log,setState:restart});
   await updater.init(); bridge.setAutomaticChecks(false); await updater.check({silent:true});
   app.on('will-quit',()=>updater.dispose());
 }).catch(e=>{record({type:'harness-error',message:e.stack});app.exit(1);});
