@@ -56,6 +56,7 @@ GitHub Actions 的 **Desktop Release → Run workflow**：`platform=release` 构
 node desktop/scripts/make-mac-icons.mjs
 cd desktop
 npm run prepare:assets
+npm run prepare:updater
 npx electron-builder --mac --arm64 --publish never
 cd ..
 node desktop/scripts/verify-mac-package.mjs
@@ -69,7 +70,7 @@ node desktop/scripts/verify-agent.mjs desktop/release/mac-arm64/MathMover.app/Co
 - **本机 Agent**：从 Finder 启动时读取登录 shell 的 PATH，并补充 Homebrew、`~/.local/bin` 等常见路径；随包 Node 优先用于 CLI 的脚本入口。
 - **数据目录**：默认 `~/Library/Application Support/MathMover`；测试脚本使用临时目录，避免读取或覆盖真实配置。
 - **签名与更新**：当前仅做 ad-hoc 本地签名，尚无 Developer ID 签名和 Apple 公证。下载后可能被 Gatekeeper 拦截；确认来源后可按 macOS「系统设置 → 隐私与安全性」的提示批准打开。不要关闭系统安全检查。
-  启动 15 秒后检查 GitHub 最新正式版本；发现适配当前架构的新版 DMG 时提醒下载。菜单也可手动检查；下载后退出应用并替换，保留本机数据。不会使用 Squirrel.Mac 自动替换应用。
+  0.0.5 起使用 Sparkle：启动 15 秒后检查正式更新，后台下载并验证签名，完成后提示重启；也可退出时安装。旧版需手动安装一次带 Sparkle 的新版。原生模块不可用时保留手动下载兜底。
 - **自动验证范围**：检查 .app 二进制架构/权限/签名、DMG 完整性、工作台启动与 GeoGebra 真实构造、随包 OpenCode 的两轮 mock 对话。下载到另一台 Mac 后的首次安装仍需人工验收。
 
 ## 运行时布局（两平台共用）
@@ -149,7 +150,11 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
 - 发布源：`electron-builder.yml` 的 `publish`（GitHub Releases，仓库公开、客户端匿名可读）。
 - Windows 行为：启动 15 秒后静默检查；有新版本就后台下载，下载完弹「立即重启 / 稍后」；
   选「稍后」会在下次正常退出时安装。菜单「检查更新…」可手动触发。
-- Mac 行为：启动检查或菜单手动检查，发现新版本后提供「下载新版 / 稍后」；下载使用浏览器，安装需退出应用后手动替换。断网或没有适配当前架构的 DMG 时不自动提示；手动检查失败会提供 Releases 入口。
+- Mac 行为：Sparkle 后台下载 ZIP，验证 Ed25519 签名与签名后的 appcast，再提示「重启更新 / 稍后」。选择稍后会在退出时安装。断网时启动检查保持安静，手动检查失败可打开 Releases；原生模块不可用时退回 DMG 手动下载。只使用完整更新包，暂不生成差分。
+- Mac 更新源固定为 `releases/latest/download/appcast-mac-arm64.xml`。每次正式发布都必须包含签名后的 feed 和对应版本 ZIP；仅发布 DMG 会破坏更新入口。工作流先在草稿上传所有文件，再一起公开。
+- 更新私钥存放在 Actions secret `SPARKLE_ED_PRIVATE_KEY`，公钥在 `src/sparkle-config.json` 与 `electron-builder.yml`。签名脚本验证两者匹配，不把私钥写入产物。私钥的本地备份放在被 Git 忽略的 `.secrets/`，必须妥善备份；丢失后不能给已安装客户端签发可信更新。
+- Mac 本地打包前运行 `npm run prepare:updater` 编译 Electron 原生桥接。`npm run pack` 和 `npm run dist` 会自动执行；直接调用 electron-builder 则需要先手动执行。
+- `node desktop/scripts/verify-sparkle.mjs` 在原生 Mac 上创建隔离的两个 Electron 应用，验证被篡改的更新包遭到拒绝，再验证下载、安装、重启新版与数据保留。不使用发布私钥，不操作本机已安装的 MathMover。
 - 发布：更新桌面版本并提交后，推送对应 `v*` tag，或在 Desktop Release 中手动选择 `release`。需要两平台统一上传固定名称副本，不能单独用 electron-builder publisher 发布：
   ```powershell
   # 先把 desktop/package.json 的 version 改成新版本
@@ -203,7 +208,7 @@ Windows 版本目前**不做代码签名**。实际影响与应对：
 - 应用、随包 Node 和 OpenCode 均为 arm64；执行权限、包内依赖、本地签名、Dock 图标与 DMG 校验通过。
 - 打包版完成 GeoGebra 的 A/B/c 构造；两轮 mock 模型对话保留上下文，无页面脚本错误；两条测试均确认应用正常退出。
 - 托盘生命周期、平台资源选择与 Finder PATH 测试通过；Windows 打包版构造与两轮 mock 对话回归通过。
-- 尚未完成另一台 Mac 的首次下载安装、真实模型服务与外部 CLI 联调，也未配置 Developer ID、公证和 Mac 自动更新。
+- 0.0.3 Mac 测试包已完成用户实机测试；真实模型服务与外部 CLI 的完整兼容性仍需继续验证。Developer ID 和 Apple 公证尚未配置。
 
 ## Windows 验收记录（2026-10-21）
 

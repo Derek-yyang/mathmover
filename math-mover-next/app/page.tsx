@@ -101,7 +101,7 @@ export default function LandingPage() {
             <ol>
               <li><strong>安装应用</strong><span>打开 DMG，把 MathMover 拖到「应用程序」，再从那里启动。</span></li>
               <li><strong>首次打开</strong><span>当前 Mac 版尚未经过 Apple 公证。如提示「Apple 无法验证」，确认来自官方 Releases 后，前往「系统设置 → 隐私与安全性 → 仍要打开」。</span></li>
-              <li><strong>后续更新</strong><span>应用会提醒新版，也可在菜单中「检查更新」。下载后退出 MathMover，把新版拖到「应用程序」替换旧版，课件和设置会保留。</span></li>
+              <li><strong>后续更新</strong><span>0.0.5 起支持后台下载并验证更新，完成后点击「重启更新」，也可稍后退出时安装。0.0.4 及更早版本需先手动安装一次新版；课件和设置会保留。</span></li>
             </ol>
             <p>目前支持 Apple 芯片，暂不支持 Intel Mac。<a href="https://github.com/Derek-yyang/mathmover/blob/master/docs/macos-install.md" target="_blank" rel="noopener noreferrer">查看安装图文说明 ↗</a></p>
           </div>

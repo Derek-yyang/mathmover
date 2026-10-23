@@ -44,7 +44,7 @@ MathMover 是一个面向中学数学的桌面工作台。输入题目文字或�
 | 系统 | 下载 | 安装与更新 |
 | --- | --- | --- |
 | Windows x64 | [下载 EXE](https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe) | 安装向导；支持后台下载、退出或重启安装更新 |
-| macOS Apple 芯片 | [下载 DMG](https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-mac-arm64.dmg) | 拖入「应用程序」；新版提醒后下载并手动替换 |
+| macOS 12+ Apple 芯片 | [下载 DMG](https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-mac-arm64.dmg) | 拖入「应用程序」；0.0.5 起支持后台下载、重启或退出安装更新 |
 
 Mac 暂不支持 Intel 芯片。DMG 和 ZIP 是同一个应用的两种打包方式，一般下载 DMG 即可。
 
@@ -154,7 +154,7 @@ MathMover 当前没有线上工作台，也不需要 MathMover 账号。模型�
 
 - 支持 Windows x64 和 macOS Apple 芯片；Intel Mac 和 Linux 暂未提供安装包。
 - Windows 安装包尚未签名；Mac 版仅有本地签名，尚未经过 Apple 公证，首次打开可能需要用户批准。
-- Mac 版提供更新提醒与下载入口，需要手动替换应用；Windows 版支持自动安装更新。
+- Mac 0.0.4 及更早版本需手动安装一次新版，之后可自动更新；首次安装仍可能需要系统批准打开。
 - 内置 OpenCode 不需要额外安装，但仍需配置可用的模型 API。
 - 外部 Claude Code、Codex 和 dsh 需要用户自行安装并登录。
 - GeoGebra 资源会随桌面端一起打包，因此安装包体积较大。

@@ -25,7 +25,8 @@ try {
     '--download-url-prefix', `https://github.com/Derek-yyang/mathmover/releases/download/v${version}/`,
     '--full-release-notes-url', `https://github.com/Derek-yyang/mathmover/releases/tag/v${version}`, archives,
   ], { stdio: 'inherit' });
-  const feed = path.join(archives, 'appcast.xml');
+  // generate_appcast derives the feed filename from the packaged app's SUFeedURL.
+  const feed = path.join(archives, path.basename(new URL(config.feedUrl).pathname));
   execFileSync(path.join(tools, 'sign_update'), ['--ed-key-file', keyFile, feed], { stdio: 'inherit' });
   execFileSync(path.join(tools, 'sign_update'), ['--ed-key-file', keyFile, '--verify', feed], { stdio: 'inherit' });
   fs.copyFileSync(feed, path.join(desktop, 'release/appcast-mac-arm64.xml'));
