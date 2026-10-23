@@ -1,7 +1,16 @@
 import path from 'node:path';
 import type { NextConfig } from "next";
 
+// 桌面构建在 prepare.mjs 里注入（与 layout.tsx 的标题栏开关同一个变量）。
+const desktopBuild = process.env.MATHMOVER_DESKTOP === '1';
+
 const nextConfig: NextConfig = {
+  // 首页只用于项目宣发，桌面应用里不该出现：直接送到工作台。
+  async redirects() {
+    if (!desktopBuild) return [];
+    return [{ source: '/', destination: '/dashboard', permanent: false }];
+  },
+
   output: 'standalone',
   distDir: process.env.MATHMOVER_NEXT_DIST_DIR || '.next',
 
