@@ -24,6 +24,10 @@ Local integration changes:
   Settings menus/confirmations remain in its focus
   scope and use its `data-slot=settings-dialog` boundary. The appearance menu is
   non-modal within the enclosing modal, avoiding overlapping modal locks.
+- Dialog overlays in both `ui/dialog.tsx` and this registry dialog render
+  `data-mm-modal-overlay`. The desktop title bar watches it to tint Windows'
+  native caption-button area while a modal is open: DWM paints that layer above
+  web content, so the page's backdrop cannot cover it.
 - Unsaved API drafts guard Settings dismissal through its close control, Escape,
   backdrop and archive navigation. A small Radix Popover anchored to the close
   control offers continue/discard, with focus returning to the invoking control.

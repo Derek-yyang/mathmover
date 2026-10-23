@@ -19,6 +19,8 @@ const net = require('node:net');
 const path = require('node:path');
 const { createSystemTray } = require('./system-tray.cjs');
 const { restoreMacPath } = require('./platform.cjs');
+const { createUpdateState } = require('./update-state.cjs');
+const { TITLEBAR_COLORS, DEFAULT_OVERLAY, titleBarColor } = require('./titlebar-colors.cjs');
 const { createMacUpdater } = require('./mac-updates.cjs');
 const { createSparkleUpdater } = require('./sparkle-updates.cjs');
 
@@ -256,21 +258,37 @@ function showAbout() {
   if (choice === 0) openLogs();
 }
 
-const TITLEBAR_COLORS = {
-  light: { color: '#fdfcf8', symbolColor: '#1c1917' },
-  dark: { color: '#181818', symbolColor: '#fafaf9' },
-};
+let titleBarTheme = 'light';
+// 当前模态遮罩颜色（渲染进程从实际遮罩元素上读出）；null 表示没有模态。
+let titleBarOverlay = null;
 
-/** 原生窗口按钮与窗口边框跟随应用主题（Windows 的 DWM 也看 nativeTheme）。 */
-function applyTitleBarTheme(theme) {
-  const dark = theme === 'dark';
-  nativeTheme.themeSource = dark ? 'dark' : 'light';
+function updateTitleBarOverlay() {
   if (process.platform === 'darwin' || !mainWindow || mainWindow.isDestroyed()) return;
+  const theme = titleBarTheme === 'dark' ? 'dark' : 'light';
   try {
-    mainWindow.setTitleBarOverlay({ ...TITLEBAR_COLORS[dark ? 'dark' : 'light'], height: 39 });
+    mainWindow.setTitleBarOverlay({
+      color: titleBarColor(theme, titleBarOverlay),
+      symbolColor: TITLEBAR_COLORS[theme].symbolColor,
+      height: 39,
+    });
   } catch (e) {
     log('设置标题栏颜色失败：', e instanceof Error ? e.message : e);
   }
+}
+
+/** 原生窗口按钮与窗口边框跟随应用主题（Windows 的 DWM 也看 nativeTheme）。 */
+function applyTitleBarTheme(theme) {
+  titleBarTheme = theme === 'dark' ? 'dark' : 'light';
+  nativeTheme.themeSource = titleBarTheme;
+  updateTitleBarOverlay();
+}
+
+/** 模态开合时把原生按钮区一起压暗/恢复，避免网页遮罩在按钮处断开。 */
+function setTitleBarModal(open, overlay) {
+  const next = open ? (overlay || DEFAULT_OVERLAY) : null;
+  if (JSON.stringify(next) === JSON.stringify(titleBarOverlay)) return;
+  titleBarOverlay = next;
+  updateTitleBarOverlay();
 }
 
 /** 渲染进程标题栏菜单 → 主进程动作。只接受白名单，避免把 IPC 变成任意命令入口。 */
@@ -286,17 +304,35 @@ function installDesktopIpc() {
   ipcMain.handle('desktop-preferences:set-close-to-tray', (event, enabled) => requireDesktopWindow(event).setCloseToTray(enabled));
   ipcMain.on('desktop-action', (_event, action) => {
     if (action === 'check-updates') void checkForUpdates();
+    else if (action === 'restart-update') restartForUpdate();
+    else if (action === 'retry-update') retryUpdate();
     else if (action === 'open-logs') openLogs();
     else if (action === 'copy-diagnostics') clipboard.writeText(diagnosticsText());
     else if (action === 'about') showAbout();
   });
+  ipcMain.handle('update-state:get', (event) => {
+    if (mainWindow && !mainWindow.isDestroyed() && event.sender !== mainWindow.webContents) {
+      return { status: 'idle' };
+    }
+    return updateState.get();
+  });
   ipcMain.on('set-titlebar-theme', (_event, theme) => {
     applyTitleBarTheme(theme === 'dark' ? 'dark' : 'light');
   });
+  ipcMain.on('titlebar-modal', (_event, open, overlay) => setTitleBarModal(open, overlay));
 }
 
+/**
+ * 更新状态：主进程是唯一事实来源，渲染进程订阅后画标题栏里的状态环。
+ * 两套后端（Windows 的 electron-updater、macOS 的 Sparkle）都往这里喂，界面只有一份。
+ */
+const updateState = createUpdateState({
+  send: (state) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-state', state);
+  },
+});
+
 let updateCheck = null;
-let updatePrompted = false;
 const macFallbackUpdater = createMacUpdater({
   getVersion: () => app.getVersion(), arch: process.arch,
   fetchRelease: (url, options) => electronNet.fetch(url, options),
@@ -311,6 +347,7 @@ const macUpdater = createSparkleUpdater({
   config: require('./sparkle-config.json'), fallback: macFallbackUpdater,
   showMessageBox: async options => (await dialog.showMessageBox(options)).response,
   openExternal: url => shell.openExternal(url), log,
+  setState: (state) => updateState.set(state),
 });
 
 /**
@@ -341,26 +378,29 @@ function setupUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  autoUpdater.on('error', (e) => log('更新检查失败：', e instanceof Error ? e.message : e));
-  autoUpdater.on('update-available', (info) => log(`发现新版本 ${info.version}，开始下载`));
+  autoUpdater.on('error', (e) => {
+    log('更新检查失败：', e instanceof Error ? e.message : e);
+    updateState.handle({ type: 'error', message: e instanceof Error ? e.message : String(e) });
+  });
+  autoUpdater.on('update-available', (info) => {
+    log(`发现新版本 ${info.version}，开始下载`);
+    updateState.handle({ type: 'update-available', version: info.version });
+  });
+  autoUpdater.on('download-progress', (progress) => {
+    updateState.handle({ type: 'download-progress', percent: progress.percent });
+  });
   autoUpdater.on('update-downloaded', (info) => {
     if (process.env.MATHMOVER_UPDATE_AUTOINSTALL === '1') {
       log(`更新 ${info.version} 已下载，静默安装`);
       setImmediate(() => autoUpdater.quitAndInstall(true, true));
       return;
     }
-    if (updatePrompted) return;
-    updatePrompted = true;
-    const choice = dialog.showMessageBoxSync({
-      type: 'info',
-      title: '更新已就绪',
-      message: `MathMover ${info.version} 已下载`,
-      detail: '重启应用即可完成更新。选择「稍后」会在下次退出时自动安装。',
-      buttons: ['立即重启', '稍后'],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (choice === 0) autoUpdater.quitAndInstall(true, true);
+    // 不再弹模态框：标题栏的状态环负责提示，不打断正在进行的生成任务。
+    // 用户不点重启也没损失——autoInstallOnAppQuit 会在退出时安装。
+    updateState.handle({ type: 'update-downloaded', version: info.version });
+  });
+  autoUpdater.on('update-not-available', () => {
+    updateState.handle({ type: 'update-not-available' });
   });
 
   // 启动后静默检查一次；新版本会在后台下载，下载完才打扰用户
@@ -396,6 +436,20 @@ async function checkForUpdates({ silent = false } = {}) {
     }
   })();
   return updateCheck;
+}
+
+/** 状态环的「立即重启」：只在更新已就绪时响应，避免 IPC 变成任意时刻的退出入口。 */
+function restartForUpdate() {
+  if (updateState.get().status !== 'ready') return;
+  if (IS_MAC) { macUpdater.installNow(); return; }
+  autoUpdater.quitAndInstall(true, true);
+}
+
+/** 下载/校验失败后点状态环重试；静默重跑，失败就继续显示重试状态。 */
+function retryUpdate() {
+  if (updateState.get().status !== 'failed') return;
+  updateState.set({ status: 'idle' });
+  void checkForUpdates({ silent: true });
 }
 
 function installMenu() {
@@ -486,6 +540,11 @@ function createWindow(nextPort) {
 
   // 首次启动且还没配过端点：把设置弹窗带出来。普通用户不知道还要先配模型；
   // 只看一次（marker 落盘），之后关掉就不会再自动弹。
+  // 页面每次加载（含刷新）都补发一次当前更新状态，不依赖事件与订阅的先后。
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-state', updateState.get());
+  });
+
   const marker = path.join(DATA_DIR, '.desktop-onboarded');
   const onboarding = !fs.existsSync(marker) && !fs.existsSync(path.join(DATA_DIR, 'byok.json'));
   mainWindow.loadURL(`http://127.0.0.1:${nextPort}/dashboard${onboarding ? '?onboarding=1' : ''}`);

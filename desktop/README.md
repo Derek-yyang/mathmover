@@ -148,9 +148,10 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
   `Desktop Release` 工作流等待两平台构建与 Mac 验证通过后，统一上传到草稿，检查安装包完整性后才公开并标记 latest。
   后续无需修改官网下载链接。不会覆盖已经公开的版本，需先提高 `desktop/package.json` 及 lockfile 的版本。
 - 发布源：`electron-builder.yml` 的 `publish`（GitHub Releases，仓库公开、客户端匿名可读）。
-- Windows 行为：启动 15 秒后静默检查；有新版本就后台下载，下载完弹「立即重启 / 稍后」；
-  选「稍后」会在下次正常退出时安装。菜单「检查更新…」可手动触发。
-- Mac 行为：Sparkle 后台下载 ZIP，验证 Ed25519 签名与签名后的 appcast，再提示「重启更新 / 稍后」。选择稍后会在退出时安装。断网时启动检查保持安静，手动检查失败可打开 Releases；原生模块不可用时退回 DMG 手动下载。只使用完整更新包，暂不生成差分。
+- Windows 行为：启动 15 秒后静默检查；有新版本就后台下载，标题栏 ⋯ 右侧出现进度环，
+  下载完成后变成重启按钮，点开就地确认「立即重启 / 稍后」；选「稍后」会在下次正常退出时安装。
+  下载中断时图标变成警示标记，点击重试；仅检查失败（如离线）不亮状态。菜单「检查更新…」仍可手动触发。
+- Mac 行为：Sparkle 后台下载 ZIP，验证 Ed25519 签名与签名后的 appcast，同一枚状态环给出进度并变成重启按钮，不点则在退出时安装。断网时启动检查保持安静，手动检查失败可打开 Releases；原生模块不可用时退回 DMG 手动下载。只使用完整更新包，暂不生成差分。
 - Mac 更新源固定为 `releases/latest/download/appcast-mac-arm64.xml`。每次正式发布都必须包含签名后的 feed 和对应版本 ZIP；仅发布 DMG 会破坏更新入口。工作流先在草稿上传所有文件，再一起公开。
 - 更新私钥存放在 Actions secret `SPARKLE_ED_PRIVATE_KEY`，公钥在 `src/sparkle-config.json` 与 `electron-builder.yml`。签名脚本验证两者匹配，不把私钥写入产物。私钥的本地备份放在被 Git 忽略的 `.secrets/`，必须妥善备份；丢失后不能给已安装客户端签发可信更新。
 - Mac 本地打包前运行 `npm run prepare:updater` 编译 Electron 原生桥接。`npm run pack` 和 `npm run dist` 会自动执行；直接调用 electron-builder 则需要先手动执行。

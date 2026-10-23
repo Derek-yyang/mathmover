@@ -392,10 +392,17 @@ body {
 /* Electron 桌面构建：应用内标题栏。整条可拖动，按钮/菜单区不可拖动。 */
 :root[data-desktop] { --desktop-titlebar-height: 40px; }
 .desktop-titlebar { -webkit-app-region: drag; }
+/* Windows 的应用菜单紧跟品牌，向右下展开；右上角留给原生窗口按钮。 */
+:root[data-desktop-platform="win32"] .desktop-titlebar-menu { margin-left: 0; }
+:root[data-desktop-platform="win32"] .desktop-titlebar-menu [role="menu"] { left: 0; right: auto; }
 /* macOS 原生红黄绿按钮在左侧，品牌从按钮组右边开始，右侧无需预留 Windows 按钮宽度。 */
 :root[data-desktop-platform="darwin"] .desktop-titlebar { padding-left: 88px; padding-right: 12px; }
 .desktop-titlebar button,
-.desktop-titlebar [role="menu"] { -webkit-app-region: no-drag; }
+.desktop-titlebar [role="menu"],
+.desktop-titlebar [role="dialog"],
+.desktop-titlebar [role="img"] { -webkit-app-region: no-drag; }
+/* macOS 的标题栏按钮在右侧，弹出层要向左展开；Windows 上状态环在品牌旁，向右展开。 */
+:root[data-desktop-platform="darwin"] .desktop-update-popover { left: auto; right: 0; }
 /* 品牌只在应用标题栏出现一次；侧栏头部改为常驻「新建课件」，列表里的新建行隐藏 */
 :root[data-desktop] [data-sidebar="sidebar"] a[aria-label="MathMover 首页"] { display: none; }
 :root[data-desktop] [data-sidebar="sidebar"] [data-slot="aui_thread-list-new"] { display: none; }

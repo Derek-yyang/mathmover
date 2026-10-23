@@ -13,7 +13,7 @@ export const DialogDescription = Primitive.Description;
 
 export function DialogContent({ children, className = '', ...props }: ComponentProps<typeof Primitive.Content>) {
   return <Primitive.Portal>
-    <Primitive.Overlay className="reading-dialog-overlay" />
+    <Primitive.Overlay className="reading-dialog-overlay" data-mm-modal-overlay="" />
     <Primitive.Content className={`reading-dialog ${className}`} {...props}>
       {children}
       <Primitive.Close aria-label="关闭预览" className="reading-dialog-close" title="关闭预览"><X aria-hidden size={18} /></Primitive.Close>

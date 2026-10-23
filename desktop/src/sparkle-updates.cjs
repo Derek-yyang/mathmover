@@ -1,54 +1,60 @@
-/** Sparkle owns download verification and installation; this controller owns our dialogs. */
-function createSparkleUpdater({ loadBridge, config, fallback, showMessageBox, openExternal, log }) {
+/** Sparkle owns download verification and installation; this controller owns our dialogs and update state. */
+function createSparkleUpdater({ loadBridge, config, fallback, showMessageBox, openExternal, log, setState = () => {} }) {
   let bridge;
   let initializing;
   let busy = false;
   let manual = false;
   let readyVersion;
-  let prompting = false;
+  let downloading = false;
+  let lastPercent = -1;
   let progressBucket = -1;
-
-  async function showReady() {
-    if (prompting) return;
-    prompting = true;
-    try {
-      const choice = await showMessageBox({
-        type: 'info', title: '更新已就绪', message: `MathMover ${readyVersion} 已下载`,
-        detail: '更新包已验证。请先结束当前生成任务，再重启更新；课件和设置会保留。选择「稍后」会在退出应用时安装。',
-        buttons: ['重启更新', '稍后'], defaultId: 0, cancelId: 1,
-      });
-      if (choice === 0) bridge.installUpdateNow();
-      else bridge.installUpdateOnQuit();
-    } catch (error) { log('Mac 安装更新失败：', error.message); }
-    finally { prompting = false; }
-  }
 
   async function onEvent(event) {
     if (event.type === 'download-progress') {
-      const bucket = Math.floor((event.percent || 0) / 25);
+      const percent = Math.max(0, Math.min(100, Math.round(event.percent || 0)));
+      const bucket = Math.floor(percent / 25);
       if (bucket !== progressBucket) {
         progressBucket = bucket;
-        log(`Mac 更新 ${event.phase || 'download'}：${Math.round(event.percent || 0)}%`);
+        log(`Mac 更新 ${event.phase || 'download'}：${percent}%`);
+      }
+      if (percent !== lastPercent) {
+        lastPercent = percent;
+        setState({ status: 'downloading', percent });
       }
       return;
     }
     log('Sparkle：', JSON.stringify(event));
-    if (event.type === 'update-available') busy = true;
-    else if (event.type === 'update-downloaded') {
+    if (event.type === 'update-available') {
+      busy = true;
+      downloading = true;
+      lastPercent = -1;
+      setState({ status: 'downloading', percent: 0 });
+    } else if (event.type === 'update-downloaded') {
       busy = false;
       manual = false;
+      downloading = false;
       readyVersion = event.version || '';
-      // Native driver stores its install reply after returning from this event.
-      setImmediate(() => { void showReady(); });
+      // 与 Windows 的 autoInstallOnAppQuit 对齐：不点重启也会在退出时安装。
+      // 原生驱动要在事件返回后才记录安装指令，延后一拍再发。
+      setImmediate(() => {
+        try { bridge?.installUpdateOnQuit(); }
+        catch (error) { log('Mac 退出时安装更新失败：', error.message); }
+      });
+      setState({ status: 'ready', version: readyVersion });
     } else if (event.type === 'update-not-available') {
       busy = false;
+      downloading = false;
       const notify = manual;
       manual = false;
+      if (readyVersion === undefined) setState({ status: 'idle' });
       if (notify) await showMessageBox({ type: 'info', title: '检查更新', message: '当前已是最新版本。' });
     } else if (event.type === 'error') {
       busy = false;
       const notify = manual;
       manual = false;
+      // 只是检查失败不打扰；下载或校验中断才变成可重试的状态环。
+      if (downloading) setState({ status: 'failed', message: event.message });
+      downloading = false;
       if (notify) {
         const choice = await showMessageBox({
           type: 'warning', title: '更新暂不可用', message: '无法完成更新，请稍后重试。',
@@ -87,7 +93,8 @@ function createSparkleUpdater({ loadBridge, config, fallback, showMessageBox, op
     async check({ silent = false } = {}) {
       await init();
       if (!bridge) return fallback.check({ silent });
-      if (readyVersion !== undefined) { if (!silent) await showReady(); return; }
+      // 已就绪时标题栏的状态环就是提示，不再弹框。
+      if (readyVersion !== undefined) return;
       manual ||= !silent;
       if (busy) {
         if (!silent) await showMessageBox({ type: 'info', title: '检查更新', message: '正在检查或准备更新，完成后会提示重启。' });
@@ -97,6 +104,12 @@ function createSparkleUpdater({ loadBridge, config, fallback, showMessageBox, op
       progressBucket = -1;
       try { bridge.checkForUpdates(); }
       catch (error) { await onEvent({ type: 'error', message: error.message }); }
+    },
+    /** 状态环的「立即重启」：只处理已经验证并下载完成的更新。 */
+    installNow() {
+      if (readyVersion === undefined || !bridge) return;
+      try { bridge.installUpdateNow(); }
+      catch (error) { log('Mac 安装更新失败：', error.message); }
     },
     dispose() { bridge?.setEventHandler(null); },
   };
