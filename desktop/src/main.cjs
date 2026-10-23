@@ -20,6 +20,7 @@ const path = require('node:path');
 const { createSystemTray } = require('./system-tray.cjs');
 const { restoreMacPath } = require('./platform.cjs');
 const { createMacUpdater } = require('./mac-updates.cjs');
+const { createSparkleUpdater } = require('./sparkle-updates.cjs');
 
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
@@ -296,10 +297,19 @@ function installDesktopIpc() {
 
 let updateCheck = null;
 let updatePrompted = false;
-const macUpdater = createMacUpdater({
+const macFallbackUpdater = createMacUpdater({
   getVersion: () => app.getVersion(), arch: process.arch,
   fetchRelease: (url, options) => electronNet.fetch(url, options),
   showMessageBox: options => dialog.showMessageBoxSync(options),
+  openExternal: url => shell.openExternal(url), log,
+});
+const macUpdater = createSparkleUpdater({
+  loadBridge: async () => {
+    const { loadSparkleBridgeForApp } = await import('electron-sparkle-updater');
+    return loadSparkleBridgeForApp(log);
+  },
+  config: require('./sparkle-config.json'), fallback: macFallbackUpdater,
+  showMessageBox: async options => (await dialog.showMessageBox(options)).response,
   openExternal: url => shell.openExternal(url), log,
 });
 
@@ -312,8 +322,9 @@ const macUpdater = createMacUpdater({
  */
 function setupUpdater() {
   if (!app.isPackaged) return;
-  // Mac 本地签名版只提醒并打开 DMG 下载，不走 Squirrel.Mac 自动替换。
+  // Sparkle 验证 EdDSA 更新签名，支持 Mac 本地签名版的下载与替换。
   if (IS_MAC) {
+    void macUpdater.init();
     setTimeout(() => { void checkForUpdates({ silent: true }); }, 15_000);
     return;
   }
@@ -519,6 +530,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('window-all-closed', () => app.quit());
+  app.on('will-quit', () => { if (IS_MAC) macUpdater.dispose(); });
   if (IS_MAC) {
     process.on('SIGTERM', () => app.quit());
     process.on('SIGINT', () => app.quit());

@@ -23,6 +23,8 @@ third-party assets.
 ## Bundled application components
 
 - Electron: MIT
+- electron-sparkle-updater: MIT (macOS update bridge)
+- Sparkle: MIT and bundled third-party notices, distributed inside Sparkle.framework (macOS updates)
 - Node.js: MIT
 - Next.js: MIT
 - React: MIT

@@ -50,7 +50,7 @@ jobs:
         run: npm ci
 
       - name: Verify platform and update checks
-        run: node --test desktop/scripts/platform.test.cjs desktop/scripts/mac-updates.test.cjs
+        run: node --test desktop/scripts/platform.test.cjs desktop/scripts/mac-updates.test.cjs desktop/scripts/sparkle-updates.test.cjs
 
       - name: Build Next standalone + daemon assets
         working-directory: desktop
@@ -118,9 +118,17 @@ jobs:
         run: npm ci
       - name: Verify platform selection and tray
         run: |
-          node --test desktop/scripts/platform.test.cjs desktop/scripts/mac-updates.test.cjs
+          node --test desktop/scripts/platform.test.cjs desktop/scripts/mac-updates.test.cjs desktop/scripts/sparkle-updates.test.cjs
           node desktop/scripts/make-mac-icons.mjs
           node desktop/scripts/verify-tray.cjs
+      - name: Rebuild Sparkle for Electron arm64
+        working-directory: desktop
+        run: npm run prepare:updater
+      - name: Verify signed update installation and tamper rejection
+        timeout-minutes: 6
+        run: node desktop/scripts/verify-sparkle.mjs
+        env:
+          TMPDIR: ${{ runner.temp }}
       - name: Build Next standalone and native runtime assets
         working-directory: desktop
         run: npm run prepare:assets
@@ -129,6 +137,10 @@ jobs:
         run: npx electron-builder --mac --arm64 --publish never
       - name: Verify bundle architecture and signature
         run: node desktop/scripts/verify-mac-package.mjs
+      - name: Sign Mac update archive and feed
+        run: node desktop/scripts/sign-mac-update.mjs
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
       - name: Smoke test packaged workbench
         timeout-minutes: 5
         run: node desktop/scripts/verify.mjs desktop/release/mac-arm64/MathMover.app/Contents/MacOS/MathMover
@@ -151,6 +163,7 @@ jobs:
           path: |
             desktop/release/*.dmg
             desktop/release/*-mac-arm64.zip
+            desktop/release/appcast-mac-arm64.xml
           if-no-files-found: error
       - name: Upload smoke test diagnostics
         if: always()
@@ -163,6 +176,9 @@ jobs:
             ${{ runner.temp }}/mm-agent-*/failure.png
             ${{ runner.temp }}/mm-desktop-*/MathMover/logs/*.log
             ${{ runner.temp }}/mm-agent-*/MathMover/logs/*.log
+            ${{ runner.temp }}/mathmover-sparkle-test-*/native-output.log
+            ${{ runner.temp }}/mathmover-sparkle-test-*/requests.json
+            ${{ runner.temp }}/mathmover-sparkle-test-*/data/events.jsonl
           if-no-files-found: ignore
 
   # 两平台构建与 Mac 冒烟均通过后，集中上传到草稿，完整性检查通过才公开。
@@ -194,7 +210,7 @@ jobs:
           fi
           for FILE in "MathMover-${VERSION}-Setup.exe" "MathMover-${VERSION}-Setup.exe.blockmap" \
             MathMover-Setup.exe latest.yml "MathMover-${VERSION}-mac-arm64.dmg" \
-            "MathMover-${VERSION}-mac-arm64.zip" MathMover-mac-arm64.dmg; do
+            "MathMover-${VERSION}-mac-arm64.zip" MathMover-mac-arm64.dmg appcast-mac-arm64.xml; do
             test -s "installers/$FILE"
           done
           if gh release view "$TAG" --json isDraft > /tmp/mathmover-release.json 2>/dev/null; then
@@ -204,5 +220,5 @@ jobs:
           fi
           gh release upload "$TAG" installers/* --clobber
           gh release view "$TAG" --json assets > /tmp/mathmover-assets.json
-          node -e "const a=require('/tmp/mathmover-assets.json').assets; for(const n of ['MathMover-Setup.exe','MathMover-mac-arm64.dmg','latest.yml']) if(!a.some(x=>x.name===n&&x.size>0)) process.exit(1)"
+          node -e "const a=require('/tmp/mathmover-assets.json').assets; for(const n of ['MathMover-Setup.exe','MathMover-mac-arm64.dmg','latest.yml','appcast-mac-arm64.xml']) if(!a.some(x=>x.name===n&&x.size>0)) process.exit(1)"
           gh release edit "$TAG" --draft=false --latest

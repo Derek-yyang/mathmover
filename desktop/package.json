@@ -1,6 +1,6 @@
 {
   "name": "mathmover-desktop",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": true,
   "license": "MIT",
   "description": "MathMover：让数学问题成为可探索的图形。",
@@ -9,14 +9,16 @@
   "scripts": {
     "prepare:assets": "node scripts/prepare.mjs",
     "dev": "npm run prepare:assets && electron .",
-    "pack": "npm run prepare:assets && electron-builder --dir",
-    "dist": "npm run prepare:assets && electron-builder"
+    "pack": "npm run prepare:assets && npm run prepare:updater && electron-builder --dir",
+    "dist": "npm run prepare:assets && npm run prepare:updater && electron-builder",
+    "prepare:updater": "node scripts/rebuild-sparkle.mjs"
   },
   "devDependencies": {
     "electron": "^38.0.0",
     "electron-builder": "^26.0.0"
   },
   "dependencies": {
+    "electron-sparkle-updater": "0.5.3",
     "electron-updater": "^6.8.9"
   }
 }

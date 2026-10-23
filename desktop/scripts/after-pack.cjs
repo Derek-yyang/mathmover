@@ -20,5 +20,8 @@ module.exports = async context => {
   if (context.electronPlatformName !== 'darwin') return;
   const resources = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, 'Contents/Resources');
   materializeLinks(resources);
+  // Sparkle 的框架和安装助手在 Contents/Frameworks，保留其标准软链接。
+  const { adHocSignAfterPack } = await import('electron-sparkle-updater/builder');
+  await adHocSignAfterPack(context);
 };
 module.exports.materializeLinks = materializeLinks;

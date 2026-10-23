@@ -38,6 +38,12 @@ execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', app], { std
 const plist = path.join(app, 'Contents/Info.plist');
 const icon = execFileSync('/usr/libexec/PlistBuddy', ['-c', 'Print :CFBundleIconFile', plist], { encoding: 'utf8' }).trim();
 assert(fs.existsSync(path.join(resources, icon)), `缺少 Dock 图标：${icon}`);
+const sparkle = JSON.parse(fs.readFileSync('desktop/src/sparkle-config.json'));
+for (const [key, expected] of Object.entries({ SUFeedURL: sparkle.feedUrl, SUPublicEDKey: sparkle.publicEdKey })) {
+  assert.equal(execFileSync('/usr/libexec/PlistBuddy', ['-c', `Print :${key}`, plist], { encoding: 'utf8' }).trim(), expected);
+}
+assert(fs.existsSync(path.join(app, 'Contents/Frameworks/Sparkle.framework/Sparkle')));
+assert(fs.existsSync(path.join(resources, 'app.asar.unpacked/node_modules/electron-sparkle-updater/native/build/Release/sparkle_bridge.node')));
 const version = JSON.parse(fs.readFileSync('desktop/package.json', 'utf8')).version;
 const dmg = path.resolve(`desktop/release/MathMover-${version}-mac-arm64.dmg`);
 const zip = path.resolve(`desktop/release/MathMover-${version}-mac-arm64.zip`);
