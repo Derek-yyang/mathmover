@@ -10,7 +10,7 @@
  *
  * 所有子进程日志写到 <dataDir>/logs/，崩溃时错误框里给路径。
  */
-const { app, BrowserWindow, shell, dialog, clipboard, Menu, ipcMain, nativeTheme } = require('electron');
+const { app, BrowserWindow, shell, dialog, clipboard, Menu, ipcMain, nativeTheme, net: electronNet } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -19,6 +19,7 @@ const net = require('node:net');
 const path = require('node:path');
 const { createSystemTray } = require('./system-tray.cjs');
 const { restoreMacPath } = require('./platform.cjs');
+const { createMacUpdater } = require('./mac-updates.cjs');
 
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
@@ -295,6 +296,12 @@ function installDesktopIpc() {
 
 let updateCheck = null;
 let updatePrompted = false;
+const macUpdater = createMacUpdater({
+  getVersion: () => app.getVersion(), arch: process.arch,
+  fetchRelease: (url, options) => electronNet.fetch(url, options),
+  showMessageBox: options => dialog.showMessageBoxSync(options),
+  openExternal: url => shell.openExternal(url), log,
+});
 
 /**
  * 自动更新。
@@ -305,8 +312,11 @@ let updatePrompted = false;
  */
 function setupUpdater() {
   if (!app.isPackaged) return;
-  // macOS 测试包只有本地签名，不能走要求 Developer ID 的 Squirrel.Mac 更新链路。
-  if (IS_MAC) { log('macOS 测试版：跳过自动更新'); return; }
+  // Mac 本地签名版只提醒并打开 DMG 下载，不走 Squirrel.Mac 自动替换。
+  if (IS_MAC) {
+    setTimeout(() => { void checkForUpdates({ silent: true }); }, 15_000);
+    return;
+  }
   // `electron-builder --dir` 的产物没有 app-update.yml（正式安装包才有）；
   // 本地 unpacked 调试时跳过，避免每轮启动打一条 ENOENT。
   if (!process.env.MATHMOVER_UPDATE_URL && !fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'))) {
@@ -347,17 +357,11 @@ function setupUpdater() {
 }
 
 async function checkForUpdates({ silent = false } = {}) {
-  if (IS_MAC) {
-    if (!silent) dialog.showMessageBoxSync({
-      type: 'info', title: '检查更新', message: 'macOS 测试版暂不支持自动更新。',
-      detail: '请下载新版后手动替换应用。',
-    });
-    return;
-  }
   if (!app.isPackaged) {
     if (!silent) dialog.showMessageBoxSync({ type: 'info', title: '检查更新', message: '开发模式下不检查更新。' });
     return;
   }
+  if (IS_MAC) return macUpdater.check({ silent });
   if (updateCheck) return updateCheck;
   updateCheck = (async () => {
     try {

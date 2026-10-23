@@ -7,11 +7,13 @@
 
   [![Latest release](https://img.shields.io/github/v/release/Derek-yyang/mathmover?label=release)](https://github.com/Derek-yyang/mathmover/releases/latest)
   ![Windows x64](https://img.shields.io/badge/platform-Windows%20x64-2f7d5b)
+  ![macOS Apple Silicon](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-2f7d5b)
   ![Local first](https://img.shields.io/badge/data-local--first-2f7d5b)
   ![MCP](https://img.shields.io/badge/agent-MCP-2f7d5b)
   ![MIT License](https://img.shields.io/badge/license-MIT-2f7d5b)
 
   [下载 Windows 版](https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe) ·
+  [下载 Mac 版](https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-mac-arm64.dmg) ·
   [查看 Releases](https://github.com/Derek-yyang/mathmover/releases) ·
   [提交问题](https://github.com/Derek-yyang/mathmover/issues)
 </div>
@@ -37,13 +39,30 @@ MathMover 是一个面向中学数学的桌面工作台。输入题目文字或�
 
 ## 下载
 
-目前提供 Windows x64 安装包：
+提供 Windows x64 和 Mac Apple 芯片（M 系列）安装包：
 
-**[下载最新版 MathMover](https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe)**
+| 系统 | 下载 | 安装与更新 |
+| --- | --- | --- |
+| Windows x64 | [下载 EXE](https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe) | 安装向导；支持后台下载、退出或重启安装更新 |
+| macOS Apple 芯片 | [下载 DMG](https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-mac-arm64.dmg) | 拖入「应用程序」；新版提醒后下载并手动替换 |
+
+Mac 暂不支持 Intel 芯片。DMG 和 ZIP 是同一个应用的两种打包方式，一般下载 DMG 即可。
+
+### Mac 首次打开
+
+打开 DMG，把 MathMover 拖到「应用程序」。当前 Mac 版尚未经过 Apple Developer ID 签名和公证；首次启动如提示「Apple 无法验证」，确认下载来自本仓库后，前往 **系统设置 → 隐私与安全性 → 仍要打开**，按提示确认。
+
+![macOS「隐私与安全性」中的「仍要打开」按钮](https://cdsassets.apple.com/live/7WUAS350/images/macos/sequoia/locale/zh-cn/macos-sequoia-system-settings-privacy-and-security-open-app-anyway.png)
+
+上图来自 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。完整步骤见 [Mac 安装与更新图文说明](./docs/macos-install.md)。无需关闭系统安全检查。用户数据位于 `~/Library/Application Support/MathMover`，替换应用会保留课件和设置。
+
+### Windows 安装
 
 安装器默认创建开始菜单和桌面快捷方式，安装时可以取消桌面快捷方式选项。应用默认安装在 `%LOCALAPPDATA%\Programs\MathMover`，课件、设置、日志和更新缓存放在 `%LOCALAPPDATA%\MathMover`，卸载应用不会删除这些用户数据。
 
 当前安装包没有代码签名，Windows 可能显示“未知发布者”。如果确认文件来自本仓库的 Releases，可以点击“更多信息”后继续运行。
+
+### 首次配置
 
 第一次启动会打开设置。你可以选择：
 
@@ -55,7 +74,7 @@ MathMover 不提供共享模型额度。API 或 Agent 产生的费用由对应�
 
 ## 从源码运行
 
-需要 Node.js 24 或更高版本、npm，以及 Windows 10/11 x64。
+需要 Node.js 24 或更高版本、npm，以及 Windows 10/11 x64 或 Apple 芯片 Mac。下面是 PowerShell 命令；Mac 本地构建见 [桌面端文档](./desktop/README.md#macos-apple-芯片版)。
 
 ```powershell
 git clone https://github.com/Derek-yyang/mathmover.git
@@ -81,7 +100,7 @@ cd desktop
 npm run dist
 ```
 
-产物位于 `desktop/release/`。发布流程由 `.github/workflows/desktop-release.yml` 完成；新版本会同时上传版本化安装包和固定文件名 `MathMover-Setup.exe`，首页和 README 里的下载链接不需要随版本修改。
+产物位于 `desktop/release/`。发布流程由 `.github/workflows/desktop-release.yml` 完成；两平台构建通过后统一发布，保留版本化安装包，并提供固定名称 `MathMover-Setup.exe` 与 `MathMover-mac-arm64.dmg`。首页和 README 的下载链接不需要随版本修改。
 
 ## 工作方式
 
@@ -122,7 +141,7 @@ docs/assets/             README 演示动图、视频与封面
 
 MathMover 当前没有线上工作台，也不需要 MathMover 账号。模型请求由桌面端直接发往你配置的 API 服务或本机 Agent。
 
-以下内容保存在 `%LOCALAPPDATA%\MathMover`：
+以下内容保存在 Windows 的 `%LOCALAPPDATA%\MathMover`，或 Mac 的 `~/Library/Application Support/MathMover`：
 
 - 模型与 Agent 设置；
 - 本地课件和修改版本；
@@ -133,8 +152,9 @@ MathMover 当前没有线上工作台，也不需要 MathMover 账号。模型�
 
 ## 已知限制
 
-- 当前只验证了 Windows x64；macOS 和 Linux 还没有正式安装包。
-- 安装包尚未签名，可能触发 Windows SmartScreen 提示。
+- 支持 Windows x64 和 macOS Apple 芯片；Intel Mac 和 Linux 暂未提供安装包。
+- Windows 安装包尚未签名；Mac 版仅有本地签名，尚未经过 Apple 公证，首次打开可能需要用户批准。
+- Mac 版提供更新提醒与下载入口，需要手动替换应用；Windows 版支持自动安装更新。
 - 内置 OpenCode 不需要额外安装，但仍需配置可用的模型 API。
 - 外部 Claude Code、Codex 和 dsh 需要用户自行安装并登录。
 - GeoGebra 资源会随桌面端一起打包，因此安装包体积较大。
@@ -160,7 +180,7 @@ MathMover 当前没有线上工作台，也不需要 MathMover 账号。模型�
 
 **换电脑后课件还在吗？**
 
-课件保存在本机，不会自动同步到云端。迁移前需要备份 `%LOCALAPPDATA%\MathMover` 中对应的数据。
+课件保存在本机，不会自动同步到云端。迁移前需要备份 Windows 的 `%LOCALAPPDATA%\MathMover`，或 Mac 的 `~/Library/Application Support/MathMover` 中对应的数据。
 
 ## 开发与反馈
 
@@ -172,7 +192,7 @@ npm test
 
 提交 bug 时，最好附上：
 
-- MathMover 版本和 Windows 版本；
+- MathMover 版本、操作系统版本与芯片型号；
 - 使用的 Agent 与模型；
 - 原始题目或截图；
 - 预期结果、实际结果和相关日志。

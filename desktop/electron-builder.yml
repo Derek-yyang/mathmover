@@ -14,7 +14,7 @@ artifactName: ${productName}-${version}-Setup.${ext}
 win:
   icon: build-resources/icon.png
 
-# 目前先提供 Apple 芯片测试包；Node/OpenCode/Next 均在同架构 Mac runner 上构建。
+# Apple 芯片分发包；Node/OpenCode/Next 均在同架构 Mac runner 上构建。
 mac:
   icon: build-resources/icon.png
   category: public.app-category.education

@@ -1,17 +1,17 @@
 name: Desktop Release
 
-# 打 v* tag 触发；也可以在 Actions 页面手动跑（此时用 package.json 里的版本）。
+# 打 v* tag 正式发布两平台；手动运行可选择正式发布或仅构建 Mac 测试包。
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
     inputs:
       platform:
-        description: 'Windows 正式发布，或 macOS Apple 芯片测试包（仅上传 Actions artifact）'
+        description: '两平台正式发布，或仅构建 macOS Apple 芯片测试包'
         type: choice
-        default: windows
+        default: release
         options:
-          - windows
+          - release
           - macos
 
 concurrency:
@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   windows:
-    if: github.event_name != 'workflow_dispatch' || inputs.platform != 'macos'
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'release'
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -49,6 +49,9 @@ jobs:
         working-directory: desktop
         run: npm ci
 
+      - name: Verify platform and update checks
+        run: node --test desktop/scripts/platform.test.cjs desktop/scripts/mac-updates.test.cjs
+
       - name: Build Next standalone + daemon assets
         working-directory: desktop
         run: npm run prepare:assets
@@ -60,27 +63,20 @@ jobs:
           # 不签名时不要尝试证书相关的探测
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
-      # 不用 electron-builder 的 GitHub publisher：它在首次发布时会并发上传并在
-      # “release 不存在”上竞态，实测会创建出两个同 tag 的 Release（一个只有
-      # blockmap、一个只有 exe）。改为自己建一个 Release，再一起上传文件。
-      - name: Publish GitHub Release
+      - name: Smoke test packaged workbench
+        timeout-minutes: 5
+        run: node desktop/scripts/verify.mjs
+
+      - name: Verify bundled Agent with two mock conversation turns
+        timeout-minutes: 5
+        run: node desktop/scripts/verify-agent.mjs
+
+      - name: Prepare stable Windows download name
         working-directory: desktop
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          TAG="v$VERSION"
-          # 官网用固定文件名下载最新版；保留版本化文件供自动更新使用。
           cp "release/MathMover-${VERSION}-Setup.exe" "release/MathMover-Setup.exe"
-          gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --title "$VERSION" --notes "MathMover $VERSION"
-          gh release upload "$TAG" \
-            "release/MathMover-${VERSION}-Setup.exe" \
-            "release/MathMover-${VERSION}-Setup.exe.blockmap" \
-            "release/MathMover-Setup.exe" \
-            "release/latest.yml" --clobber
-          gh release edit "$TAG" --latest
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
@@ -92,14 +88,13 @@ jobs:
             desktop/release/latest.yml
           if-no-files-found: error
 
-  macos-test:
-    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'macos'
+  macos:
     runs-on: macos-15
     timeout-minutes: 45
     permissions:
       contents: read
     env:
-      # 测试包只做 ad-hoc 本地签名，不访问开发者证书，不修改正式 Releases。
+      # 免费公开分发：只做 ad-hoc 本地签名，不访问开发者证书。
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@v4
@@ -123,13 +118,13 @@ jobs:
         run: npm ci
       - name: Verify platform selection and tray
         run: |
-          node --test desktop/scripts/platform.test.cjs
+          node --test desktop/scripts/platform.test.cjs desktop/scripts/mac-updates.test.cjs
           node desktop/scripts/make-mac-icons.mjs
           node desktop/scripts/verify-tray.cjs
       - name: Build Next standalone and native runtime assets
         working-directory: desktop
         run: npm run prepare:assets
-      - name: Package Apple Silicon test app
+      - name: Package Apple Silicon app
         working-directory: desktop
         run: npx electron-builder --mac --arm64 --publish never
       - name: Verify bundle architecture and signature
@@ -144,10 +139,14 @@ jobs:
         run: node desktop/scripts/verify-agent.mjs desktop/release/mac-arm64/MathMover.app/Contents/MacOS/MathMover
         env:
           TMPDIR: ${{ runner.temp }}
-      - name: Upload macOS test installers
+      - name: Prepare stable Mac download name
+        run: |
+          VERSION=$(node -p "require('./desktop/package.json').version")
+          cp "desktop/release/MathMover-${VERSION}-mac-arm64.dmg" desktop/release/MathMover-mac-arm64.dmg
+      - name: Upload macOS installers
         uses: actions/upload-artifact@v4
         with:
-          name: mathmover-macos-arm64-test
+          name: mathmover-macos-arm64
           retention-days: 7
           path: |
             desktop/release/*.dmg
@@ -165,3 +164,45 @@ jobs:
             ${{ runner.temp }}/mm-desktop-*/MathMover/logs/*.log
             ${{ runner.temp }}/mm-agent-*/MathMover/logs/*.log
           if-no-files-found: ignore
+
+  # 两平台构建与 Mac 冒烟均通过后，集中上传到草稿，完整性检查通过才公开。
+  publish:
+    needs: [windows, macos]
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: mathmover-windows
+          path: installers
+      - uses: actions/download-artifact@v4
+        with:
+          name: mathmover-macos-arm64
+          path: installers
+      - name: Publish complete GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./desktop/package.json').version")
+          TAG="v$VERSION"
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "$TAG" ]]; then
+            echo 'Tag and desktop/package.json version must match' >&2
+            exit 1
+          fi
+          for FILE in "MathMover-${VERSION}-Setup.exe" "MathMover-${VERSION}-Setup.exe.blockmap" \
+            MathMover-Setup.exe latest.yml "MathMover-${VERSION}-mac-arm64.dmg" \
+            "MathMover-${VERSION}-mac-arm64.zip" MathMover-mac-arm64.dmg; do
+            test -s "installers/$FILE"
+          done
+          if gh release view "$TAG" --json isDraft > /tmp/mathmover-release.json 2>/dev/null; then
+            node -e "if (!require('/tmp/mathmover-release.json').isDraft) { console.error('Refusing to overwrite a published version; bump desktop/package.json'); process.exit(1); }"
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "$VERSION" --draft --notes-file .github/release-notes.md
+          fi
+          gh release upload "$TAG" installers/* --clobber
+          gh release view "$TAG" --json assets > /tmp/mathmover-assets.json
+          node -e "const a=require('/tmp/mathmover-assets.json').assets; for(const n of ['MathMover-Setup.exe','MathMover-mac-arm64.dmg','latest.yml']) if(!a.some(x=>x.name===n&&x.size>0)) process.exit(1)"
+          gh release edit "$TAG" --draft=false --latest

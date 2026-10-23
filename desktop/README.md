@@ -1,6 +1,6 @@
 # MathMover 桌面壳（Electron）
 
-把工作台打包成可双击的桌面应用。Windows x64 为正式分发版本；macOS Apple 芯片版先提供测试包。壳本身只负责三件事：按顺序拉起 daemon 与
+把工作台打包成可双击的桌面应用。提供 Windows x64 与 macOS Apple 芯片安装包。壳本身只负责三件事：按顺序拉起 daemon 与
 Next standalone、开窗口加载 `/dashboard`、退出时收拾干净。
 
 ## 怎么跑
@@ -39,11 +39,13 @@ npx electron-builder --dir  # 产出 release/win-unpacked/MathMover.exe
   `%LOCALAPPDATA%\MathMover\electron`，不再是 `%APPDATA%\mathmover-desktop`；
   首次升级会把旧目录整体迁移过去。因此本机所有数据都在 `%LOCALAPPDATA%\MathMover` 下。
 
-## macOS Apple 芯片测试包
+## macOS Apple 芯片版
 
-在 GitHub Actions 的 **Desktop Release → Run workflow** 中选择包含本改动的分支，将 `platform` 选为 `macos`。
-这条任务使用原生 arm64 Mac runner，仅上传 `mathmover-macos-arm64-test` artifact，保留 7 天；
-不会创建 Release，也不会覆盖 Windows 安装包或 `latest.yml`。
+公开安装包见 [GitHub Releases](https://github.com/Derek-yyang/mathmover/releases/latest)，首次安装与更新步骤见 [Mac 图文说明](../docs/macos-install.md)。
+
+GitHub Actions 的 **Desktop Release → Run workflow**：`platform=release` 构建两平台并统一发布；
+`platform=macos` 仅构建 Mac 验证包，上传 `mathmover-macos-arm64` artifact，保留 7 天，不修改 Releases。
+推送 `v*` tag 会正式发布两平台，tag 必须与 `desktop/package.json` 的版本一致。
 
 下载 artifact 并解压后，可打开 `.dmg`，把 MathMover 拖到「应用程序」。另附 `.zip` 供直接解压。
 包名包含 `mac-arm64`；目前不支持 Intel Mac，也不宣称是 Universal 通用包。
@@ -67,7 +69,7 @@ node desktop/scripts/verify-agent.mjs desktop/release/mac-arm64/MathMover.app/Co
 - **本机 Agent**：从 Finder 启动时读取登录 shell 的 PATH，并补充 Homebrew、`~/.local/bin` 等常见路径；随包 Node 优先用于 CLI 的脚本入口。
 - **数据目录**：默认 `~/Library/Application Support/MathMover`；测试脚本使用临时目录，避免读取或覆盖真实配置。
 - **签名与更新**：当前仅做 ad-hoc 本地签名，尚无 Developer ID 签名和 Apple 公证。下载后可能被 Gatekeeper 拦截；确认来源后可按 macOS「系统设置 → 隐私与安全性」的提示批准打开。不要关闭系统安全检查。
-  测试版禁用自动安装更新，新版需手动替换；正式公证与更新链路后续另行验证。
+  启动 15 秒后检查 GitHub 最新正式版本；发现适配当前架构的新版 DMG 时提醒下载。菜单也可手动检查；下载后退出应用并替换，保留本机数据。不会使用 Squirrel.Mac 自动替换应用。
 - **自动验证范围**：检查 .app 二进制架构/权限/签名、DMG 完整性、工作台启动与 GeoGebra 真实构造、随包 OpenCode 的两轮 mock 对话。下载到另一台 Mac 后的首次安装仍需人工验收。
 
 ## 运行时布局（两平台共用）
@@ -140,19 +142,19 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
 
 ## 自动更新
 
-- 官网下载入口固定为
-  `https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe`。
-  `Desktop Release` 工作流把版本化安装包复制为 `MathMover-Setup.exe` 一起发布，
-  上传完成后将该版本标记为 latest。后续通过工作流发布新版本，无需修改首页或重新部署官网。
-  手动发布时也需要上传这个固定名称副本；保留原版安装包、blockmap 和 latest.yml 供自动更新使用。
+- 官网下载入口固定为 `releases/latest/download/MathMover-Setup.exe`（Windows）和
+  `releases/latest/download/MathMover-mac-arm64.dmg`（Mac）。
+  `Desktop Release` 工作流等待两平台构建与 Mac 验证通过后，统一上传到草稿，检查安装包完整性后才公开并标记 latest。
+  后续无需修改官网下载链接。不会覆盖已经公开的版本，需先提高 `desktop/package.json` 及 lockfile 的版本。
 - 发布源：`electron-builder.yml` 的 `publish`（GitHub Releases，仓库公开、客户端匿名可读）。
-- 行为：启动 15 秒后静默检查；有新版本就后台下载，下载完弹「立即重启 / 稍后」；
+- Windows 行为：启动 15 秒后静默检查；有新版本就后台下载，下载完弹「立即重启 / 稍后」；
   选「稍后」会在下次正常退出时安装。菜单「检查更新…」可手动触发。
-- 发布：
+- Mac 行为：启动检查或菜单手动检查，发现新版本后提供「下载新版 / 稍后」；下载使用浏览器，安装需退出应用后手动替换。断网或没有适配当前架构的 DMG 时不自动提示；手动检查失败会提供 Releases 入口。
+- 发布：更新桌面版本并提交后，推送对应 `v*` tag，或在 Desktop Release 中手动选择 `release`。需要两平台统一上传固定名称副本，不能单独用 electron-builder publisher 发布：
   ```powershell
   # 先把 desktop/package.json 的 version 改成新版本
   npm run prepare:assets
-  npx electron-builder --publish always   # 需要 GH_TOKEN；自动上传 exe / blockmap / latest.yml
+  npx electron-builder --publish never    # 仅本地打包；正式发布使用 Actions
   ```
 - 本地验证（不需要真实发布）：
   ```powershell
@@ -188,7 +190,7 @@ Windows 版本目前**不做代码签名**。实际影响与应对：
 ## 已知限制（MVP 范围）
 
 
-- **Windows x64 为正式分发版本**，安装器（NSIS）与自动更新链路已实测；未做代码签名，安装/更新时会有 SmartScreen 提示（见上一节）。macOS arm64 测试包已通过原生 Mac 自动验证，首次下载后的安装体验尚需人工验收；Intel Mac 暂未支持。
+- **Windows x64 与 macOS arm64** 均提供安装包。Windows 安装器（NSIS）与自动更新链路已实测；Mac 已通过原生构建、工作台及 Agent 自动验证，并完成用户实机测试。两平台尚无开发者身份签名；Intel Mac 暂未支持。
 - **三个端口都是动态的**；页面的 WebSocket 地址经运行时 env 注入，不再依赖构建期常量。
 - 安装包体积目前约 **450 MB**（Next 186 + Node 88 + opencode 173 + Electron 运行时）。
   opencode 只打一份非 baseline；GeoGebra 仍是完整 vendor。

@@ -10,7 +10,10 @@ assert.ok(html.includes('id="examples"'), 'Examples section is missing');
 assert.ok(html.includes('id="questions"'), 'FAQ section is missing');
 assert.ok(!/(?:href|src)="\/(?:dashboard|api)(?:[\/"?#])/.test(html), 'Workbench or API entry leaked into the site');
 const download = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe';
-assert.equal(html.split(`href="${download}"`).length - 1, 4, 'Expected four installer download links');
+assert.equal(html.split(`href="${download}"`).length - 1, 2, 'Expected two Windows installer download links');
+const macDownload = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-mac-arm64.dmg';
+assert.equal(html.split(`href="${macDownload}"`).length - 1, 2, 'Expected two Apple Silicon DMG download links');
+assert.ok(html.includes('id="mac-install"') && html.includes('仍要打开'), 'Mac installation instructions are missing');
 await stat(path.join(output, '404.html'));
 
 // Verify every generated page asset can be served directly from the export.

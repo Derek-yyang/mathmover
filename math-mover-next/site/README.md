@@ -43,7 +43,7 @@ Cloudflare 会在根目录安装 npm 依赖，构建命令不需要再执行一�
 
 点击 **Save and Deploy**。成功后通过 Cloudflare 分配的 `*.pages.dev` 地址访问。首次上线检查下载链接、桌面/手机布局、主题切换、自动演示、案例切换和 FAQ。
 
-后续向 `master` 推送更新会自动触发生产部署。首页部署与桌面安装包发布相互独立；安装包使用固定的 `releases/latest/download/MathMover-Setup.exe` 地址，不需要随版本修改首页。
+后续向 `master` 推送更新会自动触发生产部署。首页部署与桌面安装包发布相互独立；Windows 和 Mac 安装包分别使用固定的 `releases/latest/download/MathMover-Setup.exe` 与 `releases/latest/download/MathMover-mac-arm64.dmg` 地址，不需要随版本修改首页。Mac 下载仅适用于 Apple 芯片。
 
 如已有自己的域名，在该 Pages 项目的 **Custom domains** 中添加，并按控制台提示设置 DNS。没有域名也可以先使用分配的 `pages.dev` 地址。
 
