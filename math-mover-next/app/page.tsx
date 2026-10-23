@@ -11,6 +11,7 @@ import styles from './landing.module.css';
 // Each desktop release publishes this fixed-name copy alongside versioned assets.
 const desktopDownloadUrl = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe';
 const macDownloadUrl = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-mac-arm64.dmg';
+const macInstallHelpUrl = 'https://github.com/Derek-yyang/mathmover/blob/master/docs/macos-install.md';
 
 export const metadata: Metadata = {
   title: 'MathMover · 让数学问题，成为可探索的图形',
@@ -56,7 +57,7 @@ export default function LandingPage() {
                 <a href={desktopDownloadUrl} className={styles.primaryButton} aria-label="下载 Windows x64 版 MathMover">下载 Windows 版 <Download size={17} aria-hidden="true" /></a>
                 <a href={macDownloadUrl} className={styles.secondaryButton} aria-label="下载 Mac Apple 芯片版 MathMover">下载 Mac 版 <Download size={17} aria-hidden="true" /></a>
               </div>
-              <p className={styles.downloadHint}>Windows x64 · Mac Apple 芯片（M 系列）<br /><a href="#mac-install">Mac 首次打开说明</a></p>
+              <p className={styles.downloadHint}>Windows x64 · Mac Apple 芯片（M 系列）<br /><a href={macInstallHelpUrl} target="_blank" rel="noopener noreferrer">Mac 安装帮助 ↗</a></p>
             </div>
           </div>
           <div id="demo" className={styles.demoAnchor}><HeroDemo /></div>
@@ -96,15 +97,7 @@ export default function LandingPage() {
             <a href={macDownloadUrl} className={styles.secondaryButton}>下载 Mac 版 <Download size={17} aria-hidden="true" /></a>
           </div>
           <p>Windows x64 · Mac Apple 芯片（M 系列），连接自己的模型 API 或本机 Agent。</p>
-          <div id="mac-install" className={styles.installGuide}>
-            <h3>Mac 安装与更新</h3>
-            <ol>
-              <li><strong>安装应用</strong><span>打开 DMG，把 MathMover 拖到「应用程序」，再从那里启动。</span></li>
-              <li><strong>首次打开</strong><span>当前 Mac 版尚未经过 Apple 公证。如提示「Apple 无法验证」，确认来自官方 Releases 后，前往「系统设置 → 隐私与安全性 → 仍要打开」。</span></li>
-              <li><strong>后续更新</strong><span>0.0.5 起支持后台下载并验证更新，完成后点击「重启更新」，也可稍后退出时安装。0.0.4 及更早版本需先手动安装一次新版；课件和设置会保留。</span></li>
-            </ol>
-            <p>目前支持 Apple 芯片，暂不支持 Intel Mac。<a href="https://github.com/Derek-yyang/mathmover/blob/master/docs/macos-install.md" target="_blank" rel="noopener noreferrer">查看安装图文说明 ↗</a></p>
-          </div>
+          <a href={macInstallHelpUrl} className={styles.installHelp} target="_blank" rel="noopener noreferrer">Mac 安装帮助 ↗</a>
         </section>
       </main>
       <footer className={styles.footer}><div className={styles.container}><Link href="/" className={styles.brand}><span className={styles.brandMark} aria-hidden="true">M</span><span>MathMover</span></Link><p>让数学关系，看得见，也动得起来。</p><span>© {new Date().getFullYear()} MathMover</span></div></footer>

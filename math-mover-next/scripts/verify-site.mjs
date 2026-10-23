@@ -13,7 +13,8 @@ const download = 'https://github.com/Derek-yyang/mathmover/releases/latest/downl
 assert.equal(html.split(`href="${download}"`).length - 1, 2, 'Expected two Windows installer download links');
 const macDownload = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-mac-arm64.dmg';
 assert.equal(html.split(`href="${macDownload}"`).length - 1, 2, 'Expected two Apple Silicon DMG download links');
-assert.ok(html.includes('id="mac-install"') && html.includes('仍要打开'), 'Mac installation instructions are missing');
+const macInstallHelp = 'https://github.com/Derek-yyang/mathmover/blob/master/docs/macos-install.md';
+assert.equal(html.split(`href="${macInstallHelp}"`).length - 1, 2, 'Expected Mac installation help links in both download areas');
 await stat(path.join(output, '404.html'));
 
 // Verify every generated page asset can be served directly from the export.
