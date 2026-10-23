@@ -49,8 +49,10 @@ try {
     plist(app, 'Add :SUVerifyUpdateBeforeExtraction bool true');
     plist(app, `Add :SUPublicEDKey string ${publicEdKey}`);
     plist(app, `Add :SUFeedURL string ${feedUrl}`);
+    // Electron already ships an ATS dictionary. This isolated fixture uses HTTP loopback only.
+    plist(app, 'Delete :NSAppTransportSecurity');
     plist(app, 'Add :NSAppTransportSecurity dict');
-    plist(app, 'Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true');
+    plist(app, 'Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true');
     const source = path.join(root, `source-${version}`); fs.mkdirSync(source);
     fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'mathmover-update-test', version, main: 'main.cjs' }));
     fs.copyFileSync(path.join(desktop, 'src/sparkle-updates.cjs'), path.join(source, 'sparkle-updates.cjs'));
@@ -89,7 +91,8 @@ app.whenReady().then(async()=>{
   fs.writeFileSync(path.join(archiveDir, 'tampered.zip'), tampered);
   for (const feed of [validFeed, badFeed]) execFileSync(path.join(vendor, 'bin/sign_update'), ['--ed-key-file', keyFile, feed]);
   currentFeed = badFeed;
-  child = spawn(path.join(root, '0.0.4/MathMover.app/Contents/MacOS/Electron'), [], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ELECTRON_RUN_AS_NODE: '' } });
+  const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
+  child = spawn(path.join(root, '0.0.4/MathMover.app/Contents/MacOS/Electron'), [], { stdio: ['ignore', 'pipe', 'pipe'], env });
   child.stdout.on('data', chunk => { logs += chunk; }); child.stderr.on('data', chunk => { logs += chunk; });
   const deadline = Date.now() + 180_000;
   let events = [];

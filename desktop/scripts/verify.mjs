@@ -213,6 +213,12 @@ try {
     hasStage: !!document.querySelector('.geogebra-stage'),
   }));
   if (!info.hasStage) throw new Error('没有找到 .geogebra-stage');
+  if (process.platform === 'darwin') {
+    if (!appLog.join('').includes('Sparkle 自动更新已就绪')) {
+      throw new Error('打包版未能加载 Sparkle 原生模块：\n' + appLog.join(''));
+    }
+    console.log('PASS: 真实打包版 Sparkle 原生模块初始化成功');
+  }
   if (failed.length) throw new Error('HTTP 失败请求：\n' + failed.join('\n'));
   if (errors.length) throw new Error('浏览器错误：\n' + errors.join('\n'));
   await page.waitForFunction(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })), null, { timeout: 30_000 });

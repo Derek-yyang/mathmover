@@ -87,6 +87,8 @@ extraResources:
     to: LICENSE
   - from: ../THIRD_PARTY_NOTICES.md
     to: THIRD_PARTY_NOTICES.md
+  - from: build-resources/Sparkle-LICENSE.txt
+    to: licenses/Sparkle-LICENSE.txt
   - from: build/next
     to: next
   - from: build/next/node_modules
