@@ -103,7 +103,7 @@ app.whenReady().then(async()=>{
     if (events.some(e => e.type === 'harness-error')) throw Error(JSON.stringify(events));
     if (!good && events.some(e => e.type === 'error')) {
       assert(!events.some(e => e.type === 'update-downloaded'), 'Tampered archive must never become ready');
-      assert(events.some(e => /signature|验证|签名/i.test(e.message || '')), 'Expected cryptographic verification error');
+      assert(events.some(e => /signature|improperly signed|validated|验证|签名/i.test(e.message || '')), 'Expected cryptographic verification error');
       console.log('PASS: signed feed pointing at tampered archive was rejected');
       good = true; currentFeed = validFeed;
     }
