@@ -43,8 +43,6 @@ mac:
 
 dmg:
   writeUpdateInfo: false
-zip:
-  writeUpdateInfo: false
 
 nsis:
   # 安装器使用带下载标记的独立图标，和正式应用的绿色 M 区分。
