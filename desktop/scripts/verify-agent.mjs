@@ -1,5 +1,5 @@
 /**
- * 桌面壳的 Agent 多轮冒烟：本地 OpenAI 兼容 mock + 临时 BYOK 配置，
+ * 桌面壳的 Agent 多轮冒烟：全新数据目录，首次启动后从设置界面保存 BYOK 配置，
  * 在打包版界面里连发两轮，验证：
  *   1. /api/agent 能拉起随包 OpenCode，模型回复真的出现在界面上；
  *   2. 第二轮请求里带着第一轮的用户话与助手回复（原生会话续上了，不是每轮重开）。
@@ -13,6 +13,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { closeTestApp } from './smoke-cleanup.mjs';
 
 const exe = path.resolve(process.argv[2] || 'desktop/release/win-unpacked/MathMover.exe');
 const MODEL = 'mock-model';
@@ -49,17 +50,10 @@ const mockPort = mock.address().port;
 const tempData = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-agent-'));
 const dataDir = path.join(tempData, 'MathMover');
 fs.mkdirSync(dataDir, { recursive: true });
-fs.writeFileSync(path.join(dataDir, 'byok.json'), JSON.stringify({
-  apiFormat: 'openai-chat',
-  baseUrl: `http://127.0.0.1:${mockPort}/v1`,
-  model: MODEL,
-  apiKey: API_KEY,
-  reasoningLevels: '',
-}, null, 2));
 
 const tempRoaming = path.join(tempData, 'Roaming');
 fs.mkdirSync(tempRoaming, { recursive: true });
-const env = { ...process.env, LOCALAPPDATA: tempData, APPDATA: tempRoaming };
+const env = { ...process.env, LOCALAPPDATA: tempData, APPDATA: tempRoaming, MATHMOVER_DATA_DIR: dataDir };
 delete env.ELECTRON_RUN_AS_NODE;
 
 function freePort() {
@@ -88,9 +82,9 @@ const app = spawn(exe, [`--remote-debugging-port=${debugPort}`, `--user-data-dir
 const appLog = [];
 app.stdout.on('data', (c) => appLog.push(String(c)));
 app.stderr.on('data', (c) => appLog.push(String(c)));
-const killApp = () => { if (app.exitCode === null) spawn('taskkill', ['/pid', String(app.pid), '/T', '/F'], { windowsHide: true }); };
 
 let browser;
+let page;
 try {
   let version = null;
   for (let i = 0; i < 120 && !version; i++) {
@@ -100,7 +94,7 @@ try {
   if (!version) throw new Error('DevTools 端点没有起来\n' + appLog.join(''));
 
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${debugPort}`);
-  let page = null;
+  page = null;
   for (let i = 0; i < 480 && !page; i++) {
     page = browser.contexts().flatMap((c) => c.pages()).find((p) => p.url().includes('/dashboard')) ?? null;
     if (!page) await sleep(250);
@@ -112,17 +106,27 @@ try {
   page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });
 
   await page.waitForFunction(() => !!window.ggbApplet?.getXML, null, { timeout: 120_000 });
-  // 运行时选择存在 localStorage（mm.agentId）：先切到内置 Agent，再刷新让它生效
-  await page.evaluate(() => localStorage.setItem('mm.agentId', 'byok'));
-  await page.reload();
-  await page.waitForFunction(() => !!window.ggbApplet?.getXML, null, { timeout: 120_000 });
+  // 必须从未配置状态开始，且保存后不刷新页面：预写配置/重载会掩盖首次保存的状态同步问题。
+  const settings = page.locator('[data-slot="settings-dialog"]');
+  await settings.waitFor({ timeout: 60_000 });
+  const useBuiltin = settings.getByRole('button', { name: '使用 内置 Agent', exact: true });
+  if (await useBuiltin.count()) await useBuiltin.click({ timeout: 40_000 });
+  await page.waitForFunction(() => document.body.textContent.includes('当前 Agent 尚未登录'), null, { timeout: 40_000 });
+  await settings.getByLabel('API 端点', { exact: true }).fill(`http://127.0.0.1:${mockPort}/v1`);
+  await settings.getByLabel(/API 密钥/).fill(API_KEY);
+  await settings.getByLabel('模型', { exact: true }).fill(MODEL);
+  await settings.getByRole('button', { name: '保存', exact: true }).click();
+  await settings.getByText('已保存', { exact: true }).waitFor();
+  await settings.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await settings.waitFor({ state: 'hidden' });
+  console.log('✓ 首次启动通过设置保存配置，返回工作台；全程未刷新页面');
   await page.waitForFunction(() => typeof window.__mmGgb?.apply === 'function', null, { timeout: 60_000 });
   const composer = page.locator('[aria-label="题目描述"]');
   const send = page.locator('[aria-label="发送消息"]');
   await composer.waitFor({ timeout: 60_000 });
 
   async function turn(text) {
-    const before = await page.evaluate(() => (document.body.innerText.match(/MOCK-OK/g) ?? []).length);
+    const before = await page.locator('[data-role="assistant"]').filter({ hasText: 'MOCK-OK' }).count();
     await composer.fill(text);
     // 空输入时 Send 本来就是禁用的——先填字，再等它可用（sendBlock 会体现在 title 上）
     try {
@@ -136,7 +140,7 @@ try {
     }
     await send.click();
     await page.waitForFunction(
-      (n) => (document.body.innerText.match(/MOCK-OK/g) ?? []).length > n,
+      (n) => [...document.querySelectorAll('[data-role="assistant"]')].filter(el => el.textContent.includes('MOCK-OK')).length > n,
       before,
       { timeout: 180_000 },
     );
@@ -145,6 +149,8 @@ try {
   try {
     await turn('第一句话：只回复 MOCK-OK。');
     await turn('第二句话：再回复一次 MOCK-OK。');
+    // 等生成完成、课件落盘再退出，否则网页的未保存保护会取消 macOS 的 app.quit。
+    await page.waitForFunction(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })), null, { timeout: 30_000 });
   } catch (e) {
     console.log('turn 失败，当前界面：\n' + (await page.evaluate(() => document.body.innerText)).slice(0, 1200));
     console.log('页面错误：' + (errors.join(' | ') || '(无)'));
@@ -174,7 +180,9 @@ try {
   console.log(`PASS: 打包版完成两轮对话，第二轮请求含第一轮上下文（mock 收到 ${chatHits.length} 次）`);
   console.log(`  临时数据目录：${tempData}`);
 } finally {
-  await browser?.close().catch(() => {});
-  killApp();
+  console.log('[verify-agent] 关闭浏览器连接与测试应用');
+  // OpenCode 的 HTTP keep-alive 连接不能阻止本地 mock 服务退出。
+  mock.closeAllConnections();
   mock.close();
+  await closeTestApp(browser, app);
 }

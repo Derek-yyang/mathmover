@@ -18,6 +18,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import platform from '../src/platform.cjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const desktop = path.resolve(here, '..');
@@ -74,9 +75,11 @@ const serverDir = findServer(standaloneRoot);
 if (!serverDir) die(`standalone 里找不到 server.js（${standaloneRoot}）`);
 
 const nextDest = path.join(build, 'next');
-fs.cpSync(serverDir, nextDest, { recursive: true });
-fs.cpSync(path.join(appDir, DIST, 'static'), path.join(nextDest, DIST, 'static'), { recursive: true });
-fs.cpSync(path.join(appDir, 'public'), path.join(nextDest, 'public'), { recursive: true });
+// Turbopack 会为 shiki 等服务端依赖生成指向 node_modules 的绝对软链接。
+// 搬到 .app 后链接仍指向构建机：签名失败，离开构建机也无法运行。复制实际内容。
+fs.cpSync(serverDir, nextDest, { recursive: true, dereference: true });
+fs.cpSync(path.join(appDir, DIST, 'static'), path.join(nextDest, DIST, 'static'), { recursive: true, dereference: true });
+fs.cpSync(path.join(appDir, 'public'), path.join(nextDest, 'public'), { recursive: true, dereference: true });
 log(`Next 就绪：${path.relative(desktop, nextDest)}`);
 }
 const nextDest = path.join(build, 'next');
@@ -134,20 +137,24 @@ fs.copyFileSync(process.execPath, nodeDest);
 if (!IS_WIN) fs.chmodSync(nodeDest, 0o755);
 
 // ── 4. 自带 opencode（按平台挑一份，baseline 靠后）────────────────
-const platformToken = IS_WIN ? 'windows' : process.platform === 'darwin' ? 'darwin' : 'linux';
 const modules = path.join(appDir, 'node_modules');
-const opencodePkgs = fs.readdirSync(modules)
-  .filter((n) => n.startsWith('opencode-') && n !== 'opencode-ai')
-  .filter((n) => n.includes(platformToken))
-  .sort((a, b) => Number(a.includes('baseline')) - Number(b.includes('baseline')) || a.localeCompare(b));
+const opencodePkgs = platform.opencodePackages(fs.readdirSync(modules), process.platform, process.arch);
 const opencodeSrc = opencodePkgs
   .map((n) => path.join(modules, n, 'bin', IS_WIN ? 'opencode.exe' : 'opencode'))
   .find((p) => fs.existsSync(p));
-if (!opencodeSrc) die(`找不到与 ${process.platform} 匹配的 opencode 平台包`);
+if (!opencodeSrc) die(`找不到与 ${process.platform}/${process.arch} 匹配的 opencode 平台包`);
 const opencodeDest = path.join(build, 'bin', IS_WIN ? 'opencode.exe' : 'opencode');
 fs.mkdirSync(path.dirname(opencodeDest), { recursive: true });
 fs.copyFileSync(opencodeSrc, opencodeDest);
+if (!IS_WIN) fs.chmodSync(opencodeDest, 0o755);
 log(`opencode：${path.relative(modules, opencodeSrc)}`);
+
+// 在产出安装包之前执行真实二进制，及时发现错架构、丢失权限等问题。
+for (const executable of [nodeDest, opencodeDest]) {
+  const probe = spawnSync(executable, ['--version'], { encoding: 'utf8', timeout: 30_000, windowsHide: true });
+  if (probe.error || probe.status !== 0) die(`${executable} 无法运行：${probe.error?.message || probe.stderr}`);
+  log(`${path.basename(executable)} 验证通过：${probe.stdout.trim()}`);
+}
 
 // ── 5. 汇报 ─────────────────────────────────────────────────────
 const size = (p) => {

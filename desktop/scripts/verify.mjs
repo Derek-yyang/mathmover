@@ -17,6 +17,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { closeTestApp } from './smoke-cleanup.mjs';
 
 const exe = path.resolve(process.argv[2] || 'desktop/release/win-unpacked/MathMover.exe');
 const tempData = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-desktop-'));
@@ -28,7 +29,7 @@ fs.mkdirSync(tempRoaming, { recursive: true });
 const legacyProfile = path.join(tempData, 'legacy-profile');
 fs.mkdirSync(path.join(legacyProfile, 'Local Storage'), { recursive: true });
 fs.writeFileSync(path.join(legacyProfile, 'Local Storage', 'migrated.txt'), 'old-profile');
-const env = { ...process.env, LOCALAPPDATA: tempData, APPDATA: tempRoaming };
+const env = { ...process.env, LOCALAPPDATA: tempData, APPDATA: tempRoaming, MATHMOVER_DATA_DIR: path.join(tempData, 'MathMover') };
 // 开发 shell 里可能全局有 ELECTRON_RUN_AS_NODE=1：那会让 exe 以纯 Node 启动、主进程不执行
 delete env.ELECTRON_RUN_AS_NODE;
 
@@ -71,11 +72,6 @@ const app = spawn(exe, [`--remote-debugging-port=${debugPort}`, `--user-data-dir
 const appLog = [];
 app.stdout.on('data', (c) => appLog.push(String(c)));
 app.stderr.on('data', (c) => appLog.push(String(c)));
-
-const killApp = () => {
-  if (app.exitCode !== null) return;
-  spawn('taskkill', ['/pid', String(app.pid), '/T', '/F'], { windowsHide: true });
-};
 
 let browser;
 try {
@@ -123,6 +119,10 @@ try {
 
   // 桌面自定义标题栏：存在、菜单能开合（放在引导关闭之后，避免弹窗遮罩拦截点击）
   await page.locator('[data-slot="desktop-titlebar"]').waitFor({ timeout: 30_000 });
+  if (process.platform === 'darwin') {
+    const padding = await page.locator('[data-slot="desktop-titlebar"]').evaluate(el => getComputedStyle(el).paddingLeft);
+    if (padding !== '88px') throw new Error('macOS 标题栏未避让原生窗口按钮：' + padding);
+  }
   const desktopMenu = page.locator('[aria-label="桌面菜单"]');
   await desktopMenu.click();
   await page.locator('[role="menu"][aria-label="桌面菜单项"]').waitFor({ timeout: 5_000 });
@@ -215,6 +215,7 @@ try {
   if (!info.hasStage) throw new Error('没有找到 .geogebra-stage');
   if (failed.length) throw new Error('HTTP 失败请求：\n' + failed.join('\n'));
   if (errors.length) throw new Error('浏览器错误：\n' + errors.join('\n'));
+  await page.waitForFunction(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })), null, { timeout: 30_000 });
 
   console.log(`PASS: 桌面壳启动并完成一次构造 → ${info.href}`);
   console.log(`  title=${info.title} objects=${info.objects}（A/B/c 已落到画布）0 浏览器错误`);
@@ -225,7 +226,6 @@ try {
   console.log(`  截图：${shot}`);
   console.log(`  临时数据目录：${tempData}`);
 } finally {
-  await browser?.close().catch(() => {});
-  killApp();
   squatter.close();
+  await closeTestApp(browser, app);
 }

@@ -14,6 +14,21 @@ artifactName: ${productName}-${version}-Setup.${ext}
 win:
   icon: build-resources/icon.png
 
+# 目前先提供 Apple 芯片测试包；Node/OpenCode/Next 均在同架构 Mac runner 上构建。
+mac:
+  icon: build-resources/icon.png
+  category: public.app-category.education
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]
+  # 本地签名支持 Apple 芯片运行；尚无 Developer ID 和 Apple 公证。
+  identity: '-'
+  hardenedRuntime: false
+  notarize: false
+
 nsis:
   # 安装器使用带下载标记的独立图标，和正式应用的绿色 M 区分。
   installerIcon: build-resources/installerIcon.ico
@@ -40,6 +55,7 @@ publish:
 files:
   - src/**/*
   - build-resources/icon.ico
+  - build-resources/trayTemplate*.png
   - package.json
 
 extraResources:
@@ -60,3 +76,4 @@ extraResources:
 
 asar: true
 npmRebuild: false
+afterPack: scripts/after-pack.cjs

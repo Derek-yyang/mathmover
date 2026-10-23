@@ -5,6 +5,14 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Windows 正式发布，或 macOS Apple 芯片测试包（仅上传 Actions artifact）'
+        type: choice
+        default: windows
+        options:
+          - windows
+          - macos
 
 concurrency:
   group: desktop-release
@@ -15,6 +23,7 @@ permissions:
 
 jobs:
   windows:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform != 'macos'
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -82,3 +91,77 @@ jobs:
             desktop/release/*.blockmap
             desktop/release/latest.yml
           if-no-files-found: error
+
+  macos-test:
+    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'macos'
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      # 测试包只做 ad-hoc 本地签名，不访问开发者证书，不修改正式 Releases。
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          architecture: arm64
+          cache: npm
+      - name: Verify native Apple Silicon runner
+        run: node -e "if (process.platform !== 'darwin' || process.arch !== 'arm64') process.exit(1)"
+      - name: Install workspace dependencies
+        run: npm ci
+      - name: Install frontend dependencies
+        working-directory: math-mover-next
+        run: npm ci
+      - name: Fetch vendored GeoGebra
+        working-directory: math-mover-next
+        run: npm run ggb:install
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+      - name: Verify platform selection and tray
+        run: |
+          node --test desktop/scripts/platform.test.cjs
+          node desktop/scripts/make-mac-icons.mjs
+          node desktop/scripts/verify-tray.cjs
+      - name: Build Next standalone and native runtime assets
+        working-directory: desktop
+        run: npm run prepare:assets
+      - name: Package Apple Silicon test app
+        working-directory: desktop
+        run: npx electron-builder --mac --arm64 --publish never
+      - name: Verify bundle architecture and signature
+        run: node desktop/scripts/verify-mac-package.mjs
+      - name: Smoke test packaged workbench
+        timeout-minutes: 5
+        run: node desktop/scripts/verify.mjs desktop/release/mac-arm64/MathMover.app/Contents/MacOS/MathMover
+        env:
+          TMPDIR: ${{ runner.temp }}
+      - name: Verify bundled Agent with two mock conversation turns
+        timeout-minutes: 5
+        run: node desktop/scripts/verify-agent.mjs desktop/release/mac-arm64/MathMover.app/Contents/MacOS/MathMover
+        env:
+          TMPDIR: ${{ runner.temp }}
+      - name: Upload macOS test installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: mathmover-macos-arm64-test
+          retention-days: 7
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*-mac-arm64.zip
+          if-no-files-found: error
+      - name: Upload smoke test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mathmover-macos-diagnostics
+          retention-days: 3
+          path: |
+            ${{ runner.temp }}/mm-desktop-*/shell*.png
+            ${{ runner.temp }}/mm-agent-*/failure.png
+            ${{ runner.temp }}/mm-desktop-*/MathMover/logs/*.log
+            ${{ runner.temp }}/mm-agent-*/MathMover/logs/*.log
+          if-no-files-found: ignore

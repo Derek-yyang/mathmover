@@ -392,6 +392,8 @@ body {
 /* Electron 桌面构建：应用内标题栏。整条可拖动，按钮/菜单区不可拖动。 */
 :root[data-desktop] { --desktop-titlebar-height: 40px; }
 .desktop-titlebar { -webkit-app-region: drag; }
+/* macOS 原生红黄绿按钮在左侧，品牌从按钮组右边开始，右侧无需预留 Windows 按钮宽度。 */
+:root[data-desktop-platform="darwin"] .desktop-titlebar { padding-left: 88px; padding-right: 12px; }
 .desktop-titlebar button,
 .desktop-titlebar [role="menu"] { -webkit-app-region: no-drag; }
 /* 品牌只在应用标题栏出现一次；侧栏头部改为常驻「新建课件」，列表里的新建行隐藏 */
