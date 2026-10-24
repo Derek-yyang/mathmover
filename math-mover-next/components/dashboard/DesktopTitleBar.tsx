@@ -5,6 +5,7 @@ import { useTheme } from 'next-themes';
 import { MoreHorizontal } from 'lucide-react';
 import { desktopBridge, type DesktopAction } from '@/lib/desktop-bridge';
 import { UpdateStatusButton } from './UpdateStatusButton';
+import { DesktopAboutDialog } from './DesktopAboutDialog';
 
 const MENU: Array<{ action: DesktopAction; label: string }> = [
   { action: 'check-updates', label: '检查更新…' },
@@ -59,6 +60,7 @@ export function DesktopTitleBar({ enabled }: { enabled: boolean }) {
   const { resolvedTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   // 原生窗口按钮/边框跟随应用主题（浅色 → 浅灰按钮，深色 → 深色）
   useEffect(() => {
@@ -120,7 +122,7 @@ export function DesktopTitleBar({ enabled }: { enabled: boolean }) {
   };
 
   return (
-    <header
+    <><header
       className="desktop-titlebar fixed inset-x-0 top-0 z-40 flex h-10 select-none items-center gap-2 border-b border-[var(--mm-border-divider)] bg-[var(--mm-canvas-shell)] pl-3 pr-[150px]"
       data-slot="desktop-titlebar"
     >
@@ -130,6 +132,7 @@ export function DesktopTitleBar({ enabled }: { enabled: boolean }) {
 
       <div ref={menuRef} className="desktop-titlebar-menu relative ml-auto">
         <button
+          ref={menuButtonRef}
           type="button"
           aria-label="桌面菜单"
           title="检查更新、日志与关于"
@@ -163,5 +166,6 @@ export function DesktopTitleBar({ enabled }: { enabled: boolean }) {
 
       <UpdateStatusButton />
     </header>
+    <DesktopAboutDialog returnFocusRef={menuButtonRef} /></>
   );
 }

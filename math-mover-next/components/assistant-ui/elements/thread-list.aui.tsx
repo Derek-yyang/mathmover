@@ -382,7 +382,7 @@ const ThreadListSkeleton: FC = () => {
     <div
       role="status"
       aria-label="正在读取本地课件"
-      className="flex flex-col gap-0.5"
+      className="thread-list-loading-placeholder flex flex-col gap-0.5"
     >
       {Array.from({ length: 5 }, (_, i) => (
         <div
@@ -393,7 +393,7 @@ const ThreadListSkeleton: FC = () => {
         >
           <Skeleton
             data-slot="aui_thread-list-skeleton"
-            className="h-3.5 w-full"
+            className="h-3.5 w-full bg-[var(--mm-bg-stone-200)] motion-reduce:animate-none"
           />
         </div>
       ))}

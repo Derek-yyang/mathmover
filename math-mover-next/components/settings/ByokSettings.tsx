@@ -15,7 +15,7 @@ import { API_FORMATS, DEFAULT_API_FORMAT, isApiFormat, fetchByokConfig, fetchByo
 // 整个运行时（含用 `node:fs` 的 claude-env.ts）拖进浏览器 bundle，编译直接失败。
 // 这个模块只依赖 api-format.ts，是纯数据/纯函数，客户端安全（同 byok-config.ts 的引法）。
 import { effectiveReasoningLevels, normalizeReasoningLevels, reasoningDialect, REASONING_LEVEL_VOCABULARY } from '../../../packages/agent-runtime/src/opencode-config.ts';
-import EffortDots from '../EffortDots';
+import { ReasoningEffortSelector } from './ReasoningEffortSelector';
 import { effortDisplay } from '@/lib/agent-picker';
 import { useAgentRuntimeState } from '../dashboard/AgentRuntimeState';
 import { SettingsButton, SettingsStatusBadge } from './SettingsControls';
@@ -28,7 +28,7 @@ type TestState = { running: boolean; result?: { ok: boolean; message: string } }
 export type SettingsDraftState = { dirty: boolean; saving: boolean };
 
 export default function ByokSettings({ onDraftStateChange }: { onDraftStateChange?: (state: SettingsDraftState) => void }) {
-  const { runtimes, activeRuntimeId, busy, detecting, selectRuntime, refreshRuntimes } = useAgentRuntimeState();
+  const { runtimes, activeRuntimeId, busy, detecting, selectRuntime, updateRuntime, modelFor, effortFor, selectModelFor, selectEffortFor } = useAgentRuntimeState();
   const selected = activeRuntimeId === 'byok';
   const runtime = runtimes.find(item => item.id === 'byok');
   const [view, setView] = useState<ByokConfigView>({ apiFormat: DEFAULT_API_FORMAT, baseUrl: '', model: '', reasoningLevels: '', apiKeyConfigured: false, apiKeyTail: '' });
@@ -37,6 +37,7 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
   const [reasoningLevels, setReasoningLevels] = useState('');
+  const [effortDraft, setEffortDraft] = useState<string>();
   /** 与 reasoningLevels 同步的镜像：连点开关时 state 还没重渲染，要读最新值 */
   const levelsRef = useRef('');
   const [apiKey, setApiKey] = useState('');
@@ -89,7 +90,9 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
   };
 
   const configured = !!view.baseUrl && !!view.model;
-  const isDirty = (url: string, modelId: string, key: string, format = apiFormat, levels = reasoningLevels) => url !== view.baseUrl || modelId !== view.model || key !== '' || format !== view.apiFormat || (levels ?? '') !== (view.reasoningLevels ?? '');
+  const configIsDirty = (url: string, modelId: string, key: string, format = apiFormat, levels = reasoningLevels) => url !== view.baseUrl || modelId !== view.model || key !== '' || format !== view.apiFormat || (levels ?? '') !== (view.reasoningLevels ?? '');
+  const hasEffortDraft = (format = apiFormat, levels = reasoningLevels) => !!effortDraft && !!reasoningDialect(format) && effectiveReasoningLevels(levels).includes(effortDraft);
+  const isDirty = (url: string, modelId: string, key: string, format = apiFormat, levels = reasoningLevels) => configIsDirty(url, modelId, key, format, levels) || hasEffortDraft(format, levels);
   const dirty = isDirty(baseUrl, model, apiKey);
   const testHint = loading ? '正在读取配置…' : !loaded ? '配置读取失败，请重试。'
     : saving ? '保存中，完成后再测试。' : dirty ? '配置已修改，请先保存再测试。'
@@ -102,6 +105,8 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
   };
   const updateDraft = (url: string, modelId: string, key: string, format = apiFormat) => {
     invalidateTest();
+    const changedTarget = url !== baseUrl || modelId !== model || format !== apiFormat;
+    if (changedTarget) setEffortDraft(undefined);
     if (url !== baseUrl || key !== apiKey || format !== apiFormat) {
       modelsRequest.current?.abort(); modelsRequest.current = null;
       setModelList({ loading: false }); setModelsOpen(false);
@@ -109,12 +114,13 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
     setBaseUrl(url); setModel(modelId); setApiKey(key);
     setApiFormat(format);
     // Publish in the input event so a subsequent close cannot read stale state.
-    onDraftStateChange?.({ dirty: loaded && isDirty(url, modelId, key, format), saving: false });
+    onDraftStateChange?.({ dirty: loaded && (configIsDirty(url, modelId, key, format) || (!changedTarget && hasEffortDraft(format))), saving: false });
   };
   /** 档位清单单独一路：它不是端点属性，改了不需要重新拉模型列表。 */
   const updateReasoningLevels = (levels: string) => {
     invalidateTest();
     applyLevels(levels);
+    if (effortDraft && !effectiveReasoningLevels(levels).includes(effortDraft)) setEffortDraft(undefined);
     onDraftStateChange?.({ dirty: loaded && isDirty(baseUrl, model, apiKey, apiFormat, levels), saving: false });
   };
   // 生效的档位：**存空 = 用默认那三个**（与 opencode 自己的默认一致）
@@ -129,9 +135,22 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
   const commitLevels = (next: string[]) => {
     updateReasoningLevels(normalizeReasoningLevels(next).join(','));
   };
-  // 预览用与合成器**同一套**判定：没显式选过时，高亮的是 Agent 配置里的默认那个
+  // Read the same per-Agent/model selection as the composer. A changed API/model
+  // gets its own draft until saving succeeds, never the previous model's choice.
+  const targetChanged = baseUrl !== view.baseUrl || model !== view.model || apiFormat !== view.apiFormat;
+  const effortModel = targetChanged ? model.trim() || 'default' : modelFor('byok');
   const previewOptions = levels.map(id => ({ id, label: id }));
-  const previewCurrent = effortDisplay(previewOptions, undefined)?.option.id ?? previewOptions[0]?.id ?? '';
+  const currentEffort = effortDisplay(previewOptions, hasEffortDraft() ? effortDraft : effortFor('byok', effortModel));
+  const chooseEffort = (id: string) => {
+    if (!loaded || busy || saving || test.running || !dialect || !levels.includes(id)) return;
+    if (dirty) {
+      setEffortDraft(id);
+      setSaved(false);
+      onDraftStateChange?.({ dirty: true, saving: false });
+    } else {
+      selectEffortFor('byok', effortModel, id);
+    }
+  };
   const toggleLevel = (value: string) => {
     const current = effectiveReasoningLevels(levelsRef.current);
     const on = current.includes(value);
@@ -175,7 +194,7 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
   };
 
   const save = () => {
-    if (!loaded || savePending.current || testRequest.current) return;
+    if (!loaded || !dirty || savePending.current || testRequest.current) return;
     savePending.current = true;
     if (modelsRequest.current) {
       modelsRequest.current.abort(); modelsRequest.current = null;
@@ -184,7 +203,7 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
     invalidateTest();
     setSaving(true);
     onDraftStateChange?.({ dirty, saving: true });
-    void saveByokConfig({ baseUrl, model, apiKey, apiFormat, reasoningLevels }).then((v) => {
+    void saveByokConfig({ baseUrl, model, apiKey, apiFormat, reasoningLevels }).then(({ runtime: savedRuntime, ...v }) => {
       setView(v);
       // Display the server's normalized values so testing uses this exact configuration.
       setBaseUrl(v.baseUrl);
@@ -192,11 +211,20 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
       applyLevels(v.reasoningLevels ?? '');
       setApiFormat(v.apiFormat);
       setApiKey('');
+      if (hasEffortDraft(v.apiFormat, v.reasoningLevels ?? '')) {
+        const savedEffortModel = targetChanged ? v.model || 'default' : effortModel;
+        if (targetChanged) selectModelFor('byok', savedEffortModel);
+        selectEffortFor('byok', savedEffortModel, effortDraft!);
+      } else {
+        const allowed = reasoningDialect(v.apiFormat) ? effectiveReasoningLevels(v.reasoningLevels) : [];
+        const previous = effortFor('byok', effortModel);
+        if (previous && !allowed.includes(previous)) selectEffortFor('byok', effortModel, undefined);
+      }
+      setEffortDraft(undefined);
       setSaved(true);
       setError('');
-      // 未配置时也有默认模型占位，不能据此只更新档位：authStatus 与端点模型清单
-      // 同样已过期。强制重新获取完整状态，并取消保存前可能仍在进行的检测请求。
-      void refreshRuntimes();
+      // Save returns the complete built-in runtime, including first-time auth readiness.
+      updateRuntime(savedRuntime);
       onDraftStateChange?.({ dirty: false, saving: false });
     }).catch((e) => {
       setError(e instanceof Error ? e.message : String(e));
@@ -218,7 +246,7 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
             </h3>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-5 text-[var(--mm-text-stone-600)]">
               <SettingsStatusBadge tone={configured ? 'success' : 'neutral'}>
-                {configured ? (view.apiKeyConfigured ? `已配置 •••• ${view.apiKeyTail}` : '已配置（无密钥）') : '未配置'}
+                {configured ? (view.apiKeyConfigured ? '已配置' : '已配置（无密钥）') : '未配置'}
               </SettingsStatusBadge>
             </p>
           </div>
@@ -259,40 +287,28 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
               <input className={input} type="url" placeholder={API_FORMATS.find(format => format.id === apiFormat)?.placeholder}
                 disabled={!loaded || saving} value={baseUrl} onChange={e => updateDraft(e.target.value, model, apiKey)} />
             </label>
-            <label className="block text-xs font-medium leading-5 text-[var(--mm-text-stone-600)]">
-              {view.apiKeyConfigured ? `API 密钥（已配置 •••• ${view.apiKeyTail}，留空保留）` : 'API 密钥（本地端点可留空）'}
-              <input className={input} type="password" autoComplete="off" placeholder={view.apiKeyConfigured ? '留空则不更换' : 'sk-…'}
+            <div className="min-w-0 text-xs font-medium leading-5 text-[var(--mm-text-stone-600)]">
+              <label htmlFor={`${statusId}-key`}>API 密钥</label>
+              <input id={`${statusId}-key`} aria-describedby={`${statusId}-key-hint`}
+                className={input} type="password" autoComplete="off" placeholder={view.apiKeyConfigured ? '输入新密钥以更换' : 'sk-…'}
                 disabled={!loaded || saving} value={apiKey} onChange={e => updateDraft(baseUrl, model, e.target.value)} />
-            </label>
+              <p id={`${statusId}-key-hint`} className="mt-1 text-xs font-normal leading-4 text-[var(--mm-text-stone-600)]">
+                {loading ? '正在读取密钥状态…' : !loaded ? '配置读取失败，请重试。'
+                  : view.apiKeyConfigured ? `已配置 •••• ${view.apiKeyTail}，留空则保留。` : '本地端点可留空。'}
+              </p>
+            </div>
             <ByokModelField value={model} onChange={value => updateDraft(baseUrl, value, apiKey)}
               disabled={!loaded || saving} canFetch={!!baseUrl.trim()} list={modelList} onFetch={getModels}
               open={modelsOpen} onOpenChange={setModelsOpen} portalContainer={portalContainer} inputClassName={input} />
             {dialect ? (
-              <div className="text-xs font-medium leading-5 text-[var(--mm-text-stone-600)] sm:col-span-2">
-                <span id={`${statusId}-levels`}>推理档位</span>
-                {/* 词汇表取自 opencode 自己的档位集合；**默认就是它默认的那三个**
-                    （low/medium/high）。不做自由输入——值必须是它认得的名字。 */}
-                <div role="group" aria-labelledby={`${statusId}-levels`} className="mt-1 flex flex-wrap items-center gap-1.5">
-                  {REASONING_LEVEL_VOCABULARY.map(value => {
-                    const on = levels.includes(value);
-                    return (
-                      <button key={value} type="button" role="switch" aria-checked={on}
-                        aria-label={`档位 ${value}`}
-                        disabled={!loaded || saving}
-                        onClick={() => toggleLevel(value)}
-                        className={`rounded-md border px-2 py-0.5 text-xs transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50 ${on
-                          ? 'border-[var(--mm-border-emerald-700)] bg-[var(--mm-bg-emerald-50)] font-medium text-[var(--mm-text-emerald-800)]'
-                          : 'border-[var(--mm-border-stone-300)] text-[var(--mm-text-stone-600)] hover:bg-[var(--mm-bg-stone-100)]'}`}>
-                        {value}
-                      </button>
-                    );
-                  })}
-                </div>
-                {/* 实时预览：聊天区的模型面板里会长成什么样。用**同一个组件**渲染，
-                    两份各写一遍必然漂移，而漂移的代价是用户按预览做的判断是错的。 */}
-                {previewOptions.length > 0 && (
-                  <div data-effort-preview className="mt-2 rounded-lg border border-[var(--mm-border-stone-200)] px-3 py-2">
-                    <EffortDots options={previewOptions} currentId={previewCurrent} labelId={`${statusId}-effort-preview`} />
+              <div className="min-w-0 text-xs font-medium leading-5 text-[var(--mm-text-stone-600)] sm:col-span-2">
+                {currentEffort && (
+                  <div className="pt-1">
+                    <ReasoningEffortSelector options={previewOptions} currentId={currentEffort.option.id} pinned={currentEffort.pinned}
+                      onSelect={chooseEffort} disabled={!loaded || busy || saving || test.running}
+                      configDisabled={!loaded || saving} vocabulary={REASONING_LEVEL_VOCABULARY}
+                      onToggle={toggleLevel} portalContainer={portalContainer} />
+                    {hasEffortDraft() && <p role="status" className="mt-2 text-xs leading-5 text-[var(--mm-text-stone-600)]">档位选择将在保存配置后生效。</p>}
                   </div>
                 )}
               </div>
@@ -307,14 +323,14 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <SettingsButton type="button" variant="default"
-              disabled={!loaded || saving || test.running} aria-busy={saving}
+              disabled={!loaded || !dirty || saving || test.running} aria-busy={saving}
               onClick={save}>
-              {saving ? '保存中…' : '保存'}
+              {saving ? '保存中…' : saved && !dirty ? <><Check className="h-4 w-4" aria-hidden="true" />已保存</> : '保存'}
             </SettingsButton>
-            {/* 这行平时是空的，只在「正在测试/已保存」时说话——说明性文案不该常驻占版面 */}
+            {/* Success feedback stays in the button; this live region only explains prerequisites. */}
             <p id={statusId} role="status" className="flex items-center gap-1.5 text-sm text-[var(--mm-text-stone-600)]">
               {testHint}
-              {!testHint && saved && <><Check className="h-4 w-4 text-[var(--mm-text-emerald-700)]" aria-hidden="true" />已保存</>}
+              {saved && !dirty && !testHint && <span className="sr-only">配置已保存。</span>}
             </p>
           </div>
           {loadError && <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">

@@ -7,11 +7,20 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('mathmoverDesktop', {
   isDesktop: true,
+  getVersion: () => ipcRenderer.invoke('desktop-version:get'),
+  openStorageDirectory: (target) => ipcRenderer.invoke('desktop-storage:open', target),
   getPreferences: () => ipcRenderer.invoke('desktop-preferences:get'),
   setCloseToTray: (enabled) => ipcRenderer.invoke('desktop-preferences:set-close-to-tray', enabled),
   /** 检查更新 / 重启更新 / 重试 / 打开日志 / 复制诊断 / 关于 */
   action: (name) => {
     if (typeof name === 'string') ipcRenderer.send('desktop-action', name);
+  },
+  /** 标题栏与原生菜单共用应用内的关于弹窗。 */
+  onShowAbout: (listener) => {
+    if (typeof listener !== 'function') return () => {};
+    const handler = (_event, info) => listener(info);
+    ipcRenderer.on('desktop-about:show', handler);
+    return () => ipcRenderer.removeListener('desktop-about:show', handler);
   },
   /** 当前更新状态（idle / downloading / ready / failed） */
   getUpdateState: () => ipcRenderer.invoke('update-state:get'),

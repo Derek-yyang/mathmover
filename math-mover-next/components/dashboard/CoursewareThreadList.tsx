@@ -15,8 +15,8 @@ const EMPTY_MESSAGES: readonly ThreadMessageLike[] = [];
 
 /** Official list runtime backed by the existing courseware API. Chat and canvas
  * remain owned by useCoursewareLibrary; selecting a row uses its existing URL. */
-export default function CoursewareThreadList({ searchRequest = 0, archived = false, onOpen, onOpenRequest, portalContainer }: {
-  searchRequest?: number; archived?: boolean; onOpen?: () => void; onOpenRequest?: (proceed: () => void) => void; portalContainer?: HTMLElement | null;
+export default function CoursewareThreadList({ searchRequest = 0, archived = false, active = true, onOpen, onOpenRequest, portalContainer }: {
+  searchRequest?: number; archived?: boolean; active?: boolean; onOpen?: () => void; onOpenRequest?: (proceed: () => void) => void; portalContainer?: HTMLElement | null;
 }) {
   const router = useRouter();
   const currentId = useSearchParams().get('history_id') ?? undefined;
@@ -53,6 +53,7 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
   }, []);
 
   useEffect(() => {
+    if (!active) return;
     mounted.current = true;
     const changed = () => { void refresh(); };
     changed();
@@ -63,7 +64,7 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
       window.clearInterval(timer);
       window.removeEventListener('mathmover_coursewares_changed', changed);
     };
-  }, [refresh]);
+  }, [active, refresh]);
 
   useEffect(() => {
     if (searchRequest && !sidebar?.collapsed) {

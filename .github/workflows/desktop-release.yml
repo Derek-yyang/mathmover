@@ -50,7 +50,7 @@ jobs:
         run: npm ci
 
       - name: Verify platform and update checks
-        run: node --test desktop/scripts/platform.test.cjs desktop/scripts/mac-updates.test.cjs desktop/scripts/sparkle-updates.test.cjs
+        run: node --test desktop/scripts/platform.test.cjs desktop/scripts/mac-updates.test.cjs desktop/scripts/sparkle-updates.test.cjs desktop/scripts/update-state.test.cjs desktop/scripts/titlebar-colors.test.cjs desktop/scripts/update-log.test.cjs
 
       - name: Build Next standalone + daemon assets
         working-directory: desktop
@@ -118,7 +118,7 @@ jobs:
         run: npm ci
       - name: Verify platform selection and tray
         run: |
-          node --test desktop/scripts/platform.test.cjs desktop/scripts/mac-updates.test.cjs desktop/scripts/sparkle-updates.test.cjs
+          node --test desktop/scripts/platform.test.cjs desktop/scripts/mac-updates.test.cjs desktop/scripts/sparkle-updates.test.cjs desktop/scripts/update-state.test.cjs desktop/scripts/titlebar-colors.test.cjs desktop/scripts/update-log.test.cjs
           node desktop/scripts/make-mac-icons.mjs
           node desktop/scripts/verify-tray.cjs
       - name: Rebuild Sparkle for Electron arm64

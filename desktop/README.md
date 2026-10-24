@@ -119,7 +119,7 @@ WebSocket 地址由 Next 服务端在每请求时按 `MATHMOVER_WS_URL` 注入
 - `src/preload.cjs` 仅暴露桌面标识、菜单动作、标题栏主题与窗口设置；
   IPC 动作在主进程里按白名单处理，窗口设置请求仅接受主窗口的顶层页面。
 
-日志写在 `%LOCALAPPDATA%\MathMover\logs\{daemon,next}.log`。退出时用 `taskkill /T /F`
+日志写在 `%LOCALAPPDATA%\MathMover\logs\{daemon,next,updater}.log`。退出时用 `taskkill /T /F`
 结束整棵子进程树；单实例锁避免第二个实例再抢端口。
 
 ## 系统托盘
@@ -153,6 +153,7 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
   下载中断时图标变成警示标记，点击重试；仅检查失败（如离线）不亮状态。菜单「检查更新…」仍可手动触发。
 - Mac 行为：Sparkle 后台下载 ZIP，验证 Ed25519 签名与签名后的 appcast，同一枚状态环给出进度并变成重启按钮，不点则在退出时安装。断网时启动检查保持安静，手动检查失败可打开 Releases；原生模块不可用时退回 DMG 手动下载。只使用完整更新包，暂不生成差分。
 - Mac 更新源固定为 `releases/latest/download/appcast-mac-arm64.xml`。每次正式发布都必须包含签名后的 feed 和对应版本 ZIP；仅发布 DMG 会破坏更新入口。工作流先在草稿上传所有文件，再一起公开。
+- 更新模块的事件与原始报错写入 `logs/updater.log`（Windows `%LOCALAPPDATA%\MathMover\logs`，macOS `~/Library/Application Support/MathMover/logs`），包含检查触发方式、更新源、发现/下载/就绪/错误信息和错误码；超过 1 MB 轮转为 `updater.log.1`。从 Finder 启动时 stdout 无人接收，排查更新问题以这个文件为准。
 - 更新私钥存放在 Actions secret `SPARKLE_ED_PRIVATE_KEY`，公钥在 `src/sparkle-config.json` 与 `electron-builder.yml`。签名脚本验证两者匹配，不把私钥写入产物。私钥的本地备份放在被 Git 忽略的 `.secrets/`，必须妥善备份；丢失后不能给已安装客户端签发可信更新。
 - Mac 本地打包前运行 `npm run prepare:updater` 编译 Electron 原生桥接。`npm run pack` 和 `npm run dist` 会自动执行；直接调用 electron-builder 则需要先手动执行。
 - `node desktop/scripts/verify-sparkle.mjs` 在原生 Mac 上创建隔离的两个 Electron 应用，验证被篡改的更新包遭到拒绝，再验证下载、安装、重启新版与数据保留。不使用发布私钥，不操作本机已安装的 MathMover。

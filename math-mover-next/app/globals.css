@@ -376,6 +376,18 @@ body {
   transition: opacity 140ms ease-out 60ms, visibility 0s;
 }
 
+/* Fast local reads should not flash a loading placeholder between settings tabs. */
+@keyframes thread-list-loading-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.thread-list-loading-placeholder {
+  animation: thread-list-loading-reveal 120ms ease-out 180ms both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .thread-list-loading-placeholder { animation-duration: 0ms; }
+}
+
 /* GeoGebra mutates a large DOM subtree during a resize. Keep its layout and
    paint invalidation inside the fixed-size stage so side-panel transitions
    don't force unrelated dashboard content through the same layout pass. */

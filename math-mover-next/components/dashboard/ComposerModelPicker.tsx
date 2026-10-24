@@ -159,7 +159,7 @@ export default function ComposerModelPicker({
           </div>}
           <div className={`${models.length > 1 ? 'border-t border-[var(--mm-border-stone-200)]' : ''} px-3 py-2.5`}>
             {effort ? (
-              // 点阵与设置页的实时预览**共用同一个组件**（见 components/EffortDots.tsx）
+              // 点阵与设置页的分段选择器共享 AgentRuntimeState 中的档位选择。
               <EffortDots options={reasoningOptions!} currentId={effort.option.id} pinned={effort.pinned}
                 onSelect={pickEffort} onDotKeyDown={onDotKeyDown} dotRefs={dotRefs} labelId="composer-effort-label" />
             ) : (

@@ -10,7 +10,9 @@
 
 import { dataDirectory } from '../../../../packages/daemon/src/data-directory.ts';
 import { loadByokConfig, maskByokConfig, saveByokConfig, type ByokConfig } from '@/lib/byok-store';
-import { invalidateDetectionCache } from '@/lib/server/detection-cache';
+import { readCachedRuntime, updateCachedRuntime } from '@/lib/server/detection-cache';
+import { buildByokRuntime, sameByokConnection } from '@/lib/server/byok-runtime';
+import { opencode, resolveRuntimeTarget } from '@mathmover/agent-runtime';
 import { isSameLocalOrigin } from '@/lib/server/same-origin';
 import { isApiFormat } from '../../../../packages/agent-runtime/src/api-format.ts';
 
@@ -31,7 +33,10 @@ export async function POST(req: Request): Promise<Response> {
   if (body.apiFormat !== undefined && !isApiFormat(body.apiFormat)) {
     return Response.json({ error: '不支持的 API 接口格式' }, { status: 400 });
   }
-  const view = saveByokConfig(dataDirectory(), {
+  const root = dataDirectory();
+  const previous = loadByokConfig(root);
+  const cachedModels = readCachedRuntime('byok')?.models;
+  const view = saveByokConfig(root, {
     apiFormat: body.apiFormat,
     baseUrl: typeof body.baseUrl === 'string' ? body.baseUrl : undefined,
     // null = 清除；空串/不传 = 保留原 key（语义见 byok-store.ts）
@@ -39,8 +44,11 @@ export async function POST(req: Request): Promise<Response> {
     model: typeof body.model === 'string' ? body.model : undefined,
     reasoningLevels: typeof body.reasoningLevels === 'string' ? body.reasoningLevels : undefined,
   });
-  // 配置一变，运行时清单就旧了（模型清单、档位都挂在它上面）——作废缓存，
-  // 否则用户保存完 60 秒内重开页面还是旧值。
-  invalidateDetectionCache();
-  return Response.json(view);
+  const config = loadByokConfig(root);
+  const runtime = buildByokRuntime(config, Boolean(resolveRuntimeTarget(opencode)),
+    sameByokConnection(previous, config) ? cachedModels : undefined);
+  updateCachedRuntime(runtime);
+  // Return canonical runtime metadata together with the masked configuration.
+  // No CLI launches or network probes are needed to apply a saved setting.
+  return Response.json({ ...view, runtime });
 }

@@ -12,6 +12,11 @@ export interface DesktopPreferences {
   trayAvailable: boolean;
 }
 
+export interface DesktopAboutInfo {
+  version: string;
+  diagnostics: string;
+}
+
 /** 主进程推送的更新状态；标题栏据此画状态环。 */
 export type UpdateState =
   | { status: 'idle' }
@@ -29,9 +34,13 @@ export interface DesktopOverlayColor {
 
 export interface DesktopBridge {
   isDesktop: true;
+  getVersion(): Promise<string>;
+  /** Optional for compatibility with an already-running, older desktop shell. */
+  openStorageDirectory?(target: 'data' | 'backups'): Promise<void>;
   getPreferences(): Promise<DesktopPreferences>;
   setCloseToTray(enabled: boolean): Promise<DesktopPreferences>;
   action(action: DesktopAction): void;
+  onShowAbout(listener: (info: DesktopAboutInfo) => void): () => void;
   setTitleBarTheme(theme: 'light' | 'dark'): void;
   /** 模态开合时同步原生按钮区底色（网页遮罩盖不住原生图层） */
   setTitleBarModal(open: boolean, overlay?: DesktopOverlayColor): void;

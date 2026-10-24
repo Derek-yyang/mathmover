@@ -8,6 +8,7 @@
 
 import { resolveApiFormat, type ApiFormat } from '../../packages/agent-runtime/src/api-format.ts';
 import type { ByokConfigView } from './byok-store';
+import type { RuntimeOption } from '../components/dashboard/AgentChatPanel';
 
 export { API_FORMATS, DEFAULT_API_FORMAT, isApiFormat, type ApiFormat } from '../../packages/agent-runtime/src/api-format.ts';
 
@@ -54,13 +55,13 @@ export async function saveByokConfig(input: {
   reasoningLevels?: string;
   /** 空 = 保留已存的 key */
   apiKey?: string;
-}): Promise<ByokConfigView> {
+}): Promise<ByokConfigView & { runtime: RuntimeOption }> {
   const res = await fetch('/api/byok', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(`保存 BYOK 配置失败（HTTP ${res.status}）`);
-  const view = await res.json() as ByokConfigView;
+  const view = await res.json() as ByokConfigView & { runtime: RuntimeOption };
   return { ...view, apiFormat: resolveApiFormat(view.apiFormat) };
 }

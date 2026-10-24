@@ -91,7 +91,7 @@ export default memo(function DemoSettings({ open, container, onClose }: {
   const keepFocusInDialog = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Tab' || confirmClose || !panel) return;
     const focusable = Array.from(panel.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), summary, [role="tab"]:not([aria-disabled="true"]), [role="menuitem"]:not([data-disabled])',
+      'a[href], button:not([disabled]), input:not([disabled]), summary, [role="tab"]:not([aria-disabled="true"]), [role="menuitem"]:not([data-disabled])',
     )).filter(element => !element.closest('[hidden], [inert]') && element.getAttribute('aria-hidden') !== 'true');
     if (!focusable.length) return;
     const first = focusable[0];

@@ -25,8 +25,9 @@ import path from 'node:path';
 import { libraryToken, dataDirectory } from '../../../../packages/daemon/src/data-directory.ts';
 import { RUNTIMES, runAgent, opencode, buildOpenCodeConfigContent, effectiveReasoningLevels, reasoningDialect, OPENCODE_BYOK_API_KEY_ENV, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, resolveModel, resolveEffort, createTitleExtractor, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 import { agentRequestHistory } from '@/lib/agent-request-history';
-import { loadByokConfig, isByokRunnable, maskByokConfig } from '@/lib/byok-store';
+import { loadByokConfig, isByokRunnable } from '@/lib/byok-store';
 import { fetchByokModels } from '@/lib/byok-probe';
+import { buildByokRuntime, sameByokConnection } from '@/lib/server/byok-runtime';
 import { buildSystemBrief } from '@/lib/server/system-brief';
 import { isSameLocalOrigin } from '@/lib/server/same-origin';
 import { readFreshDetectionCache, writeDetectionCache, type DetectedRuntime } from '@/lib/server/detection-cache';
@@ -270,11 +271,6 @@ export async function POST(req: Request): Promise<Response> {
   const queued: AgentEvent[] = [];
   let sink: (e: AgentEvent) => void = (e) => queued.push(e);
 
-  let handle: {
-    done: Promise<{ exitCode: number | null; sessionId?: string }>;
-    cancel: () => void;
-    proc: unknown;
-  };
   // 内置位的 provider/MCP 注入走 OPENCODE_CONFIG_CONTENT（**不**写用户的全局配置；
   // 没有内容时它是 null，此时不动这个环境变量）。密钥另走一个环境变量、配置里
   // 用 {env:…} 引用——不落文件也不进 argv。
@@ -300,7 +296,11 @@ export async function POST(req: Request): Promise<Response> {
         },
       })
     : null;
-  handle = runAgent({
+  const handle: {
+    done: Promise<{ exitCode: number | null; sessionId?: string }>;
+    cancel: () => void;
+    proc: unknown;
+  } = runAgent({
     def,
     prompt: composedPrompt,
     // 沙箱 = 数据目录下的工作区：claude 的 --restricted 把写入框在 cwd 里、
@@ -382,8 +382,7 @@ export async function POST(req: Request): Promise<Response> {
 export async function GET(req: Request): Promise<Response> {
   const { detectRuntimes, listAgentModels } = await import('@mathmover/agent-runtime');
   const fresh = new URL(req.url).searchParams.has('fresh');
-  // 缓存放 lib/server/detection-cache.ts：`/api/byok` 保存后要作废它，
-  // 否则配置变了 60 秒内重开页面还是旧清单。
+  // 保存配置时同步更新缓存中的内置 Agent；手动刷新才重跑完整检测。
   let runtimes = fresh ? null : readFreshDetectionCache();
   if (!runtimes) {
     // 清单发现与探测**并行**发：两边都含 CLI 冷启动（秒级），串行会让墙钟翻倍
@@ -416,57 +415,14 @@ export async function GET(req: Request): Promise<Response> {
         models,
       };
     }));
-    // 内置 Agent：**运行时不依赖本机 CLI**（随应用自带），但那份二进制缺失时要如实
-    // 报出来——选择器说「可用」而真跑起来 spawn 失败才是最糟的形态。
-    // **id 保持 'byok'**：设置仓、已存偏好、前端的 runtimeId 都不用动，换个标签就够了。
-    const byokView = maskByokConfig(byokRaw);
-    const builtinBinary = resolveRuntimeTarget(opencode);
-    const builtinReady = Boolean(builtinBinary) && isByokRunnable(byokRaw);
-    // 模型清单：取**端点上的真清单**（与设置页「获取模型列表」同一份数据、同一个探针）。
-    // 为什么必须给真清单：合成器的模型选择器要求「>1 个选项」才渲染，只给一条
-    // 「默认」时它整块藏起来——内置位看起来就是"没有模型可选"（2026-10-18 用户报的）。
-    // 取不到就退回单条默认：如实说"由设置决定"，**不编假模型**。
-    // 档位：**挂在模型上**（合成器与设置页都从选中模型取），所以每个模型条目都带上
-    // 同一份清单——档位清单是端点级的，不随模型变。两处都不给假数据：
-    // 没填、或该格式根本没有档位方言（Anthropic/Gemini）→ 留空，合成器会如实显示
-    // 「由 Agent 配置决定」，而不是给一个点了没反应的控件。
-    const levels = reasoningDialect(byokRaw?.apiFormat)
-      ? effectiveReasoningLevels(byokRaw?.reasoningLevels ?? '')
-      : [];
-    const reasoningOptions = levels.map((id) => ({ id, label: id }));
-    let builtinModels: { list: Array<{ id: string; label: string; reasoningOptions?: typeof reasoningOptions }>; source: 'live' | 'fallback' } =
-      { list: [{ id: 'default', label: '默认（用设置里配置的模型）' }], source: 'fallback' };
-    if (builtinReady && byokRaw) {
-      const listed = await byokModelsPromise;
-      if (listed?.ok && listed.models?.length) {
-        // 设置里已配好的那个**始终在列**——端点清单里没有它（改过名/私有部署）时
-        // 也不能让用户选不回来。
-        const list = [...listed.models];
-        if (byokRaw.model && !list.some((m) => m.id === byokRaw.model)) {
-          list.unshift({ id: byokRaw.model, label: `${byokRaw.model}（设置里配置的）` });
-        }
-        builtinModels = { list, source: 'live' };
-      }
-    }
-    if (reasoningOptions.length) {
-      builtinModels = { ...builtinModels, list: builtinModels.list.map((m) => ({ ...m, reasoningOptions })) };
-    }
-    detected.push({
-      id: 'byok',
-      name: '内置 Agent（OpenCode）',
-      version: builtinBinary ? '自带 runtime · 无需安装' : '自带 runtime 缺失',
-      usable: Boolean(builtinBinary),
-      versionWarning: undefined,
-      authStatus: builtinReady ? 'ok' : 'missing',
-      authMessage: !builtinBinary
-        ? '内置 runtime 缺失：重装应用即可恢复（或设 OPENCODE_BIN 指向一个 opencode 可执行文件）。'
-        : byokView.baseUrl && byokView.model
-          ? (byokView.apiKeyConfigured ? `已配置（•••• ${byokView.apiKeyTail}）` : '已配置（本地端点，无密钥）')
-          : '未配置端点与模型，请在设置里填写',
-      // 有原生附件通道（--file=<路径>）——题目图片能直接递送
-      canAttachImages: true,
-      models: builtinModels,
-    });
+    const listed = await byokModelsPromise;
+    // A save can finish while the CLI/network probes are pending. Build from the
+    // latest config, and discard a catalog fetched with obsolete credentials.
+    const currentByok = loadByokConfig(dataDirectory());
+    const models = sameByokConnection(byokRaw, currentByok) && listed?.ok && listed.models?.length
+      ? { list: listed.models, source: 'live' }
+      : undefined;
+    detected.push(buildByokRuntime(currentByok, Boolean(resolveRuntimeTarget(opencode)), models));
     writeDetectionCache(detected);
     runtimes = detected;
   }

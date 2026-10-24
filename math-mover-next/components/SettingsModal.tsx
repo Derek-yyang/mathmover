@@ -7,7 +7,7 @@
  * 目的地，画布才是核心（PRODUCT.md）。全局动作（刷新检测）在头部。
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Popover } from 'radix-ui';
 import { RefreshCw, X } from 'lucide-react';
 import AgentSettings from './settings/AgentSettings';
@@ -21,8 +21,18 @@ import { useAgentRuntimeState } from './dashboard/AgentRuntimeState';
 import { SettingsSections, SettingsProviderTabs, type SettingsSection, type SettingsProviderTab } from './settings/SettingsLayout';
 import { SettingsButton } from './settings/SettingsControls';
 import { Dialog, DialogClose, DialogContent, DialogTitle } from './assistant-ui/ui/dialog';
+import { desktopBridge } from '@/lib/desktop-bridge';
+import { version as buildVersion } from '../../desktop/package.json';
 
 export default function SettingsModal({ onClose }: { onClose: () => void }) {
+  const [version, setVersion] = useState(buildVersion);
+  useEffect(() => {
+    let active = true;
+    desktopBridge()?.getVersion?.().then(value => {
+      if (active) setVersion(value);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   const triggerRef = useRef<HTMLElement | null>(null);
   const cancelCloseRef = useRef<HTMLButtonElement | null>(null);
   const closeFocusRef = useRef<HTMLElement | null>(null);
@@ -35,6 +45,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
     if (!state.dirty && !state.saving) setConfirmClose(false);
   }, []);
   const [section, setSection] = useState<SettingsSection>('agents');
+  const [archivesVisited, setArchivesVisited] = useState(false);
   const [tab, setTab] = useState<SettingsProviderTab>('providers');
   const { runtimes, detecting, refreshRuntimes } = useAgentRuntimeState();
   const cliCount = runtimes.filter(item => item.id !== 'byok' && item.usable).length;
@@ -82,13 +93,19 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           </Popover.Root>
         </div>
       </header>
-      <SettingsSections section={section} onSectionChange={setSection}>
+      <SettingsSections section={section} onSectionChange={next => {
+        setSection(next);
+        if (next === 'archives') setArchivesVisited(true);
+      }}
+        footer={version && <p className="px-3 text-[11px] leading-5 text-[var(--mm-text-stone-600)]">MathMover <span className="tabular-nums">v{version}</span></p>}>
           {/* Keep configuration mounted across sections so drafts and test results survive. */}
           <div hidden={section !== 'agents'}>
             <SettingsProviderTabs tab={tab} onTabChange={setTab} cliCount={cliCount}
               api={<ByokSettings onDraftStateChange={handleDraftState} />} agents={<AgentSettings />} />
           </div>
-          {section === 'archives' && <ArchivedCoursewares onOpen={onClose} onOpenRequest={requestClose} />}
+          <div hidden={section !== 'archives'}>
+            {archivesVisited && <ArchivedCoursewares active={section === 'archives'} onOpen={onClose} onOpenRequest={requestClose} />}
+          </div>
           {section === 'appearance' && <AppearanceSettings />}
           <div hidden={section !== 'storage'}><DataStorageSettings active={section === 'storage'} /></div>
           {section === 'help' && <HelpSettings />}

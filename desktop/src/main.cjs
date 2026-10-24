@@ -20,6 +20,7 @@ const path = require('node:path');
 const { createSystemTray } = require('./system-tray.cjs');
 const { restoreMacPath } = require('./platform.cjs');
 const { createUpdateState } = require('./update-state.cjs');
+const { createUpdateLog } = require('./update-log.cjs');
 const { TITLEBAR_COLORS, DEFAULT_OVERLAY, titleBarColor } = require('./titlebar-colors.cjs');
 const { createMacUpdater } = require('./mac-updates.cjs');
 const { createSparkleUpdater } = require('./sparkle-updates.cjs');
@@ -53,6 +54,13 @@ const ports = { ws: null, http: null, next: null };
 function log(...args) {
   console.log('[mathmover-desktop]', ...args);
 }
+
+// 从 Finder 启动时 stdout 没有人接收，更新模块的报错必须落盘才看得到。
+const writeUpdateLog = createUpdateLog(path.join(LOG_DIR, 'updater.log'));
+const updateLog = (...args) => {
+  log(...args);
+  writeUpdateLog(...args);
+};
 
 /**
  * Electron 的 profile（localStorage、缓存、窗口状态）默认在 %APPDATA%\mathmover-desktop。
@@ -246,16 +254,12 @@ function openLogs() {
 }
 
 function showAbout() {
-  const choice = dialog.showMessageBoxSync({
-    type: 'info',
-    title: '关于 MathMover',
-    message: `MathMover ${app.getVersion()}`,
-    detail: diagnosticsText(),
-    buttons: ['打开日志目录', '确定'],
-    defaultId: 1,
-    cancelId: 1,
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  desktopTray?.showWindow();
+  mainWindow.webContents.send('desktop-about:show', {
+    version: app.getVersion(),
+    diagnostics: diagnosticsText(),
   });
-  if (choice === 0) openLogs();
 }
 
 let titleBarTheme = 'light';
@@ -302,6 +306,17 @@ function installDesktopIpc() {
   };
   ipcMain.handle('desktop-preferences:get', (event) => requireDesktopWindow(event).getPreferences());
   ipcMain.handle('desktop-preferences:set-close-to-tray', (event, enabled) => requireDesktopWindow(event).setCloseToTray(enabled));
+  ipcMain.handle('desktop-version:get', (event) => {
+    requireDesktopWindow(event);
+    return app.getVersion();
+  });
+  ipcMain.handle('desktop-storage:open', async (event, target) => {
+    requireDesktopWindow(event);
+    if (target !== 'data' && target !== 'backups') throw new Error('无效的数据目录');
+    // Only known application folders can be opened; never accept renderer paths.
+    const error = await shell.openPath(target === 'data' ? DATA_DIR : path.join(DATA_DIR, 'backups'));
+    if (error) throw new Error(error);
+  });
   ipcMain.on('desktop-action', (_event, action) => {
     if (action === 'check-updates') void checkForUpdates();
     else if (action === 'restart-update') restartForUpdate();
@@ -337,16 +352,16 @@ const macFallbackUpdater = createMacUpdater({
   getVersion: () => app.getVersion(), arch: process.arch,
   fetchRelease: (url, options) => electronNet.fetch(url, options),
   showMessageBox: options => dialog.showMessageBoxSync(options),
-  openExternal: url => shell.openExternal(url), log,
+  openExternal: url => shell.openExternal(url), log: updateLog,
 });
 const macUpdater = createSparkleUpdater({
   loadBridge: async () => {
     const { loadSparkleBridgeForApp } = await import('electron-sparkle-updater');
-    return loadSparkleBridgeForApp(log);
+    return loadSparkleBridgeForApp(updateLog);
   },
   config: require('./sparkle-config.json'), fallback: macFallbackUpdater,
   showMessageBox: async options => (await dialog.showMessageBox(options)).response,
-  openExternal: url => shell.openExternal(url), log,
+  openExternal: url => shell.openExternal(url), log: updateLog,
   setState: (state) => updateState.set(state),
 });
 
@@ -361,6 +376,7 @@ function setupUpdater() {
   if (!app.isPackaged) return;
   // Sparkle 验证 EdDSA 更新签名，支持 Mac 本地签名版的下载与替换。
   if (IS_MAC) {
+    updateLog('更新通道：Sparkle', require('./sparkle-config.json').feedUrl);
     void macUpdater.init();
     setTimeout(() => { void checkForUpdates({ silent: true }); }, 15_000);
     return;
@@ -373,17 +389,20 @@ function setupUpdater() {
   }
   if (process.env.MATHMOVER_UPDATE_URL) {
     autoUpdater.setFeedURL({ provider: 'generic', url: process.env.MATHMOVER_UPDATE_URL });
+    updateLog('更新通道：electron-updater（generic）', process.env.MATHMOVER_UPDATE_URL);
+  } else {
+    updateLog('更新通道：electron-updater（app-update.yml）');
   }
-  autoUpdater.logger = { info: log, warn: log, error: log, debug: () => {} };
+  autoUpdater.logger = { info: updateLog, warn: updateLog, error: updateLog, debug: () => {} };
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('error', (e) => {
-    log('更新检查失败：', e instanceof Error ? e.message : e);
+    updateLog('更新检查失败：', e instanceof Error ? e.message : e);
     updateState.handle({ type: 'error', message: e instanceof Error ? e.message : String(e) });
   });
   autoUpdater.on('update-available', (info) => {
-    log(`发现新版本 ${info.version}，开始下载`);
+    updateLog(`发现新版本 ${info.version}，开始下载`);
     updateState.handle({ type: 'update-available', version: info.version });
   });
   autoUpdater.on('download-progress', (progress) => {
@@ -391,15 +410,17 @@ function setupUpdater() {
   });
   autoUpdater.on('update-downloaded', (info) => {
     if (process.env.MATHMOVER_UPDATE_AUTOINSTALL === '1') {
-      log(`更新 ${info.version} 已下载，静默安装`);
+      updateLog(`更新 ${info.version} 已下载，静默安装`);
       setImmediate(() => autoUpdater.quitAndInstall(true, true));
       return;
     }
     // 不再弹模态框：标题栏的状态环负责提示，不打断正在进行的生成任务。
     // 用户不点重启也没损失——autoInstallOnAppQuit 会在退出时安装。
+    updateLog(`更新 ${info.version} 已下载，等待重启或退出时安装`);
     updateState.handle({ type: 'update-downloaded', version: info.version });
   });
   autoUpdater.on('update-not-available', () => {
+    updateLog(`已是最新版本 ${app.getVersion()}`);
     updateState.handle({ type: 'update-not-available' });
   });
 
@@ -412,19 +433,21 @@ async function checkForUpdates({ silent = false } = {}) {
     if (!silent) dialog.showMessageBoxSync({ type: 'info', title: '检查更新', message: '开发模式下不检查更新。' });
     return;
   }
+  updateLog(silent ? '检查更新（自动）' : '检查更新（手动）');
   if (IS_MAC) return macUpdater.check({ silent });
   if (updateCheck) return updateCheck;
   updateCheck = (async () => {
     try {
       const result = await autoUpdater.checkForUpdates();
       if (!silent && result?.updateInfo?.version === app.getVersion()) {
+        updateLog(`已是最新版本 ${app.getVersion()}`);
         dialog.showMessageBoxSync({
           type: 'info', title: '检查更新',
           message: '当前已是最新版本。', detail: `版本 ${app.getVersion()}`,
         });
       }
     } catch (e) {
-      log('更新检查失败：', e instanceof Error ? e.message : e);
+      updateLog('更新检查失败：', e instanceof Error ? e.message : e);
       if (!silent) {
         dialog.showMessageBoxSync({
           type: 'error', title: '检查更新失败', message: '无法连接更新服务。',

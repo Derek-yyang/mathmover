@@ -4,9 +4,8 @@
  * 为什么要缓存：一轮探测含三条 CLI 的冷启动 + 模型清单，整轮 ~10s；页面反复打开
  * 不该每次都等它。「刷新检测」走 `?fresh=1` 绕开。
  *
- * 为什么要**能作废**：配置一变（端点/模型/档位），清单就旧了。不作废的话，
- * 保存完 60 秒内重开页面还会看到旧值——用户 2026-10-18 报的「保存了但对话区没更新」
- * 一半是这个，另一半是前端拿一次就不再取（见 AgentRuntimeState.patchRuntime）。
+ * 配置变动只更新内置 Agent 条目，不延长其他 Agent 的缓存有效期；
+ * 显式刷新仍重新探测全部运行时。
  */
 export interface DetectedRuntime {
   id: string;
@@ -33,6 +32,16 @@ export function readFreshDetectionCache(now = Date.now()): DetectedRuntime[] | n
 
 export function writeDetectionCache(runtimes: DetectedRuntime[]): void {
   cache = { at: Date.now(), runtimes };
+}
+
+/** Reuse the last known model catalog on save, even if full detection is due again. */
+export function readCachedRuntime(id: string): DetectedRuntime | undefined {
+  return cache?.runtimes.find(item => item.id === id);
+}
+
+export function updateCachedRuntime(runtime: DetectedRuntime): void {
+  if (!cache) return;
+  cache.runtimes = [...cache.runtimes.filter(item => item.id !== runtime.id), runtime];
 }
 
 /** 配置变了就调用它——别让用户保存完还看到旧清单。 */
