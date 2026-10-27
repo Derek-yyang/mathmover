@@ -113,6 +113,8 @@ try {
   if (await useBuiltin.count()) await useBuiltin.click({ timeout: 40_000 });
   await page.waitForFunction(() => document.body.textContent.includes('当前 Agent 尚未登录'), null, { timeout: 40_000 });
   await settings.getByLabel('API 端点', { exact: true }).fill(`http://127.0.0.1:${mockPort}/v1`);
+  // The key stays read-only until focused to prevent browser autofill from editing it.
+  await settings.getByLabel('API 密钥', { exact: true }).click();
   await settings.getByLabel(/API 密钥/).fill(API_KEY);
   await settings.getByLabel('模型', { exact: true }).fill(MODEL);
   await settings.getByRole('button', { name: '保存', exact: true }).click();
