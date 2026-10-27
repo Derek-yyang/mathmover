@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { dataDirectory } from './data-directory.ts';
 import { validateGgbSnapshot } from './ggb-snapshot.ts';
-import { CoursewareError, type CoursewareSummary } from '@mathmover/ggb-core';
+import { CoursewareError, type CoursewareSummary, type CoursewareProject } from '@mathmover/ggb-core';
 // Resolve the native module in Node, including test runners predating node:sqlite.
 const { DatabaseSync, backup } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
@@ -49,7 +49,7 @@ export class CoursewareStore {
       const check = this.db.prepare('PRAGMA quick_check').get();
       if (Object.values(check ?? {})[0] !== 'ok') throw new Error('课件数据库校验失败，原文件未被重置');
       const version = Number(Object.values(this.db.prepare('PRAGMA user_version').get() ?? {})[0]);
-      if (version > 2) throw new Error('课件库由较新版本创建，请升级程序');
+      if (version > 3) throw new Error('课件库由较新版本创建，请升级程序');
       if (!version) this.db.exec(`BEGIN IMMEDIATE;
         CREATE TABLE coursewares (id TEXT PRIMARY KEY, title TEXT NOT NULL,
           created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL, deleted_at TEXT);
@@ -64,6 +64,13 @@ export class CoursewareStore {
         CREATE TABLE deleted_courseware_ids (id TEXT PRIMARY KEY);
         CREATE TABLE pending_resource_deletions (path TEXT PRIMARY KEY);
         PRAGMA user_version=2; COMMIT;`);
+      if (version < 3) this.db.exec(`BEGIN IMMEDIATE;
+        CREATE TABLE courseware_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL,
+          created_at TEXT NOT NULL, revision INTEGER NOT NULL);
+        ALTER TABLE coursewares ADD COLUMN pinned_at TEXT;
+        ALTER TABLE coursewares ADD COLUMN project_id TEXT REFERENCES courseware_projects(id) ON DELETE SET NULL;
+        CREATE INDEX courseware_project ON coursewares(project_id);
+        PRAGMA user_version=3; COMMIT;`);
       // 2026-10-11 移除 category 列——课件名不绑分类（产品不止题图→GGB 一条链路）。
       // 旧库若已有该列，尽力删掉；旧版 SQLite 不支持 DROP COLUMN 就留着，它是惰性的。
       try { this.db.exec('ALTER TABLE coursewares DROP COLUMN category'); } catch { /* 旧库/旧 SQLite：列惰性，可留 */ }
@@ -171,12 +178,73 @@ export class CoursewareStore {
           input.id, input.title.slice(0, 200), created, now, revision, old?.archived_at ?? null);
       this.db.prepare('INSERT INTO revisions VALUES (?,?,?,?,?)').run(input.id, revision, payload, snapshot, now);
       this.db.exec('COMMIT');
-      return { id: input.id, title: input.title.slice(0, 200), created_at: created, updated_at: now, revision, archived_at: old?.archived_at ?? null };
+      return this.summary(input.id);
     } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
   rename(id: string, title: string, expectedRevision: number) {
     const record = this.get(id);
     return this.save({ ...record, title, expectedRevision });
+  }
+  private summary(id: string): CoursewareSummary {
+    const row = this.db.prepare('SELECT * FROM coursewares WHERE id=?').get(id) as unknown as CoursewareSummary | undefined;
+    if (!row) throw new CoursewareError(404, '课件不存在');
+    return row;
+  }
+  projects(): CoursewareProject[] {
+    return this.db.prepare('SELECT * FROM courseware_projects ORDER BY created_at,id').all() as unknown as CoursewareProject[];
+  }
+  private projectName(name: unknown): string {
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 80)
+      throw new CoursewareError(400, '项目名称须为 1–80 个字符');
+    return name.trim();
+  }
+  createProject(name: unknown, coursewareId?: string): CoursewareProject {
+    const project = { id: randomUUID(), name: this.projectName(name), created_at: new Date().toISOString(), revision: 1 };
+    if (coursewareId !== undefined) validId(coursewareId);
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      if (coursewareId !== undefined) this.summary(coursewareId);
+      this.db.prepare('INSERT INTO courseware_projects VALUES (?,?,?,?)').run(project.id, project.name, project.created_at, project.revision);
+      if (coursewareId !== undefined) this.db.prepare('UPDATE coursewares SET project_id=? WHERE id=?').run(project.id, coursewareId);
+      this.db.exec('COMMIT');
+      return project;
+    } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+  }
+  updateProject(id: string, action: 'rename' | 'delete', expectedRevision: number, name?: unknown): CoursewareProject | null {
+    validId(id);
+    if (!Number.isInteger(expectedRevision) || expectedRevision < 1) throw new CoursewareError(400, '项目版本不合法');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const old = this.db.prepare('SELECT * FROM courseware_projects WHERE id=?').get(id) as unknown as CoursewareProject | undefined;
+      if (!old) throw new CoursewareError(404, '项目不存在');
+      if (old.revision !== expectedRevision) throw new CoursewareError(409, '项目已在其他窗口修改，请刷新后重试');
+      const next = action === 'rename' ? { ...old, name: this.projectName(name), revision: old.revision + 1 } : null;
+      if (next) this.db.prepare('UPDATE courseware_projects SET name=?,revision=? WHERE id=?').run(next.name, next.revision, id);
+      else this.db.prepare('DELETE FROM courseware_projects WHERE id=?').run(id);
+      this.db.exec('COMMIT');
+      return next;
+    } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+  }
+  organize(id: string, patch: { pinned?: boolean; projectId?: string | null }): CoursewareSummary {
+    validId(id);
+    const keys = Object.keys(patch);
+    if (!keys.length || keys.some(key => !['pinned', 'projectId'].includes(key))
+      || ('pinned' in patch && typeof patch.pinned !== 'boolean')) throw new CoursewareError(400, '课件整理参数不合法');
+    if ('projectId' in patch && patch.projectId !== null) validId(patch.projectId);
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const old = this.summary(id);
+      if (patch.projectId && !this.db.prepare('SELECT id FROM courseware_projects WHERE id=?').get(patch.projectId))
+        throw new CoursewareError(404, '项目不存在，请刷新后重试');
+      // Content saves never overwrite these columns or bump their revision.
+      // A late autosave and a sidebar operation can safely complete in either order.
+      this.db.prepare('UPDATE coursewares SET pinned_at=?,project_id=? WHERE id=?').run(
+        patch.pinned === undefined ? old.pinned_at ?? null : patch.pinned ? old.pinned_at ?? new Date().toISOString() : null,
+        'projectId' in patch ? patch.projectId! : old.project_id ?? null, id);
+      const result = this.summary(id);
+      this.db.exec('COMMIT');
+      return result;
+    } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
   remove(ids: string[]): void {
     if (!ids.length) throw new CoursewareError(400, '缺少课件 ID');

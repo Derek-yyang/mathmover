@@ -110,16 +110,16 @@ try {
   await cliTab.focus();
   await page.keyboard.press('Home');
   await page.getByRole('heading', { name: '内置 Agent' }).waitFor();
-  await page.getByRole('button', { name: '测试 内置 Agent' }).waitFor();
+  await page.getByRole('button', { name: '测试调用 内置 Agent' }).waitFor();
   const providerPanel = page.getByRole('tabpanel', { name: '模型 API' });
   const endpointInput = providerPanel.getByRole('textbox', { name: 'API 端点', exact: true });
   await page.waitForFunction(() => document.querySelector('#settings-panel-providers input[type=url]')?.value === 'https://fixture.invalid/v1');
-  await page.getByRole('button', { name: '测试 内置 Agent' }).click();
+  await page.getByRole('button', { name: '测试调用 内置 Agent' }).click();
   await providerPanel.getByRole('status').filter({ hasText: '就绪 · 已登录（验收桩）' }).waitFor();
   await endpointInput.fill('https://draft.invalid/v1');
   await providerPanel.getByRole('textbox', { name: '模型', exact: true }).fill('draft-model');
   await providerPanel.getByLabel('API 密钥（本地端点可留空）', { exact: true }).fill('fixture-draft-key');
-  assert(await page.getByRole('button', { name: '测试 内置 Agent' }).isDisabled(), 'unsaved configuration cannot be tested');
+  assert(await page.getByRole('button', { name: '测试调用 内置 Agent' }).isDisabled(), 'unsaved configuration cannot be tested');
   await providerPanel.getByText('配置已修改，请先保存再测试。', { exact: true }).waitFor();
   assert.equal(await providerPanel.getByRole('status').filter({ hasText: '就绪 · 已登录（验收桩）' }).count(), 0, 'editing clears the old test result');
 

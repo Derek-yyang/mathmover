@@ -39,6 +39,26 @@ async function setup() {
   return { store, bridge, request, connect, port, root };
 }
 describe('library HTTP and window ownership', () => {
+  it('persists projects and pins through authenticated organization endpoints', async () => {
+    const s = await setup();
+    s.store.save({ id: 'org-test', expectedRevision: 0, title: '椭圆', commands: [], messages: [] });
+    const post = (route: string, body: unknown) => s.request(`/api/coursewares${route}`, { method: 'POST', body: JSON.stringify(body) });
+    const created = await post('/projects', { name: '解析几何', coursewareId: 'org-test' });
+    expect(created.status).toBe(200); const project = await created.json();
+    expect((await (await post('/org-test/organize', { pinned: true })).json()).revision).toBe(1);
+    const list = await (await s.request('/api/coursewares')).json();
+    expect(list.projects).toEqual([project]);
+    expect(list.records[0]).toMatchObject({ project_id: project.id, pinned_at: expect.any(String) });
+    expect((await post('/org-test/organize', { projectId: 'missing' })).status).toBe(404);
+    expect((await post('/org-test/organize', { pinned: 1 })).status).toBe(400);
+    expect((await post('/org-test/organize', null)).status).toBe(400);
+    expect((await post('/projects', { name: ' ' })).status).toBe(400);
+    expect((await post(`/projects/${project.id}/rename`, { name: '圆锥曲线', expectedRevision: 1 })).status).toBe(200);
+    expect((await post(`/projects/${project.id}/delete`, { expectedRevision: 1 })).status).toBe(409);
+    expect((await post(`/projects/${project.id}/delete`, { expectedRevision: 2 })).status).toBe(200);
+    expect((await (await s.request('/api/coursewares/org-test')).json()).project_id).toBeNull();
+    expect((await post(`/projects/${project.id}/delete`, { expectedRevision: 2 })).status).toBe(404);
+  });
   it('rejects unauthenticated and cross-origin access', async () => {
     const s = await setup();
     expect((await fetch(`http://127.0.0.1:${s.port}/api/coursewares`)).status).toBe(403);
@@ -99,7 +119,7 @@ describe('library HTTP and window ownership', () => {
     expect((await s.request('/api/coursewares', { method: 'POST', body: JSON.stringify(payload) })).status).toBe(200);
     expect((await s.request('/api/coursewares', { method: 'POST', body: JSON.stringify(payload) })).status).toBe(409);
     expect((await s.request('/api/coursewares/test')).status).toBe(200);
-    expect((await (await s.request('/api/coursewares')).json()).capabilities).toEqual({ archive: true, permanentDelete: true });
+    expect((await (await s.request('/api/coursewares')).json()).capabilities).toEqual({ archive: true, permanentDelete: true, organization: true });
     expect((await s.request('/api/coursewares/test/archive', { method: 'POST', body: '{"expectedRevision":1}' })).status).toBe(200);
     expect((await (await s.request('/api/coursewares')).json()).records).toHaveLength(0);
     expect((await (await s.request('/api/coursewares?archived=1')).json()).records).toHaveLength(1);

@@ -91,6 +91,7 @@ try {
   // 取**第一个** text 输入：模型行在推理档位行之前（两行都是 type=text）。
   await providerPanel.locator('input[type="text"]').first().fill('test-model');
   if (!original.apiKeyConfigured) {
+    await providerPanel.locator('input[type="password"]').focus();
     await providerPanel.locator('input[type="password"]').fill('test-key-4321');
     wroteKey = true;
   }

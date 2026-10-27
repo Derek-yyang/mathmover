@@ -212,6 +212,16 @@ export interface CoursewareSummary {
   revision: number;
   /** 归档时间；未归档为 null。删除会永久移除记录。 */
   archived_at: string | null;
+  /** Sidebar organization is independent of content revisions and autosaves. */
+  pinned_at?: string | null;
+  project_id?: string | null;
+}
+
+export interface CoursewareProject {
+  id: string;
+  name: string;
+  created_at: string;
+  revision: number;
 }
 
 /**

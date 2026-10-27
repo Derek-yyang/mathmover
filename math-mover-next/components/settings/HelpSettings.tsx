@@ -47,7 +47,7 @@ const questions: Array<{ id: string; question: string; answer: ReactNode }> = [
 
 export default function HelpSettings() {
   const idPrefix = useId();
-  const [expandedQuestions, setExpandedQuestions] = useState(() => new Set(['images']));
+  const [expandedQuestions, setExpandedQuestions] = useState(() => new Set<string>());
 
   function toggleQuestion(id: string) {
     setExpandedQuestions(previous => {

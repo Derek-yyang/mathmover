@@ -33,7 +33,7 @@ export interface PickableModel {
 
 export interface ComposerModelPickerProps {
   models: PickableModel[];
-  /** 'live' = 真发现；'fallback' = 兜底别名，菜单说明可用性取决于配置 */
+  /** 模型目录来源；fallback 也可能是用户配置的具体模型 ID。 */
   source?: 'live' | 'fallback';
   selectedId: string;
   onSelect: (id: string) => void;
@@ -46,7 +46,7 @@ export interface ComposerModelPickerProps {
 }
 
 export default function ComposerModelPicker({
-  models, source, selectedId, onSelect, loading = false,
+  models, selectedId, onSelect, loading = false,
   reasoningOptions, selectedEffort, onSelectEffort,
 }: ComposerModelPickerProps) {
   const [open, setOpen] = useState(false);
@@ -129,9 +129,6 @@ export default function ComposerModelPicker({
           className="z-30 w-72 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-lg border border-[var(--mm-border-stone-200)] bg-[var(--mm-surface)] text-[var(--mm-text-stone-700)]"
         >
           {models.length > 1 && <div role="listbox" aria-label="模型列表" className="max-h-56 overflow-y-auto overscroll-contain py-1">
-            {source === 'fallback' && (
-              <p className="px-3 py-1.5 text-[11px] leading-4 text-[var(--mm-text-stone-600)]">以下为常用模型别名，可用性取决于当前配置。</p>
-            )}
             {models.map((m, index) => {
               const { name, detail } = modelPresentation(m.label);
               const checked = m.id === current?.id;
@@ -152,7 +149,6 @@ export default function ComposerModelPicker({
                     <span className="block break-words">{name}</span>
                     {detail && <span className="block break-words text-[11px] leading-[14px] text-[var(--mm-text-stone-600)]">{detail}</span>}
                   </span>
-                  {source === 'fallback' && m.id !== 'default' && <span className="shrink-0 text-xs text-[var(--mm-text-stone-600)]">别名</span>}
                 </button>
               );
             })}

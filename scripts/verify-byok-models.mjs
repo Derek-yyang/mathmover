@@ -66,7 +66,7 @@ try {
   await page.goto('http://localhost:3000/dashboard?action=new', { timeout: 60_000 });
   await open();
   assert(await fetchModels().isDisabled());
-  await endpoint.fill('https://draft.fixture.invalid/v1'); await key.fill('fixture-new-key');
+  await endpoint.fill('https://draft.fixture.invalid/v1'); await key.focus(); await key.fill('fixture-new-key');
   const keyBounds = await key.boundingBox(), modelBounds = await model.boundingBox();
   assert(Math.abs(keyBounds.y - modelBounds.y) <= 1, 'key and model fields align');
   await page.screenshot({ path: `${out}/form-light.png`, animations: 'disabled' });
@@ -117,6 +117,7 @@ try {
   assert.equal(await panel.getByText('已获取 1 个模型', { exact: true }).count(), 0);
   assert.equal(await model.inputValue(), 'custom-model');
   await fetchAndOpen(); await page.keyboard.press('Escape');
+  await key.focus();
   await key.fill('replacement-key');
   assert.equal(await panel.getByRole('button', { name: '从列表选择模型', exact: true }).count(), 0, 'key edits clear old models');
   await fetchAndOpen(); await page.keyboard.press('Escape');

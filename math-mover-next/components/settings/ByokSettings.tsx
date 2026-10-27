@@ -5,7 +5,7 @@
  *
  * 密钥模型（对齐 OpenDesign 桌面化形态）：key 由本机应用的数据目录保管，
  * 界面只显示「已配置（•••• 尾4位）」；改端点/模型时密钥留空即保留。
- * 连接测试按已保存的接口格式认证并读取模型列表，不发模型请求。
+ * 测试调用按已保存的接口格式向模型发送一次简短请求；获取模型列表是独立操作。
  */
 
 import { useEffect, useId, useRef, useState } from 'react';
@@ -41,6 +41,9 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
   /** 与 reasoningLevels 同步的镜像：连点开关时 state 还没重渲染，要读最新值 */
   const levelsRef = useRef('');
   const [apiKey, setApiKey] = useState('');
+  // This field replaces an API secret; it is not a saved login password.
+  // Only unlock on focus so opening settings cannot silently autofill a draft.
+  const [editingKey, setEditingKey] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
@@ -184,9 +187,9 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ runtimeId: 'byok' }),
     }).then(async (res) => {
-      const data = await res.json() as { ok?: boolean; message?: string };
+      const data = await res.json() as { ok?: boolean; message?: string; error?: string };
       if (testRequest.current !== controller) return;
-      setTest({ running: false, result: { ok: data.ok === true, message: data.message ?? (res.ok ? '测试完成。' : `测试失败（HTTP ${res.status}）。`) } });
+      setTest({ running: false, result: { ok: res.ok && data.ok === true, message: data.message ?? data.error ?? (res.ok ? '测试完成。' : `测试失败（HTTP ${res.status}）。`) } });
     }).catch((e) => {
       if (testRequest.current !== controller) return;
       setTest({ running: false, result: { ok: false, message: `测试请求失败：${e instanceof Error ? e.message : String(e)}` } });
@@ -251,10 +254,10 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <SettingsButton type="button" aria-label="测试 内置 Agent" title={testHint ?? '测试已保存的端点是否可达'}
+            <SettingsButton type="button" aria-label="测试调用 内置 Agent" title={testHint ?? '向已保存的模型发送一次简短请求，可能产生少量费用'}
               aria-describedby={testHint ? statusId : undefined}
               disabled={test.running || detecting || !!testHint} aria-busy={test.running} onClick={runTest}>
-              {test.running ? <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />测试中…</> : '测试'}
+              {test.running ? <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />测试中…</> : '测试调用'}
             </SettingsButton>
             {selected ? <span aria-label="当前使用 内置 Agent"
               className="inline-flex h-8 items-center gap-1.5 px-3 text-sm font-medium text-[var(--mm-text-emerald-800)]">
@@ -290,7 +293,9 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
             <div className="min-w-0 text-xs font-medium leading-5 text-[var(--mm-text-stone-600)]">
               <label htmlFor={`${statusId}-key`}>API 密钥</label>
               <input id={`${statusId}-key`} aria-describedby={`${statusId}-key-hint`}
-                className={input} type="password" autoComplete="off" placeholder={view.apiKeyConfigured ? '输入新密钥以更换' : 'sk-…'}
+                className={input} type="password" name="mathmover-api-key" autoComplete="new-password"
+                readOnly={!editingKey} onFocus={() => setEditingKey(true)} onBlur={() => setEditingKey(false)}
+                placeholder={view.apiKeyConfigured ? '输入新密钥以更换' : 'sk-…'}
                 disabled={!loaded || saving} value={apiKey} onChange={e => updateDraft(baseUrl, model, e.target.value)} />
               <p id={`${statusId}-key-hint`} className="mt-1 text-xs font-normal leading-4 text-[var(--mm-text-stone-600)]">
                 {loading ? '正在读取密钥状态…' : !loaded ? '配置读取失败，请重试。'

@@ -15,6 +15,61 @@ function make() { const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mathmover-
 const record = (changes: Partial<CoursewareInput> = {}): CoursewareInput => ({ id: 'course-1', expectedRevision: 0, title: '函数', commands: ['A=(0,0)'], messages: [{ id: 'u1', role: 'user', content: '画点', createdAt: 1 }], ggbBase64: ggb, ...changes });
 afterEach(() => { for (const s of stores.splice(0)) { try { s.close(); } catch {} } for (const root of roots.splice(0)) { if (!root.startsWith(path.join(os.tmpdir(), 'mathmover-library-test-'))) throw new Error('Unsafe cleanup'); fs.rmSync(root, { recursive: true, force: true }); } });
 describe('local courseware library', () => {
+  it('keeps organization through late autosaves, renames, archives, restart and backup', async () => {
+    const s = make(); const initial = s.save(record());
+    const project = s.createProject('  圆锥曲线  ');
+    const organized = s.organize(initial.id, { pinned: true, projectId: project.id });
+    expect(organized.revision).toBe(initial.revision);
+    expect(organized.updated_at).toBe(initial.updated_at);
+    // This snapshot was captured before pinning/moving; content saves must not undo either.
+    const saved = s.save(record({ expectedRevision: initial.revision }));
+    expect(saved.project_id).toBe(project.id); expect(saved.pinned_at).toBeTruthy();
+    const renamed = s.rename(saved.id, '椭圆', saved.revision);
+    const archived = s.setArchived(saved.id, true, renamed.revision);
+    expect(archived.project_id).toBe(project.id);
+    expect(s.setArchived(saved.id, false, archived.revision).pinned_at).toBe(organized.pinned_at);
+    const name = await s.createBackup();
+    const restored = new CoursewareStore(path.join(s.root, 'backups', name)); stores.push(restored);
+    expect(restored.projects()).toEqual([{ ...project, name: '圆锥曲线' }]);
+    expect(restored.list()[0].project_id).toBe(project.id);
+    expect(restored.get(saved.id).ggbBase64).toBe(ggb);
+    const reopened = new CoursewareStore(s.root); stores.push(reopened);
+    expect(reopened.list()[0].pinned_at).toBe(organized.pinned_at);
+    reopened.organize(saved.id, { pinned: false });
+    expect(reopened.get(saved.id).project_id).toBe(project.id);
+    const changed = reopened.updateProject(project.id, 'rename', project.revision, '解析几何')!;
+    expect(() => reopened.updateProject(project.id, 'delete', project.revision)).toThrow('其他窗口');
+    reopened.updateProject(project.id, 'delete', changed.revision);
+    expect(reopened.get(saved.id).project_id).toBeNull();
+    expect(reopened.get(saved.id).commands).toEqual(['A=(0,0)']);
+  });
+  it('validates organization and creates a project plus move atomically', () => {
+    const s = make(); s.save(record());
+    expect(() => s.createProject(' ')).toThrow('项目名称');
+    expect(() => s.createProject('a'.repeat(81))).toThrow('项目名称');
+    expect(() => s.createProject('不存在的课件', 'missing')).toThrow('不存在');
+    expect(s.projects()).toHaveLength(0);
+    const project = s.createProject('立体几何', 'course-1');
+    expect(s.get('course-1').project_id).toBe(project.id);
+    expect(() => s.organize('course-1', { projectId: 'missing', pinned: true })).toThrow('项目不存在');
+    expect(s.get('course-1').pinned_at).toBeNull();
+    expect(() => s.organize('missing', { pinned: true })).toThrow('课件不存在');
+    expect(() => s.organize('course-1', { pinned: 'true' as unknown as boolean })).toThrow('参数');
+    expect(() => s.organize('course-1', {})).toThrow('参数');
+    s.organize('course-1', { pinned: true, projectId: null });
+    expect(s.get('course-1').project_id).toBeNull();
+    s.remove(['course-1']);
+    expect(s.projects()).toHaveLength(1);
+    expect(() => s.organize('course-1', { pinned: true })).toThrow('不存在');
+  });
+  it('migrates a schema 2 library without changing content or revisions', () => {
+    const s = make(); s.save(record());
+    s.db.exec(`DROP INDEX courseware_project; ALTER TABLE coursewares DROP COLUMN project_id;
+      ALTER TABLE coursewares DROP COLUMN pinned_at; DROP TABLE courseware_projects; PRAGMA user_version=2;`);
+    const migrated = new CoursewareStore(s.root); stores.push(migrated);
+    expect(migrated.projects()).toEqual([]);
+    expect(migrated.get('course-1')).toMatchObject({ revision: 1, pinned_at: null, project_id: null, ggbBase64: ggb });
+  });
   it('uses user data instead of installation or cwd', () => {
     expect(dataDirectory({ LOCALAPPDATA: 'C:\\Users\\test\\AppData\\Local' }, 'win32')).toBe(path.join('C:\\Users\\test\\AppData\\Local', 'MathMover'));
     expect(dataDirectory({ MATHMOVER_DATA_DIR: roots[0] || os.tmpdir() })).toBe(path.resolve(roots[0] || os.tmpdir()));
@@ -23,7 +78,7 @@ describe('local courseware library', () => {
     const s = make(); s.save(record()); const reopened = new CoursewareStore(s.root); stores.push(reopened);
     expect(reopened.get('course-1').ggbBase64).toBe(ggb);
     expect(reopened.get('course-1').messages[0].content).toBe('画点');
-    expect(reopened.db.prepare('PRAGMA user_version').get()?.user_version).toBe(2);
+    expect(reopened.db.prepare('PRAGMA user_version').get()?.user_version).toBe(3);
   });
   it('rejects stale windows without overwriting history', () => {
     const s = make(); s.save(record()); s.save(record({ expectedRevision: 1, title: '新题' }));
@@ -108,6 +163,10 @@ describe('local courseware library', () => {
     const s = make(); s.save(record());
     const when = new Date().toISOString();
     s.db.exec(`ALTER TABLE coursewares ADD COLUMN deleted_at TEXT;
+      DROP INDEX courseware_project;
+      ALTER TABLE coursewares DROP COLUMN project_id;
+      ALTER TABLE coursewares DROP COLUMN pinned_at;
+      DROP TABLE courseware_projects;
       UPDATE coursewares SET deleted_at='${when}';
       ALTER TABLE coursewares DROP COLUMN archived_at;
       DROP TABLE deleted_courseware_ids; DROP TABLE pending_resource_deletions; PRAGMA user_version=1;`);

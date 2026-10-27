@@ -6,7 +6,8 @@ import { AssistantRuntimeProvider, useExternalStoreRuntime, type ExternalStoreTh
 import { ThreadList } from '@/components/assistant-ui/elements/thread-list.aui';
 import { Button } from '@/components/assistant-ui/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/components/assistant-ui/ui/dialog';
-import { archiveCourseware, deleteCoursewares, libraryRequest, renameCourseware, type CoursewareSummary } from '@/lib/courseware-client';
+import { archiveCourseware, deleteCoursewares, libraryRequest, renameCourseware, organizeCourseware, createCoursewareProject, updateCoursewareProject, type CoursewareSummary, type CoursewareProject } from '@/lib/courseware-client';
+import CoursewareOrganizationDialog, { type OrganizationRequest } from './CoursewareOrganizationDialog';
 import { useAgentRuntimeState } from './AgentRuntimeState';
 import { useSidebarState } from './SidebarState';
 import { useNewCourseware } from '@/hooks/useNewCourseware';
@@ -24,6 +25,9 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
   const newCourseware = useNewCourseware();
   const sidebar = useSidebarState();
   const [records, setRecords] = useState<CoursewareSummary[]>([]);
+  const [projects, setProjects] = useState<CoursewareProject[]>([]);
+  const [organizationAvailable, setOrganizationAvailable] = useState(false);
+  const [organizationRequest, setOrganizationRequest] = useState<OrganizationRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mutating, setMutating] = useState(false);
@@ -37,12 +41,56 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
   const mounted = useRef(false);
   const disabled = busy || mutating;
 
+  useEffect(() => {
+    const viewport = listRef.current?.querySelector<HTMLElement>('[data-slot="aui_thread-list-items"]');
+    if (!active || archived || !viewport?.closest('[data-sidebar="sidebar"]')) return;
+    let hideTimer: ReturnType<typeof setTimeout> | undefined;
+    const isOnRail = (event: PointerEvent) => {
+      const bounds = viewport.getBoundingClientRect();
+      const railWidth = Math.max(10, viewport.offsetWidth - viewport.clientWidth);
+      return viewport.scrollHeight > viewport.clientHeight && event.clientX >= bounds.right - railWidth && event.clientX <= bounds.right;
+    };
+    const onScroll = () => {
+      viewport.setAttribute('data-scrolling', '');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => viewport.removeAttribute('data-scrolling'), 800);
+    };
+    const onPointerMove = (event: PointerEvent) => viewport.toggleAttribute('data-rail-hover', event.pointerType !== 'touch' && isOnRail(event));
+    const onPointerLeave = () => viewport.removeAttribute('data-rail-hover');
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button === 0 && isOnRail(event)) viewport.setAttribute('data-scrollbar-dragging', '');
+    };
+    const onPointerUp = () => viewport.removeAttribute('data-scrollbar-dragging');
+    const onBlur = () => { onPointerLeave(); onPointerUp(); };
+    viewport.addEventListener('scroll', onScroll, { passive: true });
+    viewport.addEventListener('pointermove', onPointerMove, { passive: true });
+    viewport.addEventListener('pointerleave', onPointerLeave);
+    viewport.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      clearTimeout(hideTimer);
+      viewport.removeEventListener('scroll', onScroll);
+      viewport.removeEventListener('pointermove', onPointerMove);
+      viewport.removeEventListener('pointerleave', onPointerLeave);
+      viewport.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('blur', onBlur);
+      viewport.removeAttribute('data-scrolling');
+      onBlur();
+    };
+  }, [active, archived]);
+
   const refresh = useCallback(async () => {
     const version = ++requestVersion.current;
     try {
-      const result = await libraryRequest<{ records: CoursewareSummary[] }>('?archived=all');
+      const result = await libraryRequest<{ records: CoursewareSummary[]; projects?: CoursewareProject[]; capabilities?: { organization?: boolean } }>('?archived=all');
       if (!mounted.current || version !== requestVersion.current) return;
       setRecords(result.records);
+      setProjects(result.projects ?? []);
+      setOrganizationAvailable(!!result.capabilities?.organization);
       setError(null);
       setSelectedIds(previous => new Set([...previous].filter(id => result.records.some(record => record.id === id))));
     } catch (cause) {
@@ -97,6 +145,7 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
     id: record.id, remoteId: record.id, status: 'regular' as const,
     title: record.title || '未命名课件',
     archived_at: record.archived_at,
+    custom: { pinned_at: record.pinned_at, project_id: record.project_id },
     // The installed external-store core preserves additional state fields.
     lastMessageAt: new Date(record.updated_at),
   })), [records]);
@@ -144,9 +193,25 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
     onNew: async () => {}, adapters: { threadList: adapter },
   });
 
+  const organize = async (task: () => Promise<unknown>) => {
+    if (busy || mutationLock.current) throw new Error('请等待当前操作完成');
+    mutationLock.current = true; setMutating(true);
+    // Invalidate a list fetch started before the mutation.
+    requestVersion.current++;
+    try { await task(); await refresh(); }
+    finally { mutationLock.current = false; setMutating(false); }
+  };
+
   return <AssistantRuntimeProvider runtime={runtime}>
     <ThreadList archived={archived} portalContainer={portalContainer} disabled={disabled} error={error} onRetry={() => { void refresh(); }} searchRef={searchRef} rootRef={listRef}
       newDisabled={mutating} onNew={() => { if (!mutationLock.current) newCourseware(); }}
+      organization={organizationAvailable && !archived ? {
+        projects,
+        onCreate: () => setOrganizationRequest({ kind: 'create' }),
+        onProject: (project, kind) => setOrganizationRequest({ kind, project }),
+        onMove: id => { const record = records.find(record => record.id === id); if (record) setOrganizationRequest({ kind: 'move', record }); },
+        onPin: (id, pinned) => { void organize(() => organizeCourseware(id, { pinned })).catch(cause => setError(cause instanceof Error ? cause.message : String(cause))); },
+      } : undefined}
       // Intercept before the primitive changes its active thread, so cancelling
       // a draft guard leaves both the URL and list selection unchanged.
       onOpen={onOpenRequest ? openCourseware : undefined}
@@ -164,6 +229,11 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
         onToggle: id => setSelectedIds(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; }),
         onSelectAll: ids => setSelectedIds(new Set(ids)),
       }} />
+    {organizationRequest && <CoursewareOrganizationDialog request={organizationRequest} projects={projects} portalContainer={portalContainer}
+      onClose={() => setOrganizationRequest(null)}
+      onCreate={(name, id) => organize(() => createCoursewareProject(name, id))}
+      onMove={(id, projectId) => organize(() => organizeCourseware(id, { projectId }))}
+      onUpdate={(project, action, name) => organize(() => updateCoursewareProject(project, action, name))} />}
     <Dialog open={deleteIds.length > 0} onOpenChange={open => { if (!open && !mutating) setDeleteIds([]); }}>
       <DialogContent portalContainer={portalContainer} className="max-w-sm" onCloseAutoFocus={event => {
         event.preventDefault();

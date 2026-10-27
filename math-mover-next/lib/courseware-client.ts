@@ -4,11 +4,11 @@ import { readViewBounds } from './ggb-view-transition';
 import { readGgbGraphics } from './ggb-graphics-state';
 import { settleActivity } from './agent-activity';
 // 课件库契约是跨进程共享的，唯一真源在 ggb-core。只走 /types 子路径。
-import { CoursewareError, type CoursewareSummary } from '@mathmover/ggb-core/types';
+import { CoursewareError, type CoursewareSummary, type CoursewareProject } from '@mathmover/ggb-core/types';
 
 // CoursewareError 是类（值），必须用 export 而非 export type ——
 // useCoursewareLibrary 要拿它做 instanceof。export type 会把类擦成纯类型。
-export type { CoursewareSummary };
+export type { CoursewareSummary, CoursewareProject };
 export { CoursewareError };
 
 /** 带正文的完整课件记录。`messages` 是前端领域类型，故只在前端声明。 */
@@ -25,6 +25,20 @@ export async function libraryRequest<T>(path = '', body?: unknown): Promise<T> {
   return data;
 }
 export const historyChanged = (detail?: unknown) => window.dispatchEvent(new CustomEvent('mathmover_coursewares_changed', { detail }));
+export async function organizeCourseware(id: string, patch: { pinned?: boolean; projectId?: string | null }) {
+  const summary = await libraryRequest<CoursewareSummary>(`/${encodeURIComponent(id)}/organize`, patch);
+  historyChanged({ kind: 'organize', summary });
+  return summary;
+}
+export async function createCoursewareProject(name: string, coursewareId?: string) {
+  const project = await libraryRequest<CoursewareProject>('/projects', { name, coursewareId });
+  historyChanged({ kind: 'project' });
+  return project;
+}
+export async function updateCoursewareProject(project: CoursewareProject, action: 'rename' | 'delete', name?: string) {
+  await libraryRequest(`/projects/${encodeURIComponent(project.id)}/${action}`, { name, expectedRevision: project.revision });
+  historyChanged({ kind: 'project' });
+}
 
 /**
  * 把指令清单同步进工作稿 `construction.ggb.txt`（按**课件**落目录）。

@@ -16,6 +16,30 @@
 @source "../components/dashboard/ConversationIndex.tsx";
 @source "../components/dashboard/AgentChatPanel.tsx";
 
+@layer base {
+  button:not(:disabled):not([aria-disabled="true"]),
+  input[type="button"]:not(:disabled):not([aria-disabled="true"]),
+  input[type="reset"]:not(:disabled):not([aria-disabled="true"]),
+  input[type="submit"]:not(:disabled):not([aria-disabled="true"]),
+  a[href]:not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  button[aria-disabled="true"],
+  input[type="button"]:disabled,
+  input[type="reset"]:disabled,
+  input[type="submit"]:disabled,
+  input[type="button"][aria-disabled="true"],
+  input[type="reset"][aria-disabled="true"],
+  input[type="submit"][aria-disabled="true"],
+  a[aria-disabled="true"],
+  [role="button"][aria-disabled="true"] {
+    cursor: default;
+  }
+}
+
 :root {
   color-scheme: light;
   --background: #fdfcf8;
@@ -294,16 +318,21 @@ body {
 }
 
 /* The archive list scrolls in Settings; only the sidebar owns this rail. */
+@property --sidebar-scroll-thumb {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
 [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"] {
-  --sidebar-scroll-thumb: color-mix(in srgb, var(--mm-text-stone-400) 18%, transparent);
+  --sidebar-scroll-thumb: transparent;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--sidebar-scroll-thumb) transparent;
+  transition: --sidebar-scroll-thumb 180ms ease-out;
 }
-[data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]:is(:hover, :focus-within) { --sidebar-scroll-thumb: color-mix(in srgb, var(--mm-text-stone-400) 38%, transparent); }
+[data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]:is([data-scrolling], [data-rail-hover], [data-scrollbar-dragging]) { --sidebar-scroll-thumb: color-mix(in srgb, var(--mm-text-stone-400) 38%, transparent); }
 @supports selector(::-webkit-scrollbar) {
-  [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"],
-  [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]:is(:hover, :focus-within) { scrollbar-width: auto; scrollbar-color: auto; }
+  [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"] { scrollbar-width: auto; scrollbar-color: auto; }
   [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]::-webkit-scrollbar { width: 6px; }
   [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]::-webkit-scrollbar-track { background: transparent; }
   [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]::-webkit-scrollbar-thumb {
@@ -313,9 +342,13 @@ body {
     background: var(--sidebar-scroll-thumb);
     background-clip: padding-box;
   }
-  [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--mm-text-stone-400) 60%, transparent); }
+  [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]::-webkit-scrollbar-thumb:hover,
+  [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]::-webkit-scrollbar-thumb:active { background-color: color-mix(in srgb, var(--mm-text-stone-400) 60%, transparent); }
   [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
   [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"]::-webkit-scrollbar-corner { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"] { transition: none; }
 }
 @media (forced-colors: active) {
   [data-sidebar="sidebar"] [data-slot="aui_thread-list-items"] { scrollbar-color: auto; }

@@ -6,9 +6,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { CoursewareExportFormat } from './types';
 
 const formats = [
-  { type: 'html', label: '导出 HTML 课件', description: '浏览器交互网页', icon: Globe },
-  { type: 'ggb', label: '导出 .GGB 课件', description: 'GeoGebra 源文件', icon: FileCode2 },
-  { type: 'png', label: '导出 PNG 截图', description: '高清画板图片', icon: ImageIcon },
+  { type: 'html', label: 'HTML 交互课件', icon: Globe },
+  { type: 'ggb', label: 'GeoGebra 源文件', icon: FileCode2 },
+  { type: 'png', label: 'PNG 画板截图', icon: ImageIcon },
 ] as const;
 
 export default function CoursewareExportMenu({ onExport, disabled = false }: { onExport: (type: CoursewareExportFormat) => void; disabled?: boolean }) {
@@ -27,13 +27,12 @@ export default function CoursewareExportMenu({ onExport, disabled = false }: { o
     <DropdownMenuContent align="end" loop portalContainer={portalContainer}
       // Dismiss the menu without also leaving the presentation fallback.
       onEscapeKeyDown={event => event.stopPropagation()}
-      className="w-48 max-w-[calc(100vw-16px)]">
-      {formats.map(({ type, label, description, icon: Icon }) => <DropdownMenuItem key={type} disabled={disabled} textValue={label} onSelect={() => { if (!disabled) onExport(type); }}>
-        <Icon aria-hidden className="h-4 w-4 shrink-0 text-[var(--mm-text-emerald-700)]" />
-        <div>
-          <div className="text-sm font-medium">{label}</div>
-          <div className="text-xs leading-5 text-[var(--mm-text-stone-600)]">{description}</div>
-        </div>
+      className="w-[180px] max-w-[calc(100vw-16px)] rounded-lg p-1">
+      {formats.map(({ type, label, icon: Icon }) => <DropdownMenuItem key={type} disabled={disabled} textValue={label}
+        className="min-h-8 rounded-md px-2 py-1.5 text-[13px] font-normal leading-5"
+        onSelect={() => { if (!disabled) onExport(type); }}>
+        <Icon aria-hidden className="h-3.5 w-3.5 shrink-0 text-[var(--mm-text-stone-600)]" />
+        <span>{label}</span>
       </DropdownMenuItem>)}
     </DropdownMenuContent>
   </DropdownMenu>;

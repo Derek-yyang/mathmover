@@ -28,6 +28,12 @@ export default function DataStorageSettings({ active }: { active: boolean }) {
   useEffect(() => { setCanOpenDirectory(!!desktopBridge()?.openStorageDirectory); }, []);
 
   useEffect(() => {
+    if (copied !== 'data') return;
+    const timer = setTimeout(() => setCopied(null), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  useEffect(() => {
     if (!active) return;
     let cancelled = false;
     void libraryRequest<{ dataDirectory: string }>().then(data => {
@@ -93,11 +99,6 @@ export default function DataStorageSettings({ active }: { active: boolean }) {
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <h4 className="text-sm font-medium text-[var(--mm-text-stone-800)]">数据目录</h4>
         <div className="flex flex-wrap items-center gap-1">
-          <SettingsButton type="button" disabled={!directory || !!directoryError || !!copying}
-            onClick={() => void copyDirectory('data')} aria-busy={copying === 'data'}>
-            {copied === 'data' ? <Check aria-hidden className="h-4 w-4" /> : <Copy aria-hidden className="h-4 w-4" />}
-            {copied === 'data' ? '已复制' : '复制路径'}
-          </SettingsButton>
           {canOpenDirectory && <SettingsButton type="button" disabled={!directory || !!directoryError || !!opening}
             onClick={() => void openDirectory('data')} aria-busy={opening === 'data'}>
             <FolderOpen aria-hidden className="h-4 w-4" />打开文件夹
@@ -110,7 +111,16 @@ export default function DataStorageSettings({ active }: { active: boolean }) {
           setDirectoryError('');
           setRetry(value => value + 1);
         }}>重新读取</SettingsButton>
-      </div> : <p role="status" className="mt-2 select-all break-all rounded-lg bg-[var(--mm-bg-stone-100)] px-3 py-2.5 font-mono text-xs leading-6 text-[var(--mm-text-stone-700)]">{directory || '正在读取…'}</p>}
+      </div> : <div className="group relative mt-2 rounded-lg bg-[var(--mm-bg-stone-100)]">
+        <p role="status" className="select-all break-all py-2.5 pl-3 pr-12 font-mono text-xs leading-6 text-[var(--mm-text-stone-700)]">{directory || '正在读取…'}</p>
+        {directory && <button type="button" disabled={!!copying} onClick={() => void copyDirectory('data')}
+          aria-label={copied === 'data' ? '已复制路径' : '复制路径'} title={copied === 'data' ? '已复制' : '复制路径'}
+          aria-busy={copying === 'data'}
+          className={`absolute right-1.5 top-1.5 flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[var(--mm-text-stone-600)] transition-opacity duration-150 hover:bg-[var(--mm-bg-stone-200)] hover:text-[var(--mm-text-stone-800)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)] disabled:cursor-default motion-reduce:transition-none group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 ${copied === 'data' ? 'opacity-100' : 'opacity-0'}`}>
+          {copied === 'data' ? <Check aria-hidden className="h-4 w-4 text-[var(--mm-text-emerald-800)]" /> : <Copy aria-hidden className="h-4 w-4" />}
+        </button>}
+        <span role="status" className="sr-only">{copied === 'data' ? '路径已复制' : ''}</span>
+      </div>}
     </div>
     <div className="mt-6 border-t border-[var(--mm-border-stone-200)] pt-5">
       <div className="flex flex-wrap items-start justify-between gap-3">

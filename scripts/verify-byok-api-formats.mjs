@@ -37,7 +37,7 @@ const settings = page.getByRole('dialog', { name: '设置', exact: true });
 const panel = page.getByRole('tabpanel', { name: '模型 API', exact: true });
 const format = panel.getByRole('combobox', { name: '接口格式', exact: true });
 const endpoint = panel.getByRole('textbox', { name: 'API 端点', exact: true });
-const test = panel.getByRole('button', { name: '测试 内置 Agent', exact: true });
+const test = panel.getByRole('button', { name: '测试调用 内置 Agent', exact: true });
 const save = panel.getByRole('button', { name: '保存', exact: true });
 const open = async () => {
   await page.getByRole('button', { name: '设置', exact: true }).click();

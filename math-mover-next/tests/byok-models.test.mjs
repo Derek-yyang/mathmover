@@ -5,7 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { test } from 'node:test';
 import ts from 'typescript';
-import { fetchByokModels, probeByokConfig } from '../lib/byok-probe.ts';
+import { fetchByokModels } from '../lib/byok-probe.ts';
 import { saveByokConfig } from '../lib/byok-store.ts';
 
 let source = readFileSync(new URL('../app/api/byok/models/route.ts', import.meta.url), 'utf8');
@@ -74,6 +74,48 @@ test('draft discovery uses real HTTP with protocol auth, saved/new keys and no c
   }
 });
 
+for (const apiFormat of ['openai-chat', 'openai-responses']) test(`${apiFormat}: OpenCode discovers its separate catalog without changing the generation base`, async () => {
+  const config = { apiFormat, baseUrl: ' https://opencode.ai/inference/openai/v1/// ', apiKey: 'fixture-key', model: 'gpt-fixture' };
+  const before = { ...config };
+  const calls = [];
+  const request = async (url, init) => {
+    calls.push(url);
+    assert.equal(url, 'https://opencode.ai/inference/v1/models');
+    assert.equal(init.method, undefined, 'discovery remains GET-only');
+    assert.equal(init.body, undefined);
+    assert.equal(init.headers.authorization, 'Bearer fixture-key');
+    assert.equal(init.redirect, 'error');
+    return Response.json({ data: [{ id: 'gpt-fixture' }, { id: 'glm-fixture' }] });
+  };
+  const result = await fetchByokModels(config, request);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.models, [{ id: 'gpt-fixture', label: 'gpt-fixture' }, { id: 'glm-fixture', label: 'glm-fixture' }]);
+  assert.equal((await fetchByokModels(config, request, { allPages: false })).ok, true);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(config, before);
+  assert(!JSON.stringify(result).includes('fixture-key'));
+  const unauthorized = await fetchByokModels(config, async () => new Response('', { status: 401 }));
+  assert.equal(unauthorized.status, 'not-logged-in');
+});
+
+test('OpenCode catalog rewrite is restricted to the official OpenAI inference endpoint', async () => {
+  for (const [apiFormat, baseUrl] of [
+    ['openai-chat', 'https://fixture.invalid/inference/openai/v1'],
+    ['openai-chat', 'https://opencode.ai.fixture.invalid/inference/openai/v1'],
+    ['openai-chat', 'https://opencode.ai/other/v1'],
+    ['openai-chat', 'https://opencode.ai/inference/openai/v1-extra'],
+    ['openai-chat', 'https://opencode.ai:8443/inference/openai/v1'],
+    ['anthropic', 'https://opencode.ai/inference/openai/v1'],
+    ['gemini', 'https://opencode.ai/inference/openai/v1'],
+  ]) {
+    const result = await fetchByokModels({ apiFormat, baseUrl, apiKey: '' }, async url => {
+      assert.equal(url, `${baseUrl}/models`);
+      return Response.json(apiFormat === 'gemini' ? { models: [] } : { data: [] });
+    });
+    assert.equal(result.ok, true);
+  }
+});
+
 for (const apiFormat of ['anthropic', 'gemini']) test(`${apiFormat}: pagination, IDs, deduplication, malformed pages and cancellation`, async () => {
   const config = { apiFormat, baseUrl: 'https://fixture.invalid/v1', apiKey: 'fixture-key', model: 'unused' };
   const urls = [];
@@ -89,8 +131,8 @@ for (const apiFormat of ['anthropic', 'gemini']) test(`${apiFormat}: pagination,
   assert.equal(urls.length, 2);
   assert.equal(new URL(urls[1]).searchParams.get(apiFormat === 'gemini' ? 'pageToken' : 'after_id'), apiFormat === 'gemini' ? 'next/token' : 'first');
   urls.length = 0;
-  assert.equal((await probeByokConfig(config, fixture)).ok, true);
-  assert.equal(urls.length, 1, 'connection test reads only one page');
+  assert.equal((await fetchByokModels(config, fixture, { allPages: false })).ok, true);
+  assert.equal(urls.length, 1, 'single-page discovery reads only one page');
   const broken = await fetchByokModels(config, async () => Response.json(apiFormat === 'gemini'
     ? { models: [], nextPageToken: 'repeat' } : { data: [], has_more: true, last_id: 'repeat' }));
   assert.equal(broken.ok, false); assert.match(broken.message, /分页/);

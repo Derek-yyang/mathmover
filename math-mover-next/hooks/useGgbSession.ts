@@ -502,7 +502,9 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
       try {
         ggbApplet.getBase64((base64Data: string) => {
           try {
-            const html = createCoursewareHTML(base64Data, title);
+            let view: unknown;
+            try { view = ggbApplet.getViewProperties?.(1); } catch { /* Older runtimes can still export the snapshot. */ }
+            const html = createCoursewareHTML(base64Data, title, view);
             const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);

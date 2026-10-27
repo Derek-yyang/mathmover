@@ -12,6 +12,14 @@ dashboard shell, runtime transport and approved image composer are retained.
 
 Local integration changes:
 
+- The courseware ThreadList retains assistant-ui ItemByIndex scopes, selection,
+  rename, archive and delete menus. The host supplies persistent pin/project
+  metadata through `custom`, with collapsible pinned/project/recent sections.
+  Pins are shortcuts and keep project membership; bulk selection deduplicates
+  courseware IDs. Search temporarily opens sections. Project and move dialogs
+  open after Radix menu focus scopes close; disclosure motion respects reduced
+  motion. Organization is saved by daemon, independently of content revisions.
+
 - Settings uses the existing official shadcn/Radix Dialog foundation in
   `ui/dialog.tsx`, retaining its 840x640 panel, 12px radius and MathMover tokens.
   Radix owns modal focus looping, outside dismissal and nested Escape priority;

@@ -5,7 +5,8 @@ import { Button } from "@/components/assistant-ui/ui/button";
 import { Input } from "@/components/assistant-ui/ui/input";
 import { Skeleton } from "@/components/assistant-ui/ui/skeleton";
 import { cn } from "@/components/assistant-ui/utils";
-import { dropdownMenuContentClassName } from '../ui/dropdown-menu';
+import { dropdownMenuContentClassName, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../ui/dropdown-menu';
+import type { CoursewareProject } from '@/lib/courseware-client';
 import {
   AuiIf,
   ThreadListItemMorePrimitive,
@@ -16,6 +17,11 @@ import {
 } from "@assistant-ui/react";
 import {
   CheckIcon,
+  ChevronRightIcon,
+  FolderIcon,
+  FolderInputIcon,
+  PinIcon,
+  PinOffIcon,
   FolderOpenIcon,
   ArchiveIcon,
   ArchiveRestoreIcon,
@@ -38,6 +44,7 @@ import {
   useSyncExternalStore,
   type ComponentPropsWithoutRef,
   type FC,
+  type ReactNode,
 } from "react";
 import { AnimatePresence, LayoutGroup, motion, useIsPresent, useReducedMotion } from "framer-motion";
 import { Popover as PopoverPrimitive } from 'radix-ui';
@@ -50,6 +57,13 @@ type ThreadListSelection = {
   onSelectAll: (ids: string[]) => void;
 };
 type ThreadListHost = {
+  organization?: {
+    projects: CoursewareProject[];
+    onCreate: () => void;
+    onProject: (project: CoursewareProject, action: 'rename' | 'delete') => void;
+    onMove: (id: string) => void;
+    onPin: (id: string, pinned: boolean) => void;
+  };
   archived?: boolean;
   portalContainer?: HTMLElement | null;
   disabled?: boolean;
@@ -86,7 +100,7 @@ export const ThreadList: FC<ThreadListHost & {
         {onRetry && <button type="button" className="ml-2 rounded underline focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]" onClick={onRetry}>重试</button>}
       </div>}
       {(currentCount > 0 || host.selection?.enabled) && host.selection && <div className="flex shrink-0 items-center justify-between gap-1 pt-2 pb-1 text-xs text-[var(--mm-text-stone-600)]">
-        <span className="px-2.5">{archived ? `已归档 (${currentCount})` : '最近课件'}</span>
+        <span className="px-2.5">{archived ? `已归档 (${currentCount})` : host.organization ? '课件' : '最近课件'}</span>
         <button type="button" disabled={host.disabled} onClick={host.selection.onToggleMode} className="min-h-8 shrink-0 rounded-md px-1.5 py-1.5 hover:bg-muted focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)] disabled:opacity-50">
           {host.selection.enabled ? '取消选择' : '选择'}
         </button>
@@ -298,7 +312,9 @@ const ThreadListItemGroups: FC<{ searchQuery?: string }> = ({
   const items = useAuiState(s => s.threads.threadItems);
   const activeId = useAuiState(s => s.threads.mainThreadId);
   const titles = new Map(items.map(item => [item.id, item.title]));
-  const { archived } = useContext(HostContext);
+  const { archived, organization } = useContext(HostContext);
+
+  if (organization && !archived) return <OrganizedThreadList searchQuery={searchQuery} />;
 
   if (query && filteredIndices.length === 0) {
     return (
@@ -322,6 +338,81 @@ const ThreadListItemGroups: FC<{ searchQuery?: string }> = ({
     ...group.indices.map(index => <AnimatedThreadListItem key={threadIds[index]} index={index} archived={!!archived} title={titles.get(threadIds[index])} active={activeId === threadIds[index]} />),
   ]) : filteredIndices.map(index => <AnimatedThreadListItem key={threadIds[index]} index={index} archived={!!archived} title={titles.get(threadIds[index])} active={activeId === threadIds[index]} />);
   return <LayoutGroup><AnimatePresence initial={false} mode="popLayout">{rows}</AnimatePresence></LayoutGroup>;
+};
+
+/** Keep the upstream ItemByIndex scopes, including selection and row actions.
+ * Pins are shortcuts: project membership remains visible in its project too. */
+const OrganizedThreadList: FC<{ searchQuery: string }> = ({ searchQuery }) => {
+  const { organization, disabled, portalContainer } = useContext(HostContext);
+  const { threadIds, filteredIndices, groups } = useThreadListGroups(searchQuery);
+  const items = useAuiState(s => s.threads.threadItems);
+  const activeId = useAuiState(s => s.threads.mainThreadId);
+  const byId = new Map(items.map(item => [item.id, item]));
+  const searching = !!searchQuery.trim();
+  if (!organization) return null;
+  const pinned = filteredIndices.filter(index => byId.get(threadIds[index])?.custom?.pinned_at)
+    .sort((a, b) => String(byId.get(threadIds[b])?.custom?.pinned_at).localeCompare(String(byId.get(threadIds[a])?.custom?.pinned_at)));
+  const projectIds = new Set(organization.projects.map(project => project.id));
+  const recent = new Set(filteredIndices.filter(index => {
+    const custom = byId.get(threadIds[index])?.custom;
+    return !custom?.pinned_at && !projectIds.has(String(custom?.project_id));
+  }));
+  const row = (index: number) => <AnimatedThreadListItem key={threadIds[index]} index={index} archived={false}
+    title={byId.get(threadIds[index])?.title} active={activeId === threadIds[index]} />;
+  const projects = organization.projects.map(project => ({ project, indices: filteredIndices.filter(index => byId.get(threadIds[index])?.custom?.project_id === project.id) }))
+    .filter(({ project, indices }) => !searching || indices.length || project.name.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+  return <>
+    {pinned.length > 0 && <ThreadListSection label="置顶" forceOpen={searching}><LayoutGroup><AnimatePresence initial={false} mode="popLayout">{pinned.map(row)}</AnimatePresence></LayoutGroup></ThreadListSection>}
+    <ThreadListSection label="项目" forceOpen={searching} action={<button type="button" aria-label="新建项目" title="新建项目" disabled={disabled}
+      onClick={organization.onCreate} className="pointer-events-none flex size-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity duration-150 group-hover/section:pointer-events-auto group-hover/section:opacity-100 group-focus-within/section:pointer-events-auto group-focus-within/section:opacity-100 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 motion-reduce:transition-none [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"><PlusIcon aria-hidden className="size-3.5" /></button>}>
+      {projects.map(({ project, indices }) => <ThreadListSection key={project.id} label={project.name} project forceOpen={searching}
+        action={<ProjectMenu project={project} disabled={disabled} portalContainer={portalContainer} onAction={action => organization.onProject(project, action)} />}>
+        {indices.length ? <LayoutGroup><AnimatePresence initial={false} mode="popLayout">{indices.map(row)}</AnimatePresence></LayoutGroup>
+          : <p className="px-2.5 py-2 text-xs leading-5 text-muted-foreground">{searching ? '没有匹配的课件' : '从课件菜单移入这个项目。'}</p>}
+      </ThreadListSection>)}
+    </ThreadListSection>
+    {recent.size > 0 && <ThreadListSection label="最近" forceOpen={searching}><LayoutGroup><AnimatePresence initial={false} mode="popLayout">
+      {groups ? groups.flatMap(group => {
+        const indices = group.indices.filter(index => recent.has(index));
+        return indices.length ? [<div key={`recent-${group.label}`} className="px-2.5 pt-2 pb-1 text-xs text-muted-foreground">{group.label}</div>, ...indices.map(row)] : [];
+      }) : [...recent].map(row)}
+    </AnimatePresence></LayoutGroup></ThreadListSection>}
+    {!threadIds.length && <p className="px-2.5 py-4 text-sm text-muted-foreground">点击上方“新建课件”开始。</p>}
+    {searching && !filteredIndices.length && !projects.length && <p className="px-2.5 py-4 text-sm text-muted-foreground">没有找到匹配的课件</p>}
+  </>;
+};
+
+const ThreadListSection: FC<{ label: string; project?: boolean; forceOpen?: boolean; action?: ReactNode; children: ReactNode }> = ({ label, project, forceOpen, action, children }) => {
+  const [expanded, setExpanded] = useState(true);
+  const contentId = useId();
+  const open = forceOpen || expanded;
+  return <section data-slot={project ? 'courseware-project' : 'courseware-section'} className={cn('shrink-0', project ? 'pl-2' : 'pt-2')}>
+    <div className="group/section flex min-h-8 items-center gap-1 text-muted-foreground">
+      <button type="button" aria-expanded={open} aria-controls={contentId} onClick={() => setExpanded(value => !value)}
+        className={cn('flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2.5 text-left focus-visible:outline-2 focus-visible:outline-ring',
+          project ? 'text-sm text-foreground hover:bg-muted' : 'text-xs font-medium')}>
+        {project && <FolderIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />}
+        <span className="truncate">{label}</span><ChevronRightIcon aria-hidden className={cn('size-3 shrink-0 transition-transform duration-200 motion-reduce:transition-none', open && 'rotate-90')} />
+      </button>
+      {action}
+    </div>
+    <div id={contentId} inert={!open} aria-hidden={!open} className={cn('grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none', open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}>
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  </section>;
+};
+
+const ProjectMenu: FC<{ project: CoursewareProject; disabled?: boolean; portalContainer?: HTMLElement | null; onAction: (action: 'rename' | 'delete') => void }> = ({ project, disabled, portalContainer, onAction }) => {
+  const pendingAction = useRef<'rename' | 'delete' | null>(null);
+  return <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" disabled={disabled} aria-label={`${project.name}的项目操作`}
+    className="mr-1 size-6 shrink-0 opacity-0 group-hover/section:opacity-100 group-focus-within/section:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"><MoreHorizontalIcon aria-hidden className="size-3.5" /></Button></DropdownMenuTrigger>
+    <DropdownMenuContent portalContainer={portalContainer} side="right" align="start" onCloseAutoFocus={event => {
+      if (pendingAction.current) { event.preventDefault(); const action = pendingAction.current; pendingAction.current = null; onAction(action); }
+    }}>
+      <DropdownMenuItem onSelect={() => { pendingAction.current = 'rename'; }}><PencilIcon aria-hidden className="size-4" />重命名项目</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => { pendingAction.current = 'delete'; }} className="text-destructive"><TrashIcon aria-hidden className="size-4" />删除项目</DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>;
 };
 
 // A removed row must release its index-based runtime scope immediately. The
@@ -406,6 +497,7 @@ export const ThreadListItem: FC = () => {
   const id = useAuiState(s => s.threadListItem.id);
   const isCurrent = useAuiState(s => s.threadListItem.id === s.threads.mainThreadId);
   const isRunning = useAuiState((s) => s.threadListItem.isRunning);
+  const pinned = useAuiState(s => !!s.threadListItem.custom?.pinned_at);
   const [isRenaming, setIsRenaming] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef(false);
@@ -450,6 +542,10 @@ export const ThreadListItem: FC = () => {
               className="text-muted-foreground me-1.5 size-3.5 shrink-0 animate-spin"
             />
           )}
+          {pinned && !isRunning && <>
+            <PinIcon aria-hidden data-slot="aui_thread-list-item-pinned" className="me-1.5 size-3.5 shrink-0 text-[var(--mm-text-emerald-700)]" />
+            <span className="sr-only">已置顶</span>
+          </>}
           <span
             data-slot="aui_thread-list-item-title"
             className="min-w-0 flex-1 truncate"
@@ -532,8 +628,10 @@ const ThreadListItemRename: FC<{
 };
 
 const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
-  const { disabled, onDelete, portalContainer } = useContext(HostContext);
+  const { disabled, onDelete, portalContainer, organization } = useContext(HostContext);
   const id = useAuiState(s => s.threadListItem.id);
+  const pinned = useAuiState(s => !!s.threadListItem.custom?.pinned_at);
+  const organizingRef = useRef<'move' | 'pin' | null>(null);
   const archived = useAuiState(s => s.threadListItem.status === 'archived');
   const renamingRef = useRef(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -618,6 +716,11 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
           // Wait for the menu's focus scope to unmount before opening another
           // floating surface; its exit animation must not steal popup focus.
           if (confirmingRef.current) { event.preventDefault(); confirmingRef.current = false; setDeleteOpen(true); }
+          if (organizingRef.current) {
+            const action = organizingRef.current; organizingRef.current = null;
+            if (action === 'move') { event.preventDefault(); organization?.onMove(id); }
+            else organization?.onPin(id, !pinned);
+          }
         }}
         side="right"
         align="start"
@@ -625,6 +728,14 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
         data-slot="aui_thread-list-item-more-content"
         className={dropdownMenuContentClassName}
       >
+        {organization && !archived && <>
+          <ThreadListItemMorePrimitive.Item disabled={disabled} onSelect={() => { organizingRef.current = 'pin'; }}
+            className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none hover:bg-accent focus:bg-accent">
+            {pinned ? <PinOffIcon aria-hidden className="size-4" /> : <PinIcon aria-hidden className="size-4" />}{pinned ? '取消置顶' : '置顶'}
+          </ThreadListItemMorePrimitive.Item>
+          <ThreadListItemMorePrimitive.Item disabled={disabled} onSelect={() => { organizingRef.current = 'move'; }}
+            className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none hover:bg-accent focus:bg-accent"><FolderInputIcon aria-hidden className="size-4" />移动到项目</ThreadListItemMorePrimitive.Item>
+        </>}
         <ThreadListItemMorePrimitive.Item
           data-slot="aui_thread-list-item-more-item"
           className="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none"

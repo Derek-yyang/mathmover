@@ -16,7 +16,7 @@ page.on('pageerror', error => errors.push(error.message));
 await page.route('**/api/agent**', async route => {
   const req = route.request();
   if (req.method() === 'GET') return route.fulfill({ json: { runtimes: [] } });
-  assert.equal(new URL(req.url()).pathname, '/api/agent/test', 'no model generation');
+  assert.equal(new URL(req.url()).pathname, '/api/agent/test', 'only the dedicated test endpoint is called');
   assert.deepEqual(req.postDataJSON(), { runtimeId: 'byok' }, 'test does not transmit draft values/keys');
   const tested = { baseUrl: config.baseUrl, model: config.model };
   tests.push(tested);
@@ -41,7 +41,7 @@ const panel = page.getByRole('tabpanel', { name: '模型 API', exact: true });
 const endpoint = panel.getByRole('textbox', { name: 'API 端点', exact: true });
 const model = panel.getByRole('textbox', { name: '模型', exact: true });
 const key = panel.locator('input[type=password]');
-const test = panel.getByRole('button', { name: /^测试 / });
+const test = panel.getByRole('button', { name: /^测试调用 / });
 const save = panel.getByRole('button', { name: '保存', exact: true });
 const result = panel.getByRole('status').filter({ hasText: '测试结果：' });
 const dirty = panel.getByText('配置已修改，请先保存再测试。', { exact: true });
@@ -99,15 +99,18 @@ try {
   holdTest = true; await test.click();
   await wait(() => !!releaseTest);
   assert(await save.isDisabled(), 'save cannot race a running test');
+  await key.focus();
   await key.fill('fixture-replacement-key');
   await dirty.waitFor();
   assert(await test.isDisabled()); assert(await save.isEnabled());
   // Revert the edit and let the obsolete response arrive. It must stay discarded.
+  await key.focus();
   await key.fill('');
   holdTest = false; releaseTest();
   await page.waitForTimeout(200);
   assert.equal(await result.count(), 0, 'late response cannot restore an invalidated result');
   await testSaved();
+  await key.focus();
   await key.fill('fixture-replacement-key');
   assert.equal(await result.count(), 0); assert(await test.isDisabled());
   saveMode = 'fast'; await save.click();

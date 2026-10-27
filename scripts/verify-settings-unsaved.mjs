@@ -53,7 +53,7 @@ const discard = confirm.getByRole('button', { name: '放弃并关闭', exact: tr
 async function openApi() {
   await trigger.click();
   await settings.getByRole('tab', { name: '模型 API', exact: true }).click();
-  await page.waitForFunction(() => !document.querySelector('#settings-panel-providers input[type=url]')?.disabled);
+  await page.waitForFunction(() => document.querySelector('[data-slot="settings-dialog"] input[type=url]')?.disabled === false);
 }
 async function expectClosed() {
   await settings.waitFor({ state: 'detached' });
@@ -64,6 +64,13 @@ try {
   await page.goto('http://localhost:3000/dashboard?action=new', { timeout: 60_000 });
   await page.addStyleTag({ content: 'nextjs-portal {display:none !important;}' });
   await openApi();
+  assert.equal(await key.inputValue(), '', 'saved credentials never fill the replacement field');
+  assert.equal(await key.getAttribute('autocomplete'), 'new-password');
+  assert(await key.evaluate(el => el.readOnly), 'replacement field blocks automatic fill until focused');
+  await key.focus();
+  assert(!(await key.evaluate(el => el.readOnly)), 'keyboard focus permits editing');
+  await endpoint.focus();
+  assert(await save.isDisabled(), 'focus and blur alone are not edits');
   await close.click();
   await expectClosed();
   assert.equal(await confirm.count(), 0, 'pristine close is immediate');
@@ -71,6 +78,7 @@ try {
   await openApi();
   await endpoint.fill('https://draft.fixture.invalid/v1');
   await model.fill('draft-model');
+  await key.focus();
   await key.fill('fixture-unsaved-secret');
   await close.click();
   await confirm.waitFor();
@@ -90,6 +98,7 @@ try {
   await page.waitForFunction(() => document.activeElement?.getAttribute('type') === 'url');
   await endpoint.fill(config.baseUrl);
   await model.fill(config.model);
+  await key.focus();
   await key.fill('');
   await page.keyboard.press('Escape');
   await expectClosed();
@@ -103,6 +112,7 @@ try {
   await expectClosed();
   await openApi();
   assert.equal(await model.inputValue(), config.model, 'discard restores saved model on reopening');
+  await key.focus();
   await key.fill('fixture-unsaved-secret');
   await page.mouse.click(5, 300);
   await confirm.waitFor();

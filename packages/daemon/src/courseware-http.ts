@@ -33,9 +33,16 @@ export async function libraryRequest(req: http.IncomingMessage, res: http.Server
       if (url.searchParams.has('trash')) throw new CoursewareError(400, '回收站接口已移除，请使用归档');
       const archived = url.searchParams.get('archived');
       send(200, { records: archived === 'all' ? [...store.list(), ...store.list(true)] : store.list(archived === '1'), dataDirectory: store.root,
-        capabilities: { archive: true, permanentDelete: true } });
+        projects: store.projects(), capabilities: { archive: true, permanentDelete: true, organization: true } });
     }
     else if (!parts.length && method === 'POST') send(200, store.save(await readJson(req)));
+    else if (parts[0] === 'projects' && parts.length === 1 && method === 'POST') {
+      const body = await readJson(req); send(200, store.createProject(body?.name, body?.coursewareId));
+    }
+    else if (parts[0] === 'projects' && parts.length === 3 && ['rename', 'delete'].includes(parts[2]) && method === 'POST') {
+      const body = await readJson(req);
+      send(200, store.updateProject(parts[1], parts[2] as 'rename' | 'delete', body.expectedRevision, body.name));
+    }
     else if (parts[0] === 'delete' && method === 'POST') {
       const body = await readJson(req);
       if (!Array.isArray(body.ids)) throw new CoursewareError(400, '缺少课件 ID');
@@ -50,6 +57,11 @@ export async function libraryRequest(req: http.IncomingMessage, res: http.Server
       const asset = store.asset(parts[1]); res.writeHead(200, { 'content-type': asset.mime, 'cache-control': 'private, max-age=31536000, immutable', 'x-content-type-options': 'nosniff' }); res.end(asset.data);
     } else if (parts.length === 1 && method === 'GET') send(200, store.get(parts[0]));
     else if (parts[1] === 'rename' && parts.length === 2 && method === 'POST') { const body = await readJson(req); send(200, store.rename(parts[0], body.title, body.expectedRevision)); }
+    else if (parts[1] === 'organize' && parts.length === 2 && method === 'POST') {
+      const body = await readJson(req);
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new CoursewareError(400, '课件整理参数不合法');
+      send(200, store.organize(parts[0], body));
+    }
     else if ((parts[1] === 'archive' || parts[1] === 'unarchive') && parts.length === 2 && method === 'POST') {
       const body = await readJson(req); send(200, store.setArchived(parts[0], parts[1] === 'archive', body.expectedRevision));
     }
