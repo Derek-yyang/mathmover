@@ -6,11 +6,11 @@ import { stubConstructionDraft } from './lib/stub-construction.mjs';
 // Isolated UI fixtures only: no real secrets, backend writes or model requests.
 const out = 'spike-out/byok-models';
 await mkdir(out, { recursive: true });
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'chrome', headless: true });
 const page = await browser.newPage({ viewport: { width: 1544, height: 900 } });
 page.setDefaultTimeout(15_000);
 const errors = [], requests = [], saves = [];
-let config = { apiFormat: 'openai-chat', baseUrl: '', model: '', apiKeyConfigured: false, apiKeyTail: '' };
+let config = { apiFormat: 'openai-chat', baseUrl: '', model: '', reasoningLevels: '', apiKeyConfigured: false, apiKeyTail: '' };
 let mode = 'ok', release;
 const models = [
   { id: 'alpha-fixture', label: 'Alpha Fixture' }, { id: 'beta-fixture', label: 'Beta Fixture' },
@@ -25,8 +25,11 @@ await page.route('**/api/byok', route => {
   if (route.request().method() === 'GET') return route.fulfill({ json: config });
   const body = route.request().postDataJSON(); saves.push(body);
   config = { ...config, baseUrl: body.baseUrl.trim(), model: body.model.trim(), apiFormat: body.apiFormat,
-    apiKeyConfigured: true, apiKeyTail: '1234' };
-  return route.fulfill({ json: config });
+    reasoningLevels: body.reasoningLevels, apiKeyConfigured: body.apiKey !== null, apiKeyTail: body.apiKey === null ? '' : '1234' };
+  return route.fulfill({ json: { ...config, runtime: {
+    id: 'byok', name: '内置Agent', usable: true, authStatus: 'ok', canAttachImages: true,
+    models: { source: 'fallback', list: [{ id: config.model, label: config.model }] },
+  } } });
 });
 await page.route('**/api/byok/models', async route => {
   requests.push(route.request().postDataJSON());
@@ -116,11 +119,22 @@ try {
   assert.equal(await picker.count(), 0, 'stale responses cannot open the old list');
   assert.equal(await panel.getByText('已获取 1 个模型', { exact: true }).count(), 0);
   assert.equal(await model.inputValue(), 'custom-model');
+  assert(await fetchModels().isDisabled(), 'changed origins require a replacement key');
+  assert(await panel.getByRole('button', { name: '保存', exact: true }).isDisabled());
+  assert.equal(await panel.getByRole('checkbox', { name: '此地址不使用 API 密钥', exact: true }).count(), 0);
+  await panel.getByText('请填写新地址对应的 API 密钥。', { exact: true }).waitFor();
+  await endpoint.fill('https://another.fixture.invalid/v1');
+  assert(await fetchModels().isDisabled());
+  await endpoint.fill('https://draft.fixture.invalid/v2');
   await fetchAndOpen(); await page.keyboard.press('Escape');
+  assert.equal(requests.at(-1).apiKey, '');
+  await endpoint.fill('https://changed.fixture.invalid/v1');
+  assert(await fetchModels().isDisabled());
   await key.focus();
   await key.fill('replacement-key');
   assert.equal(await panel.getByRole('button', { name: '从列表选择模型', exact: true }).count(), 0, 'key edits clear old models');
   await fetchAndOpen(); await page.keyboard.press('Escape');
+  assert.equal(requests.at(-1).apiKey, 'replacement-key', 'changed origins use only the newly entered key');
   await panel.getByRole('combobox', { name: '接口格式', exact: true }).click();
   await page.getByRole('option', { name: 'Gemini Native', exact: true }).click();
   assert.equal(await panel.getByRole('button', { name: '从列表选择模型', exact: true }).count(), 0, 'format edits clear old models');
@@ -150,6 +164,23 @@ try {
   await panel.getByRole('button', { name: '保存', exact: true }).click();
   await panel.getByText('已保存', { exact: true }).waitFor();
   assert.equal(saves.at(-1).model, 'custom-model');
+  await page.setViewportSize({ width: 1544, height: 900 });
+  await endpoint.fill('https://final.fixture.invalid/v1');
+  assert(await fetchModels().isDisabled());
+  assert(await panel.getByRole('button', { name: '保存', exact: true }).isDisabled());
+  await panel.getByText('地址已更换，不会沿用原密钥。', { exact: true }).waitFor();
+  await page.screenshot({ path: `${out}/key-origin-changed-dark.png`, animations: 'disabled' });
+  await page.evaluate(() => window.dispatchEvent(new StorageEvent('storage', { key: 'mm.theme', newValue: 'light' })));
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  await page.screenshot({ path: `${out}/key-origin-changed-light.png`, animations: 'disabled' });
+  await key.focus(); await key.fill('final-replacement-key');
+  await panel.getByRole('button', { name: '保存', exact: true }).click();
+  await panel.getByText('已保存', { exact: true }).waitFor();
+  assert.equal(saves.at(-1).apiKey, 'final-replacement-key', 'changed-address save uses the replacement key');
+  assert.equal(await key.inputValue(), '');
+  assert(!(await key.isDisabled()));
+  await settings.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await settings.waitFor({ state: 'detached' });
   assert.deepEqual(errors, []);
-  console.log('PASS: draft discovery, searchable keyboard selection, manual IDs, empty/error/retry, stale cancellation, invalidation, no-save side effects, modal Escape/focus/wheel and light/dark/compact layout.');
+  console.log('PASS: model discovery and picker; cross-origin credential guard, same-origin reuse and replacement key saves; modal focus and light/dark/compact layout.');
 } finally { release?.(); await browser.close(); }

@@ -50,20 +50,21 @@ const ready = async i => {
   await page.getByRole('button', { name: `重命名课件：保护验证${i + 1}`, exact: true }).waitFor();
   await page.waitForFunction(() => !document.querySelector('[data-slot=board-interaction-guard]'));
 };
-const guard = page.locator('[data-slot=board-interaction-guard]');
+const active = page.locator('[data-slot=courseware-workspace][data-active=true]');
+const guard = active.locator('[data-slot=board-interaction-guard]');
 const assertProtected = async () => {
-  await page.getByText('正在打开课件…', { exact: true }).waitFor();
+  await active.getByText('正在打开课件…', { exact: true }).waitFor();
   assert(await guard.isVisible());
   for (const name of ['显示坐标轴', '显示网格', '画板设置', '重置视图居中', '导出']) {
-    assert(await page.getByRole('button', { name, exact: true }).isDisabled(), `${name} blocked during opening`);
+    assert(await active.getByRole('button', { name, exact: true }).isDisabled(), `${name} blocked during opening`);
   }
-  assert(await page.getByRole('button', { name: '发送消息', exact: true }).isDisabled());
-  assert.equal(await page.locator('[aria-label=数学课件画布]').getAttribute('aria-busy'), 'true');
+  assert(await active.getByRole('button', { name: '发送消息', exact: true }).isDisabled());
+  assert.equal(await active.locator('[aria-label=数学课件画布]').getAttribute('aria-busy'), 'true');
   assert(await guard.evaluate(el => {
     const r = el.getBoundingClientRect();
     return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('[data-slot=board-interaction-guard]') === el;
   }), 'overlay intercepts canvas pointers');
-  assert(await page.locator('[aria-label=数学课件画布] > div[inert]').count() === 1, 'native canvas keyboard interaction is inert');
+  assert(await active.locator('[aria-label=数学课件画布] > div[inert]').count() === 1, 'native canvas keyboard interaction is inert');
 };
 try {
   await stubConstructionDraft(page);
@@ -90,17 +91,17 @@ try {
   assert(await formatError.isVisible(), 'removing an image does not clear an unrelated format error');
   await page.screenshot({ path: `${out}/image-limit-resolved.png` });
 
-  // Navigation blocks immediately, including before the outgoing snapshot finishes.
+  // Incoming interaction stays blocked while the outgoing workspace saves independently.
   holdSave = true;
   await page.evaluate(() => window.ggbApplet.setCoords('A', 1, 3));
   await page.getByRole('button', { name: '保护验证2', exact: true }).click();
   await assertProtected();
   await poll(() => !!releaseSave);
-  assert.equal(loads.includes(ids[1]), false, 'outgoing snapshot finishes before incoming read');
+  await poll(() => !!releaseLoad);
+  assert(loads.includes(ids[1]), 'incoming read need not wait for the outgoing workspace save');
   holdSave = false; releaseSave();
   await poll(() => !!releaseLoad);
   await assertProtected();
-  assert.equal(await page.evaluate(() => window.ggbApplet.getXcoord('A')), 1);
   const before = await page.evaluate(() => window.ggbApplet.getXML());
   const box = await guard.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -109,7 +110,7 @@ try {
   await page.screenshot({ path: `${out}/narrow-opening.png` });
   incoming = 'fast'; releaseLoad();
   await ready(1);
-  assert(await page.evaluate(api => api === window.ggbApplet, applet), 'courseware switching preserves the applet');
+  assert.equal(await page.evaluate(api => api === window.ggbApplet, applet), false, 'different coursewares use independent applets');
   assert(await page.getByRole('button', { name: '显示坐标轴', exact: true }).isEnabled());
   await page.getByRole('button', { name: '显示坐标轴', exact: true }).click();
   assert((await page.evaluate(() => window.ggbApplet.getXML())).includes('axes="false"'), 'controls work after restoration');
@@ -124,7 +125,7 @@ try {
   await page.waitForURL(`**history_id=${ids[0]}`);
   incoming = 'fast'; releaseLoad();
   await ready(0);
-  assert(await page.evaluate(api => api === window.ggbApplet, applet));
+  assert.equal(await page.evaluate(() => window.ggbApplet.getYcoord('A')), 3, 'return restores the saved outgoing edit');
 
   incoming = 'fail';
   await page.getByRole('button', { name: '保护验证2', exact: true }).click();
@@ -136,6 +137,6 @@ try {
   await page.screenshot({ path: `${out}/recovered.png` });
   assert.deepEqual(errors, []);
   await writeFile(`${out}/results.json`, JSON.stringify({ outgoingSaveProtected: true, narrowLoadingVisible: true, mouseAndKeyboardBlocked: true,
-    sameApplet: true, cancelledReturnRecovers: true, failedOpenProtected: true, imageLimitResolves: true, unrelatedImageErrorRetained: true, errors }, null, 2));
-  console.log('PASS: opening/save/failed restore protected; same applet; cancelled return recovers; image limit resolves without clearing format errors.');
+    independentApplets: true, cancelledReturnRecovers: true, failedOpenProtected: true, imageLimitResolves: true, unrelatedImageErrorRetained: true, errors }, null, 2));
+  console.log('PASS: opening/failed restore protected; independent applets; outgoing edits saved; cancelled return recovers; image validation retained.');
 } finally { await browser.close(); }

@@ -4,7 +4,9 @@ type Phase = 'commentary' | 'final';
 export interface ActivityTextEvent { text?: string; messageId?: string; phase?: Phase }
 
 function project(message: AgentChatMessage, activity: AgentActivityEntry[]): AgentChatMessage {
-  return { ...message, content: activity.flatMap(entry => entry.kind === 'text' && (entry.phase === 'final' || entry.phase === 'unknown')
+  // Public text is visible immediately. A later tool/phase event can move a
+  // provisional passage into the execution record; completion need not gate it.
+  return { ...message, content: activity.flatMap(entry => entry.kind === 'text' && (entry.phase === 'final' || entry.phase === 'unknown' || entry.phase === 'pending')
     ? [entry.text] : []).join('\n\n'), meta: { ...message.meta, activity } };
 }
 

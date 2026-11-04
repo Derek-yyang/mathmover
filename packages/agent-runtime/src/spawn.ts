@@ -42,7 +42,7 @@ export interface CaptureResult {
 export function spawnCapture(
   command: string,
   args: string[],
-  opts: { timeoutMs?: number; input?: string; env?: NodeJS.ProcessEnv } = {},
+  opts: { timeoutMs?: number; input?: string; env?: NodeJS.ProcessEnv; cwd?: string } = {},
 ): Promise<CaptureResult> {
   const run = (): Promise<CaptureResult> => new Promise((resolve) => {
     let settled = false;
@@ -55,6 +55,7 @@ export function spawnCapture(
     try {
       proc = spawn(command, args, {
         env: opts.env,
+        cwd: opts.cwd,
         windowsHide: true,
         stdio: ['pipe', 'pipe', 'pipe'],
       });

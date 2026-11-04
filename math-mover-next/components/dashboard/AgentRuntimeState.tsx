@@ -1,9 +1,10 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { RuntimeOption } from './AgentChatPanel';
 import { agentFailure, agentResponseError, type AgentDiagnostic } from '@/lib/agent-diagnostics';
 import { purgeLegacyByokKey } from '@/lib/byok-config';
+import { effectiveModelId } from '@/lib/agent-picker';
 
 interface AgentRuntimeState {
   runtimes: RuntimeOption[];
@@ -14,7 +15,8 @@ interface AgentRuntimeState {
   recordFailure: (diagnostic: AgentDiagnostic) => void;
   clearFailure: (runtimeId?: string) => void;
   busy: boolean;
-  setBusy: (busy: boolean) => void;
+  runningCoursewareIds: ReadonlySet<string>;
+  setEditorBusy: (editorId: string, busy: boolean, coursewareId?: string) => void;
   selectRuntime: (id: string) => void;
   refreshRuntimes: (options?: { fresh?: boolean }) => Promise<void>;
   /** Apply canonical metadata returned by a configuration save without detection. */
@@ -42,7 +44,17 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
   const [detecting, setDetecting] = useState(true);
   const [detectionError, setDetectionError] = useState<AgentDiagnostic | null>(null);
   const [runtimeFailures, setRuntimeFailures] = useState<Map<string | undefined, AgentDiagnostic>>(() => new Map());
-  const [busy, setBusy] = useState(false);
+  const [runningEditors, setRunningEditors] = useState<ReadonlyMap<string, string | undefined>>(() => new Map());
+  const busy = runningEditors.size > 0;
+  const runningCoursewareIds = useMemo(() => new Set([...runningEditors.values()].filter((id): id is string => !!id)), [runningEditors]);
+  const setEditorBusy = useCallback((editorId: string, running: boolean, coursewareId?: string) => {
+    setRunningEditors(previous => {
+      if (running ? previous.has(editorId) && previous.get(editorId) === coursewareId : !previous.has(editorId)) return previous;
+      const next = new Map(previous);
+      if (running) next.set(editorId, coursewareId); else next.delete(editorId);
+      return next;
+    });
+  }, []);
   const pending = useRef<AbortController | null>(null);
   const runtimeUpdates = useRef(new Map<string, RuntimeOption>());
 
@@ -128,7 +140,24 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try { localStorage.setItem('mathmover_model_by_agent', JSON.stringify(modelByAgent)); } catch { /* 隐私模式等，丢选择不影响使用 */ }
   }, [modelByAgent]);
-  const selectedModel = (activeRuntimeId && modelByAgent[activeRuntimeId]) || 'default';
+  const modelFor = useCallback((agentId: string) => effectiveModelId(
+    runtimes.find(runtime => runtime.id === agentId)?.models?.list, modelByAgent[agentId],
+  ), [runtimes, modelByAgent]);
+  const selectedModel = activeRuntimeId ? modelFor(activeRuntimeId) : 'default';
+  // Repair obsolete persisted IDs after detection/save as well as on page reload.
+  // The derived value above is already safe before this effect runs.
+  useEffect(() => {
+    setModelByAgent(previous => {
+      let next = previous;
+      for (const runtime of runtimes) {
+        const stored = previous[runtime.id];
+        if (!stored) continue;
+        const resolved = effectiveModelId(runtime.models?.list, stored);
+        if (resolved !== stored) next = { ...next, [runtime.id]: resolved };
+      }
+      return next;
+    });
+  }, [runtimes]);
   const selectModelFor = useCallback((agentId: string, modelId: string) => {
     setModelByAgent(prev => ({ ...prev, [agentId]: modelId }));
   }, []);
@@ -161,13 +190,12 @@ export function AgentRuntimeProvider({ children }: { children: ReactNode }) {
     selectEffortFor(activeRuntimeId ?? '', selectedModel, id);
   }, [activeRuntimeId, selectedModel, selectEffortFor]);
 
-  const modelFor = useCallback((agentId: string) => modelByAgent[agentId] || 'default', [modelByAgent]);
   const effortFor = useCallback(
     (agentId: string, modelId: string) => effortByModel[JSON.stringify([agentId, modelId])],
     [effortByModel],
   );
 
-  return <AgentRuntimeContext.Provider value={{ runtimes, activeRuntimeId, detecting, detectionError, runtimeFailures, recordFailure, clearFailure, busy, setBusy, selectRuntime, refreshRuntimes, updateRuntime, selectedModel, selectedEffort, selectModel, selectEffort, selectModelFor, selectEffortFor, modelFor, effortFor }}>
+  return <AgentRuntimeContext.Provider value={{ runtimes, activeRuntimeId, detecting, detectionError, runtimeFailures, recordFailure, clearFailure, busy, runningCoursewareIds, setEditorBusy, selectRuntime, refreshRuntimes, updateRuntime, selectedModel, selectedEffort, selectModel, selectEffort, selectModelFor, selectEffortFor, modelFor, effortFor }}>
     {children}
   </AgentRuntimeContext.Provider>;
 }

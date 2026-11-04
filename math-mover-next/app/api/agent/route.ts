@@ -23,7 +23,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { libraryToken, dataDirectory } from '../../../../packages/daemon/src/data-directory.ts';
-import { RUNTIMES, runAgent, opencode, buildOpenCodeConfigContent, effectiveReasoningLevels, reasoningDialect, OPENCODE_BYOK_API_KEY_ENV, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, resolveModel, resolveEffort, createTitleExtractor, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
+import { RUNTIMES, runAgent, opencode, buildOpenCodeConfigContent, createOpenCodeStatusPlugin, effectiveReasoningLevels, reasoningDialect, OPENCODE_BYOK_API_KEY_ENV, resolveRuntimeTarget, resumesSession, buildTranscript, validateImages, resolveModel, resolveEffort, createTitleExtractor, type AgentEvent, type RuntimeDefinition, type TranscriptTurn } from '@mathmover/agent-runtime';
 import { agentRequestHistory } from '@/lib/agent-request-history';
 import { loadByokConfig, isByokRunnable } from '@/lib/byok-store';
 import { fetchByokModels } from '@/lib/byok-probe';
@@ -32,6 +32,8 @@ import { buildSystemBrief } from '@/lib/server/system-brief';
 import { isSameLocalOrigin } from '@/lib/server/same-origin';
 import { readFreshDetectionCache, writeDetectionCache, type DetectedRuntime } from '@/lib/server/detection-cache';
 import { constructionPath, ensureConstructionDraft, ensureMcpConfig, workspaceDir } from '@/lib/server/workspace';
+import { assertOpenCodeWorkspaceIsolated, createOpenCodeEnvironment, openCodePaths } from '@mathmover/agent-runtime';
+import { prepareOpenCodeSession } from '@/lib/server/opencode-session';
 
 /**
  * 仓库根定位：Next dev 的 cwd 是 math-mover-next，而 MCP 配置与
@@ -226,11 +228,32 @@ export async function POST(req: Request): Promise<Response> {
   // prompt 里如实说明「未送达」）——本层不再替它判死，内置位与三条 CLI 同规则。
 
 
+  const coursewareKey = body.coursewareId?.trim() || undefined;
+  const sandbox = workspaceDir(coursewareKey);
+  ensureConstructionDraft(coursewareKey);
+  let builtinEnvironment: NodeJS.ProcessEnv | undefined;
+  let resumeSessionId = body.sessionId || undefined;
+  if (isBuiltin) {
+    try {
+      assertOpenCodeWorkspaceIsolated(sandbox);
+      builtinEnvironment = createOpenCodeEnvironment(dataDirectory());
+      resumeSessionId = await prepareOpenCodeSession({
+        sessionId: resumeSessionId, dataDirectory: dataDirectory(), directory: sandbox, env: builtinEnvironment,
+      });
+    } catch (error) {
+      return new Response(line({ kind: 'error', message: error instanceof Error ? error.message : '内置 Agent 会话恢复失败。' }),
+        { status: 503, headers: { 'content-type': 'application/x-ndjson' } });
+    }
+    if (req.signal.aborted) return new Response(null, { status: 499 });
+  }
+
   // Only fresh edited native sessions need a retained transcript. Resumed sessions
   // already own their history and must not receive duplicate context.
   // resumesSession() 闸双重上下文（OpenDesign agy -c 教训）：即使某个 def 误把
   // recomposesHistory 和原生会话同时打开，也绝不注入转写。
-  const priorTurns = agentRequestHistory(body, def.recomposesHistory === true && !resumesSession(def));
+  const historyRequest = isBuiltin && body.sessionId && !resumeSessionId
+    ? { ...body, sessionId: undefined, restartFromHistory: true } : body;
+  const priorTurns = agentRequestHistory(historyRequest, def.recomposesHistory === true && !resumesSession(def));
   const transcript = priorTurns.length ? buildTranscript(priorTurns) : '';
   // 纯图发题（没打字）：不伪造用户话语，如实说只发了图片。
   const userTurn = prompt || '（只发了题目图片，没写文字——请直接看图理解题意并作图）';
@@ -238,18 +261,14 @@ export async function POST(req: Request): Promise<Response> {
   // 简报只发首轮（对齐 OpenDesign 的 request / continuation 二分）：
   //  真会话续接时模型自带上一轮的简报——再发一遍会在上下文里累积多份，
   //  每轮都重读，越聊越贵。内置位（OpenCode）也有原生会话，同一条规则。
-  const isContinuation = Boolean(body.sessionId);
+  const isContinuation = Boolean(resumeSessionId);
   const head = isContinuation ? '' : buildSystemBrief(REPO_ROOT);
 
   // 工作稿路径**按课件而异**（`<dataDir>/workspaces/<课件id>/`），不进稳定简报——
   // 那会破坏 cache 前缀。单起一行、每轮都带：体积小，而 agent 每次动笔都要它。
   // 实测没说清时会满仓库找位置，一次白烧 12 次工具调用。
   // 无课件 id 时落 `_default`（workspaceDir 的兜底），与 daemon 同一套规则。
-  const coursewareKey = body.coursewareId?.trim() || undefined;
-  const sandbox = workspaceDir(coursewareKey);
-  // 空工作稿先建好：agent 会「先读再改」，新课件没有这份文件时它第一轮就吃一个 Read 失败
-  //（实测白烧一次工具调用 + 用户看到一条"工具返回错误"）。已有草稿不会被覆盖。
-  ensureConstructionDraft(coursewareKey);
+  // 上面已预建空工作稿，避免新课件首轮读取失败；已有草稿不会被覆盖。
   const pathLine = `工作稿路径：${constructionPath(coursewareKey)}（写构造就写进这个绝对路径，别处写的 daemon 读不到）`;
 
   // 首轮 = 既没有前序轮次，也没有可续的原生会话。编辑历史轮次（restartFromHistory）带着
@@ -271,62 +290,67 @@ export async function POST(req: Request): Promise<Response> {
   const queued: AgentEvent[] = [];
   let sink: (e: AgentEvent) => void = (e) => queued.push(e);
 
-  // 内置位的 provider/MCP 注入走 OPENCODE_CONFIG_CONTENT（**不**写用户的全局配置；
-  // 没有内容时它是 null，此时不动这个环境变量）。密钥另走一个环境变量、配置里
-  // 用 {env:…} 引用——不落文件也不进 argv。
-  const opencodeConfig = isBuiltin && builtinCfg
-    ? buildOpenCodeConfigContent({
-        // ⚠ 声明的必须是**这一轮真正要跑的那个模型**（合成器里可能换过），
-        // 不是设置里存的那个——声明错了 opencode 会找不到模型。
-        // 档位同理：variants 要挂在同一个模型条目上。
-        provider: {
-          baseUrl: builtinCfg.baseUrl,
-          model: model ?? builtinCfg.model,
-          apiKey: builtinCfg.apiKey,
-          apiFormat: builtinCfg.apiFormat,
-          reasoningLevels: reasoningDialect(builtinCfg.apiFormat)
-            ? effectiveReasoningLevels(builtinCfg.reasoningLevels)
-            : [],
-        },
-        // 与 ensureMcpConfig 同一份实体：同一个 node、同一个 mcp-stdio 入口、同一个 daemon 地址。
-        mcp: {
-          command: process.execPath,
-          args: [path.join(REPO_ROOT, 'packages', 'daemon', 'src', 'mcp-stdio.ts')],
-          env: { MATHMOVER_DAEMON_URL: DAEMON_URL },
-        },
-      })
-    : null;
-  const handle: {
-    done: Promise<{ exitCode: number | null; sessionId?: string }>;
-    cancel: () => void;
-    proc: unknown;
-  } = runAgent({
-    def,
-    prompt: composedPrompt,
-    // 沙箱 = 数据目录下的工作区：claude 的 --restricted 把写入框在 cwd 里、
-    // opencode 的 --dir 同此（且它不认进程 cwd，必须显式给），工作稿必须在里面，
-    // 而用户数据要归数据目录、软件要归软件（别把工作稿塞进仓库目录换解 bug）。
-    mcpConfigPath: ensureMcpConfig(REPO_ROOT, DAEMON_URL),
-    cwd: sandbox,
-    // 不要传 sessionId —— 那是"新建指定 id"语义，与续接冲突
-    resumeSessionId: body.sessionId || undefined,
-    images: checked.images,
-    model,
-    reasoningEffort: effort,
-    env: {
-      MATHMOVER_WINDOW_ID: body.windowId ?? '',
-      MATHMOVER_COURSEWARE_ID: coursewareKey ?? '',
-      ...(opencodeConfig ? { OPENCODE_CONFIG_CONTENT: opencodeConfig } : {}),
-      ...(opencodeConfig && builtinCfg?.apiKey.trim()
-        ? { [OPENCODE_BYOK_API_KEY_ENV]: builtinCfg.apiKey.trim() }
-        : {}),
-    },
-    // 长任务保护：**静默**超时与**首输出**硬顶（语义见 run.ts / defs.ts）。
-    // per-agent 推荐值在定义上，环境变量仍优先（运维要压测时不用改代码）。
-    inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? def.inactivityTimeoutMs ?? 180_000),
-    firstOutputTimeoutMs: Number(process.env.MATHMOVER_AGENT_FIRST_OUTPUT_TIMEOUT_MS ?? def.firstOutputTimeoutMs ?? 0),
-    onEvent: (e) => sink(e),
-  });
+  // Inline config merges with other sources: the child environment also isolates
+  // home/config/data/cache and disables external discovery. Credentials remain env-only.
+  const statusPlugin = isBuiltin ? createOpenCodeStatusPlugin(openCodePaths(dataDirectory()).temp) : undefined;
+  let handle: ReturnType<typeof runAgent>;
+  try {
+    const opencodeConfig = isBuiltin && builtinCfg
+      ? buildOpenCodeConfigContent({
+          statusPluginUrl: statusPlugin?.url,
+          // ⚠ 声明的必须是**这一轮真正要跑的那个模型**（合成器里可能换过），
+          // 不是设置里存的那个——声明错了 opencode 会找不到模型。
+          // 档位同理：variants 要挂在同一个模型条目上。
+          provider: {
+            baseUrl: builtinCfg.baseUrl,
+            model: model ?? builtinCfg.model,
+            apiKey: builtinCfg.apiKey,
+            apiFormat: builtinCfg.apiFormat,
+            reasoningLevels: reasoningDialect(builtinCfg.apiFormat)
+              ? effectiveReasoningLevels(builtinCfg.reasoningLevels)
+              : [],
+          },
+          // 与 ensureMcpConfig 同一份实体：同一个 node、同一个 mcp-stdio 入口、同一个 daemon 地址。
+          mcp: {
+            command: process.execPath,
+            args: [path.join(REPO_ROOT, 'packages', 'daemon', 'src', 'mcp-stdio.ts')],
+            env: { MATHMOVER_DAEMON_URL: DAEMON_URL },
+          },
+        })
+      : null;
+    handle = runAgent({
+      def,
+      prompt: composedPrompt,
+      // 沙箱 = 数据目录下的工作区：claude 的 --restricted 把写入框在 cwd 里、
+      // opencode 的 --dir 同此（且它不认进程 cwd，必须显式给），工作稿必须在里面，
+      // 而用户数据要归数据目录、软件要归软件（别把工作稿塞进仓库目录换解 bug）。
+      mcpConfigPath: ensureMcpConfig(REPO_ROOT, DAEMON_URL),
+      cwd: sandbox,
+      // 不要传 sessionId —— 那是"新建指定 id"语义，与续接冲突
+      resumeSessionId,
+      images: checked.images,
+      model,
+      reasoningEffort: effort,
+      env: {
+        ...builtinEnvironment,
+        MATHMOVER_WINDOW_ID: body.windowId ?? '',
+        MATHMOVER_COURSEWARE_ID: coursewareKey ?? '',
+        ...(opencodeConfig ? { OPENCODE_CONFIG_CONTENT: opencodeConfig } : {}),
+        ...(opencodeConfig && builtinCfg?.apiKey.trim()
+          ? { [OPENCODE_BYOK_API_KEY_ENV]: builtinCfg.apiKey.trim() }
+          : {}),
+      },
+      // 长任务保护：**静默**超时与**首输出**硬顶（语义见 run.ts / defs.ts）。
+      // per-agent 推荐值在定义上，环境变量仍优先（运维要压测时不用改代码）。
+      inactivityTimeoutMs: Number(process.env.MATHMOVER_AGENT_INACTIVITY_TIMEOUT_MS ?? def.inactivityTimeoutMs ?? 180_000),
+      firstOutputTimeoutMs: Number(process.env.MATHMOVER_AGENT_FIRST_OUTPUT_TIMEOUT_MS ?? def.firstOutputTimeoutMs ?? 0),
+      onEvent: (e) => sink(e),
+    });
+  } catch (error) {
+    statusPlugin?.cleanup();
+    throw error;
+  }
+  void handle.done.then(() => statusPlugin?.cleanup(), () => statusPlugin?.cleanup());
 
   // 拒启（如 prompt 超 argv 预算）：明着 400，不要拿 200 + 流内错误糊弄
   if (!handle.proc) {

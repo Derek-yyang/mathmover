@@ -4,7 +4,7 @@ import { readViewBounds } from './ggb-view-transition';
 import { readGgbGraphics } from './ggb-graphics-state';
 import { settleActivity } from './agent-activity';
 // 课件库契约是跨进程共享的，唯一真源在 ggb-core。只走 /types 子路径。
-import { CoursewareError, type CoursewareSummary, type CoursewareProject } from '@mathmover/ggb-core/types';
+import { CoursewareError, type CoursewareSummary, type CoursewareProject, type CoursewareTitleSource } from '@mathmover/ggb-core/types';
 
 // CoursewareError 是类（值），必须用 export 而非 export type ——
 // useCoursewareLibrary 要拿它做 instanceof。export type 会把类擦成纯类型。
@@ -13,6 +13,7 @@ export { CoursewareError };
 
 /** 带正文的完整课件记录。`messages` 是前端领域类型，故只在前端声明。 */
 export interface CoursewareRecord extends CoursewareSummary {
+  titleSource?: CoursewareTitleSource;
   commands: string[]; messages: AgentChatMessage[]; ggbBase64?: string;
   runtimeId?: string; sessionId?: string;
   view?: { showAxes: boolean; showGrid: boolean; bounds?: [number, number, number, number] };

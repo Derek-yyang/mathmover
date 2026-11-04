@@ -139,6 +139,8 @@ try {
   ]);
   await disclosure().waitFor();
   await expectLabel('处理中…');
+  assert.equal(await disclosure().getAttribute('aria-expanded'), 'true', 'running activity expands by default');
+  await latest.getByText('我先读取画板。', { exact: true }).waitFor();
   const afterDisclosure = await summaryGeometry();
   assert.equal(afterDisclosure.dotX, beforeDisclosure.dotX, 'adding the disclosure arrow preserves the dot position');
   assert.equal(afterDisclosure.dotY, beforeDisclosure.dotY, 'adding activity preserves vertical alignment');
@@ -146,6 +148,8 @@ try {
   assert.equal(afterDisclosure.rowHeight, beforeDisclosure.rowHeight, 'empty and expandable summary rows share the same height');
   assert(afterDisclosure.seconds >= beforeDisclosure.seconds, 'the clock never resets when activity first arrives');
   await page.screenshot({ path: `${out}/first-disclosure-stable-position.png` });
+  await disclosure().click();
+  await latest.locator('[data-slot=run-commentary]').first().waitFor({ state: 'hidden' });
   await emit([{ kind: 'tool-call', name: 'ggb_get_state', toolCallId: 'read' }]);
   await expectLabel('正在读取画板…');
   await page.screenshot({ path: `${out}/running-current-read.png` });
@@ -157,7 +161,7 @@ try {
   await expectLabel('正在更新构造并自检…');
   await disclosure().waitFor();
   assert.equal(await body().count(), 0, 'narration never enters answer body');
-  assert.equal(await latest.getByText('我先读取画板。', { exact: true }).count(), 0, 'narration starts folded');
+  assert.equal(await latest.getByText('我先读取画板。', { exact: true }).count(), 0, 'new events preserve a manual collapse');
   await page.screenshot({ path: `${out}/running-collapsed.png` });
   assert.equal(await label().count(), 1, 'single current activity label, no stale second line');
   const oneLine = await disclosure().evaluate(el => ({ height: el.getBoundingClientRect().height,
@@ -173,13 +177,46 @@ try {
     { kind: 'text-delta', messageId: 'answer', phase: 'final', text: '方程为 $x^2/4+y^2=1$。' },
     { kind: 'thinking', text: 'PRIVATE_THINKING_SECRET' }]);
   await body().getByText('椭圆已建立，', { exact: false }).waitFor();
+  await latest.locator('.aui-run-activity-content').evaluate(async panel => {
+    await Promise.all(panel.getAnimations().map(animation => animation.finished));
+    window.__collapseFrames = [];
+    panel.addEventListener('animationstart', event => {
+      if (event.animationName !== 'run-activity-collapse') return;
+      const message = panel.closest('[data-chat-message]');
+      const viewport = panel.closest('[role=region]');
+      let active = true;
+      panel.addEventListener('animationend', () => { active = false; }, { once: true });
+      const sample = () => {
+        if (!active) return;
+        const answer = message.querySelector('.aui-md');
+        window.__collapseFrames.push({ height: panel.getBoundingClientRect().height,
+          opacity: Number(getComputedStyle(panel).opacity),
+          answerTop: answer.getBoundingClientRect().top + (viewport?.scrollTop ?? 0),
+          answerVisible: getComputedStyle(answer).visibility === 'visible' });
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    }, { once: true });
+  });
   await finish([{ kind: 'text', messageId: 'answer', phase: 'final', text: '椭圆已建立，方程为 $x^2/4+y^2=1$。' },
     { kind: 'done', resultText: '椭圆已建立，方程为 $x^2/4+y^2=1$。' }]);
   await latest.locator('.katex').waitFor();
   await expectLabel('本轮已结束');
   assert.equal(await indicator().count(), 0, 'completion removes live pulse and shimmer');
-  assert.equal(await disclosure().getAttribute('aria-expanded'), 'true', 'completion preserves expansion');
+  assert.equal(await disclosure().getAttribute('aria-expanded'), 'false', 'completion automatically collapses expanded activity');
+  await latest.locator('[data-slot=run-commentary]').first().waitFor({ state: 'hidden' });
+  const collapseFrames = await page.evaluate(() => window.__collapseFrames);
+  assert(collapseFrames.length >= 3, 'automatic collapse renders intermediate frames');
+  assert(collapseFrames.some(frame => frame.opacity > 0 && frame.opacity < 1), 'history fades while closing');
+  assert(collapseFrames.at(-1).height < collapseFrames[0].height / 2, 'history height shrinks gradually');
+  assert(collapseFrames.at(-1).answerTop < collapseFrames[0].answerTop, 'final answer follows the shrinking history');
+  assert(collapseFrames.every(frame => frame.answerVisible), 'final answer stays visible throughout the transition');
+  await writeFile(`${out}/collapse-frames.json`, JSON.stringify(collapseFrames, null, 2));
+  assert(await body().isVisible(), 'final answer remains visible after automatic collapse');
   assert.equal(await latest.locator('.katex').count(), 1);
+  await disclosure().click();
+  await latest.locator('[data-slot=run-commentary]').first().waitFor();
+  assert.equal(await disclosure().getAttribute('aria-expanded'), 'true', 'completed activity can be reopened manually');
   await page.screenshot({ path: `${out}/completed-open.png` });
   await disclosure().click();
   await latest.locator('[data-slot=run-commentary]').first().waitFor({ state: 'hidden' });
@@ -200,6 +237,8 @@ try {
   await emit([{ kind: 'tool-call', name: 'Read', toolCallId: 'parallel-read' },
     { kind: 'tool-call', name: 'Bash', toolCallId: 'parallel-shell' }]);
   await expectLabel('正在执行命令…');
+  assert.equal(await disclosure().getAttribute('aria-expanded'), 'true', 'a new run expands independently of the previous run');
+  await disclosure().click();
   await disclosure().focus();
   await page.keyboard.press('Enter');
   await latest.locator('[data-tool-step-status]').first().waitFor();
@@ -239,10 +278,14 @@ try {
   await page.screenshot({ path: `${out}/running-current-dark-narrow.png` });
   await emit([{ kind: 'tool-result', toolCallId: 'parallel-read' }]);
   await expectLabel('读取文件 · 已返回');
+  await disclosure().click();
+  await latest.locator('[data-tool-step-status]').first().waitFor();
+  assert.equal(await latest.locator('.aui-run-activity-content').evaluate(panel => getComputedStyle(panel).animationName), 'none',
+    'reduced motion disables the panel animation');
   await finish([{ kind: 'done', resultText: '并行工具执行结束。' }]);
   await expectLabel('本轮已结束');
   assert.equal(await indicator().count(), 0);
-  assert.equal(await disclosure().getAttribute('aria-expanded'), 'false', 'completion preserves collapsed state');
+  assert.equal(await disclosure().getAttribute('aria-expanded'), 'false', 'reduced-motion completion folds the history');
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -288,6 +331,7 @@ try {
   await page.getByRole('button', { name: '停止本轮', exact: true }).click();
   await latest.locator('[data-agent-execution=stopped]').waitFor();
   await expectLabel('已停止 · 本轮未跑完');
+  assert.equal(await disclosure().getAttribute('aria-expanded'), 'false', 'stopping collapses activity');
   assert.equal(await indicator().count(), 0, 'stopping removes live motion');
   await body().getByText('已写出的部分回答。', { exact: true }).waitFor();
   assert(!(await body().textContent()).includes('准备读取'));
@@ -298,6 +342,7 @@ try {
   await finish([{ kind: 'done' }]);
   await latest.locator('[data-agent-execution=error]').waitFor();
   await expectLabel('本轮中断');
+  assert.equal(await disclosure().getAttribute('aria-expanded'), 'false', 'errors collapse activity while recovery controls stay visible');
   assert.equal(await indicator().count(), 0, 'errors remove live motion');
   assert(await latest.getByRole('button', { name: '查看过程', exact: true }).isVisible());
   assert(await latest.locator('[role=alert]').count() > 0, 'actionable runtime error stays outside');

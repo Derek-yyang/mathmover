@@ -1,5 +1,5 @@
 export interface AgentDiagnostic {
-  kind: 'detection' | 'unavailable' | 'authentication' | 'launch' | 'communication' | 'unknown';
+  kind: 'detection' | 'unavailable' | 'authentication' | 'launch' | 'communication' | 'quota' | 'rate_limit' | 'unknown';
   title: string;
   guidance: string;
   detail: string;
@@ -13,19 +13,27 @@ export function redactAgentError(value: string): string {
     .replace(new RegExp(String.fromCharCode(27) + '\\[[0-?]*[ -/]*[@-~]', 'g'), '')
     .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, '[认证信息已隐藏]')
     .replace(/(\b(?:[\w-]*(?:api[_-]?key|token|password|secret)|authorization)\s*["']?\s*[:=]\s*)["']?[^\s,"';&}\]]+/gi, '$1[已隐藏]')
-    .replace(/\bsk-[A-Za-z0-9_-]{8,}/g, '[密钥已隐藏]')
+    .replace(/\b(?:oc_sk_|sk-)[A-Za-z0-9_-]{8,}/g, '[密钥已隐藏]')
     .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[认证信息已隐藏]@')
     .slice(0, 4000);
 }
 
 export function agentFailure(input: {
-  stage: 'detect' | 'request' | 'runtime'; message: string; runtimeId?: string; status?: number;
+  stage: 'detect' | 'request' | 'runtime'; message: string; runtimeId?: string; status?: number; code?: 'quota_exhausted';
 }): AgentDiagnostic {
   const detail = redactAgentError(input.message || '没有返回具体错误信息。');
   const base = { detail, runtimeId: input.runtimeId };
   if (input.stage === 'detect') return {
     ...base, kind: 'detection', title: '无法完成 Agent 检测',
     guidance: '请确认本机前端服务仍在运行，再重新检测。已有列表和选择会保留；登录状态尚未确认。',
+  };
+  if (input.code === 'quota_exhausted' || /FreeUsageLimitError|GoUsageLimitError|insufficient_quota|quota[_ ]exceeded|insufficient (?:credits?|balance)|额度已用尽/i.test(detail)) return {
+    ...base, kind: 'quota', title: '模型服务额度已用尽',
+    guidance: '请检查服务商的额度，或切换可用模型后重新发送。',
+  };
+  if (input.stage === 'runtime' && /rate.?limit|too many requests|\b429\b/i.test(detail)) return {
+    ...base, kind: 'rate_limit', title: '模型服务暂时限制了请求',
+    guidance: '此次请求未能完成，请稍后重新发送。',
   };
   if (/当前不可用|没有可用的\s*agent\s*cli/i.test(detail)) return {
     ...base, kind: 'unavailable', title: '所选 Agent 当前无法启动',

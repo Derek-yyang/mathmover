@@ -72,7 +72,7 @@ async function settlePaint(): Promise<void> {
 }
 
 /** 画布取图：优先用 GeoGebra 原生导出，回退到 canvas 像素。 */
-function capturePng(api: GeoGebraApi): { png: string | null; source: RawState['pngSource'] } {
+function capturePng(api: GeoGebraApi, root: ParentNode): { png: string | null; source: RawState['pngSource'] } {
   // GeoGebra 原生导出：不依赖 canvas 缓冲区，3D 视图也能拿到正确图像。
   if (typeof api?.getPNGBase64 === 'function') {
     try {
@@ -81,18 +81,17 @@ function capturePng(api: GeoGebraApi): { png: string | null; source: RawState['p
     } catch { /* fallthrough */ }
   }
   try {
-    // GeoGebra 容器 id 在不同宿主下不同：e2e harness 用 #ggb，真实页面是 #ggb-element
-    // （或 CanvasStage/GeoGebraBoard 传入的自定义 id）。所以多选择器 + 回退到最大 canvas。
+    // Only inspect this applet: a background task must never capture the
+    // selected courseware's canvas when native PNG export is unavailable.
     const candidates = [
-      document.querySelector('#ggb canvas'),
-      document.querySelector('#ggb-element canvas'),
-      document.querySelector('.GeoGebraFrame canvas'),
-      document.querySelector('.appletParameters canvas'),
+      root.querySelector('#ggb canvas'),
+      root.querySelector('#ggb-element canvas'),
+      root.querySelector('.GeoGebraFrame canvas'),
+      root.querySelector('.appletParameters canvas'),
     ].filter(Boolean) as HTMLCanvasElement[];
 
     if (candidates.length === 0) {
-      // 最后手段：全页最大的 canvas（GGB 的视图面通常就是最大那块）
-      const all = [...document.querySelectorAll('canvas')] as HTMLCanvasElement[];
+      const all = [...root.querySelectorAll('canvas')] as HTMLCanvasElement[];
       all.sort((a, b) => b.width * b.height - a.width * a.height);
       if (all[0]) candidates.push(all[0]);
     }
@@ -123,9 +122,9 @@ function capturePng(api: GeoGebraApi): { png: string | null; source: RawState['p
  * `preventDefault()` 是声明「我要这个上下文回来」，不调它浏览器可能不给恢复；
  * 恢复后顺手让 GeoGebra 重绘一帧（不调也无妨，下一次绘制会自己来）。
  */
-function watchCanvasContext(api: GeoGebraApi): void {
+function watchCanvasContext(api: GeoGebraApi, root: ParentNode): void {
   const attach = () => {
-    for (const canvas of document.querySelectorAll('canvas')) {
+    for (const canvas of root.querySelectorAll('canvas')) {
       const tagged = canvas as HTMLCanvasElement & { __mmContextWatched?: boolean };
       if (tagged.__mmContextWatched) continue;
       tagged.__mmContextWatched = true;
@@ -153,6 +152,7 @@ async function collectState(
   api: GeoGebraApi,
   ledger: string[],
   generation: number,
+  root: ParentNode,
 ): Promise<RawState> {
   const names = (() => {
     try {
@@ -181,7 +181,7 @@ async function collectState(
 
   await settlePaint();
 
-  const { png, source } = capturePng(api);
+  const { png, source } = capturePng(api, root);
   return { commands: [...ledger], names, objects, sliders, png, pngSource: source, generation };
 }
 
@@ -209,14 +209,17 @@ export function attachGgbBridge(
     wsUrl?: string;
     windowId?: string;
     onConnectionChange?: (status: GgbConnectionStatus) => void;
+    active?: () => boolean;
+    canvasRoot?: HTMLElement;
   },
 ) {
   let generation = 0;
+  const canvasRoot = opts.canvasRoot ?? document;
 
   const bridge: Bridge = {
     version: 1,
     ping: () => true,
-    getState: () => collectState(api, opts.getLedger(), generation),
+    getState: () => collectState(api, opts.getLedger(), generation, canvasRoot),
     apply: async (payload) => {
       const commands = payload.commands ?? [];
       const incremental = payload.incremental === true;
@@ -292,7 +295,7 @@ export function attachGgbBridge(
         applied,
         failedFirstPass,
         durationMs: Math.round(performance.now() - t0),
-        state: await collectState(api, ledger, generation),
+        state: await collectState(api, ledger, generation, canvasRoot),
       };
     },
     reset: () => {
@@ -306,8 +309,9 @@ export function attachGgbBridge(
     },
   };
 
-  (window as unknown as Record<string, unknown>)[BRIDGE_KEY] = bridge;
-  watchCanvasContext(api);
+  const activate = () => { (window as unknown as Record<string, unknown>)[BRIDGE_KEY] = bridge; };
+  if (opts.active?.() !== false) activate();
+  watchCanvasContext(api, canvasRoot);
 
   // —— WebSocket 通道：daemon 反向调用 ——
   const connection = connectGgbDaemon({
@@ -356,5 +360,5 @@ export function attachGgbBridge(
     connection.close();
     const globals = window as unknown as Record<string, unknown>;
     if (globals[BRIDGE_KEY] === bridge) delete globals[BRIDGE_KEY];
-  }, { reconnect: connection.reconnect });
+  }, { reconnect: connection.reconnect, activate });
 }

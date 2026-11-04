@@ -22,11 +22,12 @@ await page.route('**/api/agent**', route => {
   return route.fulfill({ json: { runtimes: [{ id: 'claude-code', name: 'Claude Code', version: 'fixture', usable: true, canAttachImages: true }] } });
 });
 await page.route('**/api/byok', route => route.fulfill({ json: { apiKeyConfigured: false } }));
+await page.routeWebSocket('ws://127.0.0.1:8787', socket => socket.onMessage(() => {}));
 await page.route('**/api/coursewares**', async route => {
   const request = route.request();
   const url = new URL(request.url());
   const parts = url.pathname.split('/').slice(3);
-  if (parts[0] === 'windows') return route.fulfill({ json: { ok: true } });
+  if (parts[0] === 'windows') return route.fulfill({ json: { bindingToken: 'fixture' } });
   if (request.method() === 'GET') return route.fulfill({ json: parts.length ? records.get(parts[0]) : { records: [...records.values()], capabilities: { archive: true, permanentDelete: true } } });
   const body = request.postDataJSON();
   if (parts[0] === 'delete') {
@@ -64,24 +65,26 @@ await page.addInitScript(() => {
 });
 const input = page.getByRole('textbox', { name: '题目描述', exact: true });
 const images = page.locator('[aria-label=待发送图片] img');
+const ready = () => page.waitForFunction(() => typeof window.ggbApplet?.getAllObjectNames === 'function'
+  && !document.querySelector('[data-slot=courseware-workspace][data-active=true] [data-slot=board-interaction-guard]'));
 const open = async id => {
   await page.getByRole('button', { name: records.get(id).title, exact: true }).click();
   await page.waitForURL(`**history_id=${id}`);
-  await page.locator(`header span[title="${records.get(id).title}"]`).waitFor();
-  await page.getByText('已保存到本地', { exact: true }).waitFor();
+  await page.getByRole('button', { name: `重命名课件：${records.get(id).title}`, exact: true }).waitFor();
+  await ready();
 };
 const upload = files => uploadImages(page, files);
 const assertText = expected => page.waitForFunction(expected => document.querySelector('[aria-label=题目描述]')?.value === expected, expected);
 const finish = async () => {
   await page.evaluate(() => window.__finishAgent());
   await page.waitForFunction(() => !document.querySelector('[aria-label=停止本轮]') || document.querySelector('[aria-label=停止本轮]').getAttribute('aria-hidden') === 'true');
-  await page.getByText('已保存到本地', { exact: true }).waitFor();
+  await ready();
 };
 try {
   await stubConstructionDraft(page);
   await page.goto(`${process.argv[2] || 'http://localhost:3000'}/dashboard?history_id=${ids[0]}`);
   await page.locator('span[aria-label="当前 Agent：Claude Code"]').waitFor();
-  await page.getByText('已保存到本地', { exact: true }).waitFor({ timeout: 60_000 });
+  await ready();
   await page.addStyleTag({ content: 'nextjs-portal { display:none !important; }' });
   const imageData = await page.evaluate(() => {
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 10;
@@ -125,8 +128,8 @@ try {
   await page.evaluate(() => { window.__readDelay = 0; });
   await open(ids[0]);
   await assertText('课件1的草稿\n第二行');
-  await page.waitForFunction(() => !document.querySelector('[aria-label="预览待发送图片：读取中的图片.png"]')?.disabled);
-  await page.waitForFunction(() => !document.querySelector('[aria-label="预览待发送图片：同批读取中的图片.png"]')?.disabled);
+  await page.waitForFunction(() => document.querySelector('[aria-label="预览待发送图片：读取中的图片.png"]')?.disabled === false);
+  await page.waitForFunction(() => document.querySelector('[aria-label="预览待发送图片：同批读取中的图片.png"]')?.disabled === false);
   assert.equal(await images.count(), 3);
   await page.getByRole('button', { name: '移除图片：第一张.png', exact: true }).click();
   await page.getByRole('button', { name: '移除图片：同批读取中的图片.png', exact: true }).click();
@@ -178,7 +181,7 @@ try {
   await images.waitFor();
   await page.evaluate(() => window.ggbApplet.evalCommand('DraftSavePoint=(1,2)'));
   await page.waitForURL(/history_id=/);
-  await page.getByText('已保存到本地', { exact: true }).waitFor();
+  await ready();
   const canvasSavedId = new URL(page.url()).searchParams.get('history_id');
   await assertText('画板首次保存时保留的草稿');
   assert.equal(await images.count(), 1);

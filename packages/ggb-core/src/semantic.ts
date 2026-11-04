@@ -40,7 +40,8 @@ const MATH_FUNCS = new Set([
   'pi', 'e', 'phi', 'i', 'undefined', 'true', 'false',
 ]);
 
-const DEF_RE = /^\s*([A-Za-z][A-Za-z0-9_]*)\s*(?:\(([^)]*)\))?\s*:?=/;
+// 支持赋值（=、:=）及 GeoGebra 的命名方程（如 conicC: x^2/2 - y^2 = 1）。
+const DEF_RE = /^\s*([A-Za-z][A-Za-z0-9_]*)\s*(?:\(([^)]*)\))?\s*(?::?=|:)/;
 const TOKEN_RE = /"[^"]*"|\d+\.?\d*(?:[eE][+-]?\d+)?|[A-Za-z_][A-Za-z0-9_]*/g;
 
 /** 右端里的裸标识符引用（字符串/数字字面量不算；调用头不算）。Python _idents 同款。 */
@@ -75,6 +76,8 @@ function classifyDefs(text: string): { objs: MiniObj[]; defs: { name: string; bo
   const objs: MiniObj[] = [];
   const defs: { name: string; bound: Set<string>; rhs: string }[] = [];
   for (const line of text.split('\n')) {
+    // MODE:2D / MODE:3D 是工作稿元数据，不是冒号命名的对象。
+    if (/^\s*MODE\s*:/i.test(line)) continue;
     const m = DEF_RE.exec(line);
     if (!m) continue;
     const name = m[1];

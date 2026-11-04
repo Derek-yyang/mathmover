@@ -148,6 +148,9 @@ fs.mkdirSync(path.dirname(opencodeDest), { recursive: true });
 fs.copyFileSync(opencodeSrc, opencodeDest);
 if (!IS_WIN) fs.chmodSync(opencodeDest, 0o755);
 log(`opencode：${path.relative(modules, opencodeSrc)}`);
+// Bundle plugin SDK dependencies now; end users never install them on first run.
+const { seedOpenCodePluginDependencies } = await import('../../packages/agent-runtime/src/opencode-plugin-dependencies.ts');
+seedOpenCodePluginDependencies(path.join(build, 'bin', 'opencode-config'), path.join(modules, '@opencode-ai', 'plugin'));
 
 // 在产出安装包之前执行真实二进制，及时发现错架构、丢失权限等问题。
 for (const executable of [nodeDest, opencodeDest]) {

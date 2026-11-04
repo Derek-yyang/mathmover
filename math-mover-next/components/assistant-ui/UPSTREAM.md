@@ -12,6 +12,11 @@ dashboard shell, runtime transport and approved image composer are retained.
 
 Local integration changes:
 
+- Assistant answer typography is scoped in `app/globals.css`: compact paragraph,
+  list and heading spacing, modest heading sizes, and left-aligned display math
+  with horizontal scrolling for long equations. Markdown/KaTeX rendering and
+  original message text remain upstream; no heuristic rewriting is applied.
+
 - The courseware ThreadList retains assistant-ui ItemByIndex scopes, selection,
   rename, archive and delete menus. The host supplies persistent pin/project
   metadata through `custom`, with collapsible pinned/project/recent sections.
@@ -99,6 +104,10 @@ Local integration changes:
   Runtime message IDs, text phases and final results drive presentation; tool
   request boundaries classify preceding provisional narration, while unclassified
   settled text stays visible. Legacy messages retain their original body.
+  Public provisional text streams directly into the message body before run
+  completion. A later tool request moves that passage into execution commentary;
+  it is never simultaneously rendered in both places. Stops/errors retain the
+  partial reply. The host batches display updates for 40ms, not until completion.
   Classification is saved in courseware metadata; no raw tool payloads or private
   thinking are stored. Final answers and actionable errors stay outside the
   disclosure. Waiting, running and completed states share the trigger, with a
@@ -118,7 +127,12 @@ Local integration changes:
   an explicit returned/error/unconfirmed label. No artificial delay is added
   to execution, next-step updates or run completion. The upstream fallback remains for
   other callers. Native tool names have short localized action labels. New
-  events preserve the user's expansion state and the complete ordered history.
+  events within a running phase preserve the user's expansion state and the
+  complete ordered history. The host expands new runs by default and folds the
+  history when execution ends; settled history can still be opened manually.
+  The Radix content uses its measured height for a 250ms expand/collapse and
+  opacity animation, allowing the final answer to follow smoothly without
+  delaying output. Reduced-motion preferences disable the panel animation.
 - Running summaries compose the official `elements-thinking-indicator` source
   (retrieved 2026-10-15). Its pulse uses the host primary color; label changes
   retain the upstream shimmer and enter animation with reduced-motion support.
@@ -143,6 +157,12 @@ Local integration changes:
   paragraph is omitted to keep message editing compact.
   The host's onEdit callback replaces subsequent turns and starts a fresh Agent session
   with the retained history, continuing to work on the current canvas.
+- User attachments and text share the message action anchor. Empty text hides
+  only the text bubble, so image-only questions retain the same edit/resend
+  action and attachment preservation as text and mixed questions.
+  Before sending, the host resolves both fresh uploads and persisted courseware
+  asset URLs into image bytes. Unreadable images stop submission with a clear
+  error instead of silently sending an empty or incomplete question.
 - The thread composer caches unsent text and images per courseware in page
   memory using the official composer subscription/setText/addAttachment APIs.
   Ready images restore from descriptors; files still being read remain in the
@@ -193,11 +213,13 @@ controls follow the runtime's supported capabilities.
 
 ## Courseware sidebar (2026-10-13)
 
-- The New button accepts a host click handler and its own disabled state. During
-  Agent execution it opens a separate tab synchronously, preserving the original
-  page's thread and canvas. Idle creation still uses the current page. The host
-  prevents the primitive's default thread switch for this action; other list
-  mutation/switch controls retain the running-task guard.
+- The New button accepts a host click handler and its own disabled state. New
+  coursewares and list navigation use the current page, including during Agent
+  execution. The dashboard retains each running editor and its own canvas,
+  bridge and save queue in the background. Only running coursewares' mutation
+  controls are locked, through the final successful save; other rows remain
+  editable and every row can be opened. The host prevents the primitive's
+  default thread switch for creation.
 
 - `elements/thread-list.aui.tsx` is vendored from the official runtime
   `https://r.assistant-ui.com/thread-list.json`, not the props-only standalone
@@ -226,7 +248,9 @@ controls follow the runtime's supported capabilities.
   Archived coursewares can still restore chat/canvas and save
   edits without becoming regular items. Delete confirms permanent removal;
   there is no recycle bin or restore action. The host retains batch selection
-  and mutation/busy guards.
+  and mutation guards. Running guards apply to specific courseware IDs, including
+  background runs; other rows remain navigable and editable. Batch selection
+  excludes protected rows. The host owns background editor/bridge lifetimes.
 - Single-record deletion uses a local Radix Popover anchored to the row's
   overflow button, with no backdrop. Cancel owns initial focus; Escape/outside
   interaction dismisses it and deletion errors remain in the popover for retry.

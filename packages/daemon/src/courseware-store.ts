@@ -4,12 +4,13 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { dataDirectory } from './data-directory.ts';
 import { validateGgbSnapshot } from './ggb-snapshot.ts';
-import { CoursewareError, type CoursewareSummary, type CoursewareProject } from '@mathmover/ggb-core';
+import { CoursewareError, type CoursewareSummary, type CoursewareProject, type CoursewareTitleSource } from '@mathmover/ggb-core';
 // Resolve the native module in Node, including test runners predating node:sqlite.
 const { DatabaseSync, backup } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
 export interface CoursewareInput {
   id: string; expectedRevision: number; title: string;
+  titleSource?: CoursewareTitleSource;
   commands: string[]; messages: unknown[]; ggbBase64?: string;
   view?: { showAxes: boolean; showGrid: boolean; bounds?: [number, number, number, number] };
   runtimeId?: string; sessionId?: string; created_at?: string;
@@ -154,6 +155,7 @@ export class CoursewareStore {
   save(input: CoursewareInput): CoursewareSummary {
     validId(input.id);
     if (!Number.isInteger(input.expectedRevision) || input.expectedRevision < 0 || typeof input.title !== 'string' || !input.title.trim()
+      || (input.titleSource !== undefined && !['placeholder', 'agent', 'manual'].includes(input.titleSource))
       || !Array.isArray(input.commands) || input.commands.some(c => typeof c !== 'string') || !Array.isArray(input.messages))
       throw new CoursewareError(400, '课件数据不合法');
     this.db.exec('BEGIN IMMEDIATE');
@@ -168,7 +170,9 @@ export class CoursewareStore {
         snapshot = hash(content);
         this.put(`coursewares/${input.id}/${snapshot}.ggb`, content);
       }
-      const payload = JSON.stringify({ commands: input.commands, messages: this.messages(input.messages), view: input.view,
+      const previousPayload = old ? JSON.parse(String(this.db.prepare('SELECT payload FROM revisions WHERE id=? AND revision=?').get(old.id, old.revision)!.payload)) : undefined;
+      const payload = JSON.stringify({ titleSource: input.titleSource ?? previousPayload?.titleSource,
+        commands: input.commands, messages: this.messages(input.messages), view: input.view,
         runtimeId: input.runtimeId, sessionId: input.sessionId });
       const created = old?.created_at ?? (input.created_at && Number.isFinite(Date.parse(input.created_at)) ? input.created_at : now);
       const revision = input.expectedRevision + 1;
@@ -183,7 +187,7 @@ export class CoursewareStore {
   }
   rename(id: string, title: string, expectedRevision: number) {
     const record = this.get(id);
-    return this.save({ ...record, title, expectedRevision });
+    return this.save({ ...record, title, titleSource: 'manual', expectedRevision });
   }
   private summary(id: string): CoursewareSummary {
     const row = this.db.prepare('SELECT * FROM coursewares WHERE id=?').get(id) as unknown as CoursewareSummary | undefined;

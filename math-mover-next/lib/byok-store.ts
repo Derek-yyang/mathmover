@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveApiFormat, type ApiFormat } from '../../packages/agent-runtime/src/api-format.ts';
+import { resolveByokKey } from './byok-key-scope.ts';
 
 export interface ByokConfig {
   apiFormat: ApiFormat;
@@ -70,17 +71,17 @@ export function maskByokConfig(config: ByokConfig | null): ByokConfigView {
 /**
  * 保存（整体替换；key 语义三态）：
  *   - 非空字符串 → 覆盖
- *   - 空串 / 不传  → **保留原 key**（编辑端点/模型时不必重填）
+ *   - 空串 / 不传  → 仅同源端点保留原 key；跨源必须填写新 key 或显式清除
  *   - null        → **清除**（换人用/测试还原）
  * 返回保存后的掩码视图。
  */
 export function saveByokConfig(root: string, next: Omit<Partial<ByokConfig>, 'apiKey'> & { apiKey?: string | null }): ByokConfigView {
   const prev = loadByokConfig(root);
+  const baseUrl = typeof next.baseUrl === 'string' ? next.baseUrl.trim() : (prev?.baseUrl ?? '');
   const merged: ByokConfig = {
     apiFormat: resolveApiFormat(next.apiFormat === undefined ? prev?.apiFormat : next.apiFormat),
-    baseUrl: typeof next.baseUrl === 'string' ? next.baseUrl.trim() : (prev?.baseUrl ?? ''),
-    apiKey: next.apiKey === null ? ''
-      : typeof next.apiKey === 'string' && next.apiKey.trim() ? next.apiKey.trim() : (prev?.apiKey ?? ''),
+    baseUrl,
+    apiKey: resolveByokKey(baseUrl, next.apiKey, prev),
     model: typeof next.model === 'string' ? next.model.trim() : (prev?.model ?? ''),
     reasoningLevels: typeof next.reasoningLevels === 'string' ? next.reasoningLevels.trim() : (prev?.reasoningLevels ?? ''),
   };

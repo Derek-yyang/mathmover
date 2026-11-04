@@ -5,7 +5,17 @@ import ts from 'typescript';
 
 const source = readFileSync(new URL('../lib/agent-picker.ts', import.meta.url), 'utf8');
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ES2020 } }).outputText;
-const { modelPresentation, effortDisplay } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+const { modelPresentation, effortDisplay, effectiveModelId } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+
+test('stale provider model resolves to the same ID displayed by the picker', () => {
+  const models = [{ id: 'deepseek-flash' }, { id: 'deepseek-v4-pro' }];
+  assert.equal(effectiveModelId(models, 'glm-5.3-flash-free'), 'deepseek-flash');
+  assert.equal(effectiveModelId(models, 'deepseek-v4-pro'), 'deepseek-v4-pro');
+  assert.equal(effectiveModelId(models, 'default'), 'deepseek-flash');
+  assert.equal(effectiveModelId([{ id: 'default' }, ...models], undefined), 'default');
+  assert.equal(effectiveModelId([], 'saved-before-detection'), 'saved-before-detection');
+  assert.equal(effectiveModelId(undefined, undefined), 'default');
+});
 
 test('modelPresentation 把来源与映射拆到说明行，名字保持短', () => {
   assert.deepEqual(modelPresentation('gpt-6.1-sol（config.toml）'),

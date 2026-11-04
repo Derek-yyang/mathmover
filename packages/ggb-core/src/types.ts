@@ -196,6 +196,9 @@ export interface RawApplyResult {
   state: RawState;
 }
 
+/** Stored with the revision payload; manual names are never replaced by AI titles. */
+export type CoursewareTitleSource = 'placeholder' | 'agent' | 'manual';
+
 /**
  * 跨进程课件库契约 —— daemon 的 SQLite 存储与前端客户端共用。
  *

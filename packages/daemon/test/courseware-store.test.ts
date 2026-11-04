@@ -15,6 +15,21 @@ function make() { const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mathmover-
 const record = (changes: Partial<CoursewareInput> = {}): CoursewareInput => ({ id: 'course-1', expectedRevision: 0, title: '函数', commands: ['A=(0,0)'], messages: [{ id: 'u1', role: 'user', content: '画点', createdAt: 1 }], ggbBase64: ggb, ...changes });
 afterEach(() => { for (const s of stores.splice(0)) { try { s.close(); } catch {} } for (const root of roots.splice(0)) { if (!root.startsWith(path.join(os.tmpdir(), 'mathmover-library-test-'))) throw new Error('Unsafe cleanup'); fs.rmSync(root, { recursive: true, force: true }); } });
 describe('local courseware library', () => {
+  it('persists title ownership across saves, manual rename, archive and reopen', () => {
+    const s = make();
+    let saved = s.save(record({ title: '未命名课件', titleSource: 'placeholder' }));
+    expect(s.get(saved.id).titleSource).toBe('placeholder');
+    saved = s.save(record({ expectedRevision: saved.revision, title: '圆的性质', titleSource: 'agent' }));
+    expect(s.get(saved.id).titleSource).toBe('agent');
+    saved = s.rename(saved.id, '未命名课件', saved.revision);
+    expect(s.get(saved.id).titleSource).toBe('manual');
+    // Older clients omit the optional field; they must not erase ownership.
+    saved = s.save(record({ expectedRevision: saved.revision, title: saved.title }));
+    saved = s.setArchived(saved.id, true, saved.revision);
+    const reopened = new CoursewareStore(s.root); stores.push(reopened);
+    expect(reopened.get(saved.id)).toMatchObject({ title: '未命名课件', titleSource: 'manual' });
+    expect(() => s.save(record({ id: 'invalid-source', titleSource: 'invalid' as never }))).toThrow('数据不合法');
+  });
   it('keeps organization through late autosaves, renames, archives, restart and backup', async () => {
     const s = make(); const initial = s.save(record());
     const project = s.createProject('  圆锥曲线  ');

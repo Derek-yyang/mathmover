@@ -19,7 +19,7 @@ export const ThreadListSidebar = forwardRef<HTMLElement, ComponentPropsWithoutRe
     <SidebarContent className="aui-sidebar-content gap-0 overflow-hidden">
       {children ?? <ThreadList />}
     </SidebarContent>
-    <SidebarFooter className="aui-sidebar-footer shrink-0 gap-0.5 border-t border-[var(--mm-border-stone-200)]/70 px-3 py-2">
+    <SidebarFooter className="aui-sidebar-footer shrink-0 gap-0.5 px-3 py-2">
       {footer}
     </SidebarFooter>
   </aside>

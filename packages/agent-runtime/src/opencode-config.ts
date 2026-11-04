@@ -3,7 +3,8 @@
  *
  * OpenCode 从多个来源合并配置（全局 `~/.config/opencode/opencode.json`、项目
  * `opencode.json`、以及**环境变量 `OPENCODE_CONFIG_CONTENT` 里的 inline JSON**）。
- * 用环境变量这条：不必写用户的全局配置、也不留临时文件（崩溃后不会残留）。
+ * 配置内容本身仍然会合并，因此宿主还必须使用 createOpenCodeEnvironment
+ * 隔离配置、技能和运行数据目录；仅设置 inline JSON 并不能隔离全局配置。
  *
  * 两块内容：
  *  1. **provider**：把 MathMover 设置里的 BYOK 端点翻译成一个自定义 provider
@@ -18,9 +19,7 @@
  * bash 工具都看不到；而且它**不会被** `--dangerously-skip-permissions` 绕过
  * （那条只管「没人应答的询问」，管不到显式拒绝）。
  *
- * ⚠ 「什么都没有时不要设成空/null」：把 `OPENCODE_CONFIG_CONTENT` 设成空对象会
- * **覆盖**用户自己的全局配置。本模块因此在没有内容可写时返回 null，由调用方
- * 决定不动这个环境变量。
+ * 没有 provider/MCP 时返回 null，由宿主拒绝不完整的内置运行时配置。
  */
 
 import { API_FORMATS, resolveApiFormat, type ApiFormat } from './api-format.ts';
@@ -73,6 +72,7 @@ export interface OpenCodeMcpInput {
 export interface OpenCodeConfigInput {
   provider?: OpenCodeProviderInput | null;
   mcp?: OpenCodeMcpInput | null;
+  statusPluginUrl?: string;
 }
 
 /**
@@ -206,15 +206,20 @@ function mcpEntry(input: OpenCodeMcpInput): Record<string, unknown> | null {
 /**
  * 组装 `OPENCODE_CONFIG_CONTENT`。
  *
- * provider 与 mcp 都组不出来时返回 **null**——那种情况下一份只剩 `permission`
- * 的配置不值得去动子进程环境（调用方保持该变量不变；设成空对象反而会覆盖用户
- * 自己的全局配置）。正常形态里 mcp 恒有，所以实际总是返回内容。
+ * provider 与 mcp 都组不出来时返回 null，宿主应先拒绝不完整的内置配置。
+ * inline JSON 仍会与其他来源合并，不能代替宿主的环境隔离。
  */
 export function buildOpenCodeConfigContent(input: OpenCodeConfigInput): string | null {
   const provider = input.provider ? providerEntry(input.provider) : null;
   const mcp = input.mcp ? mcpEntry(input.mcp) : null;
   if (!provider && !mcp) return null;
   return JSON.stringify({
+    // This builder belongs to the embedded agent. App settings are its only model source.
+    ...(provider ? { enabled_providers: [OPENCODE_BYOK_PROVIDER_ID] } : {}),
+    agent: { title: { disable: true } },
+    autoupdate: false,
+    share: 'disabled',
+    ...(input.statusPluginUrl ? { plugin: [input.statusPluginUrl] } : {}),
     ...(provider ? { provider } : {}),
     ...(mcp ? { mcp } : {}),
     // 收紧随内容一起下发（见文件头：本产品不需要 bash）。

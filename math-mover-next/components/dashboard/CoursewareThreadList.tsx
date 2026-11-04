@@ -8,8 +8,8 @@ import { Button } from '@/components/assistant-ui/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/components/assistant-ui/ui/dialog';
 import { archiveCourseware, deleteCoursewares, libraryRequest, renameCourseware, organizeCourseware, createCoursewareProject, updateCoursewareProject, type CoursewareSummary, type CoursewareProject } from '@/lib/courseware-client';
 import CoursewareOrganizationDialog, { type OrganizationRequest } from './CoursewareOrganizationDialog';
+import CoursewareSearchDialog from './CoursewareSearchDialog';
 import { useAgentRuntimeState } from './AgentRuntimeState';
-import { useSidebarState } from './SidebarState';
 import { useNewCourseware } from '@/hooks/useNewCourseware';
 
 const EMPTY_MESSAGES: readonly ThreadMessageLike[] = [];
@@ -21,9 +21,9 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
 }) {
   const router = useRouter();
   const currentId = useSearchParams().get('history_id') ?? undefined;
-  const { busy } = useAgentRuntimeState();
+  const { runningCoursewareIds } = useAgentRuntimeState();
+  const runningRef = useRef(runningCoursewareIds); runningRef.current = runningCoursewareIds;
   const newCourseware = useNewCourseware();
-  const sidebar = useSidebarState();
   const [records, setRecords] = useState<CoursewareSummary[]>([]);
   const [projects, setProjects] = useState<CoursewareProject[]>([]);
   const [organizationAvailable, setOrganizationAvailable] = useState(false);
@@ -35,11 +35,23 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteIds, setDeleteIds] = useState<string[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchReturnFocus = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const requestVersion = useRef(0);
   const mutationLock = useRef(false);
   const mounted = useRef(false);
-  const disabled = busy || mutating;
+  const disabled = mutating;
+  const assertMutable = useCallback((ids: readonly string[]) => {
+    if (mutationLock.current) throw new Error('请等待当前操作完成');
+    if (ids.some(id => runningRef.current.has(id))) throw new Error('这个课件正在生成，请等待完成后再操作');
+  }, []);
+  useEffect(() => {
+    setSelectedIds(previous => {
+      if (![...previous].some(id => runningCoursewareIds.has(id))) return previous;
+      return new Set([...previous].filter(id => !runningCoursewareIds.has(id)));
+    });
+  }, [runningCoursewareIds]);
 
   useEffect(() => {
     const viewport = listRef.current?.querySelector<HTMLElement>('[data-slot="aui_thread-list-items"]');
@@ -115,13 +127,14 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
   }, [active, refresh]);
 
   useEffect(() => {
-    if (searchRequest && !sidebar?.collapsed) {
-      (searchRef.current ?? listRef.current?.querySelector<HTMLButtonElement>('[data-slot=aui_thread-list-new]'))?.focus();
+    if (searchRequest) {
+      searchReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setSearchOpen(true);
     }
-  }, [searchRequest, sidebar?.collapsed]);
+  }, [searchRequest]);
 
   const remove = useCallback(async (ids: string[], reportError = true) => {
-    if (busy || mutationLock.current) return;
+    assertMutable(ids);
     mutationLock.current = true;
     setMutating(true);
     try {
@@ -139,20 +152,20 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
       mutationLock.current = false;
       setMutating(false);
     }
-  }, [busy, currentId, router]);
+  }, [assertMutable, currentId, router]);
 
   const threadData = useMemo(() => records.map(record => ({
     id: record.id, remoteId: record.id, status: 'regular' as const,
     title: record.title || '未命名课件',
     archived_at: record.archived_at,
-    custom: { pinned_at: record.pinned_at, project_id: record.project_id },
+    custom: { pinned_at: record.pinned_at, project_id: record.project_id, running: runningCoursewareIds.has(record.id) },
     // The installed external-store core preserves additional state fields.
     lastMessageAt: new Date(record.updated_at),
-  })), [records]);
+  })), [records, runningCoursewareIds]);
   const threads = useMemo(() => threadData.filter(thread => !thread.archived_at), [threadData]);
   const archivedThreads = useMemo(() => threadData.filter(thread => thread.archived_at).map(thread => ({ ...thread, status: 'archived' as const })), [threadData]);
   const setArchived = useCallback(async (id: string, archived: boolean) => {
-    if (busy || mutationLock.current) throw new Error('请等待当前操作完成后归档');
+    assertMutable([id]);
     const record = records.find(record => record.id === id);
     if (!record) throw new Error('课件已不存在，请刷新列表');
     mutationLock.current = true;
@@ -160,18 +173,18 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
     try { await archiveCourseware(id, archived, record.revision); await refresh(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); throw cause; }
     finally { mutationLock.current = false; setMutating(false); }
-  }, [busy, records, refresh]);
+  }, [assertMutable, records, refresh]);
   const openCourseware = useCallback((id: string) => {
-    if (busy || mutationLock.current) return;
+    if (mutationLock.current) return;
     const proceed = () => { router.push(`/dashboard?history_id=${encodeURIComponent(id)}`); onOpen?.(); };
     if (onOpenRequest) onOpenRequest(proceed); else proceed();
-  }, [busy, onOpen, onOpenRequest, router]);
+  }, [onOpen, onOpenRequest, router]);
   const adapter = useMemo<ExternalStoreThreadListAdapter>(() => ({
     threadId: currentId, threads, archivedThreads, isLoading: loading,
     onSwitchToNewThread: () => { if (!mutationLock.current) newCourseware(); },
     onSwitchToThread: openCourseware,
     onRename: async (id, title) => {
-      if (busy || mutationLock.current) throw new Error('请等待当前操作完成后重命名');
+      assertMutable([id]);
       const record = records.find(record => record.id === id);
       if (!record) throw new Error('课件已不存在，请刷新列表');
       mutationLock.current = true;
@@ -187,14 +200,14 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
     onDelete: id => remove([id], false),
     onArchive: id => setArchived(id, true),
     onUnarchive: id => setArchived(id, false),
-  }), [archivedThreads, busy, currentId, loading, newCourseware, openCourseware, records, refresh, remove, setArchived, threads]);
+  }), [archivedThreads, assertMutable, currentId, loading, newCourseware, openCourseware, records, refresh, remove, setArchived, threads]);
   const runtime = useExternalStoreRuntime({
-    messages: EMPTY_MESSAGES, convertMessage: message => message, isRunning: busy,
+    messages: EMPTY_MESSAGES, convertMessage: message => message, isRunning: false,
     onNew: async () => {}, adapters: { threadList: adapter },
   });
 
-  const organize = async (task: () => Promise<unknown>) => {
-    if (busy || mutationLock.current) throw new Error('请等待当前操作完成');
+  const organize = async (task: () => Promise<unknown>, ids: string[] = []) => {
+    assertMutable(ids);
     mutationLock.current = true; setMutating(true);
     // Invalidate a list fetch started before the mutation.
     requestVersion.current++;
@@ -203,14 +216,15 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
   };
 
   return <AssistantRuntimeProvider runtime={runtime}>
-    <ThreadList archived={archived} portalContainer={portalContainer} disabled={disabled} error={error} onRetry={() => { void refresh(); }} searchRef={searchRef} rootRef={listRef}
+    <ThreadList archived={archived} showSearch={archived} portalContainer={portalContainer} disabled={disabled} protectedIds={runningCoursewareIds} error={error} onRetry={() => { void refresh(); }} searchRef={searchRef} rootRef={listRef}
       newDisabled={mutating} onNew={() => { if (!mutationLock.current) newCourseware(); }}
       organization={organizationAvailable && !archived ? {
         projects,
         onCreate: () => setOrganizationRequest({ kind: 'create' }),
         onProject: (project, kind) => setOrganizationRequest({ kind, project }),
         onMove: id => { const record = records.find(record => record.id === id); if (record) setOrganizationRequest({ kind: 'move', record }); },
-        onPin: (id, pinned) => { void organize(() => organizeCourseware(id, { pinned })).catch(cause => setError(cause instanceof Error ? cause.message : String(cause))); },
+        onPin: (id, pinned) => { void organize(() => organizeCourseware(id, { pinned }), [id]).catch(cause => setError(cause instanceof Error ? cause.message : String(cause))); },
+        protectedProjectIds: new Set(records.filter(record => runningCoursewareIds.has(record.id) && record.project_id).map(record => record.project_id!)),
       } : undefined}
       // Intercept before the primitive changes its active thread, so cancelling
       // a draft guard leaves both the URL and list selection unchanged.
@@ -229,11 +243,15 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
         onToggle: id => setSelectedIds(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; }),
         onSelectAll: ids => setSelectedIds(new Set(ids)),
       }} />
+    {searchOpen && <CoursewareSearchDialog records={records} projects={projects} loading={loading} error={error} disabled={disabled}
+      returnFocus={searchReturnFocus.current} onClose={() => setSearchOpen(false)} onRetry={() => { void refresh(); }}
+      onSelect={id => { openCourseware(id); setSearchOpen(false); }} />}
     {organizationRequest && <CoursewareOrganizationDialog request={organizationRequest} projects={projects} portalContainer={portalContainer}
       onClose={() => setOrganizationRequest(null)}
-      onCreate={(name, id) => organize(() => createCoursewareProject(name, id))}
-      onMove={(id, projectId) => organize(() => organizeCourseware(id, { projectId }))}
-      onUpdate={(project, action, name) => organize(() => updateCoursewareProject(project, action, name))} />}
+      onCreate={(name, id) => organize(() => createCoursewareProject(name, id), id ? [id] : [])}
+      onMove={(id, projectId) => organize(() => organizeCourseware(id, { projectId }), [id])}
+      onUpdate={(project, action, name) => organize(() => updateCoursewareProject(project, action, name),
+        action === 'delete' ? records.filter(record => record.project_id === project.id).map(record => record.id) : [])} />}
     <Dialog open={deleteIds.length > 0} onOpenChange={open => { if (!open && !mutating) setDeleteIds([]); }}>
       <DialogContent portalContainer={portalContainer} className="max-w-sm" onCloseAutoFocus={event => {
         event.preventDefault();
@@ -245,7 +263,7 @@ export default function CoursewareThreadList({ searchRequest = 0, archived = fal
         {error && <p role="alert" className="text-sm text-[var(--mm-text-amber-900)]">{error}</p>}
         <div className="flex justify-end gap-2">
           <DialogClose asChild><Button variant="ghost" disabled={mutating}>取消</Button></DialogClose>
-          <Button variant="destructive" disabled={disabled} onClick={() => {
+          <Button variant="destructive" disabled={disabled || deleteIds.some(id => runningCoursewareIds.has(id))} onClick={() => {
             const task = deleteIds.length === 1 ? runtime.threads.getItemById(deleteIds[0]).delete() : remove(deleteIds);
             void task.catch(() => {});
           }}>{mutating ? '正在删除…' : '确认删除'}</Button>

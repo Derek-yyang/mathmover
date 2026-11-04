@@ -1,6 +1,7 @@
 import { dataDirectory } from '../../../../../packages/daemon/src/data-directory.ts';
 import { isApiFormat } from '../../../../../packages/agent-runtime/src/api-format.ts';
 import { loadByokConfig } from '@/lib/byok-store';
+import { ByokKeyScopeError, resolveByokKey } from '@/lib/byok-key-scope';
 import { fetchByokModels } from '@/lib/byok-probe';
 import { isSameLocalOrigin } from '@/lib/server/same-origin';
 
@@ -16,7 +17,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: '配置必须是 JSON 对象' }, { status: 400, headers });
   }
   const draft = body as Record<string, unknown>;
-  if (!isApiFormat(draft.apiFormat) || typeof draft.baseUrl !== 'string' || (draft.apiKey !== undefined && typeof draft.apiKey !== 'string')) {
+  if (!isApiFormat(draft.apiFormat) || typeof draft.baseUrl !== 'string' || (draft.apiKey !== undefined && draft.apiKey !== null && typeof draft.apiKey !== 'string')) {
     return Response.json({ error: '请检查接口格式、API 端点和密钥。' }, { status: 400, headers });
   }
   const baseUrl = draft.baseUrl.trim();
@@ -26,6 +27,12 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return Response.json({ error: '请填写有效的 HTTP(S) 基础地址，包含版本路径，无需查询参数。' }, { status: 400, headers });
   }
-  const apiKey = (typeof draft.apiKey === 'string' ? draft.apiKey.trim() : '') || loadByokConfig(dataDirectory())?.apiKey || '';
+  let apiKey: string;
+  try {
+    apiKey = resolveByokKey(baseUrl, draft.apiKey as string | null | undefined, loadByokConfig(dataDirectory()));
+  } catch (error) {
+    if (error instanceof ByokKeyScopeError) return Response.json({ error: error.message }, { status: 400, headers });
+    throw error;
+  }
   return Response.json(await fetchByokModels({ apiFormat: draft.apiFormat, baseUrl, apiKey }, fetch, { signal: req.signal }), { headers });
 }

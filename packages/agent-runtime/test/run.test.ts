@@ -44,6 +44,23 @@ async function run(def: RuntimeDefinition, images?: ImageInput[]) {
 }
 
 describe('runAgent 图片递送分流', () => {
+  it('creates an independent line parser for each process', async () => {
+    const { def } = fakeDef({
+      buildArgs: () => ['-e', 'console.log("one"); console.log("two");'],
+      parseLine: () => { throw new Error('must use per-run parser'); },
+      createLineParser: () => {
+        let count = 0;
+        return line => ({ kind: 'text-delta', text: `${++count}:${line}` });
+      },
+    });
+    const results = await Promise.all([run(def), run(def)]);
+    for (const events of results) {
+      expect(events.filter(e => e.kind === 'text-delta')).toEqual([
+        { kind: 'text-delta', text: '1:one' }, { kind: 'text-delta', text: '2:two' },
+      ]);
+    }
+  });
+
   it('无通道 + 有图：prompt 里要说「图片未送达」（这条真丢过）', async () => {
     const { def, getCaptured } = fakeDef(); // 不设 imageDelivery
     await run(def, [png]);

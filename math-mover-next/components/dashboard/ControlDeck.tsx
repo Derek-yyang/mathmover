@@ -58,7 +58,7 @@ export default function ControlDeck({
 }: ControlDeckProps) {
   return (
     <div className="@container relative z-10 shrink-0">
-    <header data-slot="board-toolbar" className="grid select-none grid-cols-[minmax(0,1fr)] items-center gap-x-3 gap-y-1 border-b border-[var(--mm-border-divider)] bg-[var(--mm-canvas-shell)] px-4 py-2 @min-[560px]:grid-cols-[minmax(0,1fr)_auto]">
+    <header data-slot="board-toolbar" className="grid select-none grid-cols-[minmax(0,1fr)] items-center gap-x-3 gap-y-1 bg-[var(--mm-canvas-shell)] px-4 py-2 @min-[560px]:grid-cols-[minmax(0,1fr)_auto]">
       {/* 左侧：课件标题 */}
       <div data-slot="board-toolbar-title" className="order-1 flex min-w-0 items-center gap-3 @min-[560px]:min-h-10">
         <div className="flex min-w-0 items-center gap-2 has-[[data-slot=courseware-title-editor]]:[&_[role=status]]:hidden">

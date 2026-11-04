@@ -10,6 +10,14 @@ export interface EffortOption {
   default?: boolean;
 }
 
+/** Resolve stored choices once for both the picker and the outgoing request. */
+export function effectiveModelId(models: readonly { id: string }[] | undefined, selectedId: string | undefined): string {
+  const id = selectedId || 'default';
+  // Detection has not provided a catalog yet; do not erase a saved choice.
+  if (!models?.length) return id;
+  return models.some(model => model.id === id) ? id : models[0]!.id;
+}
+
 /**
  * 来源和映射说明留给面板第二行；仅整理显示名，不改模型 ID。
  * label 形如 `Opus → claude-opus-5[1M]（claude-haiku-5-5）` 或 `gpt-6.1-sol（config.toml）`。

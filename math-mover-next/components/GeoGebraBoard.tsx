@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import { ensureGGBLoaded, GGB_CODEBASE } from '@/lib/ggb-runtime';
 import { resizeAppletPreservingView, resizedViewBounds } from '@/lib/ggb-view-resize';
 import { ggbClientEventType, isRestoringGgb, readGgbGraphics } from '@/lib/ggb-graphics-state';
@@ -35,7 +35,9 @@ declare global {
   }
 }
 
-export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetIcon = true }: GeoGebraBoardProps) {
+export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetIcon = true, active = true }: GeoGebraBoardProps) {
+  const instanceId = useId();
+  const appletId = id || `ggb-${instanceId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<GeoGebraApi | null>(null);
@@ -44,6 +46,7 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
 
   // 初始化只执行一次，但就绪回调始终读取最新的课件和事件处理函数。
   const notifyAppletReady = useEffectEvent((api: GeoGebraApi) => {
+    if (active) window.ggbApplet = api;
     api.setAxesVisible(true, true);
     api.setGridVisible(true);
 
@@ -199,6 +202,7 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
       if (cancelled) return;
       
       const params = {
+        "id": appletId,
         "appName": "classic",
         "perspective": "2", 
         "width": Math.max(1, stage.clientWidth),
@@ -210,14 +214,13 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
         "showResetIcon": showResetIcon,
         "showAxes": true,
         "showGrid": true,
-        "borderColor": "#D3D3D3", // 与未聚焦时一致，点击画布后边框也保持浅灰。
+        "borderColor": "#D3D3D3", // globals.css 将外框透明化，同时保留尺寸，避免影响视图构图。
         "errorDialogsActive": false,
         "useBrowserForScale": false, // 手动接管尺寸控制，避免自动缩放逻辑打架
         "disableAutoScale": true,
         "appletOnLoad": (api: GeoGebraApi) => {
             if (cancelled) return;
             apiRef.current = api;
-            window.ggbApplet = api; // 确保全局句柄可用（注意清理）
             releaseGridRenderer = attachGgbGridRenderer(container);
             resizeApplet();
             releaseSettingsPanel = registerGgbSettingsPanel(api, () =>
@@ -254,14 +257,19 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
       liveResize.cancel();
       if (internalResizeFrame) cancelAnimationFrame(internalResizeFrame);
       apiRef.current?.unregisterClientListener?.(onViewChanged);
+      // GeoGebra's native cleanup can reset its legacy global even when a
+      // different applet is now selected. Preserve that selected alias.
+      const selectedApplet = window.ggbApplet;
+      apiRef.current?.remove?.();
       container.replaceChildren();
-      // 仅当全局句柄属于当前实例时才清理，避免误伤其他实例
-      if (window.ggbApplet === apiRef.current) {
-        window.ggbApplet = undefined;
-      }
+      window.ggbApplet = selectedApplet === apiRef.current ? undefined : selectedApplet;
       apiRef.current = null;
     };
-  }, [showResetIcon, loadAttempt]); // 尺寸变化不会重新初始化 Applet。
+  }, [appletId, showResetIcon, loadAttempt]); // 尺寸变化不会重新初始化 Applet。
+
+  useEffect(() => {
+    if (active && apiRef.current) window.ggbApplet = apiRef.current;
+  }, [active]);
 
   // 监听 ggbBase64 变化并更新
   useEffect(() => {
@@ -279,7 +287,7 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
       <div
         ref={containerRef}
         className="absolute inset-0 h-full! w-full! overflow-hidden bg-[var(--mm-surface)]"
-        id={id || "ggb-element"}
+        id={appletId}
       />
       {loadError && (
         <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[var(--mm-surface)] p-6 text-sm text-[var(--mm-text-stone-700)]">

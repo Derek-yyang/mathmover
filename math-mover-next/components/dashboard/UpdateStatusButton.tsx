@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { RotateCw, TriangleAlert } from 'lucide-react';
+import { CircleArrowUp, TriangleAlert } from 'lucide-react';
 import { desktopBridge, type UpdateState } from '@/lib/desktop-bridge';
 
 const RADIUS = 8;
@@ -104,7 +104,7 @@ export function UpdateStatusButton() {
         onClick={() => setOpen(value => !value)}
         className={`${ICON_BUTTON} text-[var(--mm-text-emerald-700)] hover:bg-[var(--mm-bg-emerald-50)]`}
       >
-        <RotateCw aria-hidden size={15} />
+        <CircleArrowUp aria-hidden size={15} />
       </button>
       {open && (
         <div

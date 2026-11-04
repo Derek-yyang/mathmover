@@ -33,6 +33,40 @@ describe('semanticCheck', () => {
     expect(r.failures.filter((f) => f.check === 'free_param' || f.check === 'orphan_slider')).toEqual([]);
   });
 
+  it.each([':', ' : ', ': '])('冒号命名的双曲线可被求交引用（分隔符 %j）', (separator) => {
+    const text = [
+      'MODE:2D',
+      `conicC${separator}x^2/2 - y^2 = 1`,
+      'b = Slider(1.1, 1.8, 0.01)',
+      'l = Line((0, b), (1, b - 1))',
+      'P = Intersect(l, conicC, 1)',
+      'Q = Intersect(l, conicC, 2)',
+    ].join('\n');
+    expect(semanticCheck(text, { knownCommandLower: KNOWN }).failures).toEqual([]);
+  });
+
+  it('冒号命名的方程对滑块的引用计入依赖关系', () => {
+    const text = 'b = Slider(0, 2, 0.1)\nl: x + y = b';
+    const r = semanticCheck(text, { knownCommandLower: KNOWN });
+    expect(r.failures).toEqual([]);
+  });
+
+  it('冒号命名方程中真正未定义的参数仍会报错', () => {
+    const r = semanticCheck('conicC: x^2/2 - y^2 = t', { knownCommandLower: KNOWN });
+    expect(r.failures).toEqual([
+      expect.objectContaining({ check: 'free_param', detail: expect.stringContaining('t（被 conicC 引用）') }),
+    ]);
+  });
+
+  it.each(['=', ':='])('保留 %s 定义和函数形参的识别', (separator) => {
+    const text = `f(t) ${separator} t^2\nP = (1, f(1))`;
+    expect(semanticCheck(text, { knownCommandLower: KNOWN }).failures).toEqual([]);
+  });
+
+  it.each(['MODE:2D', 'MODE:3D', ' mode : 3D'])('模式标记 %j 不算对象定义', (mode) => {
+    expect(semanticCheck(`${mode}\nA = (0, 0)`, { knownCommandLower: KNOWN }).failures).toEqual([]);
+  });
+
   it('没有类别也能查——动点自洽对画图与题目建模都适用', () => {
     const fp = semanticCheck('f = Function(t^2, -3, 3)\nP = (t, f(t))', { knownCommandLower: KNOWN });
     expect(fp.failures.some((f) => f.check === 'free_param')).toBe(true);

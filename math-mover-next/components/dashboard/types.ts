@@ -77,6 +77,7 @@ export interface AgentMeta {
   auditResult?: AuditResult | null;
   errorMessage?: string;
   diagnostic?: AgentDiagnostic;
+  retry?: { retryAt: number; attempt: number; reason: 'rate_limit' | 'unavailable' };
   execution?: AgentExecution;
   characters?: number;
 }

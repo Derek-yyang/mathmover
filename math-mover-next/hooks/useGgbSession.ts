@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type RefObject } from 'react';
 import { GeoGebraApi, AuditResult } from '@/components/dashboard/types';
 // 体检算法唯一真源在 ggb-core。只走 /probe 子路径，不从整包引（见 types.ts 顶部说明）。
 import { auditConstruction } from '@mathmover/ggb-core/probe';
@@ -12,6 +12,7 @@ import { watchGgbGraphics } from '@/lib/ggb-graphics-state';
 import { noteRenderTrouble } from '@/lib/render-trouble';
 
 interface UseGgbSessionOptions {
+  containerRef?: RefObject<HTMLElement | null>;
   onAuditCompleted?: (audit: AuditResult) => void;
   onError?: (error: string) => void;
 }
@@ -35,7 +36,8 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
   // Direct manipulation takes priority over the brief recenter transition.
   useEffect(() => {
     const interrupt = (event: Event) => {
-      if (event.target instanceof Element && event.target.closest('.GeoGebraFrame')) {
+      if (event.target instanceof Element && event.target.closest('.GeoGebraFrame')
+        && (!options.containerRef || options.containerRef.current?.contains(event.target))) {
         cancelViewAnimation();
       } else if (event instanceof KeyboardEvent && event.key === 'Escape') {
         cancelViewAnimation();
@@ -50,7 +52,7 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('blur', cancelViewAnimation);
     window.addEventListener('resize', cancelViewAnimation);
-    const frame = document.querySelector('.GeoGebraFrame');
+    const frame = (options.containerRef?.current ?? document).querySelector('.GeoGebraFrame');
     const observer = new ResizeObserver(cancelViewAnimation);
     if (frame) observer.observe(frame);
     return () => {
@@ -63,7 +65,7 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
       window.removeEventListener('blur', cancelViewAnimation);
       window.removeEventListener('resize', cancelViewAnimation);
     };
-  }, [ggbApplet, currentMode, cancelViewAnimation]);
+  }, [ggbApplet, currentMode, cancelViewAnimation, options.containerRef]);
 
   // 绑定初始化句柄
   const handleAppletReady = useCallback((api: GeoGebraApi) => {
@@ -534,7 +536,7 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
     if (!ggbApplet) return false;
     try {
       const dataUrl = getCoursewarePNG(ggbApplet, () => {
-        const canvas = document.querySelector<HTMLCanvasElement>('#ggb-element canvas');
+        const canvas = (options.containerRef?.current ?? document).querySelector<HTMLCanvasElement>('.GeoGebraFrame canvas');
         return canvas?.toDataURL('image/png') ?? null;
       });
       const link = document.createElement('a');
@@ -551,7 +553,7 @@ export function useGgbSession(options: UseGgbSessionOptions = {}) {
       console.error('Failed to export PNG:', e);
       return false;
     }
-  }, [ggbApplet]);
+  }, [ggbApplet, options.containerRef]);
 
   return {
     ggbApplet,

@@ -92,11 +92,10 @@ export default function ResizableChatRegion({ children, disabled = false }: { ch
         aria-disabled={disabled}
         tabIndex={disabled ? -1 : 0}
         title="拖动调整聊天区宽度，双击恢复默认"
-        className={`group absolute inset-y-0 -left-1.5 z-20 w-3 touch-none cursor-col-resize outline-none ${disabled ? 'pointer-events-none invisible' : ''}`}
+        className={`group absolute inset-y-0 -left-1.5 z-20 w-3 touch-none select-none cursor-col-resize outline-none ${disabled ? 'pointer-events-none invisible' : ''}`}
         onPointerDown={event => {
           if (disabled || event.button !== 0 || dragRef.current) return;
-          event.preventDefault();
-          event.currentTarget.focus();
+          // Native pointer focus keeps focus-visible reserved for keyboard use.
           event.currentTarget.setPointerCapture(event.pointerId);
           dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startWidth: width };
           pendingWidthRef.current = width;
@@ -115,8 +114,7 @@ export default function ResizableChatRegion({ children, disabled = false }: { ch
           setWidth(next);
         }}
       >
-        <span className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 group-hover:bg-[var(--mm-bg-emerald-600)] group-focus-visible:bg-[var(--mm-bg-emerald-700)] ${dragging ? 'bg-[var(--mm-bg-emerald-600)]' : 'bg-transparent'}`} />
-        <span aria-hidden="true" className={`absolute left-1/2 top-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full group-hover:bg-[var(--mm-bg-emerald-600)] group-focus-visible:bg-[var(--mm-bg-emerald-700)] ${dragging ? 'bg-[var(--mm-bg-emerald-600)]' : 'bg-[var(--mm-bg-stone-300)]'}`} />
+        <span aria-hidden="true" className={`absolute left-1/2 top-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full group-hover:bg-[var(--mm-bg-emerald-600)] group-focus-visible:bg-[var(--mm-bg-emerald-700)] ${dragging ? 'bg-[var(--mm-bg-emerald-600)]' : 'bg-transparent'}`} />
       </div>
     </div>
   );

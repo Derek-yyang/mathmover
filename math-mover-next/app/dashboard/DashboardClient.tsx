@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, Suspense, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { X } from 'lucide-react';
 import ControlDeck from '@/components/dashboard/ControlDeck';
 import AgentChatPanel from '@/components/dashboard/AgentChatPanel';
@@ -27,7 +28,9 @@ import { historyBeforeUserMessage } from '@/lib/assistant-chat-adapter';
 import { createStreamTextBatch } from '@/lib/stream-text-batch';
 import { appendActivityText, classifyActivityText, recordActivityTool, settleActivity, type ActivityTextEvent } from '@/lib/agent-activity';
 import { agentSendBlock } from '@/lib/agent-send-readiness';
+import { prepareAgentImages } from '@/lib/agent-image-payload';
 import { openSettings } from '@/lib/settings-navigation';
+import { ComposerDrafts } from '@/lib/composer-drafts';
 
 export default function Dashboard({ wsUrl }: { wsUrl: string }) {
   return (
@@ -44,6 +47,64 @@ export default function Dashboard({ wsUrl }: { wsUrl: string }) {
 }
 
 function DashboardContent({ wsUrl }: { wsUrl: string }) {
+  const params = useSearchParams();
+  const router = useRouter();
+  const requestedId = params.get('history_id') ?? undefined;
+  const request = params.get('action') === 'new' ? 'new' : requestedId ?? 'blank';
+  const [drafts] = useState(() => new ComposerDrafts());
+  type Workspace = { key: string; initialId?: string; id?: string; error?: string | null };
+  const [pool, setPool] = useState(() => {
+    const key = crypto.randomUUID();
+    const id = request === 'new' ? undefined : requestedId;
+    return { request, activeKey: key, entries: [{ key, initialId: id, id }] as Workspace[] };
+  });
+  // Preserve the mounted editor (and its stream/bridge) when its URL first gains
+  // an ID. Only the selected editor follows navigation; retained ones never do.
+  if (pool.request !== request) {
+    const current = pool.entries.find(entry => entry.key === pool.activeKey);
+    const existing = request === 'new' ? undefined : request === 'blank'
+      ? current && !current.id ? current : undefined
+      : pool.entries.find(entry => entry.id === requestedId);
+    const next = existing ?? { key: crypto.randomUUID(), initialId: request === 'new' ? undefined : requestedId, id: request === 'new' ? undefined : requestedId };
+    setPool({ request, activeKey: next.key, entries: existing ? pool.entries : [...pool.entries, next] });
+  }
+  useEffect(() => {
+    if (request === 'new') router.replace('/dashboard');
+  }, [request, router]);
+  const identify = useCallback((key: string, id: string) => setPool(previous => {
+    if (previous.entries.find(entry => entry.key === key)?.id === id) return previous;
+    return { ...previous, entries: previous.entries.map(entry => entry.key === key ? { ...entry, id } : entry) };
+  }), []);
+  const release = useCallback((key: string) => setPool(previous => previous.activeKey === key ? previous
+    : { ...previous, entries: previous.entries.filter(entry => entry.key !== key) }), []);
+  const reportSaveError = useCallback((key: string, error: string) => setPool(previous => ({ ...previous,
+    entries: previous.entries.map(entry => entry.key === key ? { ...entry, error } : entry) })), []);
+  const failed = pool.entries.find(entry => entry.key !== pool.activeKey && entry.error);
+  return <>
+    {pool.entries.map(entry => <div key={entry.key} data-slot="courseware-workspace" data-courseware-id={entry.id}
+      data-active={entry.key === pool.activeKey ? 'true' : 'false'} aria-hidden={entry.key !== pool.activeKey} inert={entry.key !== pool.activeKey}
+      className={`absolute inset-0 h-full w-full ${entry.key === pool.activeKey ? '' : 'invisible pointer-events-none'}`}>
+      <DashboardWorkspace wsUrl={wsUrl} workspaceKey={entry.key} initialId={entry.initialId} active={entry.key === pool.activeKey}
+        drafts={drafts} onIdentity={identify} onRelease={release} onSaveError={reportSaveError} />
+    </div>)}
+    {failed && <div role="alert" className="absolute inset-x-2 top-14 z-30 rounded-lg bg-[var(--mm-bg-amber-50)] p-3 text-sm text-[var(--mm-text-amber-900)]">
+      后台课件保存失败：{failed.error}
+      <button type="button" className="ml-2 underline" onClick={() => {
+        setPool(previous => ({ ...previous, activeKey: failed.key }));
+        router.push(failed.id ? `/dashboard?history_id=${encodeURIComponent(failed.id)}` : '/dashboard');
+      }}>返回查看</button>
+    </div>}
+  </>;
+}
+
+function DashboardWorkspace({ wsUrl, workspaceKey, initialId, active, drafts, onIdentity, onRelease, onSaveError }: {
+  wsUrl: string; workspaceKey: string; initialId?: string; active: boolean; drafts: ComposerDrafts;
+  onIdentity: (key: string, id: string) => void; onRelease: (key: string) => void;
+  onSaveError: (key: string, error: string) => void;
+}) {
+  const activeRef = useRef(active); activeRef.current = active;
+  const [binding] = useState(() => ({ id: initialId }));
+  const identify = useCallback((id: string) => onIdentity(workspaceKey, id), [onIdentity, workspaceKey]);
 
   // 当前课件状态
   const [currentTitle, setCurrentTitle] = useState('未命名课件');
@@ -120,6 +181,7 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
     exportPNG,
     exportHTML,
   } = useGgbSession({
+    containerRef: canvasWorkspaceRef,
     // 画布体检结果此前只留在 hook 内部，用户看到的一直是「本轮没有对象检查数据」。
     // 这里写进最近一条助手消息的 meta，面板才有东西可显示。
     onAuditCompleted: (audit) => {
@@ -140,13 +202,16 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
 
   // ── Agent 对话 ──────────────────────────────────────────────
   // 驱动**本机已装的 agent CLI**（Claude Code / Codex / dsh），不需要 API key。
-  // agent 通过 daemon 经 WebSocket 读写**用户正在看的**这块画布：
-  // 它看到的和用户看到的是同一个实例。
+  // agent 通过 daemon 经 WebSocket 读写本工作区的画布；切到其他课件后，
+  // 此实例仍挂载并接收工具调用，直到本轮结果完成保存。
   //
   // 传输用 NDJSON（自己的事件模型），不套 AI SDK 的 UI message stream：
   // AgentChatPanel 本来就是受控组件，直接消费更少代码，也免去与 ai 包的版本耦合。
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
-  const { runtimes, activeRuntimeId, detecting, detectionError, busy: isLoading, setBusy: setIsLoading, recordFailure, clearFailure } = useAgentRuntimeState();
+  const { runtimes, activeRuntimeId, detecting, detectionError, setEditorBusy, recordFailure, clearFailure } = useAgentRuntimeState();
+  const [isLoading, setIsLoading] = useState(false);
+  const [settling, setSettling] = useState(false);
+  const [finalSaveFailed, setFinalSaveFailed] = useState(false);
   const sessionIdRef = useRef<string | undefined>(undefined);
   // 当前这一轮的取消句柄。用户点「停止」→ abort fetch → 流被取消 →
   // route 的 ReadableStream.cancel() 杀掉 agent 子进程（见 app/api/agent/route.ts）。
@@ -202,15 +267,54 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
     restoreCommandLedger(record?.commands ?? []);
   }, [ggbApplet, activeRuntimeId, restoreCommandLedger, executeCommands, clearConstruction, setAxesVisible, setGridVisible, syncGraphics]);
   const courseware = useCoursewareLibrary({ api: ggbApplet, messages, commands: ledgerRef, busy: isLoading,
-    runtimeId: activeRuntimeId, sessionId: sessionIdRef, showAxes, showGrid, onRestore: restoreCourseware });
+    runtimeId: activeRuntimeId, sessionId: sessionIdRef, showAxes, showGrid, onRestore: restoreCourseware,
+    active, binding, onIdentity: identify });
   const displayedTitle = courseware.summary?.title ?? currentTitle;
   const { windowId, markDirty, flush, canSend } = courseware;
+  useEffect(() => {
+    setEditorBusy(workspaceKey, isLoading || settling, courseware.summary?.id);
+  }, [isLoading, settling, courseware.summary?.id, setEditorBusy, workspaceKey]);
+  useEffect(() => () => setEditorBusy(workspaceKey, false), [setEditorBusy, workspaceKey]);
+  useEffect(() => {
+    if (isLoading || !settling) return;
+    let cancelled = false;
+    // The final message state has committed: capture the final board and answer
+    // before dropping the running guard or disposing a background applet.
+    void flush().then(() => {
+      if (!cancelled) { setSettling(false); setFinalSaveFailed(false); }
+    }, error => {
+      if (cancelled) return;
+      setFinalSaveFailed(true);
+      if (!activeRef.current) onSaveError(workspaceKey, error instanceof Error ? error.message : String(error));
+    });
+    return () => { cancelled = true; };
+  }, [isLoading, settling, flush, onSaveError, workspaceKey]);
+  useEffect(() => {
+    // A failed final save keeps the guard until the user retries successfully.
+    if (settling && finalSaveFailed && courseware.status === 'saved') {
+      setSettling(false); setFinalSaveFailed(false);
+    }
+  }, [settling, finalSaveFailed, courseware.status]);
+  useEffect(() => {
+    if (active || isLoading || settling) return;
+    let cancelled = false;
+    void flush().then(() => { if (!cancelled) onRelease(workspaceKey); }, error => {
+      if (!cancelled) onSaveError(workspaceKey, error instanceof Error ? error.message : String(error));
+    });
+    return () => { cancelled = true; };
+  }, [active, isLoading, settling, flush, onRelease, onSaveError, workspaceKey]);
   const [connectionStatus, setConnectionStatus] = useState<GgbConnectionStatus>('loading');
   const sendBlock = agentSendBlock({ connection: connectionStatus, detecting,
     detectionFailed: !!detectionError, active: runtimes.find(runtime => runtime.id === activeRuntimeId) });
   const bridgeCleanup = useRef<ReturnType<typeof attachGgbBridge> | null>(null);
   useEffect(() => () => bridgeCleanup.current?.(), []);
   const reconnectBridge = useCallback(() => bridgeCleanup.current?.reconnect(), []);
+  useEffect(() => {
+    if (active && ggbApplet) {
+      window.ggbApplet = ggbApplet;
+      bridgeCleanup.current?.activate();
+    }
+  }, [active, ggbApplet]);
 
   // 当前课件的 id —— 工作稿目录的键。走 ref 是因为重连自愈要用它，而把它塞进
   // 桥的依赖里会让每次保存都重挂一次 WebSocket。
@@ -224,6 +328,8 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
       bridgeCleanup.current?.();
       bridgeCleanup.current = attachGgbBridge(api, {
         windowId,
+        active: () => activeRef.current,
+        canvasRoot: canvasWorkspaceRef.current ?? undefined,
         onConnectionChange: (status) => {
           setConnectionStatus(status);
           // 草稿自愈：daemon 启动时会清掉孤儿工作区（见 daemon 的 workspaces.ts），
@@ -300,7 +406,7 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
 
   const handleSendMessage = useCallback(
     async (text: string, attachments: ChatAttachment[], editMessageId?: string) => {
-      if (isLoading || abortRef.current || !canSend || sendBlock) return;
+      if (isLoading || settling || abortRef.current || !canSend || sendBlock) return;
       const priorMessages = editMessageId ? historyBeforeUserMessage(messages, editMessageId) : messages;
       if (!priorMessages || (!text.trim() && !attachments.length)) return;
       // An edited turn must not resume the CLI session containing the superseded replies.
@@ -345,12 +451,14 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
 
       let sawDone = false;
       let sawError = false;
+      let waitingForRetry = false;
 
-      const reportFailure = (message: string, stage: 'request' | 'runtime', status?: number) => {
+      const reportFailure = (message: string, stage: 'request' | 'runtime', status?: number, code?: 'quota_exhausted') => {
+        if (sawError) return;
         sawError = true;
-        const diagnostic = agentFailure({ stage, message, status, runtimeId: activeRuntimeId });
+        const diagnostic = agentFailure({ stage, message, status, code, runtimeId: activeRuntimeId });
         recordFailure(diagnostic);
-        patch(m => ({ ...m, meta: { ...m.meta, status: 'error', errorMessage: diagnostic.detail, diagnostic } }));
+        patch(m => ({ ...m, meta: { ...m.meta, retry: undefined, status: 'error', errorMessage: diagnostic.detail, diagnostic } }));
       };
 
       try {
@@ -359,25 +467,9 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
         // 拿不到就留空——落到 daemon 的 `_default`，**不要**退回窗口 id，那等于把
         // 「按窗口命名目录」放回来（正是这次要消除的东西）。
         const coursewareId = await flush(nextMessages);
-        // 题目图片：File → base64（blob: URL 路由读不了，必须在这里转）
-        const imagePayloads: { mediaType: string; base64: string; name?: string }[] = [];
-        for (const a of attachments ?? []) {
-          try {
-            let dataUrl = a.url;
-            if (a.file) {
-              dataUrl = await new Promise<string>((res, rej) => {
-                const r = new FileReader();
-                r.onload = () => res(String(r.result));
-                r.onerror = () => rej(r.error);
-                r.readAsDataURL(a.file as File);
-              });
-            }
-            const m = /^data:([^;,]+);base64,([\s\S]+)$/.exec(dataUrl);
-            if (m && m[1].startsWith('image/')) {
-              imagePayloads.push({ mediaType: m[1], base64: m[2], name: a.name });
-            }
-          } catch { /* 单张转码失败不拦发送 */ }
-        }
+        // Includes persisted asset URLs when editing/reopening an image question.
+        // Never send a partial question after silently dropping an unreadable image.
+        const imagePayloads = await prepareAgentImages(attachments, controller.signal);
 
         const res = await fetch('/api/agent', {
           method: 'POST',
@@ -427,9 +519,25 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
             toolCallId?: unknown; isError?: unknown; input?: unknown;
             messageId?: string; phase?: 'commentary' | 'final'; resultText?: string; status?: string;
             title?: string;
+            retryAt?: number | null; attempt?: number; reason?: string; code?: string;
           };
           try { ev = JSON.parse(raw); } catch { return; }
+          if (waitingForRetry && ['text', 'text-delta', 'tool-call', 'tool-result'].includes(ev.kind ?? '')) {
+            waitingForRetry = false;
+            patch(m => ({ ...m, meta: { ...m.meta, retry: undefined } }));
+          }
           switch (ev.kind) {
+            case 'retry': {
+              if (sawError || sawDone) break;
+              const retry = typeof ev.retryAt === 'number' && Number.isFinite(ev.retryAt) && ev.retryAt > 0 &&
+                typeof ev.attempt === 'number' && Number.isInteger(ev.attempt) && ev.attempt > 0
+                ? { retryAt: ev.retryAt, attempt: ev.attempt, reason: ev.reason === 'rate_limit' ? 'rate_limit' as const : 'unavailable' as const }
+                : undefined;
+              patch(m => ({ ...m, meta: { ...m.meta, retry } }));
+              waitingForRetry = Boolean(retry);
+              setLoadingStatusText(retry ? '等待模型服务重试…' : '等待 Agent 回复…');
+              break;
+            }
             case 'text-delta':
               if (textContext.messageId !== ev.messageId || textContext.phase !== ev.phase) textBatch.flush();
               textContext = { messageId: ev.messageId, phase: ev.phase };
@@ -447,7 +555,7 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
             case 'title':
               // 从正文里剥出来的课件名（`<mm-title>` 标记）。标记本身永远不出现在 text 里，
               // 宿主在 route 的出流口剥掉。命名优先级由 useCoursewareLibrary 管：
-              // 用户手改的 > agent 起的（第一条带 meta.title 的消息赢）> 首条消息截断。
+              // 用户手改的 > agent 起的（第一条带 meta.title 的消息赢）> 未命名课件。
               if (typeof ev.title === 'string') {
                 patch(m => ({ ...m, meta: mergeRunMeta(m.meta, { title: ev.title }) }));
               }
@@ -479,12 +587,12 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
               break;
             }
             case 'error':
-              sawError = true;
-              reportFailure(typeof ev.message === 'string' ? ev.message : '没有返回具体错误信息。', 'runtime');
+              reportFailure(typeof ev.message === 'string' ? ev.message : '没有返回具体错误信息。', 'runtime', undefined,
+                ev.code === 'quota_exhausted' ? ev.code : undefined);
               break;
             case 'done':
               sawDone = true;
-              if (ev.status === 'cancelled') stopped = true;
+              if (ev.status === 'cancelled' && !sawError) stopped = true;
               patch(m => settleActivity(m, ev.status !== 'cancelled' && !sawError ? ev.resultText : undefined));
               if (ev.sessionId) sessionIdRef.current = ev.sessionId;
               break;
@@ -505,7 +613,7 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
         if (!sawDone && !sawError && !stopped) reportFailure('消息流结束，但没有收到任务完成标记。无法确认此次任务是否完成。', 'runtime');
       } catch (e) {
         // 用户点「停止」是正常打断，不是失败——不要报成错误
-        if (controller.signal.aborted) stopped = true;
+        if (controller.signal.aborted && !sawError) stopped = true;
         else reportFailure(String(e instanceof Error ? e.message : e), 'request');
       } finally {
         const now = Date.now();
@@ -514,14 +622,16 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
         patch(m => {
           const next = settleActivity(m);
           return next.meta?.execution ? { ...next, meta: { ...next.meta,
+            retry: undefined,
             status: stopped ? 'stopped' : sawError ? 'error' : 'completed',
             execution: finishExecution(next.meta.execution, status, now) } } : next;
         });
+        setSettling(true);
         setIsLoading(false);
         setLoadingStatusText('准备就绪');
       }
     },
-    [isLoading, activeRuntimeId, selectedModel, selectedEffort, setIsLoading, recordFailure, clearFailure, messages, canSend, sendBlock, flush, windowId],
+    [isLoading, settling, activeRuntimeId, selectedModel, selectedEffort, recordFailure, clearFailure, messages, canSend, sendBlock, flush, windowId],
   );
 
   const handleEditMessage = useCallback(async (messageId: string, text: string, attachments: ChatAttachment[]) => {
@@ -533,7 +643,7 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
       {/* 工具栏与画布共用一个工作区；全屏时保留同一个 Applet 实例。 */}
       <div
         ref={canvasWorkspaceRef}
-        className={`flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--mm-surface)] ${isFullscreen ? 'fixed inset-0 z-40 h-dvh w-screen' : 'relative h-full'}`}
+        className={`flex min-h-0 min-w-0 flex-1 flex-col bg-[var(--mm-canvas-shell)] ${isFullscreen ? 'fixed inset-0 z-40 h-dvh w-screen' : 'relative h-full'}`}
       >
         <ControlDeck
           title={displayedTitle}
@@ -541,7 +651,7 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
           onReconnect={reconnectBridge}
           editorId={courseware.editorId}
           onRename={courseware.renameTitle}
-          renameDisabled={isLoading || !courseware.canSend || !ggbApplet}
+          renameDisabled={isLoading || settling || !courseware.canSend || !ggbApplet}
           boardDisabled={courseware.isRestoring || !ggbApplet}
           saveStatusText={courseware.isOpening ? undefined : courseware.saveStatusText}
           showAxes={showAxes}
@@ -567,17 +677,20 @@ function DashboardContent({ wsUrl }: { wsUrl: string }) {
             </button>
           </div>
         )}
-        <CanvasStage onAppletReady={handleAppletReadyWithBridge} blocked={courseware.isRestoring} opening={courseware.isOpening} />
+        <div data-slot="board-surface" className={`relative flex min-h-0 min-w-0 flex-1 overflow-hidden ${isFullscreen ? '' : 'mx-2 mb-2 rounded-lg border border-[var(--mm-border-stone-300)]'}`}>
+          <CanvasStage onAppletReady={handleAppletReadyWithBridge} blocked={courseware.isRestoring} opening={courseware.isOpening} active={active} />
+        </div>
       </div>
 
       {/* 右侧 Agent 智能体对话面板 */}
       <ResizableChatRegion disabled={isFullscreen}>
         <AgentChatPanel
+          composerDrafts={drafts}
           messages={messages}
           conversationId={courseware.summary?.id}
           editorId={courseware.editorId}
           isLoading={isLoading}
-          sendDisabled={!courseware.canSend || !!sendBlock}
+          sendDisabled={settling || !courseware.canSend || !!sendBlock}
           sendBlock={sendBlock}
           onReconnectBoard={reconnectBridge}
           onOpenSettings={openSettings}

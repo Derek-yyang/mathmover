@@ -24,6 +24,17 @@ test('简报含通用写法 + 命令表 + 卡片目录（原 get_drawing_pack �
   assert.match(brief, /3d-frame/);
 });
 
+test('首轮简报直接带正确斜率写法和计算对象创建时隐藏的规则', () => {
+  resetSystemBriefCache();
+  const brief = buildSystemBrief(REPO_ROOT);
+  assert.ok(brief.includes('不要写 `Slope(A, P)`'));
+  assert.ok(brief.includes('lineAP = Line(A, P)'));
+  assert.ok(brief.includes('kAP = Slope(lineAP)'));
+  assert.ok(brief.includes('纯计算对象创建时就隐藏'));
+  assert.ok(brief.includes('与定义放在同一次 `ggb_apply`'));
+  assert.ok(brief.includes('要求显示的数值/动态文字保持可见'));
+});
+
 test('简报带防回声标签：稳定前缀 + 不许复述', () => {
   const brief = buildSystemBrief(REPO_ROOT);
   assert.match(brief, /<mathmover_core_system_prompt>[\s\S]*<\/mathmover_core_system_prompt>/);
@@ -55,6 +66,34 @@ test('题目增强只认题图：不把「文字题面」当触发条件', () =>
   assert.match(brief, /带了题目图片/);
   assert.match(brief, /直接指令/);
   assert.ok(!brief.includes('图片/题面'), '旧的宽触发措辞不得回潮：纯文字题面不算');
+});
+
+test('题图一次拿齐固定 SOP，普通画图仍可按需取卡', () => {
+  const brief = buildSystemBrief(REPO_ROOT);
+  assert.match(brief, /一次返回完整的 8 步建模流程 \+ 本类固定清单中的全部 SOP 正文/);
+  assert.match(brief, /已包含的卡不要重复取/);
+  assert.match(brief, /普通画图或需要包内未包含的补充参考时，用 get_sop_cards 按需批量取卡/);
+  assert.ok(!brief.includes('清单只是目录'));
+});
+
+test('按完整构造阶段提交，必要样式随对象创建一起确定', () => {
+  const brief = buildSystemBrief(REPO_ROOT);
+  assert.match(brief, /创建对象时，一并确定必要的标签、颜色、点大小和辅助对象显隐/);
+  assert.match(brief, /沿用默认值时不补写样式命令/);
+  assert.match(brief, /简单图形可一次提交完整构造/);
+  assert.match(brief, /复杂图形按「基础图形」「动点与关联对象」等完整阶段更新/);
+  assert.match(brief, /不按单个对象或样式属性拆批/);
+  assert.doesNotMatch(brief, /每完成一段就|不要憋到最后一次性出全图/);
+});
+
+test('检查后集中修正并明确结束条件，真实错误仍必须修复', () => {
+  const brief = buildSystemBrief(REPO_ROOT);
+  assert.match(brief, /将已发现的问题集中修改后再 apply/);
+  assert.match(brief, /回执点名了无效行、或动点自洽未过，就得改掉再收工/);
+  assert.match(brief, /对象缺失、对应关系或运动边界错误也必须修复，不硬性限制修正次数/);
+  assert.match(brief, /构造完整、依赖正确、运动符合题意、画面可读且自检通过后，直接输出结果/);
+  assert.match(brief, /不要为轻微外观差异再开一轮美化/);
+  assert.match(brief, /用户明确要求的外观修改或影响可读性的视图问题仍应处理/);
 });
 
 test('线框画法统一：一步到位构造器不用（所有场景都拿到这条）', () => {

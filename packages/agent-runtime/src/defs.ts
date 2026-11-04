@@ -20,6 +20,7 @@ import { formatClaudeStreamJsonInput, type ImageInput } from './images.ts';
 import { claudeConfiguredModels, claudeDefaultEffort } from './claude-env.ts';
 import { getCapabilities, HIDDEN_FLAG_PROBE_VALUE } from './capabilities.ts';
 import { opencodeModelId } from './opencode-config.ts';
+import { createOpenCodeStreamParser } from './opencode-stream.ts';
 import { spawnCapture } from './spawn.ts';
 
 /** 归一后的事件——前端 useChat 与上层编排都只认这个。 */
@@ -31,6 +32,7 @@ export type AgentEvent =
   | { kind: 'tool-call'; name: string; toolCallId: string; input?: unknown }
   | { kind: 'tool-result'; toolCallId: string; output?: unknown; isError?: boolean }
   | { kind: 'thinking'; text: string }
+  | { kind: 'retry'; retryAt: number | null; attempt?: number; reason?: 'rate_limit' | 'unavailable' }
   | { kind: 'usage'; inputTokens?: number; outputTokens?: number }
   /**
    * 从正文里剥出来的课件名（`<mm-title>` 标记，见 title-marker.ts）。
@@ -39,7 +41,7 @@ export type AgentEvent =
   | { kind: 'title'; title: string }
   | { kind: 'usage'; inputTokens?: number; outputTokens?: number }
   | { kind: 'done'; resultText?: string; sessionId?: string; status?: 'completed' | 'cancelled' }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; message: string; code?: 'quota_exhausted' }
   | { kind: 'raw'; line: string };
 
 /**
@@ -233,6 +235,8 @@ export interface RuntimeDefinition {
    * 真解析不了的返回 { kind: 'raw' }。
    */
   parseLine(line: string): AgentEvent | AgentEvent[] | null;
+  /** Optional per-run parser state; never share deduplication across sessions. */
+  createLineParser?(): RuntimeDefinition['parseLine'];
   /**
    * 是否需要 --verbose 一类的参数才能拿到流式输出。
    * Claude Code 的 stream-json 要求 --verbose。
@@ -1158,8 +1162,8 @@ export const dsh: RuntimeDefinition = {
  *   的 `permission.bash`）——两者可以并存。
  * - **会话是 capture-style**：`sessionID` 顶在**每一个**事件的顶层，首轮从
  *   `step_start` 就带出来；续接用 `-s <id>`，实测回程 sessionID 与传入的完全相同。
- * - **正文不分块**：一次 `text` 事件给整段，不是逐 token 增量（所以下发 `text-delta`
- *   让前端照常追加，但观感上是一次性落地）。
+ * - CLI 原生 `text` 只在段落完成后发出。随运行加载的插件转发公开文本增量，
+ *   每轮独立的解析器按 part ID 去重；没收到增量时仍兼容原生完整文本。
  * - MCP 工具在流里叫 `mathmover_<工具名>`（不是 claude 的 `mcp__x__y`）。
  */
 export const opencode: RuntimeDefinition = {
@@ -1188,6 +1192,7 @@ export const opencode: RuntimeDefinition = {
   imageMaterializeInCwd: true,
   // 模型由 MathMover 的 BYOK 配置给出，不列清单、不探目录（不留手填入口，同 codex）
   fallbackModels: [DEFAULT_MODEL_OPTION],
+  createLineParser: () => createOpenCodeStreamParser(opencode.parseLine),
   buildArgs({ resumeSessionId, imagePaths = [], extraArgs = [], model, reasoningEffort, cwd }) {
     const args = [
       'run',
@@ -1218,13 +1223,34 @@ export const opencode: RuntimeDefinition = {
       ? e.part as Record<string, unknown>
       : {};
 
+    // Public OpenCode plugin events omitted by its normal JSON CLI output.
+    if (type === 'mathmover_status') {
+      const status = pick(e, 'status');
+      const sessionId = pick(e, 'sessionID');
+      if (typeof sessionId !== 'string' || !sessionId) return null;
+      const events: AgentEvent[] = [{ kind: 'session', sessionId }];
+      if (pick(status, 'type') === 'quota') {
+        events.push({ kind: 'error', code: 'quota_exhausted', message: '模型服务的可用额度已用尽。' });
+      } else if (pick(status, 'type') === 'busy') {
+        events.push({ kind: 'retry', retryAt: null });
+      } else if (pick(status, 'type') === 'retry') {
+        const next = pick(status, 'next');
+        const attempt = pick(status, 'attempt');
+        if (typeof next !== 'number' || !Number.isFinite(next) || next <= 0 ||
+            typeof attempt !== 'number' || !Number.isInteger(attempt) || attempt < 1) return null;
+        events.push({ kind: 'retry', retryAt: next, attempt,
+          reason: pick(status, 'reason') === 'rate_limit' ? 'rate_limit' : 'unavailable' });
+      } else return null;
+      return events;
+    }
+
     // 回合开场：会话 id 在这里就带出来了（每个事件都带，取这一次即可）
     if (type === 'step_start') {
       const sid = pick(e, 'sessionID') ?? pick(part, 'sessionID');
       return sid ? { kind: 'session', sessionId: String(sid) } : null;
     }
 
-    // 正文：整块到达（不分块）。下发 text-delta 让前端照常追加。
+    // 原生完整文本兜底；桥接增量与此帧的去重由每轮 createLineParser 处理。
     if (type === 'text') {
       const t = String(pick(part, 'text') ?? '');
       if (!t) return null;
@@ -1275,6 +1301,9 @@ export const opencode: RuntimeDefinition = {
     if (type === 'error') {
       const err = pick(e, 'error');
       const msg = pick(err, 'data', 'message') ?? pick(err, 'message') ?? pick(e, 'message') ?? err;
+      if (/FreeUsageLimitError|GoUsageLimitError|insufficient_quota|quota[_ ]exceeded|insufficient (?:credits?|balance)/i.test(JSON.stringify(err) ?? '')) {
+        return { kind: 'error', code: 'quota_exhausted', message: '模型服务的可用额度已用尽。' };
+      }
       return { kind: 'error', message: String(msg ?? 'opencode 运行失败') };
     }
 

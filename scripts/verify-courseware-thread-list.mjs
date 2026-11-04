@@ -128,7 +128,8 @@ try {
   await page.getByText('抛物线研究已恢复', { exact: true }).waitFor();
   await waitForBoard('A', 1);
   assert.equal(await rows().count(), 3);
-  assert.deepEqual(await list.locator('[data-slot=aui_thread-list-group-label]').allTextContents(), ['今天', '昨天', '更早']);
+  assert.equal(await list.locator('[data-slot=aui_thread-list-group-label]').count(), 0);
+  assert.deepEqual(await rows().allTextContents(), ['抛物线研究', '圆的性质', '三角函数']);
   assert.equal(await list.locator('[data-active] [data-slot=aui_thread-list-item-trigger]').textContent(), '抛物线研究');
   await page.locator('aside[aria-label=课件侧栏]').screenshot({ path: output('sidebar.png') });
   const search = list.getByRole('searchbox', { name: '搜索课件标题' });
@@ -172,9 +173,10 @@ try {
   await page.getByRole('textbox', { name: '题目描述' }).fill('测试运行期间会话保护');
   await page.getByRole('button', { name: '发送消息', exact: true }).click();
   await page.getByRole('button', { name: '停止本轮', exact: true }).waitFor();
-  assert(await list.getByRole('button', { name: '新建课件', exact: true }).isEnabled(), 'new courseware can open a separate tab during execution');
-  assert(await row('抛物线研究').isDisabled());
-  assert(await row('圆的性质改名').locator('..').getByRole('button', { name: '课件操作', exact: true }).isDisabled());
+  assert(await list.getByRole('button', { name: '新建课件', exact: true }).isEnabled(), 'new courseware stays available during execution');
+  assert(await row('抛物线研究').isEnabled(), 'a running courseware can still be opened');
+  assert(await row('抛物线研究').locator('..').getByRole('button', { name: '课件操作', exact: true }).isDisabled());
+  assert(await row('圆的性质改名').locator('..').getByRole('button', { name: '课件操作', exact: true }).isEnabled(), 'other courseware metadata stays editable');
   await page.getByRole('button', { name: '停止本轮', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('[data-slot=aui_thread-list-new]').disabled);
   failArchive = true;
@@ -248,6 +250,16 @@ try {
   const singleDelete = page.locator('[data-slot=aui_thread-list-item-delete-confirmation]');
   await singleDelete.waitFor();
   await page.waitForFunction(() => document.activeElement?.textContent.trim() === '取消' && document.activeElement.closest('[data-slot=aui_thread-list-item-delete-confirmation]'));
+  const cancelDelete = singleDelete.getByRole('button', { name: '取消', exact: true });
+  assert(!/ 0px 0px 0px 1px/.test(await cancelDelete.evaluate(element => getComputedStyle(element).boxShadow)), 'pointer opening keeps default Cancel focus without the ring');
+  await page.keyboard.press('Tab');
+  assert(await singleDelete.getByRole('button', { name: '确认删除', exact: true }).evaluate(element => element === document.activeElement));
+  await page.keyboard.press('Shift+Tab');
+  assert(/ 0px 0px 0px 1px/.test(await cancelDelete.evaluate(element => getComputedStyle(element).boxShadow)), 'switching to keyboard restores the Cancel focus ring');
+  // Return to a pointer-opened popup for the visual check below.
+  await page.keyboard.press('Escape'); await singleDelete.waitFor({ state: 'detached' });
+  await menu('抛物线研究'); await page.getByRole('menuitem', { name: '删除', exact: true }).click();
+  await singleDelete.waitFor();
   assert.equal(await page.locator('[data-state=open]').evaluateAll(elements => elements.some(element => element.classList.contains('bg-black/80'))), false, 'single deletion has no global backdrop');
   const anchorBox = await row('抛物线研究').locator('..').getByRole('button', { name: '课件操作', exact: true }).boundingBox();
   const confirmationBox = await singleDelete.boundingBox();
@@ -383,7 +395,7 @@ try {
   await page.locator('[data-slot=settings-dialog]').screenshot({ path: output('archives-empty.png') });
   await closeArchives();
   assert.deepEqual(errors, []);
-  await writeFile(output('result.json'), JSON.stringify({ ok: true, scenarios: ['official runtime UI', 'date grouping', 'active selection', 'search', 'chat and complete canvas snapshot restore', 'rename cancel/save/conflict', 'keyboard navigation', 'Agent busy guards', 'archive failure retry', 'archive and unarchive active/inactive coursewares', 'archived chat/canvas restore and continued editing', 'Settings archive search and navigation', 'opening the current archive closes Settings', 'Settings menu and confirmation portals', 'archive permanent deletion cancel/Escape/failure/retry/batch', 'permanent delete cancel/failure/success/last index', 'batch selection and multi-delete', 'active deletion resets canvas', 'sidebar collapse/expand and search focus', 'list retry', '42-row scroll and pinned footer'], writes: writes.length, pageErrors: errors }, null, 2));
+  await writeFile(output('result.json'), JSON.stringify({ ok: true, scenarios: ['official runtime UI', 'updated-time ordering without date headings', 'active selection', 'search', 'chat and complete canvas snapshot restore', 'rename cancel/save/conflict', 'keyboard navigation', 'Agent busy guards', 'archive failure retry', 'archive and unarchive active/inactive coursewares', 'archived chat/canvas restore and continued editing', 'Settings archive search and navigation', 'opening the current archive closes Settings', 'Settings menu and confirmation portals', 'archive permanent deletion cancel/Escape/failure/retry/batch', 'permanent delete cancel/failure/success/last index', 'batch selection and multi-delete', 'active deletion resets canvas', 'sidebar collapse/expand and search focus', 'list retry', '42-row scroll and pinned footer'], writes: writes.length, pageErrors: errors }, null, 2));
   console.log('Courseware ThreadList regression passed; fixtures only, no database writes.');
 } catch (error) {
   await writeFile(output('failure.json'), JSON.stringify({ message: error.message, pageErrors: errors, focusEvents: await page.evaluate(() => window.__focusEvents), writes }, null, 2));

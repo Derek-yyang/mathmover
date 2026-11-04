@@ -76,7 +76,7 @@ try {
   await page.waitForTimeout(1200);
 
   const baselineBorder = await frameBorder(page);
-  assert.equal(baselineBorder, 'rgb(211, 211, 211)', `前置：平时外框是浅灰（实测 ${baselineBorder}）`);
+  assert.equal(baselineBorder, 'rgba(0, 0, 0, 0)', `前置：平时外框透明（实测 ${baselineBorder}）`);
   const before = await state(page);
   const canvas = page.locator('[aria-label=数学课件画布] canvas').first();
   const png = await page.evaluate(() => {
@@ -125,7 +125,7 @@ try {
   assert.equal(textProbe.prevented, false, '非文件拖拽不该被 preventDefault');
 
   assert.deepEqual(errors, []);
-  console.log('PASS: 画板不吃文件拖放 —— 拖动中与松手后外框始终浅灰、对象数与构造 XML 不变、没漏成附件；非文件拖拽仍能到达画板；0 浏览器错误。');
+  console.log('PASS: 画板不吃文件拖放 —— 拖动中与松手后外框始终透明、对象数与构造 XML 不变、没漏成附件；非文件拖拽仍能到达画板；0 浏览器错误。');
 } finally {
   await browser.close();
 }

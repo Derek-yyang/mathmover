@@ -13,6 +13,7 @@ for (const [specifier, target] of [
   ['../../../../../packages/daemon/src/data-directory.ts', '../../packages/daemon/src/data-directory.ts'],
   ['../../../../../packages/agent-runtime/src/api-format.ts', '../../packages/agent-runtime/src/api-format.ts'],
   ['@/lib/byok-store', '../lib/byok-store.ts'], ['@/lib/byok-probe', '../lib/byok-probe.ts'],
+  ['@/lib/byok-key-scope', '../lib/byok-key-scope.ts'],
   ['@/lib/server/same-origin', '../lib/server/same-origin.ts'],
 ]) source = source.replaceAll(`'${specifier}'`, JSON.stringify(new URL(target, import.meta.url).href));
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ES2022 } }).outputText;
@@ -33,11 +34,14 @@ test('draft discovery uses real HTTP with protocol auth, saved/new keys and no c
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
+  const alternate = http.createServer(server.listeners('request')[0]);
+  await new Promise(resolve => alternate.listen(0, '127.0.0.1', resolve));
+  const otherBase = `http://127.0.0.1:${alternate.address().port}`;
   const request = (body, origin) => new Request('http://localhost/api/byok/models', {
     method: 'POST', headers: origin ? { origin } : {}, body: JSON.stringify(body),
   });
   try {
-    saveByokConfig(root, { baseUrl: 'https://saved.invalid/v1', model: 'saved-model', apiKey: 'fixture-saved-key' });
+    saveByokConfig(root, { baseUrl: `${base}/saved-path`, model: 'saved-model', apiKey: 'fixture-saved-key' });
     const before = readFileSync(path.join(root, 'byok.json'), 'utf8');
     for (const apiFormat of ['openai-chat', 'openai-responses', 'anthropic', 'gemini']) {
       const response = await POST(request({ apiFormat, baseUrl: `${base}/v1/`, apiKey: '' }, 'http://localhost'));
@@ -54,6 +58,20 @@ test('draft discovery uses real HTTP with protocol auth, saved/new keys and no c
     }
     await POST(request({ apiFormat: 'openai-chat', baseUrl: `${base}/v1`, apiKey: 'fixture-new-key' }));
     assert.equal(calls.at(-1).headers.authorization, 'Bearer fixture-new-key');
+    const countBeforeBlocked = calls.length;
+    for (const baseUrl of ['https://different.invalid/v1', base.replace('127.0.0.1', 'localhost'), otherBase, base.replace('http:', 'https:')]) {
+      for (const apiKey of ['', ' ', undefined]) {
+        const blocked = await POST(request({ apiFormat: 'openai-chat', baseUrl, apiKey }));
+        assert.equal(blocked.status, 400);
+        assert.match((await blocked.json()).error, /端点已更换/);
+      }
+    }
+    assert.equal(calls.length, countBeforeBlocked, '拒绝跨源复用时不发出任何上游请求');
+    const unauthenticated = await POST(request({ apiFormat: 'openai-chat', baseUrl: otherBase, apiKey: null }));
+    assert.equal((await unauthenticated.json()).ok, true);
+    assert.equal(calls.at(-1).headers.authorization, undefined, '显式无密钥不回退到旧密钥');
+    assert.equal((await (await POST(request({ apiFormat: 'openai-chat', baseUrl: otherBase, apiKey: 'fixture-explicit-key' }))).json()).ok, true);
+    assert.equal(calls.at(-1).headers.authorization, 'Bearer fixture-explicit-key', '跨源只能发送本次明确填写的新密钥');
     const failed = await POST(request({ apiFormat: 'openai-chat', baseUrl: `${base}/bad` }));
     assert.equal((await failed.json()).ok, false);
     const count = calls.length;
@@ -69,6 +87,7 @@ test('draft discovery uses real HTTP with protocol auth, saved/new keys and no c
       'first-time setup needs neither a saved configuration nor a model');
   } finally {
     server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
+    alternate.closeAllConnections(); await new Promise(resolve => alternate.close(resolve));
     if (previous === undefined) delete process.env.MATHMOVER_DATA_DIR; else process.env.MATHMOVER_DATA_DIR = previous;
     rmSync(root, { recursive: true, force: true });
   }

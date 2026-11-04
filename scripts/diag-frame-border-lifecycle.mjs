@@ -53,7 +53,7 @@ const read = (label) => page.evaluate((tag) => {
 
 const report = async (label) => {
   const r = await read(label);
-  const flag = r.computed === 'rgb(211, 211, 211)' ? '✔ 浅灰' : `✘ ${r.computed}`;
+  const flag = r.computed === 'rgba(0, 0, 0, 0)' ? '✔ 透明' : `✘ ${r.computed}`;
   console.log(`${flag}  ${label}`);
   if (!r.hasBorderColorInline) console.log(`      行内已无 border-color: ${r.inline}`);
   return r;

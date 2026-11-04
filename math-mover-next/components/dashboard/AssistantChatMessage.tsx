@@ -42,8 +42,8 @@ function ChatMessageBody() {
       {msg.attachments?.filter(image => image.unavailable || !image.url).map((image, index) =>
         <p key={image.id ?? index} className="mt-2 text-sm text-[var(--mm-text-stone-600)]">旧图片无法恢复，请重新上传：{image.name || '题目图片'}</p>)}
     </> : <AssistantMessage
-      before={msg.meta?.execution && <AgentExecutionProgress execution={msg.meta.execution} activity={msg.meta.activity} />}
-      error={diagnostic && <AgentDiagnosticNotice diagnostic={diagnostic} detecting={detecting} onRescan={() => void refreshRuntimes()} />}
+      before={msg.meta?.execution && <AgentExecutionProgress execution={msg.meta.execution} activity={msg.meta.activity} retry={msg.meta.retry} />}
+      error={diagnostic && <AgentDiagnosticNotice inMessage diagnostic={diagnostic} detecting={detecting} onRescan={() => void refreshRuntimes()} />}
       after={<>
         <AgentRunResult meta={msg.meta} />
         {commands.length > 0 && <ToolGroupRoot variant="ghost" className="mt-2">

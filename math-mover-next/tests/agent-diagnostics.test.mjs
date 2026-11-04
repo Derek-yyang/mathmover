@@ -29,6 +29,15 @@ test('generic exits, timeouts and failures remain unknown rather than being gues
   assert.equal(agentFailure({ stage: 'request', message: 'unauthorized' }).kind, 'unknown');
   assert.equal(agentFailure({ stage: 'detect', message: 'HTTP 500' }).kind, 'detection');
 });
+
+test('quota exhaustion is distinguished from temporary rate limiting', () => {
+  for (const message of ['FreeUsageLimitError', 'GoUsageLimitError', 'insufficient_quota', 'insufficient balance']) {
+    assert.equal(agentFailure({ stage: 'runtime', message }).kind, 'quota');
+  }
+  assert.equal(agentFailure({ stage: 'runtime', message: 'provider failure', code: 'quota_exhausted' }).kind, 'quota');
+  assert.equal(agentFailure({ stage: 'runtime', message: 'Too Many Requests HTTP 429' }).kind, 'rate_limit');
+  assert.equal(redactAgentError('oc_sk_example_private_123456789'), '[密钥已隐藏]');
+});
 test('JSON and NDJSON error bodies preserve the route explanation; HTML is not exposed', () => {
   assert.equal(agentResponseError('{"error":"服务错误"}'), '服务错误');
   assert.equal(agentResponseError('{"error":{"message":"服务错误"}}'), '服务错误');

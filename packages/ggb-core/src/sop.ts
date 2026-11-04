@@ -1,16 +1,10 @@
 /**
  * 专家提示拼装（agent 链路）。
  *
- * skill 只含「流程 + 每题必用的固定写法」（见 ggb-basics.md），卡片按需抽取。
- * 分工原则（作者裁定）：每题必用的 GGB 写法进 skill，
- * sop 库只留「小范围、可能用而未必用」的条件写法。
- *
- * {{SOP:name}} 插槽在 skill 里只留指路行（保持「哪一步用哪张卡」的映射，不搬正文），
- * 具体写法由 get_sop_cards 按名批量抽取。SKILL.md 文件本身不改，由装配器决定形态。
- *
- * 原先还有卡片原位内联的 assembleExpertPrompt / expertPromptWithSuffix，
- * 拿去与 Python expert_prompts.py 逐字节对拍（prompt-goldens.json）。
- * 那套随一次性生成管线下线一并退役，现在只留 agent 链路这一套。
+ * 专家包一次返回流程与该类固定引用的全部 SOP 正文，按 {{SOP:name}} 插槽原位装配。
+ * 卡片集合和顺序由各类 SKILL.md 决定，不接受模型临时选卡。
+ * 每题必用的通用写法仍在 ggb-basics.md；条件写法只在 SOP 源文件维护。
+ * get_sop_cards 保留给普通画图及未包含在专家包内的补充参考。
  */
 
 import fs from 'node:fs';
@@ -95,7 +89,7 @@ function sopNames(body: string, category: string): string[] {
   return names;
 }
 
-// ── agent 链路：skill 与卡库分家 ────────────────────────────────
+// ── agent 链路：按类别装配完整专家包 ──────────────────────────
 
 export interface SkillAssembly {
   text: string;
@@ -129,29 +123,28 @@ export function readCardMeta(rootDir: string, name: string): { title: string; in
   };
 }
 
-/** 流程里的 {{SOP:x}} 槽位 → 「写法卡指路」行；连续多张合并为一行。 */
-function slotsToPointer(skillBody: string): string {
-  const replaced = skillBody.replace(
+/** 只装配本类固定引用；卡头降为三级标题，保留所属编号步骤的层级。 */
+function inlineSopCards(skillBody: string, category: string, rootDir: string): string {
+  return skillBody.replace(
     new RegExp(SOP_REFERENCE.source, 'gm'),
-    (_m, name: string) => `〔写法卡：${name}〕`,
-  );
-  return replaced.replace(
-    /(?:^〔写法卡：[a-z0-9-]+〕\n)+/gm,
-    (whole) => {
-      const names = [...whole.matchAll(/〔写法卡：([a-z0-9-]+)〕/g)].map((m) => m[1]);
-      return `〔写法卡：${names.join('、')} —— 动手前用 get_sop_cards 取用〕\n`;
+    (_m, name: string) => {
+      const card = read(sopCardPath(rootDir, name, category));
+      if (card.includes('{{SOP')) {
+        throw new SopAssemblyError(`${CATEGORY_TO_SKILL[category]}/${name}: SOP 卡片不得嵌套引用`);
+      }
+      return card.replace(/^# /, '### ') + '\n';
     },
   );
 }
 
 /**
- * agent 链路的 skill：共同输出约定 + 通用 GGB 写法 + 流程（卡片只留指路）。
- * 每题必用的写法在 ggb-basics.md，不在 sop 库——这是作者裁定的分工。
+ * agent 链路的专家包：共同输出约定 + 通用 GGB 写法 + 流程及全部固定引用卡。
+ * 不改 SKILL.md 和卡片源文件；缺卡或坏引用直接报错，避免返回不完整的知识包。
  */
 export function assembleSkill(category: string, rootDir: string): SkillAssembly {
   const skillRaw = stripFrontmatter(read(skillPath(rootDir, category)));
-  const names = sopNames(skillRaw, category); // 借老校验：槽位必须在编号步骤内、不重复
-  const body = slotsToPointer(skillRaw);
+  const names = sopNames(skillRaw, category);
+  const body = inlineSopCards(skillRaw, category, rootDir);
   const text = [
     read(path.join(rootDir, 'skills', 'shared', 'generation-rules.md')),
     read(path.join(rootDir, 'skills', 'shared', 'ggb-basics.md')),

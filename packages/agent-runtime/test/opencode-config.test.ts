@@ -29,6 +29,13 @@ describe('opencodeModelId', () => {
 });
 
 describe('buildOpenCodeConfigContent', () => {
+  it('uses only the app provider and disables the duplicate CLI title request', () => {
+    const cfg = parse(buildOpenCodeConfigContent({ provider, mcp }));
+    expect(cfg.enabled_providers).toEqual([OPENCODE_BYOK_PROVIDER_ID]);
+    expect(cfg.agent.title.disable).toBe(true);
+    expect(cfg.autoupdate).toBe(false);
+    expect(cfg.share).toBe('disabled');
+  });
   it.each([
     ['openai-chat', '@ai-sdk/openai-compatible'],
     ['openai-responses', '@ai-sdk/openai'],

@@ -31,7 +31,9 @@ test('projection preserves identity and host metadata without mutating saved mes
 });
 
 test('error, streaming and finished states are explicit; user messages are not running', () => {
-  assert.deepEqual(toAssistantMessage(message({status:'error'})).status, {type:'incomplete',reason:'error'});
+  assert.deepEqual(toAssistantMessage(message({status:'error', errorMessage:'额度已用尽'})).status,
+    {type:'incomplete', reason:'error', error:'额度已用尽'});
+  assert.deepEqual(toAssistantMessage(message({status:'error'})).status, {type:'incomplete',reason:'error',error:'没有返回具体错误信息。'});
   assert.deepEqual(toAssistantMessage(message({status:'generating'})).status, {type:'running'});
   assert.deepEqual(toAssistantMessage(message({execution:{status:'running'}})).status, {type:'running'});
   assert.deepEqual(toAssistantMessage(message({execution:{status:'error'}})).status, {type:'incomplete',reason:'error'});

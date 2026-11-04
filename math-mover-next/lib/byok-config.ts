@@ -3,7 +3,7 @@
  *
  * 密钥保管在应用数据目录（byok-store.ts，对齐 OpenDesign 的桌面化模型）：
  * 完整 key 不回传浏览器，界面只拿 apiKeyConfigured + 尾 4 位；保存时 key
- * 传空 = 保留原 key（改端点/模型不必重填）。
+ * 传空仅在同源端点保留原 key；null 表示不使用密钥。
  */
 
 import { resolveApiFormat, type ApiFormat } from '../../packages/agent-runtime/src/api-format.ts';
@@ -17,8 +17,8 @@ export type { ByokConfigView };
 
 export interface ByokModel { id: string; label: string }
 
-/** Read using the current draft; a blank key is resolved server-side from saved config. */
-export async function fetchByokModelList(input: { apiFormat: ApiFormat; baseUrl: string; apiKey: string }, signal: AbortSignal): Promise<ByokModel[]> {
+/** A blank key may reuse a same-origin saved credential; null explicitly disables authentication. */
+export async function fetchByokModelList(input: { apiFormat: ApiFormat; baseUrl: string; apiKey: string | null }, signal: AbortSignal): Promise<ByokModel[]> {
   const res = await fetch('/api/byok/models', {
     method: 'POST', signal, cache: 'no-store',
     headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
@@ -53,15 +53,18 @@ export async function saveByokConfig(input: {
   apiFormat?: ApiFormat;
   /** 推理档位清单（逗号分隔）。不传 = 保留原值。 */
   reasoningLevels?: string;
-  /** 空 = 保留已存的 key */
-  apiKey?: string;
+  /** 空 = 同源时保留已存的 key；null = 不使用密钥 */
+  apiKey?: string | null;
 }): Promise<ByokConfigView & { runtime: RuntimeOption }> {
   const res = await fetch('/api/byok', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`保存 BYOK 配置失败（HTTP ${res.status}）`);
+  if (!res.ok) {
+    const error = await res.json().catch(() => null) as { error?: string } | null;
+    throw new Error(error?.error ?? `保存 BYOK 配置失败（HTTP ${res.status}）`);
+  }
   const view = await res.json() as ByokConfigView & { runtime: RuntimeOption };
   return { ...view, apiFormat: resolveApiFormat(view.apiFormat) };
 }

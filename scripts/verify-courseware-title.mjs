@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 import { stubConstructionDraft } from './lib/stub-construction.mjs';
+import { uploadImages } from './lib/upload-image.mjs';
 
 // Real dashboard/canvas; all courseware reads and writes use in-memory fixtures.
 const out = 'spike-out/courseware-title';
@@ -16,14 +17,21 @@ const make = (id, title, commands) => ({ id, title, commands, messages: [], revi
   created_at: new Date().toISOString(), updated_at: new Date().toISOString(), view: { showAxes: true, showGrid: true } });
 const records = new Map([make(first, '抛物线研究', ['A=(1,2)']), make(second, '圆的性质', ['B=(3,4)'])].map(record => [record.id, record]));
 const writes = [], errors = [];
-let failRename = false, failSave = false, holdSave = false, releaseSave;
+let failRename = false, failSave = false, holdSave = false, releaseSave, releaseAgent;
+const agentRequests = [];
 page.on('pageerror', error => errors.push(error.message));
-await page.route('**/api/agent**', route => route.fulfill({ json: { runtimes: [{ id: 'claude-code', name: 'Claude Code', version: 'fixture', usable: true }] } }));
+await page.route('**/api/agent**', async route => {
+  if (route.request().method() === 'GET') return route.fulfill({ json: { runtimes: [{ id: 'claude-code', name: 'Claude Code', version: 'fixture', usable: true, canAttachImages: true }] } });
+  agentRequests.push(route.request().postDataJSON());
+  const events = await new Promise(resolve => { releaseAgent = resolve; });
+  return route.fulfill({ contentType: 'application/x-ndjson', body: events.map(event => JSON.stringify(event)).join('\n') + '\n' });
+});
 await page.route('**/api/byok', route => route.fulfill({ json: { apiKeyConfigured: false } }));
+await page.routeWebSocket('ws://127.0.0.1:8787', socket => socket.onMessage(() => {}));
 await page.route('**/api/coursewares**', async route => {
   const request = route.request(), url = new URL(request.url());
   const parts = url.pathname.split('/').slice(3);
-  if (parts[0] === 'windows') return route.fulfill({ json: { ok: true } });
+  if (parts[0] === 'windows') return route.fulfill({ json: { bindingToken: 'fixture' } });
   if (request.method() === 'GET') return route.fulfill({ json: parts.length ? records.get(parts[0]) : { records: [...records.values()], capabilities: { archive: true, permanentDelete: true } } });
   const body = request.postDataJSON();
   writes.push({ path: url.pathname, body });
@@ -31,7 +39,7 @@ await page.route('**/api/coursewares**', async route => {
     if (failRename) return route.fulfill({ status: 503, json: { error: '重命名失败测试' } });
     const current = records.get(parts[0]);
     assert.equal(body.expectedRevision, current.revision, 'rename uses the latest saved revision');
-    const next = { ...current, title: body.title, revision: current.revision + 1 };
+    const next = { ...current, title: body.title, titleSource: 'manual', revision: current.revision + 1 };
     records.set(next.id, next);
     return route.fulfill({ json: next });
   }
@@ -52,6 +60,31 @@ const ready = async () => { await page.waitForFunction(() => typeof window.ggbAp
 const open = async () => { await title().click(); await name.waitFor(); };
 const saved = async text => { await page.getByRole('button', { name: `重命名课件：${text}`, exact: true }).waitFor(); await row(text).waitFor(); };
 const submit = async text => { await open(); await name.fill(text); await name.press('Enter'); await saved(text); };
+const poll = async predicate => {
+  for (let i = 0; i < 250 && !predicate(); i++) await new Promise(resolve => setTimeout(resolve, 20));
+  assert(predicate(), 'fixture state reached');
+};
+const newCourseware = async () => {
+  await sidebar.getByRole('button', { name: '新建课件', exact: true }).click();
+  await page.waitForURL(url => !url.searchParams.has('history_id') && !url.searchParams.has('action'));
+  await ready();
+};
+const startAgent = async (text = '', image = false) => {
+  if (image) await uploadImages(page, { name: 'problem.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aO8sAAAAASUVORK5CYII=', 'base64') });
+  await page.getByRole('textbox', { name: '题目描述', exact: true }).fill(text);
+  await page.waitForFunction(() => !document.querySelector('[aria-label=发送消息]')?.disabled);
+  const count = agentRequests.length;
+  await page.getByRole('button', { name: '发送消息', exact: true }).click();
+  await poll(() => agentRequests.length === count + 1 && !!releaseAgent);
+  return agentRequests.at(-1).coursewareId;
+};
+const finishAgent = async (id, agentTitle) => {
+  releaseAgent([...(agentTitle ? [{ kind: 'title', title: agentTitle }] : []), { kind: 'done', resultText: '测试回答。' }]);
+  releaseAgent = null;
+  await ready();
+  await poll(() => records.get(id)?.messages.at(-1)?.meta?.status === 'completed');
+};
 try {
   await stubConstructionDraft(page);
   await page.goto(`${base}/dashboard?history_id=${first}`);
@@ -144,12 +177,45 @@ try {
   const box = await name.boundingBox(); assert(box.width > 30 && box.x >= 0 && box.x + box.width < 974);
   await page.screenshot({ path: `${out}/narrow-editing.png` });
   await name.press('Escape');
+  await page.setViewportSize({ width: 1544, height: 900 });
+  // Text, image and mixed requests use the same placeholder before any AI title.
+  for (const [text, image, agentTitle] of [['画一个圆', false, '圆的动态演示'], ['', true, '题图几何研究'], ['研究题图', true, '题图面积研究']]) {
+    await newCourseware();
+    const coursewareId = await startAgent(text, image);
+    assert.equal(records.get(coursewareId).title, '未命名课件');
+    assert.equal(records.get(coursewareId).titleSource, 'placeholder');
+    await finishAgent(coursewareId, agentTitle);
+    await saved(agentTitle);
+    assert.equal(records.get(coursewareId).titleSource, 'agent');
+  }
+  // Editing the board before sending must not lock the placeholder.
+  await newCourseware();
+  await page.evaluate(() => window.ggbApplet.evalCommand('A=(1,2)'));
+  await page.waitForURL(/history_id=/);
+  const editedId = new URL(page.url()).searchParams.get('history_id');
+  assert.equal(records.get(editedId).titleSource, 'placeholder');
+  await startAgent('研究点的位置');
+  await finishAgent(editedId, '点的位置研究'); await saved('点的位置研究');
+  // A deliberate rename to the placeholder remains manual after reload and new AI titles.
+  await submit('未命名课件');
+  assert.equal(records.get(editedId).titleSource, 'manual');
+  await page.reload(); await ready();
+  await startAgent('继续研究');
+  await finishAgent(editedId, '不该覆盖的标题');
+  assert.equal(records.get(editedId).title, '未命名课件');
+  assert.equal(records.get(editedId).titleSource, 'manual');
+  // Missing AI titles keep the common placeholder instead of copying the request.
+  await newCourseware();
+  const untitledId = await startAgent('这段题目文字不应该变成课件标题');
+  await finishAgent(untitledId);
+  assert.equal(records.get(untitledId).title, '未命名课件');
+  assert.equal(records.get(untitledId).titleSource, 'placeholder');
   assert.deepEqual(errors, []);
   await writeFile(`${out}/result.json`, JSON.stringify({ ok: true, pageErrors: errors, writes: writes.map(write => ({ path: write.path, title: write.body.title, expectedRevision: write.body.expectedRevision })), scenarios: ['inline edit', 'Enter/Escape/focus', 'blur save', 'empty validation', 'IME', 'failure/retry', 'queued autosave and duplicate Enter', 'fullscreen/presentation', 'switch and reload', 'named blank first save/retry', 'narrow viewport'] }, null, 2));
-  console.log('Courseware title regression passed; fixture writes only.');
+  console.log('PASS: manual rename, unified text/image/mixed placeholders, AI title adoption, board-first naming, missing AI title and manual ownership after reload; fixture requests only.');
 } catch (error) {
   releaseSave?.();
   await page.screenshot({ path: `${out}/failure.png` });
-  await writeFile(`${out}/failure.json`, JSON.stringify({ error: error.message, errors, writes: writes.map(write => ({ path: write.path, title: write.body.title, expectedRevision: write.body.expectedRevision })) }, null, 2));
+  await writeFile(`${out}/failure.json`, JSON.stringify({ error: error.message, errors, applet: await page.evaluate(() => ({ type: typeof window.ggbApplet, keys: Object.keys(window.ggbApplet ?? {}), workspaces: document.querySelectorAll('[data-slot=courseware-workspace]').length })), writes: writes.map(write => ({ path: write.path, title: write.body.title, expectedRevision: write.body.expectedRevision })) }, null, 2));
   throw error;
 } finally { await browser.close(); }

@@ -11,6 +11,10 @@ interface Options {
   busy: boolean; runtimeId?: string; sessionId: MutableRefObject<string | undefined>;
   showAxes: boolean; showGrid: boolean;
   onRestore: (record: CoursewareRecord | null) => Promise<void>;
+  /** A retained workspace owns one courseware even when the page URL changes. */
+  binding?: { id?: string };
+  active?: boolean;
+  onIdentity?: (id: string) => void;
 }
 export function useCoursewareLibrary(options: Options) {
   const router = useRouter(); const params = useSearchParams();
@@ -52,14 +56,10 @@ export function useCoursewareLibrary(options: Options) {
       setSlowSaving(false);
       saveNoticeTimer.current = setTimeout(() => { setSlowSaving(true); }, 1000);
       try {
-        // 自动名：首条用户消息截 40 字。agent 起的名（meta.title）只在用户没手改过时才盖上。
-        // 纯图发题（没打字）：叫「题目图片」，别让空内容掉进「未命名课件」。
-        const firstUser = (messageOverride ?? o.messages).find(m => m.role === 'user');
-        const autoTitle = firstUser?.content.trim().slice(0, 40)
-          || (firstUser?.attachments?.length ? '题目图片' : '未命名课件');
+        // Text and image requests share one placeholder until the Agent supplies a title.
         if (!record.current) {
           const now = new Date().toISOString();
-          record.current = { id: crypto.randomUUID(), revision: 0, title: autoTitle, commands: [], messages: [], created_at: now, updated_at: now, archived_at: null };
+          record.current = { id: crypto.randomUUID(), revision: 0, title: '未命名课件', titleSource: 'placeholder', commands: [], messages: [], created_at: now, updated_at: now, archived_at: null };
           setSummary(record.current);
         }
         const current = record.current;
@@ -68,25 +68,23 @@ export function useCoursewareLibrary(options: Options) {
         // During Agent execution preserve the last confirmed canvas checkpoint. Final/idle writes capture live state.
         const reuseCheckpoint = o.busy && !!current.ggbBase64;
         const ggbBase64 = reuseCheckpoint ? current.ggbBase64 : await captureGgb(o.api);
-        // 课件名优先级：用户手改的 > agent 起的（正文 `<mm-title>` 标记剥出来的）> 首条消息截断。
-        //
-        // 「手改过」用「当前名 ≠ 自动名」推断。看着粗，但够用：
-        // 用户起的名只要与自动名不同就会被保住——这正是需要保护的场景。
-        // 而「用户改成了恰好等于自动名」的边角可以忽略：那要么他没真改、只是接受了
-        // 默认占位，要么意图与「无偏好」不可区分；两种情况下让 agent 覆盖都不违背
-        // 用户意图，反而会让标题从占位升级成更好的总结。所以不需要 titleLocked 标记。
-        //
-        // 偏紧一侧的副作用正好是想要的：标题命名的是「用户第一条消息要做什么」，
-        // 多轮微调后**不该**跟着变。
+        // Only replace placeholders. Persist the source so manual names survive
+        // reloads even when the user deliberately names a courseware "未命名课件".
+        // Older non-placeholder titles are preserved rather than guessed at.
+        const titleSource = titleOverride !== undefined ? 'manual'
+          : current.titleSource ?? (current.title === '未命名课件' ? 'placeholder' : 'manual');
         const agentTitle = (messageOverride ?? o.messages).find(m => m.meta?.title)?.meta?.title;
-        const title = titleOverride ?? (current.title && current.title !== autoTitle ? current.title : (agentTitle || autoTitle));
-        const next = { ...current, title, commands: reuseCheckpoint ? current.commands : [...o.commands.current], messages, ggbBase64,
+        const adoptAgentTitle = titleSource === 'placeholder' && !!agentTitle;
+        const title = titleOverride ?? (adoptAgentTitle ? agentTitle! : current.title);
+        const next: CoursewareRecord = { ...current, title, titleSource: adoptAgentTitle ? 'agent' : titleSource,
+          commands: reuseCheckpoint ? current.commands : [...o.commands.current], messages, ggbBase64,
           view: reuseCheckpoint ? current.view : currentView(o.api, o.showAxes, o.showGrid), runtimeId: o.runtimeId, sessionId: o.sessionId.current };
         const result = await libraryRequest<CoursewareSummary>('', { ...next, expectedRevision: current.revision });
         record.current = { ...next, ...result }; saved.current = generation;
-        setSummary(result); setStatus(dirty.current === generation ? 'saved' : 'dirty'); historyChanged();
+        setSummary(result); setStatus(dirty.current === generation ? 'saved' : 'dirty');
+        o.onIdentity?.(result.id); historyChanged();
         const here = new URL(window.location.href);
-        if (!here.searchParams.has('history_id') && !here.searchParams.has('action')) router.replace(`/dashboard?history_id=${encodeURIComponent(result.id)}`);
+        if (state.current.active !== false && !here.searchParams.has('history_id') && !here.searchParams.has('action')) router.replace(`/dashboard?history_id=${encodeURIComponent(result.id)}`);
         return current.id;
       } finally {
         if (saveNoticeTimer.current) clearTimeout(saveNoticeTimer.current);
@@ -149,9 +147,9 @@ export function useCoursewareLibrary(options: Options) {
     const changed = (event: Event) => {
       const detail = (event as CustomEvent).detail;
       const current = record.current;
-      if (['rename', 'archive', 'unarchive'].includes(detail?.kind) && current && current.id === detail.summary.id) {
+      if (['rename', 'archive', 'unarchive', 'organize'].includes(detail?.kind) && current && current.id === detail.summary.id) {
         if (detail.summary.revision !== current.revision + 1 && detail.summary.revision !== current.revision) { conflict.current = true; setStatus('error'); setError('课件版本发生冲突，请先导出画板或复制未保存的聊天，再重新加载本地版本'); return; }
-        record.current = { ...current, ...detail.summary }; setSummary(detail.summary);
+        record.current = { ...current, ...detail.summary, ...(detail.kind === 'rename' ? { titleSource: 'manual' as const } : {}) }; setSummary(detail.summary);
       }
       if (detail?.kind === 'delete' && record.current && detail.ids.includes(record.current.id)) {
         record.current = null; saved.current = dirty.current; restoring.current = true; setSummary(null); setStatus('restoring');
@@ -163,13 +161,14 @@ export function useCoursewareLibrary(options: Options) {
   useEffect(() => {
     state.current.sessionId.current = record.current?.runtimeId === options.runtimeId ? record.current?.sessionId : undefined;
   }, [options.runtimeId]);
-  const requestedId = params.get('history_id'); const action = params.get('action');
+  const requestedId = options.binding ? options.binding.id ?? null : params.get('history_id');
+  const action = options.binding ? null : params.get('action');
   useEffect(() => {
     if (!options.api) return;
     if (requestedId === record.current?.id && action !== 'new' && !restoring.current) return;
     let cancelled = false;
     const load = async () => {
-      if (state.current.busy) {
+      if (state.current.busy && !state.current.binding) {
         if (record.current) router.replace(`/dashboard?history_id=${record.current.id}`);
         setError('任务进行中，请等待完成后切换课件'); return;
       }
@@ -193,7 +192,7 @@ export function useCoursewareLibrary(options: Options) {
           restoredInputs.current.showGrid = graphics.showGrid;
         }
         record.current = loaded; setSummary(loaded); dirty.current = 0; saved.current = 0; conflict.current = false;
-        if (loaded) setEditorId(loaded.id);
+        if (loaded) { setEditorId(loaded.id); state.current.onIdentity?.(loaded.id); }
         else if (action === 'new' || requestedId) setEditorId(`new:${crypto.randomUUID()}`);
         restoring.current = false; setStatus(loaded ? 'saved' : 'idle');
         if (action === 'new') router.replace('/dashboard');

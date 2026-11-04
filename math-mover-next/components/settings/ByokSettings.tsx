@@ -4,7 +4,7 @@
  * 「模型 API」设置面 —— BYOK 内置构造 Agent 作为一张提供商卡。
  *
  * 密钥模型（对齐 OpenDesign 桌面化形态）：key 由本机应用的数据目录保管，
- * 界面只显示「已配置（•••• 尾4位）」；改端点/模型时密钥留空即保留。
+ * 界面只显示「已配置（•••• 尾4位）」；同源端点密钥留空即保留，跨源需重新填写。
  * 测试调用按已保存的接口格式向模型发送一次简短请求；获取模型列表是独立操作。
  */
 
@@ -21,6 +21,7 @@ import { useAgentRuntimeState } from '../dashboard/AgentRuntimeState';
 import { SettingsButton, SettingsStatusBadge } from './SettingsControls';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../assistant-ui/ui/select';
 import { ByokModelField, type ModelListState } from './ByokModelField';
+import { sameByokKeyOrigin } from '@/lib/byok-key-scope';
 
 const input = 'mt-1 w-full rounded-lg border border-[var(--mm-border-stone-300)] bg-[var(--mm-surface)] px-2.5 py-1.5 text-sm text-[var(--mm-text-stone-800)] focus-visible:outline-2 focus-visible:outline-[var(--mm-border-emerald-700)]';
 
@@ -93,12 +94,14 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
   };
 
   const configured = !!view.baseUrl && !!view.model;
+  const keyOriginChanged = view.apiKeyConfigured && !sameByokKeyOrigin(view.baseUrl, baseUrl);
+  const keyNeedsReplacement = keyOriginChanged && !apiKey.trim();
   const configIsDirty = (url: string, modelId: string, key: string, format = apiFormat, levels = reasoningLevels) => url !== view.baseUrl || modelId !== view.model || key !== '' || format !== view.apiFormat || (levels ?? '') !== (view.reasoningLevels ?? '');
   const hasEffortDraft = (format = apiFormat, levels = reasoningLevels) => !!effortDraft && !!reasoningDialect(format) && effectiveReasoningLevels(levels).includes(effortDraft);
   const isDirty = (url: string, modelId: string, key: string, format = apiFormat, levels = reasoningLevels) => configIsDirty(url, modelId, key, format, levels) || hasEffortDraft(format, levels);
   const dirty = isDirty(baseUrl, model, apiKey);
   const testHint = loading ? '正在读取配置…' : !loaded ? '配置读取失败，请重试。'
-    : saving ? '保存中，完成后再测试。' : dirty ? '配置已修改，请先保存再测试。'
+    : saving ? '保存中，完成后再测试。' : keyNeedsReplacement ? '请填写新地址对应的 API 密钥。' : dirty ? '配置已修改，请先保存再测试。'
     : !configured ? '请先填写并保存 API 端点与模型。' : undefined;
   const invalidateTest = () => {
     testRequest.current?.abort();
@@ -164,7 +167,7 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
     // 一个都不剩就落成 `none`：不让"空"同时表示"没选"和"用默认"两件事
     commitLevels(next.length ? next : ['none']);
   };
-  const getModels = () => {    if (!loaded || savePending.current || modelsRequest.current || !baseUrl.trim()) return;
+  const getModels = () => {    if (!loaded || savePending.current || modelsRequest.current || !baseUrl.trim() || keyNeedsReplacement) return;
     const controller = new AbortController();
     modelsRequest.current = controller;
     setModelList({ loading: true }); setModelsOpen(false);
@@ -197,7 +200,7 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
   };
 
   const save = () => {
-    if (!loaded || !dirty || savePending.current || testRequest.current) return;
+    if (!loaded || !dirty || savePending.current || testRequest.current || keyNeedsReplacement) return;
     savePending.current = true;
     if (modelsRequest.current) {
       modelsRequest.current.abort(); modelsRequest.current = null;
@@ -214,9 +217,10 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
       applyLevels(v.reasoningLevels ?? '');
       setApiFormat(v.apiFormat);
       setApiKey('');
+      // A new connection/default model takes effect even when effort was untouched.
+      if (targetChanged) selectModelFor('byok', v.model || 'default');
       if (hasEffortDraft(v.apiFormat, v.reasoningLevels ?? '')) {
         const savedEffortModel = targetChanged ? v.model || 'default' : effortModel;
-        if (targetChanged) selectModelFor('byok', savedEffortModel);
         selectEffortFor('byok', savedEffortModel, effortDraft!);
       } else {
         const allowed = reasoningDialect(v.apiFormat) ? effectiveReasoningLevels(v.reasoningLevels) : [];
@@ -295,15 +299,16 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
               <input id={`${statusId}-key`} aria-describedby={`${statusId}-key-hint`}
                 className={input} type="password" name="mathmover-api-key" autoComplete="new-password"
                 readOnly={!editingKey} onFocus={() => setEditingKey(true)} onBlur={() => setEditingKey(false)}
-                placeholder={view.apiKeyConfigured ? '输入新密钥以更换' : 'sk-…'}
+                placeholder={keyOriginChanged ? '输入新地址的密钥' : view.apiKeyConfigured ? '输入新密钥以更换' : 'sk-…'}
                 disabled={!loaded || saving} value={apiKey} onChange={e => updateDraft(baseUrl, model, e.target.value)} />
               <p id={`${statusId}-key-hint`} className="mt-1 text-xs font-normal leading-4 text-[var(--mm-text-stone-600)]">
                 {loading ? '正在读取密钥状态…' : !loaded ? '配置读取失败，请重试。'
-                  : view.apiKeyConfigured ? `已配置 •••• ${view.apiKeyTail}，留空则保留。` : '本地端点可留空。'}
+                  : keyOriginChanged ? '地址已更换，不会沿用原密钥。'
+                  : view.apiKeyConfigured ? `已配置 •••• ${view.apiKeyTail}，留空则保留。` : '填写服务商提供的 API 密钥。'}
               </p>
             </div>
             <ByokModelField value={model} onChange={value => updateDraft(baseUrl, value, apiKey)}
-              disabled={!loaded || saving} canFetch={!!baseUrl.trim()} list={modelList} onFetch={getModels}
+              disabled={!loaded || saving} canFetch={!!baseUrl.trim() && !keyNeedsReplacement} list={modelList} onFetch={getModels}
               open={modelsOpen} onOpenChange={setModelsOpen} portalContainer={portalContainer} inputClassName={input} />
             {dialect ? (
               <div className="min-w-0 text-xs font-medium leading-5 text-[var(--mm-text-stone-600)] sm:col-span-2">
@@ -328,7 +333,7 @@ export default function ByokSettings({ onDraftStateChange }: { onDraftStateChang
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <SettingsButton type="button" variant="default"
-              disabled={!loaded || !dirty || saving || test.running} aria-busy={saving}
+              disabled={!loaded || !dirty || saving || test.running || keyNeedsReplacement} aria-busy={saving}
               onClick={save}>
               {saving ? '保存中…' : saved && !dirty ? <><Check className="h-4 w-4" aria-hidden="true" />已保存</> : '保存'}
             </SettingsButton>

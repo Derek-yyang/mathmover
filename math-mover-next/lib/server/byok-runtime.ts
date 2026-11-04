@@ -12,7 +12,10 @@ export function buildByokRuntime(config: ByokConfig | null, binaryAvailable: boo
   const list = ready && discovered?.list.length
     ? discovered.list.map(({ id, label }) => ({ id, label }))
     : [{ id: 'default', label: '默认（用设置里配置的模型）' }];
-  if (ready && config && !list.some(item => item.id === config.model)) {
+  if (ready && config) {
+    const configured = list.findIndex(item => item.id === config.model);
+    // The first item is the fallback for missing/obsolete browser selections.
+    if (configured >= 0) list.splice(configured, 1);
     list.unshift({ id: config.model, label: `${config.model}（设置里配置的）` });
   }
   return {

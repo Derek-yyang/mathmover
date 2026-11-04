@@ -7,7 +7,7 @@
  *  - 结构化数据用 `text` block 承载 JSON，附一个纯文本摘要便于 agent 快速理解。
  *  - 工具签名不含 sessionId（签名寿命是第一资产）：会话 = 一个 daemon 进程。
  *    页面断开时如实报 GGB_SESSION_DEAD，不假装画布还在。
- *  - SOP 工具面（P1→P1.6）：get_expert_prompt 取流程+清单、get_sop_cards 按需取卡。
+ *  - SOP 工具面：get_expert_prompt 一次取流程及本类全部固定 SOP，get_sop_cards 用于补充参考。
  *    分类由 agent 自己判——调 get_expert_prompt 时亮出 category，即完成分类+取材两件事。
  *    **类别只用于选知识包**，写路径与它无关（按类别的形状检查已从 ggb-core/semantic.ts 移除）。
  *  - 校验（行级 + 动点自洽）挂在 ggb_apply 上，**只报不删**；收卷工具 submit_construction
@@ -157,7 +157,10 @@ export function createMcpServer(
       '编辑该文件（用你的原生编辑能力），改完调本工具生效。' +
       '返回新状态、体检结果、相对上一版的改动说明，以及**行级与语义自查**：' +
       '不可解析/未知命令的行、动点自洽（引用了未定义的名字、或滑块没驱动任何对象）。' +
-      '**边构边调**：每完成一段就 apply 一次，用户能看着图一点点长出来，而不是等很久一次出全图。',
+      '**按完整阶段应用**：创建对象时一并写好必要样式，沿用默认值时不补写样式命令。' +
+      '简单图形可一次提交完整构造；复杂图形按基础图形、动点与关联对象等完整阶段更新，让用户看见进展，不按单个对象或样式属性拆批。' +
+      '检查回执后，将已发现的问题集中修改再 apply；无效行、对象缺失、依赖、点名对应或运动边界错误必须修复，不硬性限制修正次数。' +
+      '构造完整、依赖正确、运动符合题意、画面可读且自检通过后，直接输出结果，不为轻微外观差异再开一轮美化；用户明确要求的外观修改或影响可读性的视图问题仍应处理。',
     inputSchema: {
       png: z.boolean().optional().describe('返回结果是否附带画布截图，默认 true。'),
     },
@@ -178,7 +181,7 @@ export function createMcpServer(
       const semantic = semanticCheck(draftLines.join('\n'), { knownCommandLower: knownLower });
 
       // **不剔除**：剔了 daemon 会把净化后的账本回写工作稿，agent 刚写的那行就从它自己的
-      // 文件里消失；而 apply 是「每完成一段就调一次」的高频动作。未知命令在 GeoGebra 里
+      // 文件里消失；而 apply 会在构造阶段和修正后多次调用。未知命令在 GeoGebra 里
       // 只是执行失败、不生成对象，画布不会脏。
       const r = await tools.apply(undefined, { png: args?.png ?? true });
       const content: ToolContent = [
@@ -282,14 +285,14 @@ export function createMcpServer(
   // **带了题目图片**时另取 get_expert_prompt 拿一套建模知识（增强，不是换模式）。
 
   server.registerTool('get_expert_prompt', {
-    title: '取题目建模方法 + 本类写法卡清单（增强）',
+    title: '取题目建模方法 + 本类完整写法卡（增强）',
     description:
       '**题目增强——只在带了题目图片时取**：把题图变成动图才需要它。' +
       '只有文字（哪怕读起来像题面），或「画一个正方体」「画条抛物线」这类直接指令，**都不要取**——' +
       '取了它会按题图那套画（顶点与真实棱逐条展开、样式齐全），直接画不需要这个代价。' +
       '一次取两样——① 专家 skill（8 步建模流程、每题必用的 GGB 通用写法、严格语法约束）；' +
-      '② 本类的写法卡清单（一句话说明 + 适用输入 + 挂在流程第几步）。' +
-      '清单只是目录，具体写法要另外用 get_sop_cards 取；不确定怎么写就取，别凭印象编。' +
+      '② 本类固定清单中的全部写法卡正文（指令示例、易错点，已嵌入对应流程步骤）。' +
+      '一次返回完整专家包，不需要选卡或重复调用 get_sop_cards 取已包含的卡；按题跳过无关分支。' +
       'category 由你根据题目自己判，只决定取哪套建模知识。\n分类标准：\n' + CATEGORY_TAXONOMY,
     inputSchema: {
       category: z.enum(['A', 'B', 'C', 'D']).describe(
@@ -309,7 +312,7 @@ export function createMcpServer(
           {
             type: 'text',
             text:
-              `写法卡清单（${category} 类，共 ${catalog.length} 张）——需要哪张就 get_sop_cards 取：\n` +
+              `已包含的写法卡（${category} 类，共 ${catalog.length} 张）——正文已嵌入对应流程步骤，无需重复取卡：\n` +
               catalog.map((c) => `- ${c.name}${c.step ? `（流程第 ${c.step} 步）` : ''}：${c.title}${c.inputs ? `｜输入：${c.inputs}` : ''}`).join('\n'),
           },
           {
@@ -331,8 +334,9 @@ export function createMcpServer(
   server.registerTool('get_sop_cards', {
     title: '批量取写法卡',
     description:
-      '按名字取写法卡正文（GGB 指令的具体写法、示例、易错点）。从 get_expert_prompt 的清单里挑；' +
-      '一次可以取多张。用完即可——写到哪步不确定写法就再取，不要凭记忆编指令。',
+      '按名字批量取写法卡正文（GGB 指令的具体写法、示例、易错点）。普通画图可从系统简报的目录取卡；' +
+      'get_expert_prompt 已包含本类全部固定卡，不要重复取；仅需包内未包含的补充写法时再取。' +
+      '不要凭记忆编指令。',
     inputSchema: {
       names: z.array(z.string()).min(1).describe('卡片名列表，如 ["intersection", "locus"]'),
     },

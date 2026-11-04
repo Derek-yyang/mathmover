@@ -63,12 +63,15 @@ try {
   await mkdir(new URL('../spike-out/model-effort-panel/', import.meta.url), { recursive: true });
   await page.screenshot({ path: new URL('../spike-out/model-effort-panel/panel-open.png', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
 
-  // 点档位点阵：选定即关面板，触发钮回显
+  // 点档位点阵：保持面板展开，触发钮回显
   await radiogroup.getByRole('radio', { name: 'on' }).click();
   await trigger().waitFor();
   assert.match((await trigger().innerText()).replace(/\s+/g, ' '), /mimo-v2\.6-pro · on/, 'effort chip reflects pinned choice');
+  await listbox.waitFor();
+  await trigger().click();
+  await listbox.waitFor({ state: 'detached' });
 
-  // 键盘：Enter 开面板 → 方向键走模型行 → Enter 选定（不关）→ Tab 进点阵 → 方向键浏览 → Enter 选定关闭
+  // 键盘：Enter 开面板 → 方向键走模型行 → Enter 选定 → Tab 进点阵 → 方向键浏览 → Enter 选定（不关）
   await trigger().focus();
   await page.keyboard.press('Enter');
   await listbox.waitFor();
@@ -78,23 +81,29 @@ try {
   assert.match((await trigger().innerText()).replace(/\s+/g, ' '), /Opus/, 'keyboard select updates trigger');
   await page.keyboard.press('Tab');               // 焦点进点阵（仅选中点可 tab）
   await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'max');
   const focusedLabel = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
   assert.equal(focusedLabel, 'max', 'arrow walks the dots without selecting');
   assert.match((await trigger().innerText()).replace(/\s+/g, ' '), /high/, 'walking dots does not change effort');
   await page.keyboard.press('Enter');
   await trigger().waitFor();
-  assert.match((await trigger().innerText()).replace(/\s+/g, ' '), /Opus · max/, 'enter pins effort and closes');
+  assert.match((await trigger().innerText()).replace(/\s+/g, ' '), /Opus · max/, 'enter pins effort');
+  await listbox.waitFor();
+  await trigger().click();
+  await listbox.waitFor({ state: 'detached' });
 
   // 每模型记各自的档位：换回 mimo 显示它自己的 on
   await trigger().click();
   await row('mimo-v2.6-pro').click();
   await page.keyboard.press('Escape');
+  await listbox.waitFor({ state: 'detached' });
   assert.match((await trigger().innerText()).replace(/\s+/g, ' '), /mimo-v2\.6-pro · on/, 'effort is remembered per model');
 
   // Esc 关面板不改值
   await trigger().click();
   await row('裸模型').click();
   await page.keyboard.press('Escape');
+  await listbox.waitFor({ state: 'detached' });
   assert.match((await trigger().innerText()).replace(/\s+/g, ' '), /裸模型/, 'escape closes without changes');
 
   // 窄聊天区：面板不超出视口
@@ -106,6 +115,7 @@ try {
   // 减少动态效果：面板照常可用
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.keyboard.press('Escape');
+  await listbox.waitFor({ state: 'detached' });
   await trigger().click();
   await row('mimo-v2.6-pro').click();
   await radiogroup.getByRole('radio', { name: 'on' }).click();
@@ -113,7 +123,7 @@ try {
 
   assert.equal(errors.length, 0, `browser errors: ${errors.join('; ')}`);
   console.log(JSON.stringify({ triggerPairing: true, twoLineRows: true, effortFollowsModel: true,
-    noLevelRow: true, clickClosesOnEffort: true, keyboardModelAndDots: true, perModelMemory: true,
+    noLevelRow: true, effortKeepsPanelOpen: true, keyboardModelAndDots: true, perModelMemory: true,
     escapeSafety: true, narrowFit: true, reducedMotion: true, browserErrors: errors.length }));
 } finally {
   await browser.close();

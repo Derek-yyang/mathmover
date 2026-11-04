@@ -77,6 +77,9 @@ describe('skill 资产根目录与 cwd 解耦', () => {
     const r = await callFromSandbox('get_expert_prompt', { category: 'C' });
     expect(r.isError).toBe(false);
     expect(r.text).toContain('共同输出约定');
+    expect(r.text).toContain('### SOP: curve-definition');
+    expect(r.text).toContain('### SOP: hidden-helper');
+    expect(r.text).not.toContain('{{SOP');
   });
 
   it('get_sop_cards 从沙箱里也能取到卡正文', async () => {

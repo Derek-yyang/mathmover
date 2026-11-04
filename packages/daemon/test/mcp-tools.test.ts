@@ -136,6 +136,7 @@ describe('MCP 工具面', () => {
 
     // 题目增强：category 必填——改回可选会让 agent 不判类就拿 skill
     expect(describeTool(tools, 'get_expert_prompt').required).toEqual(['category']);
+    expect(describeTool(tools, 'get_expert_prompt').params).toEqual(['category']);
     // 取卡按名字批量拿
     expect(describeTool(tools, 'get_sop_cards').required).toEqual(['names']);
     // 工作稿是唯一入口：ggb_apply 无 commands（不带参数 = 读工作稿下发）
@@ -153,26 +154,54 @@ describe('MCP 工具面', () => {
     expect(expert).toContain('只在带了题目图片时取');        // 触发键是题图，不是「文字题面」
     expect(expert).toContain('都不要取');                    // 反例在位：直接指令不算题面
     expect(expert).toContain('分类标准');                    // 分类学随工具下发
+    expect(expert).toContain('全部写法卡正文');
+    expect(expert).not.toContain('具体写法要另外');
     expect(apply).toContain('动点自洽');              // 校验并进 apply 后的语义检查
     expect(apply).toContain('自查');                  // 回执带明细，别让 agent 以为只管下发
     expect(cards).toContain('不要凭记忆编指令');     // 防幻觉的核心纪律
+    expect(cards).toContain('不要重复取');
   });
 
-  it('get_expert_prompt 实跑：专家流程 + 本类清单（带步骤号）', async () => {
+  it('apply 引导完整阶段提交、集中修正和及时结束，同时保留真实错误修复', async () => {
     const { client } = await openClient();
-    const r = await client.callTool({ name: 'get_expert_prompt', arguments: { category: 'A' } });
-    const texts = textBlocks(r);
-
-    expect(texts.some((t) => t.includes('## 1. 清点对象'))).toBe(true);
-    expect(texts.some((t) => t.includes('共同输出约定'))).toBe(true);
-
-    const meta = JSON.parse(texts[texts.length - 1]);
-    expect(meta.category).toBe('A');
-    expect(meta.skill).toBe('function-expert');
-    expect(meta.catalog.length).toBe(meta.cards.length); // 清单与本类引用卡一一对应
-    expect(meta.catalog.length).toBeLessThan(18);        // 只列本类，不是全库
-    expect(meta.catalog.every((c: { step: string }) => typeof c.step === 'string')).toBe(true);
+    const { tools } = await client.listTools();
+    const apply = describeTool(tools, 'ggb_apply').description;
+    expect(apply).toContain('创建对象时一并写好必要样式');
+    expect(apply).toContain('沿用默认值时不补写样式命令');
+    expect(apply).toContain('简单图形可一次提交完整构造');
+    expect(apply).toContain('复杂图形按基础图形、动点与关联对象等完整阶段更新');
+    expect(apply).toContain('不按单个对象或样式属性拆批');
+    expect(apply).toContain('将已发现的问题集中修改再 apply');
+    expect(apply).toContain('错误必须修复，不硬性限制修正次数');
+    expect(apply).toContain('画面可读且自检通过后，直接输出结果');
+    expect(apply).toContain('用户明确要求的外观修改或影响可读性的视图问题仍应处理');
+    expect(apply).not.toContain('每完成一段就');
   });
+
+  it.each([['A', 11], ['B', 9], ['C', 12], ['D', 13]] as const)(
+    'get_expert_prompt %s 类一次返回流程和全部 %i 张卡', async (category, count) => {
+      const { client } = await openClient();
+      const r = await client.callTool({ name: 'get_expert_prompt', arguments: { category } });
+      const texts = textBlocks(r);
+
+      expect(r.isError).toBe(false);
+      expect(texts.some((t) => t.includes('## 1. 清点对象'))).toBe(true);
+      expect(texts.some((t) => t.includes('共同输出约定'))).toBe(true);
+      expect(texts[0]).toContain('```ggb');
+      expect(texts[0]).not.toContain('{{SOP');
+      expect(texts[1]).toContain('正文已嵌入对应流程步骤，无需重复取卡');
+      expect(texts.join('\n')).not.toContain('get_sop_cards');
+
+      const meta = JSON.parse(texts[texts.length - 1]);
+      expect(meta.category).toBe(category);
+      expect(meta.cards).toHaveLength(count);
+      expect([...texts[0].matchAll(/^### SOP: ([a-z0-9-]+) /gm)].map((m) => m[1])).toEqual(meta.cards);
+      expect(meta.characters).toBe(texts[0].length);
+      expect(meta.catalog.length).toBe(meta.cards.length); // 清单与本类引用卡一一对应
+      expect(meta.catalog.length).toBeLessThan(18);        // 只列本类，不是全库
+      expect(meta.catalog.every((c: { step: string }) => typeof c.step === 'string')).toBe(true);
+    },
+  );
 
   it('取过哪类知识包都不影响 apply（无会话账本）', async () => {
     const { client } = await openClient({ seed: ['A = (0, 0)', 'B = (1, 1)'] });
@@ -185,7 +214,7 @@ describe('MCP 工具面', () => {
 
   it('ggb_apply 报告无效行但**不剔除**——它们还在工作稿里', async () => {
     // 剔了 daemon 会把净化后的账本回写工作稿，agent 刚写的那行就从它自己的文件里消失。
-    // 而 apply 是「每完成一段就调一次」的高频动作，等于在它编辑到一半时抽走它脚下的行。
+    // apply 会在构造阶段和修正后多次调用，不能在它编辑过程中抽走它脚下的行。
     const commands = ['A = (0, 0)', 'Tangnet(A, 1)'];
     const { client, workdir } = await openClient({ seed: commands });
     const r = await client.callTool({ name: 'ggb_apply', arguments: { png: false } });

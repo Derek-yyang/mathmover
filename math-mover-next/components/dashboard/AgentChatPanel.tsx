@@ -32,6 +32,7 @@ export interface RuntimeOption {
   models?: { list: PickableModel[]; source?: 'live' | 'fallback' };
 }
 interface AgentChatPanelProps {
+  composerDrafts?: ComposerDrafts;
   messages: AgentChatMessage[]; isLoading: boolean; sendDisabled?: boolean;
   sendBlock?: SendBlock; onReconnectBoard?: () => void; onOpenSettings?: () => void;
   conversationId?: string; editorId?: string; loadingStatusText?: string;
@@ -181,7 +182,8 @@ function ChatThread({ messages, isLoading, sendDisabled = false, sendBlock, onRe
 
 export default function AgentChatPanel(props: AgentChatPanelProps) {
   const { runtimes = [], activeRuntimeId, conversationId, editorId, selectedModel, onSelectModel, selectedEffort, onSelectEffort } = props;
-  const [drafts] = useState(() => new ComposerDrafts());
+  const [localDrafts] = useState(() => new ComposerDrafts());
+  const drafts = props.composerDrafts ?? localDrafts;
   const editorKey = editorId ?? conversationId ?? 'new';
   useEffect(() => {
     const changed = (event: Event) => {
@@ -205,12 +207,12 @@ export default function AgentChatPanel(props: AgentChatPanelProps) {
   const selected = models.find((m) => m.id === (selectedModel || 'default')) ?? models[0];
   const reasoningOptions = selected?.reasoningOptions ?? [];
   // 标题行交给 ChatThread 渲染：它要落在拖入区**里面**（见那边的注释）。
-  const header = <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-[var(--mm-border-divider)] px-4">
+  const header = <div className="flex h-14 shrink-0 items-center justify-between gap-2 px-4">
     <span className="shrink-0 text-sm font-semibold text-[var(--mm-text-stone-800)]">对话</span>
     <span role="status" aria-label={active ? `当前 Agent：${active.name}` : agentLabel} title={agentLabel}
       className="min-w-0 max-w-40 truncate text-xs text-[var(--mm-text-stone-500)]">{agentLabel}</span>
   </div>;
-  return <aside aria-label="对话" className="flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-[var(--mm-border-divider)] bg-[var(--mm-canvas-shell)]">
+  return <aside aria-label="对话" className="flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden bg-[var(--mm-canvas-shell)]">
     <ImagePreviewProvider key={editorKey}><ChatThread {...props} canAttachImages={canAttachImages} drafts={drafts} draftId={conversationId ?? editorKey}
       header={header}
       models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel}

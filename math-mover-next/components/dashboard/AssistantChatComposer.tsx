@@ -65,7 +65,7 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
   });
   return <div className="shrink-0 px-3 pt-2 pb-3">
     <ComposerPrimitive.Root aria-label="题目输入区"
-      className="rounded-2xl border border-[var(--mm-border-stone-300)] bg-[var(--mm-surface)] p-3 transition-colors motion-reduce:transition-none focus-within:border-[var(--mm-border-emerald-600)]">
+      className="rounded-2xl border border-[var(--mm-border-stone-300)] bg-[var(--mm-surface)] p-3 transition-colors motion-reduce:transition-none">
       {hasAttachments && <div aria-label="待发送图片" className="mb-3 flex items-start gap-2 overflow-x-auto overflow-y-hidden">
         <ComposerPrimitive.Attachments>{({ attachment }) => {
           const part = attachment.content?.find(part => part.type === 'image');

@@ -6,7 +6,7 @@ import { RunActivity, type RunActivityEntry, type RunActivityStatus } from '@/co
 import { ToolCall } from '@/components/assistant-ui/elements/tool-call';
 import { elapsedLabel, toolStepLabel, type AgentExecution } from '@/lib/agent-progress';
 import { executionPresentation } from '@/lib/agent-run-presentation';
-import type { AgentActivityEntry } from './types';
+import type { AgentActivityEntry, AgentMeta } from './types';
 
 const stepStatuses = { running: '进行中', returned: '已返回', error: '返回错误', unconfirmed: '未确认' };
 
@@ -33,7 +33,7 @@ const RecordedToolCall = memo(function RecordedToolCall({ step }: { step: AgentE
   </div>;
 });
 
-function ExecutionDuration({ execution }: { execution: AgentExecution }) {
+function ExecutionDuration({ execution, retry }: { execution: AgentExecution; retry?: AgentMeta['retry'] }) {
   // The empty summary becomes a disclosure when the first activity arrives.
   // Its clock may remount; keep deriving elapsed time from the persisted start.
   const [now, setNow] = useState(() => execution.endedAt ?? Date.now());
@@ -42,30 +42,41 @@ function ExecutionDuration({ execution }: { execution: AgentExecution }) {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [execution.status]);
-  return <span data-slot="run-activity-duration">· {elapsedLabel(execution.startedAt, execution.endedAt ?? now)}</span>;
+  const seconds = retry ? Math.max(0, Math.ceil((retry.retryAt - now) / 1000)) : 0;
+  const wait = seconds < 60 ? `${seconds} 秒` : `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
+  return <span data-slot="run-activity-duration">· {retry && execution.status === 'running'
+    ? seconds > 0 ? `${wait}后重试` : '正在重试…'
+    : elapsedLabel(execution.startedAt, execution.endedAt ?? now)}</span>;
 }
 
 const statuses: Record<AgentExecution['status'], RunActivityStatus> = {
   running: 'running', completed: 'complete', error: 'error', unconfirmed: 'incomplete', stopped: 'cancelled',
 };
 
-export default function AgentExecutionProgress({ execution, activity }: { execution: AgentExecution; activity?: AgentActivityEntry[] }) {
-  const { label, errors, unconfirmed } = executionPresentation(execution);
-  const [open, setOpen] = useState(false);
+export default function AgentExecutionProgress({ execution, activity, retry }: { execution: AgentExecution; activity?: AgentActivityEntry[]; retry?: AgentMeta['retry'] }) {
+  const { label, errors, unconfirmed, running } = executionPresentation(execution);
+  const waiting = execution.status === 'running' ? retry : undefined;
+  const statusLabel = waiting ? waiting.reason === 'rate_limit' ? '模型服务暂时受限' : '模型服务暂时不可用' : label;
+  // Manual choices apply only to this run and phase. Finishing a run folds its
+  // history with the panel's exit transition; it can still be opened again.
+  const [expansion, setExpansion] = useState<{ startedAt: number; running: boolean; open: boolean } | null>(null);
+  const open = expansion?.startedAt === execution.startedAt && expansion.running === running
+    ? expansion.open : running;
+  const setOpen = (value: boolean) => setExpansion({ startedAt: execution.startedAt, running, open: value });
   const rootRef = useRef<HTMLDivElement>(null);
-  const lockScroll = useScrollLock(rootRef, 200);
+  const lockScroll = useScrollLock(rootRef, 250);
   const steps = new Map(execution.steps.map(step => [step.id, step]));
   const entries: RunActivityEntry[] = (activity ?? execution.steps.map(step => ({ id: `tool-${step.id}`, kind: 'tool' as const, stepId: step.id })))
     .flatMap<RunActivityEntry>(entry => {
-      if (entry.kind === 'text') return entry.phase === 'commentary' || entry.phase === 'pending'
+      if (entry.kind === 'text') return entry.phase === 'commentary'
         ? [{ id: entry.id, kind: 'commentary' as const, label: '', content:
           <p data-slot="run-commentary" className="whitespace-pre-wrap leading-6 text-[var(--mm-text-stone-600)]">{entry.text}</p> }] : [];
       const step = steps.get(entry.stepId);
       return step ? [{ id: entry.id, kind: 'tool' as const, label: toolStepLabel(step.name), content: <RecordedToolCall step={step} /> }] : [];
     });
   return <div ref={rootRef} data-agent-execution={execution.status} className="mb-2 min-w-0">
-    <RunActivity status={statuses[execution.status]} statusLabel={label} currentActivityLabel={label}
-      durationLabel={<ExecutionDuration execution={execution} />}
+    <RunActivity status={statuses[execution.status]} statusLabel={statusLabel} currentActivityLabel={statusLabel}
+      durationLabel={<ExecutionDuration key={waiting?.retryAt ?? 'elapsed'} execution={execution} retry={waiting} />}
       entries={entries} open={open} onOpenChange={value => { lockScroll(); setOpen(value); }}
       attention={(errors > 0 || (execution.status !== 'running' && unconfirmed > 0)) && <p role="status" className="text-xs leading-5 text-[var(--mm-text-amber-900)]">
         {errors > 0 ? `${errors} 次工具调用返回错误。` : `${unconfirmed} 次工具调用的结果未确认。`}

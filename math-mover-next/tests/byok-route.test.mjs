@@ -11,6 +11,7 @@ let source = readFileSync(new URL('../app/api/byok/route.ts', import.meta.url), 
 for (const [specifier, target] of [
   ['../../../../packages/daemon/src/data-directory.ts', '../../packages/daemon/src/data-directory.ts'],
   ['@/lib/byok-store', '../lib/byok-store.ts'],
+  ['@/lib/byok-key-scope', '../lib/byok-key-scope.ts'],
   ['@/lib/server/detection-cache', '../lib/server/detection-cache.ts'],
   ['@/lib/server/byok-runtime', '../lib/server/byok-runtime.ts'],
   ['@/lib/server/same-origin', '../lib/server/same-origin.ts'],
@@ -45,7 +46,7 @@ test('API persists each format, masks credentials and rejects invalid requests w
     }
     const file = path.join(root, 'byok.json');
     const before = readFileSync(file, 'utf8');
-    for (const body of [null, [], 'invalid', { apiFormat: 'unsupported' }, { apiFormat: null }, { apiFormat: '' }]) {
+    for (const body of [null, [], 'invalid', { apiFormat: 'unsupported' }, { apiFormat: null }, { apiFormat: '' }, { apiKey: 123 }]) {
       assert.equal((await POST(request(body))).status, 400);
       assert.equal(readFileSync(file, 'utf8'), before);
     }
@@ -79,15 +80,27 @@ test('save updates only built-in metadata and reuses models only for the same co
     assert.deepEqual(saved.runtime.models.list[0].reasoningOptions.map(item => item.id), ['medium', 'high']);
     assert.deepEqual(readCachedRuntime('byok'), saved.runtime);
     assert.deepEqual(readCachedRuntime('codex'), thirdParty);
+    const newDefault = await (await POST(request({ model: 'b' }))).json();
+    assert.deepEqual(newDefault.runtime.models.list.map(item => item.id), ['b', 'a'], 'configured model is the fallback even when discovery puts it later');
     // Repeated saves retain the discovered catalog, and do not extend its TTL.
     const changed = await (await POST(request({ model: 'private-model' }))).json();
     assert(changed.runtime.models.list.some(item => item.id === 'b'));
     assert(changed.runtime.models.list.some(item => item.id === 'private-model'));
     assert.equal(readFreshDetectionCache(Date.now() + 61_000), null);
-    const newConnection = await (await POST(request({ baseUrl: 'https://new.fixture.invalid/v1' }))).json();
+    const before = readFileSync(path.join(root, 'byok.json'), 'utf8');
+    const cached = readCachedRuntime('byok');
+    const blocked = await POST(request({ baseUrl: 'https://new.fixture.invalid/v1' }));
+    assert.equal(blocked.status, 400);
+    assert.match((await blocked.json()).error, /端点已更换/);
+    assert.equal(readFileSync(path.join(root, 'byok.json'), 'utf8'), before);
+    assert.deepEqual(readCachedRuntime('byok'), cached, '被拒绝的保存不修改运行时缓存');
+    const newConnection = await (await POST(request({ baseUrl: 'https://new.fixture.invalid/v1', apiKey: 'fixture-new-key' }))).json();
     assert.equal(newConnection.runtime.models.source, 'fallback');
     assert(!newConnection.runtime.models.list.some(item => item.id === 'b'), 'do not reuse another endpoint catalog');
     assert(!JSON.stringify(newConnection).includes(input.apiKey));
+    const withoutKey = await (await POST(request({ baseUrl: 'http://127.0.0.1:11434/v1', apiKey: null }))).json();
+    assert.equal(withoutKey.apiKeyConfigured, false);
+    assert.equal(JSON.parse(readFileSync(path.join(root, 'byok.json'), 'utf8')).apiKey, '');
   } finally {
     invalidateDetectionCache();
     if (previous === undefined) delete process.env.MATHMOVER_DATA_DIR;

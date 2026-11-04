@@ -5,7 +5,7 @@
  * （平时浅灰、拖入文件时红、用户现场还见过纯黑）。`globals.css` 里那条
  * `.geogebra-stage .GeoGebraFrame { border-color: … !important }` 就是把它钉死。
  *
- * 这条守卫的关键不是"平时是浅灰"（那本来就成立），而是**行内被改成别的颜色时，
+ * 这条守卫的关键不只是"平时透明"，而是**行内被改成别的颜色时，
  * 样式表仍然赢**——所以最后一步先模拟 GeoGebra 写一个行内黑色，再读计算值。
  *
  * 运行：node scripts/verify-board-frame-color.mjs [baseUrl]
@@ -65,23 +65,23 @@ try {
 
   const baseline = await frameStyle(page);
   assert.ok(baseline, 'applet 外框存在');
-  assert.equal(baseline.border, '1px solid rgb(211, 211, 211)', `平时是 1px 浅灰（实测 ${baseline.border}）`);
+  assert.equal(baseline.border, '1px solid rgba(0, 0, 0, 0)', `保留 1px 尺寸，外框透明（实测 ${baseline.border}）`);
 
   // 关键一步：模拟 GeoGebra 把行内颜色改成别的（现场见过纯黑）。样式表必须仍然赢。
   await page.evaluate(() => { document.querySelector('.GeoGebraFrame').style.borderColor = 'rgb(0, 0, 0)'; });
   await page.waitForTimeout(200);
   const forced = await frameStyle(page);
   assert.match(forced.inline, /border-color:\s*rgb\(0,\s*0,\s*0\)/, '前置：行内确实被改成了黑色');
-  assert.equal(forced.color, 'rgb(211, 211, 211)',
-    `行内被改黑之后，画板外框仍是浅灰（实测 ${forced.color}——不钉死的话这里会是纯黑）`);
+  assert.equal(forced.color, 'rgba(0, 0, 0, 0)',
+    `行内被改黑之后，画板外框仍然透明（实测 ${forced.color}——不钉死的话这里会是纯黑）`);
 
   // 再模拟一次"拖入文件"时的红色，同样不该漏出来
   await page.evaluate(() => { document.querySelector('.GeoGebraFrame').style.borderColor = 'rgb(255, 0, 0)'; });
   await page.waitForTimeout(200);
-  assert.equal((await frameStyle(page)).color, 'rgb(211, 211, 211)', '行内被改红之后也仍是浅灰');
+  assert.equal((await frameStyle(page)).color, 'rgba(0, 0, 0, 0)', '行内被改红之后也仍然透明');
 
   assert.deepEqual(errors, []);
-  console.log('PASS: 画板外框颜色钉死 —— 平时 1px 浅灰；行内被改成黑/红时样式表仍然赢（不会被 GeoGebra 的内部状态改色）；0 浏览器错误。');
+  console.log('PASS: 画板外框保持透明，保留 1px 尺寸；行内被改成黑/红时样式表仍然赢；0 浏览器错误。');
 } finally {
   await browser.close();
 }

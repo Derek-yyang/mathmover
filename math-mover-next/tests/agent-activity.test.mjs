@@ -10,8 +10,9 @@ const fresh = () => ({ id: 'run', role: 'assistant', content: '', createdAt: 100
 
 test('alternating narration and tools preserve order, while final text alone becomes the body', () => {
   let m = append(fresh(), { text: '先读画板', messageId: 'first' }, true);
-  assert.equal(m.content, '');
+  assert.equal(m.content, '先读画板');
   m = tool(m, 'read');
+  assert.equal(m.content, '');
   m = append(m, { text: '再检查对象', messageId: 'second' }, true);
   m = classify(m, 'commentary', 'second');
   m = tool(m, 'check');
@@ -32,14 +33,28 @@ test('message IDs scope late phase markers and an explicit answer is never moved
   assert.equal(m.meta.activity[0].phase, 'final');
 });
 
-test('buffered fragments join once; provisional text stays folded until an explicit final marker', () => {
+test('fragments appear in the body before completion and join once without waiting for a final marker', () => {
   let m = append(fresh(), { text: '第一', messageId: 'x' });
+  assert.equal(m.content, '第一');
   m = append(m, { text: '第二', messageId: 'x' });
   assert.equal(m.meta.activity.length, 1);
-  assert.equal(m.content, '');
+  assert.equal(m.content, '第一第二');
   m = classify(m, 'final', 'x');
   assert.equal(m.content, '第一第二');
   assert.equal(settle(m, '第一第二').meta.activity.length, 1);
+});
+
+test('later tools move provisional text into the execution record; interrupted replies preserve visible fragments', () => {
+  let m = append(fresh(), { text: '准备检查', messageId: 'narration' });
+  assert.equal(m.content, '准备检查');
+  m = tool(m, 'check');
+  assert.equal(m.content, '');
+  assert.equal(m.meta.activity[0].phase, 'commentary');
+  m = append(m, { text: '第一段回复', messageId: 'answer' });
+  assert.equal(m.content, '第一段回复');
+  const interrupted = settle({ ...m, meta: { ...m.meta, status: 'stopped' } });
+  assert.equal(interrupted.content, '第一段回复');
+  assert.equal(interrupted.meta.status, 'stopped');
 });
 
 test('missing classifications, cancellation and legacy histories do not lose content', () => {

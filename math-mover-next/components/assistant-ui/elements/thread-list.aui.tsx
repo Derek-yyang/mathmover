@@ -41,7 +41,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ComponentPropsWithoutRef,
   type FC,
   type ReactNode,
@@ -58,6 +57,7 @@ type ThreadListSelection = {
 };
 type ThreadListHost = {
   organization?: {
+    protectedProjectIds?: ReadonlySet<string>;
     projects: CoursewareProject[];
     onCreate: () => void;
     onProject: (project: CoursewareProject, action: 'rename' | 'delete') => void;
@@ -67,6 +67,7 @@ type ThreadListHost = {
   archived?: boolean;
   portalContainer?: HTMLElement | null;
   disabled?: boolean;
+  protectedIds?: ReadonlySet<string>;
   newDisabled?: boolean;
   onNew?: () => void;
   selection?: ThreadListSelection;
@@ -80,9 +81,10 @@ const HostContext = createContext<ThreadListHost>({});
 export const ThreadList: FC<ThreadListHost & {
   rootRef?: React.Ref<HTMLDivElement>;
   searchRef?: React.Ref<HTMLInputElement>;
+  showSearch?: boolean;
   error?: string | null;
   onRetry?: () => void;
-}> = ({ rootRef, searchRef, error, onRetry, archived = false, ...host }) => {
+}> = ({ rootRef, searchRef, showSearch = true, error, onRetry, archived = false, ...host }) => {
   const [search, setSearch] = useState("");
   const currentCount = useAuiState(s => archived ? s.threads.archivedThreadIds.length : s.threads.threadIds.length);
 
@@ -92,7 +94,7 @@ export const ThreadList: FC<ThreadListHost & {
       {!archived && <ThreadListNew disabled={host.newDisabled ?? host.disabled}
         onClick={host.onNew ? event => { event.preventDefault(); host.onNew?.(); } : undefined}
         className="h-10 shrink-0 rounded-lg bg-transparent px-2.5 font-medium text-[var(--mm-text-stone-800)] hover:bg-[var(--mm-bg-stone-100)] data-active:bg-transparent data-active:hover:bg-[var(--mm-bg-stone-100)] [&_svg]:text-[var(--mm-text-emerald-700)]" />}
-      {(currentCount > 0 || search.length > 0) && (
+      {showSearch && (currentCount > 0 || search.length > 0) && (
         <ThreadListSearch ref={searchRef} value={search} onValueChange={setSearch} aria-label={archived ? '搜索归档课件' : '搜索课件标题'} placeholder={archived ? '搜索归档课件' : '搜索课件标题'} className="h-9 rounded-lg border-transparent bg-[var(--mm-bg-stone-100)]/80 shadow-none placeholder:text-[var(--mm-text-stone-500)] focus-visible:bg-[var(--mm-surface)]" />
       )}
       {error && <div role="alert" className="px-2.5 py-2 text-xs leading-5 text-[var(--mm-text-amber-900)]">
@@ -115,9 +117,9 @@ export const ThreadList: FC<ThreadListHost & {
 };
 
 const ThreadListSelectionBar: FC<{ searchQuery: string }> = ({ searchQuery }) => {
-  const { selection, disabled, onDeleteRequest } = useContext(HostContext);
-  const { threadIds, filteredIndices } = useThreadListGroups(searchQuery);
-  const visibleIds = filteredIndices.map(index => threadIds[index]);
+  const { selection, disabled, protectedIds, onDeleteRequest } = useContext(HostContext);
+  const { threadIds, filteredIndices } = useThreadListIndices(searchQuery);
+  const visibleIds = filteredIndices.map(index => threadIds[index]).filter(id => !protectedIds?.has(id));
   if (!selection) return null;
   const allSelected = visibleIds.length > 0 && visibleIds.every(id => selection.ids.has(id));
   return <div role="group" aria-label="课件批量操作" data-slot="thread-list-selection-bar"
@@ -128,7 +130,7 @@ const ThreadListSelectionBar: FC<{ searchQuery: string }> = ({ searchQuery }) =>
         className="h-8 px-2 text-xs font-normal text-[var(--mm-text-emerald-800)] hover:bg-[var(--mm-bg-emerald-50)] hover:text-[var(--mm-text-emerald-800)]"
         onClick={() => selection.onSelectAll(allSelected ? [] : visibleIds)}>{allSelected ? '取消全选' : searchQuery.trim() ? '全选结果' : '全选'}</Button>
       <Button type="button" variant="ghost" size="icon" aria-label="删除所选课件" title="删除所选课件"
-        disabled={disabled || !selection.ids.size}
+        disabled={disabled || !selection.ids.size || [...selection.ids].some(id => protectedIds?.has(id))}
         className="size-8 text-[var(--mm-text-red-700)] hover:bg-[var(--mm-bg-red-50)] hover:text-[var(--mm-text-red-700)] disabled:text-[var(--mm-text-stone-500)] disabled:opacity-50"
         onClick={() => onDeleteRequest?.([...selection.ids])}><TrashIcon aria-hidden="true" className="size-4" /></Button>
     </div>
@@ -197,116 +199,30 @@ export const ThreadListItems: FC<
   );
 };
 
-const dateGroupLabel = (
-  date: Date | undefined,
-  startOfToday: number,
-  startOfYesterday: number,
-): string => {
-  if (!date || date.getTime() >= startOfToday) return "今天";
-  if (date.getTime() >= startOfYesterday) return "昨天";
-  return "更早";
-};
-
-const startOfLocalDay = (date: Date) =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-
-const subscribeToNextDay = (onDayChange: () => void) => {
-  let timeout: number;
-  const scheduleNextDay = () => {
-    const now = new Date();
-    const startOfTomorrow = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + 1,
-    ).getTime();
-    timeout = window.setTimeout(() => {
-      onDayChange();
-      scheduleNextDay();
-    }, startOfTomorrow - now.getTime());
-  };
-  scheduleNextDay();
-  return () => window.clearTimeout(timeout);
-};
-
-const getStartOfToday = () => startOfLocalDay(new Date());
-
-// A server render and hydration see no day start, so a prerender never reads
-// the clock; a client-only mount groups on its first render.
-const getServerStartOfToday = () => undefined;
-
-const useStartOfToday = () =>
-  useSyncExternalStore<number | undefined>(
-    subscribeToNextDay,
-    getStartOfToday,
-    getServerStartOfToday,
-  );
-
-export type ThreadListGroup = { label: string; indices: number[] };
-
-/**
- * Filters the thread list by title and buckets the matches by last activity
- * (Today, Yesterday, Earlier). `groups` is null when no thread carries a date
- * or while the local day start is unknown during server render and hydration,
- * in which case `filteredIndices` keeps the runtime order.
- */
-export const useThreadListGroups = (searchQuery = "") => {
+/** Filter by title and show the most recently updated courseware first. */
+const useThreadListIndices = (searchQuery = "") => {
   const { archived } = useContext(HostContext);
   const threadIds = useAuiState((s) => archived ? s.threads.archivedThreadIds : s.threads.threadIds);
   const threadItems = useAuiState((s) => s.threads.threadItems);
-
   const query = searchQuery.trim().toLowerCase();
-  const startOfToday = useStartOfToday();
 
   return useMemo(() => {
-    const itemsById = new Map(threadItems.map((item) => [item.id, item]));
-    const dates = threadIds.map((id) => itemsById.get(id)?.lastMessageAt);
+    const itemsById = new Map(threadItems.map(item => [item.id, item]));
+    const updatedAt = (index: number) => itemsById.get(threadIds[index])?.lastMessageAt?.getTime() || 0;
     const filteredIndices = threadIds
       .map((id, index) => ({ id, index }))
-      .filter(
-        ({ id }) =>
-          !query ||
-          (itemsById.get(id)?.title || "未命名课件")
-            .toLowerCase()
-            .includes(query),
-      )
-      .map(({ index }) => index);
-    if (
-      startOfToday === undefined ||
-      !filteredIndices.some((index) => dates[index])
-    ) {
-      return { threadIds, filteredIndices, groups: null };
-    }
-
-    const yesterday = new Date(startOfToday);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const startOfYesterday = yesterday.getTime();
-    const time = (index: number) =>
-      dates[index]?.getTime() ?? Number.MAX_SAFE_INTEGER;
-    const sorted = [...filteredIndices].sort((a, b) => time(b) - time(a));
-
-    const result: ThreadListGroup[] = [];
-    for (const index of sorted) {
-      const label = dateGroupLabel(
-        dates[index],
-        startOfToday,
-        startOfYesterday,
-      );
-      const lastGroup = result[result.length - 1];
-      if (lastGroup?.label === label) {
-        lastGroup.indices.push(index);
-      } else {
-        result.push({ label, indices: [index] });
-      }
-    }
-    return { threadIds, filteredIndices, groups: result };
-  }, [threadIds, threadItems, query, startOfToday]);
+      .filter(({ id }) => !query || (itemsById.get(id)?.title || "未命名课件").toLowerCase().includes(query))
+      .map(({ index }) => index)
+      .sort((a, b) => updatedAt(b) - updatedAt(a));
+    return { threadIds, filteredIndices };
+  }, [threadIds, threadItems, query]);
 };
 
 const ThreadListItemGroups: FC<{ searchQuery?: string }> = ({
   searchQuery = "",
 }) => {
-  const { threadIds, filteredIndices, groups } =
-    useThreadListGroups(searchQuery);
+  const { threadIds, filteredIndices } =
+    useThreadListIndices(searchQuery);
   const query = searchQuery.trim();
   const isLoading = useAuiState(s => s.threads.isLoading);
   const items = useAuiState(s => s.threads.threadItems);
@@ -332,11 +248,7 @@ const ThreadListItemGroups: FC<{ searchQuery?: string }> = ({
     <p className="text-sm font-medium text-[var(--mm-text-stone-700)]">{archived ? '暂无归档课件' : '暂无课件'}</p>
     <p className="mt-1 text-xs leading-5 text-[var(--mm-text-stone-500)]">{archived ? '归档后的课件会保留在这里。' : '点击上方“新建课件”开始。'}</p>
   </div>;
-  // One keyed presence group keeps rows mounted across date-group changes.
-  const rows = groups ? groups.flatMap(group => [
-    <div key={`heading-${group.label}`} data-slot="aui_thread-list-group-label" className="text-muted-foreground px-2.5 pt-3 pb-1 text-xs font-medium">{group.label}</div>,
-    ...group.indices.map(index => <AnimatedThreadListItem key={threadIds[index]} index={index} archived={!!archived} title={titles.get(threadIds[index])} active={activeId === threadIds[index]} />),
-  ]) : filteredIndices.map(index => <AnimatedThreadListItem key={threadIds[index]} index={index} archived={!!archived} title={titles.get(threadIds[index])} active={activeId === threadIds[index]} />);
+  const rows = filteredIndices.map(index => <AnimatedThreadListItem key={threadIds[index]} index={index} archived={!!archived} title={titles.get(threadIds[index])} active={activeId === threadIds[index]} />);
   return <LayoutGroup><AnimatePresence initial={false} mode="popLayout">{rows}</AnimatePresence></LayoutGroup>;
 };
 
@@ -344,7 +256,7 @@ const ThreadListItemGroups: FC<{ searchQuery?: string }> = ({
  * Pins are shortcuts: project membership remains visible in its project too. */
 const OrganizedThreadList: FC<{ searchQuery: string }> = ({ searchQuery }) => {
   const { organization, disabled, portalContainer } = useContext(HostContext);
-  const { threadIds, filteredIndices, groups } = useThreadListGroups(searchQuery);
+  const { threadIds, filteredIndices } = useThreadListIndices(searchQuery);
   const items = useAuiState(s => s.threads.threadItems);
   const activeId = useAuiState(s => s.threads.mainThreadId);
   const byId = new Map(items.map(item => [item.id, item]));
@@ -364,40 +276,50 @@ const OrganizedThreadList: FC<{ searchQuery: string }> = ({ searchQuery }) => {
   return <>
     {pinned.length > 0 && <ThreadListSection label="置顶" forceOpen={searching}><LayoutGroup><AnimatePresence initial={false} mode="popLayout">{pinned.map(row)}</AnimatePresence></LayoutGroup></ThreadListSection>}
     <ThreadListSection label="项目" forceOpen={searching} action={<button type="button" aria-label="新建项目" title="新建项目" disabled={disabled}
-      onClick={organization.onCreate} className="pointer-events-none flex size-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity duration-150 group-hover/section:pointer-events-auto group-hover/section:opacity-100 group-focus-within/section:pointer-events-auto group-focus-within/section:opacity-100 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 motion-reduce:transition-none [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"><PlusIcon aria-hidden className="size-3.5" /></button>}>
+      onClick={organization.onCreate} className="pointer-events-none flex size-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity duration-150 group-hover/section:pointer-events-auto group-hover/section:opacity-100 group-has-[:focus-visible]/section:pointer-events-auto group-has-[:focus-visible]/section:opacity-100 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 motion-reduce:transition-none [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"><PlusIcon aria-hidden className="size-3.5" /></button>}>
+      {!searching && !projects.length && <ThreadListEmpty>没有项目</ThreadListEmpty>}
       {projects.map(({ project, indices }) => <ThreadListSection key={project.id} label={project.name} project forceOpen={searching}
-        action={<ProjectMenu project={project} disabled={disabled} portalContainer={portalContainer} onAction={action => organization.onProject(project, action)} />}>
+        action={<ProjectMenu project={project} disabled={disabled || organization.protectedProjectIds?.has(project.id)} portalContainer={portalContainer} onAction={action => organization.onProject(project, action)} />}>
         {indices.length ? <LayoutGroup><AnimatePresence initial={false} mode="popLayout">{indices.map(row)}</AnimatePresence></LayoutGroup>
-          : <p className="px-2.5 py-2 text-xs leading-5 text-muted-foreground">{searching ? '没有匹配的课件' : '从课件菜单移入这个项目。'}</p>}
+          : <ThreadListEmpty>{searching ? '没有匹配的课件' : '没有课件'}</ThreadListEmpty>}
       </ThreadListSection>)}
     </ThreadListSection>
-    {recent.size > 0 && <ThreadListSection label="最近" forceOpen={searching}><LayoutGroup><AnimatePresence initial={false} mode="popLayout">
-      {groups ? groups.flatMap(group => {
-        const indices = group.indices.filter(index => recent.has(index));
-        return indices.length ? [<div key={`recent-${group.label}`} className="px-2.5 pt-2 pb-1 text-xs text-muted-foreground">{group.label}</div>, ...indices.map(row)] : [];
-      }) : [...recent].map(row)}
+    {(!searching || recent.size > 0) && <ThreadListSection label="最近" forceOpen={searching}>
+      {!recent.size && <ThreadListEmpty>没有课件</ThreadListEmpty>}
+      <LayoutGroup><AnimatePresence initial={false} mode="popLayout">
+      {[...recent].map(row)}
     </AnimatePresence></LayoutGroup></ThreadListSection>}
-    {!threadIds.length && <p className="px-2.5 py-4 text-sm text-muted-foreground">点击上方“新建课件”开始。</p>}
     {searching && !filteredIndices.length && !projects.length && <p className="px-2.5 py-4 text-sm text-muted-foreground">没有找到匹配的课件</p>}
   </>;
 };
+
+const ThreadListEmpty: FC<{ children: ReactNode }> = ({ children }) => (
+  <p className="px-2.5 py-2 text-sm leading-5 text-[var(--mm-text-stone-500)]">{children}</p>
+);
 
 const ThreadListSection: FC<{ label: string; project?: boolean; forceOpen?: boolean; action?: ReactNode; children: ReactNode }> = ({ label, project, forceOpen, action, children }) => {
   const [expanded, setExpanded] = useState(true);
   const contentId = useId();
   const open = forceOpen || expanded;
-  return <section data-slot={project ? 'courseware-project' : 'courseware-section'} className={cn('shrink-0', project ? 'pl-2' : 'pt-2')}>
-    <div className="group/section flex min-h-8 items-center gap-1 text-muted-foreground">
+  return <section data-slot={project ? 'courseware-project' : 'courseware-section'} className={cn('shrink-0', !project && 'pt-2')}>
+    <div data-slot={project ? 'courseware-project-header' : undefined}
+      className={cn('group/section flex items-center gap-1 text-muted-foreground', project
+        ? 'min-h-9 rounded-lg transition-colors duration-150 hover:bg-muted has-[:focus-visible]:bg-muted has-[[data-state=open]]:bg-muted motion-reduce:transition-none'
+        : 'min-h-8')}>
       <button type="button" aria-expanded={open} aria-controls={contentId} onClick={() => setExpanded(value => !value)}
-        className={cn('flex min-h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2.5 text-left focus-visible:outline-2 focus-visible:outline-ring',
-          project ? 'text-sm text-foreground hover:bg-muted' : 'text-xs font-medium')}>
-        {project && <FolderIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />}
-        <span className="truncate">{label}</span><ChevronRightIcon aria-hidden className={cn('size-3 shrink-0 transition-transform duration-200 motion-reduce:transition-none', open && 'rotate-90')} />
+        className={cn('flex min-w-0 flex-1 items-center rounded-md px-2.5 text-left focus-visible:outline-2 focus-visible:outline-ring',
+          project ? 'min-h-9 gap-2 text-sm text-foreground' : 'min-h-8 gap-1.5 text-xs font-medium')}>
+        {project && (open
+          ? <FolderOpenIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+          : <FolderIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />)}
+        <span className="truncate">{label}</span>
+        {!project && <ChevronRightIcon aria-hidden className={cn('size-3 shrink-0 transition-opacity duration-200 motion-reduce:transition-none', open && 'opacity-0')} />}
       </button>
       {action}
     </div>
-    <div id={contentId} inert={!open} aria-hidden={!open} className={cn('grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none', open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}>
-      <div className="min-h-0 overflow-hidden">{children}</div>
+    <div id={contentId} inert={!open} aria-hidden={!open} className={cn('grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none',
+      project && 'duration-[220ms] ease-[cubic-bezier(0.25,1,0.5,1)]', open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}>
+      <div className="min-h-0 overflow-hidden"><div className={cn(project && 'pl-6')}>{children}</div></div>
     </div>
   </section>;
 };
@@ -405,7 +327,7 @@ const ThreadListSection: FC<{ label: string; project?: boolean; forceOpen?: bool
 const ProjectMenu: FC<{ project: CoursewareProject; disabled?: boolean; portalContainer?: HTMLElement | null; onAction: (action: 'rename' | 'delete') => void }> = ({ project, disabled, portalContainer, onAction }) => {
   const pendingAction = useRef<'rename' | 'delete' | null>(null);
   return <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" disabled={disabled} aria-label={`${project.name}的项目操作`}
-    className="mr-1 size-6 shrink-0 opacity-0 group-hover/section:opacity-100 group-focus-within/section:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"><MoreHorizontalIcon aria-hidden className="size-3.5" /></Button></DropdownMenuTrigger>
+    className="pointer-events-none mr-1.5 size-6 shrink-0 rounded-md opacity-0 transition-opacity duration-150 hover:bg-transparent focus-visible:bg-transparent data-[state=open]:bg-transparent group-hover/section:pointer-events-auto group-hover/section:opacity-100 group-has-[:focus-visible]/section:pointer-events-auto group-has-[:focus-visible]/section:opacity-100 data-[state=open]:pointer-events-auto data-[state=open]:opacity-100 motion-reduce:transition-none [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"><MoreHorizontalIcon aria-hidden className="size-3.5" /></Button></DropdownMenuTrigger>
     <DropdownMenuContent portalContainer={portalContainer} side="right" align="start" onCloseAutoFocus={event => {
       if (pendingAction.current) { event.preventDefault(); const action = pendingAction.current; pendingAction.current = null; onAction(action); }
     }}>
@@ -493,10 +415,10 @@ const ThreadListSkeleton: FC = () => {
 };
 
 export const ThreadListItem: FC = () => {
-  const { disabled, selection, onOpen, onOpenCurrent } = useContext(HostContext);
+  const { disabled, protectedIds, selection, onOpen, onOpenCurrent } = useContext(HostContext);
   const id = useAuiState(s => s.threadListItem.id);
   const isCurrent = useAuiState(s => s.threadListItem.id === s.threads.mainThreadId);
-  const isRunning = useAuiState((s) => s.threadListItem.isRunning);
+  const isRunning = useAuiState((s) => s.threadListItem.isRunning || !!s.threadListItem.custom?.running);
   const pinned = useAuiState(s => !!s.threadListItem.custom?.pinned_at);
   const [isRenaming, setIsRenaming] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -523,7 +445,7 @@ export const ThreadListItem: FC = () => {
         />
       ) : (
         <ThreadListItemPrimitive.Trigger
-          disabled={disabled}
+          disabled={disabled || selection?.enabled && protectedIds?.has(id)}
           aria-pressed={selection?.enabled ? selection.ids.has(id) : undefined}
           onClick={event => {
             if (selection?.enabled) { event.preventDefault(); selection.onToggle(id); }
@@ -628,8 +550,9 @@ const ThreadListItemRename: FC<{
 };
 
 const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
-  const { disabled, onDelete, portalContainer, organization } = useContext(HostContext);
+  const { disabled: listDisabled, protectedIds, onDelete, portalContainer, organization } = useContext(HostContext);
   const id = useAuiState(s => s.threadListItem.id);
+  const disabled = listDisabled || protectedIds?.has(id);
   const pinned = useAuiState(s => !!s.threadListItem.custom?.pinned_at);
   const organizingRef = useRef<'move' | 'pin' | null>(null);
   const archived = useAuiState(s => s.threadListItem.status === 'archived');
@@ -637,6 +560,7 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteFocusRing, setShowDeleteFocusRing] = useState(false);
   const deletePending = useRef(false);
   const confirmingRef = useRef(false);
   const interactedOutsideRef = useRef(false);
@@ -683,6 +607,8 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
           className="z-50 w-60 max-w-[calc(100vw-16px)] rounded-xl border border-[var(--mm-border-stone-200)] bg-popover p-3 text-popover-foreground shadow-sm outline-none"
           onOpenAutoFocus={event => { event.preventDefault(); interactedOutsideRef.current = false; cancelRef.current?.focus(); }}
           onCloseAutoFocus={event => { event.preventDefault(); if (!interactedOutsideRef.current) moreRef.current?.focus(); }}
+          onPointerDownCapture={() => setShowDeleteFocusRing(false)}
+          onKeyDownCapture={() => setShowDeleteFocusRing(true)}
           onEscapeKeyDown={event => {
             event.stopPropagation();
             if (deletePending.current) event.preventDefault();
@@ -695,7 +621,10 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
           <p id={descriptionId} className="mt-1 text-xs leading-5 text-[var(--mm-text-stone-600)]">删除后无法恢复。</p>
           {deleteError && <p role="alert" className="mt-2 text-xs leading-5 text-[var(--mm-text-amber-900)]">{deleteError}</p>}
           <div className="mt-3 flex justify-end gap-1.5">
-            <PopoverPrimitive.Close asChild><Button ref={cancelRef} variant="ghost" size="sm" disabled={deleting}>取消</Button></PopoverPrimitive.Close>
+            {/* Menu keyboard navigation can leave :focus-visible active after a mouse selection.
+                Keep the safe default focus, but show its ring only for keyboard interaction. */}
+            <PopoverPrimitive.Close asChild><Button ref={cancelRef} variant="ghost" size="sm" disabled={deleting}
+              className={showDeleteFocusRing ? undefined : 'focus-visible:ring-0'}>取消</Button></PopoverPrimitive.Close>
             <Button variant="destructive" size="sm" aria-label="确认删除" disabled={disabled || deleting} onClick={() => { void confirmDelete(); }}>{deleting ? '正在删除…' : '删除'}</Button>
           </div>
         </PopoverPrimitive.Content>
@@ -704,6 +633,8 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
       <ThreadListItemMorePrimitive.Content
         portalProps={{ container: portalContainer }}
         collisionBoundary={portalContainer?.closest('[data-slot="settings-dialog"]') ?? undefined}
+        onPointerDownCapture={() => setShowDeleteFocusRing(false)}
+        onKeyDownCapture={() => setShowDeleteFocusRing(true)}
         onEscapeKeyDown={event => {
           // Radix keeps the menu's dismissable layer during its exit animation.
           // Escape belongs to the newly focused inline editor in that interval.
@@ -737,6 +668,7 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
             className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none hover:bg-accent focus:bg-accent"><FolderInputIcon aria-hidden className="size-4" />移动到项目</ThreadListItemMorePrimitive.Item>
         </>}
         <ThreadListItemMorePrimitive.Item
+          disabled={disabled}
           data-slot="aui_thread-list-item-more-item"
           className="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none"
           onSelect={() => { renamingRef.current = true; onRename(); }}

@@ -16,6 +16,8 @@ export function assistantMessagePhase(message: AgentChatMessage): AssistantMessa
 /** Presentation projection only: the host remains the source of truth and saves its own format. */
 export function toAssistantMessage(message: AgentChatMessage): ThreadMessageLike {
   const phase = assistantMessagePhase(message);
+  const error = message.meta?.errorMessage ?? message.meta?.diagnostic?.detail ??
+    (message.meta?.status === 'error' ? '没有返回具体错误信息。' : undefined);
   return {
     id: message.id, role: message.role, createdAt: new Date(message.createdAt),
     content: message.content ? [{ type: 'text', text: message.content }] : [],
@@ -25,7 +27,7 @@ export function toAssistantMessage(message: AgentChatMessage): ThreadMessageLike
       status: { type: 'complete' as const }, content: [{ type: 'image' as const, image: image.url }],
     })),
     status: message.role === 'assistant'
-      ? phase === 'error' ? { type: 'incomplete', reason: 'error' }
+      ? phase === 'error' ? { type: 'incomplete', reason: 'error', ...(error ? { error } : {}) }
       : phase === 'stopped' ? { type: 'incomplete', reason: 'cancelled' }
       : phase === 'running' ? { type: 'running' } : { type: 'complete', reason: 'stop' }
       : undefined,

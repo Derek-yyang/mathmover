@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { NextConfig } from "next";
+import { openCodePluginDependencyDirectories } from '../packages/agent-runtime/src/opencode-plugin-dependencies.ts';
 
 // 桌面构建在 prepare.mjs 里注入（与 layout.tsx 的标题栏开关同一个变量）。
 const desktopBuild = process.env.MATHMOVER_DESKTOP === '1';
@@ -12,6 +13,12 @@ const nextConfig: NextConfig = {
   },
 
   output: 'standalone',
+  // Runtime SDK discovery uses filesystem paths. Explicitly retain its dependency
+  // tree in standalone output; desktop ships a separate copy beside its CLI.
+  ...(!desktopBuild ? { outputFileTracingIncludes: {
+    '/api/agent': openCodePluginDependencyDirectories().map(directory =>
+      `${path.relative(__dirname, directory).replaceAll(path.sep, '/')}/**/*`),
+  } } : {}),
   distDir: process.env.MATHMOVER_NEXT_DIST_DIR || '.next',
 
   // Turbopack 默认只解析项目根内的模块。我们的共享包在仓库根的 packages/ 下

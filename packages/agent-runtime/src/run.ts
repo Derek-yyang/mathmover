@@ -36,7 +36,7 @@ export interface RunOptions {
   /** 推理档位（该模型 reasoningOptions 之一）。只对支持的运行时生效。 */
   reasoningEffort?: string;
   extraArgs?: string[];
-  env?: Record<string, string>;
+  env?: Record<string, string | undefined>;
   /** 墙钟硬超时（毫秒）；超时杀进程并发 error 事件 */
   timeoutMs?: number;
   /**
@@ -159,6 +159,7 @@ export function runAgent(opts: RunOptions): RunHandle {
   let sessionId: string | undefined = opts.sessionId;
   let buf = '';
   let stderrBuf = '';
+  const parseLine = opts.def.createLineParser?.() ?? opts.def.parseLine;
 
   // 首输出硬顶：启动即上膛，第一发实质输出解除；状态帧不顺延（语义见 RunOptions）
   let firstOutputTimer: ReturnType<typeof setTimeout> | undefined;
@@ -181,7 +182,7 @@ export function runAgent(opts: RunOptions): RunHandle {
 
   const emitLine = (line: string) => {
     if (!line.trim()) return;
-    const parsed = opts.def.parseLine(line);
+    const parsed = parseLine(line);
     if (!parsed) return;
     for (const ev of Array.isArray(parsed) ? parsed : [parsed]) {
       if (SUBSTANTIVE_KINDS.has(ev.kind)) clearFirstOutput();

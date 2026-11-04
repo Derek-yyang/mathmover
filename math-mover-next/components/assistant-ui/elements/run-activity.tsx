@@ -9,7 +9,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "./collapsible-root";
-import { collapsePanel } from "./surfaces";
 import { ThinkingIndicator } from "./thinking-indicator";
 
 const summaryRow = "text-muted-foreground flex min-w-0 max-w-full items-center gap-1.5 py-1 text-sm";
@@ -93,7 +92,7 @@ export function RunActivity({
             />
             {summary}
           </CollapsibleTrigger>
-          <CollapsibleContent className={collapsePanel}>
+          <CollapsibleContent className="aui-run-activity-content overflow-hidden">
             <ol className="border-border ms-1.5 flex min-w-0 flex-col gap-3 border-s ps-3.5 pt-2 text-sm wrap-anywhere">
               {entries.map((entry) => (
                 <li key={entry.id} data-activity-kind={entry.kind}>
