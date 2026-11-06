@@ -33,7 +33,7 @@ mac:
     - from: node_modules/electron-sparkle-updater/native/vendor/Sparkle.framework
       to: Frameworks/Sparkle.framework
   extendInfo:
-    SUFeedURL: https://github.com/Derek-yyang/mathmover/releases/latest/download/appcast-mac-arm64.xml
+    SUFeedURL: https://mathmover.top/update/mac/appcast-mac-arm64.xml
     SUPublicEDKey: wC2cZCdUS6dAEvz+TbILSYj27ksyZr82MMgD1Cl+4eo=
     SUEnableInstallerLauncherService: false
     SUVerifyUpdateBeforeExtraction: true

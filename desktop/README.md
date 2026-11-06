@@ -147,12 +147,14 @@ esbuild 打成单文件 JS，仍然放在这个**路径形状**上（内容是 J
   `releases/latest/download/MathMover-mac-arm64.dmg`（Mac）。
   `Desktop Release` 工作流等待两平台构建与 Mac 验证通过后，统一上传到草稿，检查安装包完整性后才公开并标记 latest。
   后续无需修改官网下载链接。不会覆盖已经公开的版本，需先提高 `desktop/package.json` 及 lockfile 的版本。
-- 发布源：`electron-builder.yml` 的 `publish`（GitHub Releases，仓库公开、客户端匿名可读）。
+- 发布源仍是 GitHub Releases；客户端访问更新清单和安装包时经 `mathmover.top` 的 Cloudflare Pages Function 中转。
+- Windows：从 `https://mathmover.top/update/windows/latest.yml` 检查版本，再通过同一中转下载版本化 EXE 与 `.blockmap`；保留 SHA-512 校验和 Range 差分下载支持。
 - Windows 行为：启动 15 秒后静默检查；有新版本就后台下载，标题栏 ⋯ 右侧出现进度环，
   下载完成后变成重启按钮，点开就地确认「立即重启 / 稍后」；选「稍后」会在下次正常退出时安装。
   下载中断时图标变成警示标记，点击重试；仅检查失败（如离线）不亮状态。菜单「检查更新…」仍可手动触发。
-- Mac 行为：Sparkle 后台下载 ZIP，验证 Ed25519 签名与签名后的 appcast，同一枚状态环给出进度并变成重启按钮，不点则在退出时安装。断网时启动检查保持安静，手动检查失败可打开 Releases；原生模块不可用时退回 DMG 手动下载。只使用完整更新包，暂不生成差分。
-- Mac 更新源固定为 `releases/latest/download/appcast-mac-arm64.xml`。每次正式发布都必须包含签名后的 feed 和对应版本 ZIP；仅发布 DMG 会破坏更新入口。工作流先在草稿上传所有文件，再一起公开。
+- Mac 行为：Sparkle 从中转地址读取签名 appcast，后台经中转下载 ZIP，并验证 Ed25519 签名；同一枚状态环给出进度并变成重启按钮，不点则在退出时安装。断网时启动检查保持安静，手动检查失败可打开官网 DMG 中转；原生模块不可用时退回 DMG 手动下载。只使用完整更新包，暂不生成差分。
+- Mac 更新源固定为 `https://mathmover.top/update/mac/appcast-mac-arm64.xml`。Worker 原样转发签名 feed，不改其中任何字节；新 appcast 的 ZIP 地址由签名脚本写入中转路径。每次正式发布都必须包含签名后的 feed 和对应版本 ZIP；仅发布 DMG 会破坏更新入口。工作流先在草稿上传所有文件，再一起公开。
+- 更新地址写在桌面安装包内，因此旧版不能被远程改地址。安装包含新配置的桌面版本后，后续检查和下载才会完整经过中转；GitHub Releases 继续作为上传和存档位置。
 - 更新模块的事件与原始报错写入 `logs/updater.log`（Windows `%LOCALAPPDATA%\MathMover\logs`，macOS `~/Library/Application Support/MathMover/logs`），包含检查触发方式、更新源、发现/下载/就绪/错误信息和错误码；超过 1 MB 轮转为 `updater.log.1`。从 Finder 启动时 stdout 无人接收，排查更新问题以这个文件为准。
 - 更新私钥存放在 Actions secret `SPARKLE_ED_PRIVATE_KEY`，公钥在 `src/sparkle-config.json` 与 `electron-builder.yml`。签名脚本验证两者匹配，不把私钥写入产物。私钥的本地备份放在被 Git 忽略的 `.secrets/`，必须妥善备份；丢失后不能给已安装客户端签发可信更新。
 - Mac 本地打包前运行 `npm run prepare:updater` 编译 Electron 原生桥接。`npm run pack` 和 `npm run dist` 会自动执行；直接调用 electron-builder 则需要先手动执行。

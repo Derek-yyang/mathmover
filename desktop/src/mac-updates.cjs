@@ -1,6 +1,7 @@
-// macOS 免费分发：只检查正式 Releases，引导用户下载 DMG，不替换正在运行的应用。
-const RELEASES_URL = 'https://github.com/Derek-yyang/mathmover/releases/latest';
-const API_URL = 'https://api.github.com/repos/Derek-yyang/mathmover/releases/latest';
+// macOS fallback for builds where the native Sparkle bridge is unavailable.
+// The appcast and all release assets are served by the MathMover Pages relay.
+const APPCAST_URL = 'https://mathmover.top/update/mac/appcast-mac-arm64.xml';
+const DOWNLOAD_PAGE_URL = 'https://mathmover.top/download/mac';
 
 function stableVersion(value) {
   const match = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(value || '');
@@ -10,27 +11,57 @@ function stableVersion(value) {
   return parts;
 }
 
-async function getMacUpdate({ currentVersion, arch, fetchRelease }) {
-  const response = await fetchRelease(API_URL, {
-    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'MathMover-Desktop' },
+function xmlAttribute(attributes, name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`(?:^|\\s)${escaped}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(attributes);
+  return match?.[1] ?? match?.[2] ?? null;
+}
+
+function xmlTagText(xml, name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`<${escaped}\\b[^>]*>([^<]*)<\\/${escaped}\\s*>`, 'i').exec(xml);
+  return match?.[1]?.trim() || null;
+}
+
+function versionedArchiveUrl(version) {
+  return `https://mathmover.top/update/mac/v${version}/MathMover-${version}-mac-arm64.zip`;
+}
+
+async function getMacUpdate({ currentVersion, arch, feedUrl = APPCAST_URL, fetchAppcast }) {
+  if (arch !== 'arm64') throw new Error('当前只提供 Apple 芯片版更新');
+  const response = await fetchAppcast(feedUrl, {
+    headers: { 'User-Agent': 'MathMover-Desktop' },
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) throw new Error(`更新服务暂不可用（HTTP ${response.status}）`);
-  const release = await response.json();
-  if (release.draft || release.prerelease) throw new Error('更新服务返回了非正式版本');
-  const latest = stableVersion(release.tag_name);
+
+  const appcast = await response.text();
+  const item = /<item\b[^>]*>([\s\S]*?)<\/item\s*>/i.exec(appcast)?.[1];
+  const enclosure = /<enclosure\b([^>]*?)\/?\s*>/i.exec(item || '')?.[1];
+  if (!item || !enclosure) throw new Error('更新服务没有提供可用的 Mac 更新包');
+
+  const rawVersion = xmlAttribute(enclosure, 'sparkle:version')
+    || xmlTagText(item, 'sparkle:version')
+    || xmlAttribute(enclosure, 'sparkle:shortVersionString')
+    || xmlTagText(item, 'sparkle:shortVersionString');
+  const latest = stableVersion(rawVersion);
   const current = stableVersion(currentVersion);
   const difference = latest.map((part, index) => part - current[index]).find(part => part !== 0) || 0;
   if (difference <= 0) return null;
+
   const version = latest.join('.');
-  const filename = `MathMover-${version}-mac-${arch}.dmg`;
-  const asset = release.assets?.find(item => item.name === filename && item.state === 'uploaded' && item.size > 0);
-  if (!asset) throw new Error('新版本尚未提供适用于这台 Mac 的安装包，请稍后再试');
-  // 不信任远端提供的跳转 URL；仅打开本仓库中已确认存在的版本化安装包。
-  return { version, url: `https://github.com/Derek-yyang/mathmover/releases/download/${release.tag_name}/${filename}` };
+  const archiveUrl = xmlAttribute(enclosure, 'url');
+  if (archiveUrl !== versionedArchiveUrl(version)) {
+    throw new Error('更新服务返回的 Mac 更新包地址无效');
+  }
+
+  return {
+    version,
+    url: `https://mathmover.top/update/mac/v${version}/MathMover-${version}-mac-arm64.dmg`,
+  };
 }
 
-function createMacUpdater({ getVersion, arch, fetchRelease, showMessageBox, openExternal, log }) {
+function createMacUpdater({ getVersion, arch, feedUrl = APPCAST_URL, fetchAppcast, showMessageBox, openExternal, log }) {
   let checking = null;
   let notifiedVersion = null;
   return {
@@ -38,7 +69,7 @@ function createMacUpdater({ getVersion, arch, fetchRelease, showMessageBox, open
       if (checking) return checking;
       checking = (async () => {
         try {
-          const update = await getMacUpdate({ currentVersion: getVersion(), arch, fetchRelease });
+          const update = await getMacUpdate({ currentVersion: getVersion(), arch, feedUrl, fetchAppcast });
           if (!update) {
             if (!silent) showMessageBox({
               type: 'info', title: '检查更新', message: '当前已是最新版本。', detail: `版本 ${getVersion()}`,
@@ -58,10 +89,10 @@ function createMacUpdater({ getVersion, arch, fetchRelease, showMessageBox, open
           if (!silent) {
             const choice = showMessageBox({
               type: 'warning', title: '检查更新失败', message: '暂时无法检查新版。',
-              detail: '请检查网络连接，或前往 GitHub Releases 手动查看并下载适用于 Apple 芯片的 DMG。',
+              detail: '请检查网络连接，或前往 MathMover 官网下载适用于 Apple 芯片的安装包。',
               buttons: ['打开下载页', '稍后'], defaultId: 0, cancelId: 1,
             });
-            if (choice === 0) await openExternal(RELEASES_URL).catch(error => log('打开下载页失败：', error.message));
+            if (choice === 0) await openExternal(DOWNLOAD_PAGE_URL).catch(error => log('打开下载页失败：', error.message));
           }
         } finally {
           checking = null;
@@ -72,4 +103,4 @@ function createMacUpdater({ getVersion, arch, fetchRelease, showMessageBox, open
   };
 }
 
-module.exports = { getMacUpdate, createMacUpdater };
+module.exports = { APPCAST_URL, DOWNLOAD_PAGE_URL, getMacUpdate, createMacUpdater };

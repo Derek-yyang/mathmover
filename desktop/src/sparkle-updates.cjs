@@ -58,10 +58,10 @@ function createSparkleUpdater({ loadBridge, config, fallback, showMessageBox, op
       if (notify) {
         const choice = await showMessageBox({
           type: 'warning', title: '更新暂不可用', message: '无法完成更新，请稍后重试。',
-          detail: '可以检查网络连接，或从 GitHub Releases 手动下载安装。',
+          detail: '可以检查网络连接，或从 MathMover 官网下载安装。',
           buttons: ['打开下载页', '稍后'], defaultId: 1, cancelId: 1,
         });
-        if (choice === 0) await openExternal('https://github.com/Derek-yyang/mathmover/releases/latest');
+        if (choice === 0) await openExternal('https://mathmover.top/download/mac');
       }
     }
   }

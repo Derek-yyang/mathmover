@@ -22,7 +22,7 @@ try {
   fs.copyFileSync(path.join(desktop, 'release', name), path.join(archives, name));
   execFileSync(path.join(tools, 'generate_appcast'), [
     '--ed-key-file', keyFile, '--maximum-deltas', '0', '--maximum-versions', '1',
-    '--download-url-prefix', `https://github.com/Derek-yyang/mathmover/releases/download/v${version}/`,
+    '--download-url-prefix', `https://mathmover.top/update/mac/v${version}/`,
     '--full-release-notes-url', `https://github.com/Derek-yyang/mathmover/releases/tag/v${version}`, archives,
   ], { stdio: 'inherit' });
   // generate_appcast derives the feed filename from the packaged app's SUFeedURL.

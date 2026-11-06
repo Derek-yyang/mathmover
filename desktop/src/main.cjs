@@ -350,7 +350,8 @@ const updateState = createUpdateState({
 let updateCheck = null;
 const macFallbackUpdater = createMacUpdater({
   getVersion: () => app.getVersion(), arch: process.arch,
-  fetchRelease: (url, options) => electronNet.fetch(url, options),
+  feedUrl: require('./sparkle-config.json').feedUrl,
+  fetchAppcast: (url, options) => electronNet.fetch(url, options),
   showMessageBox: options => dialog.showMessageBoxSync(options),
   openExternal: url => shell.openExternal(url), log: updateLog,
 });
@@ -368,7 +369,7 @@ const macUpdater = createSparkleUpdater({
 /**
  * 自动更新。
  *
- * 发布源在 electron-builder.yml 的 `publish`（GitHub Releases，仓库公开、可匿名读）。
+ * Windows 更新清单与安装包经 mathmover.top 中转；GitHub Releases 仍是发布源。
  * 本地验证用 `MATHMOVER_UPDATE_URL` 指向一个 generic 静态目录（见 scripts/verify-update.mjs）；
  * `MATHMOVER_UPDATE_AUTOINSTALL=1` 时下载完直接静默安装，便于自动化跑完整升级闭环。
  */
@@ -383,13 +384,16 @@ function setupUpdater() {
   }
   // `electron-builder --dir` 的产物没有 app-update.yml（正式安装包才有）；
   // 本地 unpacked 调试时跳过，避免每轮启动打一条 ENOENT。
-  if (!process.env.MATHMOVER_UPDATE_URL && !fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'))) {
+  const localFeedUrl = process.env.MATHMOVER_UPDATE_URL;
+  const hasPackagedFeed = fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'));
+  if (!localFeedUrl && !hasPackagedFeed) {
     log('未找到 app-update.yml（unpacked 构建），跳过自动更新');
     return;
   }
-  if (process.env.MATHMOVER_UPDATE_URL) {
-    autoUpdater.setFeedURL({ provider: 'generic', url: process.env.MATHMOVER_UPDATE_URL });
-    updateLog('更新通道：electron-updater（generic）', process.env.MATHMOVER_UPDATE_URL);
+  const feedUrl = localFeedUrl || (IS_WIN ? 'https://mathmover.top/update/windows/' : null);
+  if (feedUrl) {
+    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl });
+    updateLog('更新通道：electron-updater（generic）', feedUrl);
   } else {
     updateLog('更新通道：electron-updater（app-update.yml）');
   }

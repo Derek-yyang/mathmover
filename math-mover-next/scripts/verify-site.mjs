@@ -28,7 +28,7 @@ assert.ok(runtimeManifest.files['deployggb.js'], 'GeoGebra applet loader is miss
 assert.ok(runtimeManifest.files[`${runtimeConfig.codebase}web3d.nocache.js`], 'GeoGebra 3D runtime is missing');
 for (const asset of Object.keys(runtimeManifest.files)) await stat(path.join(runtimeRoot, asset));
 const routes = JSON.parse(await readFile(path.join(output, '_routes.json'), 'utf8'));
-assert.deepEqual(routes, { version: 1, include: ['/download/*'], exclude: [] }, 'Only download routes should invoke Pages Functions');
+assert.deepEqual(routes, { version: 1, include: ['/download/*', '/update/*'], exclude: [] }, 'Only download and update routes should invoke Pages Functions');
 await stat(path.join(output, '404.html'));
 
 // Verify every generated page asset can be served directly from the export.
