@@ -11,7 +11,7 @@ npm ci
 npm run build:site
 ```
 
-构建完成后，发布文件位于 `math-mover-next/site/out/`。`build:site` 会自动校验页面资源、下载链接、文件大小，以及是否误包含工作台/API/GeoGebra 运行库。也可以用 `npm run verify:site` 单独复查产物。
+构建完成后，发布文件位于 `math-mover-next/site/out/`。`build:site` 会自动安装并复制 GeoGebra 运行库、复制三张演示题图，再校验页面资源、下载链接和 Cloudflare Pages 文件限制。也可以用 `npm run verify:site` 单独复查产物。
 
 预览静态文件：
 
@@ -19,7 +19,7 @@ npm run build:site
 npx serve site/out
 ```
 
-打开该命令显示的本地地址。无需启动 Next.js 服务、daemon 或模型 API，也无需安装 GeoGebra 运行库。示例图形、自动演示、滚动交互、FAQ 和主题切换都在浏览器中运行。下载按钮使用 Pages Function `/download/windows` 与 `/download/mac`，将两个固定的公开安装包从 GitHub Releases 流式转发；GitHub Releases 页面保留为备用入口。
+打开该命令显示的本地地址。静态首页无需启动后端或模型 API；构建时会自动准备 GeoGebra 运行库和演示题图，画板与滚动演示可在浏览器中运行。下载按钮使用 Pages Function `/download/windows` 与 `/download/mac`，将两个固定的公开安装包从 GitHub Releases 流式转发；GitHub Releases 页面保留为备用入口。
 
 普通工作台/桌面端继续使用原有 `npm run build`，其配置仍是 `output: 'standalone'`。静态入口使用 `output: 'export'`，只注册首页与图标，不复制主工程的 `public/`。
 
@@ -51,7 +51,7 @@ Cloudflare 会在根目录安装 npm 依赖，构建命令不需要再执行一�
 
 - 提示找不到 `build:site`：确认代码已推送，根目录填的是 `math-mover-next`。
 - 提示找不到输出目录：填写 `site/out`，不要填 `.next` 或 `out`。
-- 构建触发了 `ggb:check`：命令应为 `npm run build:site`，不是 `npm run build`。
+- 首次构建会自动下载并校验 GeoGebra 运行库；如果下载失败，检查 Cloudflare 构建环境是否能访问 GitHub Releases。
 - 找不到 `../packages/`：连接完整的 GitHub 仓库，不要只上传前端源文件。
 - 页面显示旧内容：检查本次部署对应的提交及生产分支是否正确。
 

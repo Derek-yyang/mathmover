@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const output = fileURLToPath(new URL('../site/out/', import.meta.url));
+const runtimeConfig = JSON.parse(await readFile(new URL('../geogebra-runtime.json', import.meta.url), 'utf8'));
 const html = await readFile(path.join(output, 'index.html'), 'utf8');
 assert.ok(html.includes('让数学问题，'), 'Homepage content is missing');
 assert.ok(html.includes('id="examples"'), 'Examples section is missing');
@@ -17,6 +18,15 @@ const githubRelease = 'https://github.com/Derek-yyang/mathmover/releases/latest'
 assert.equal(html.split(`href="${githubRelease}"`).length - 1, 2, 'Expected GitHub Releases fallback links in both download areas');
 const macInstallHelp = 'https://github.com/Derek-yyang/mathmover/blob/master/docs/macos-install.md';
 assert.equal(html.split(`href="${macInstallHelp}"`).length - 1, 2, 'Expected Mac installation help links in both download areas');
+for (const asset of ['/workflow-preview/problem.png', '/workflow-preview/function.png', '/workflow-preview/solid.png']) {
+  await stat(path.join(output, asset.slice(1)));
+}
+const runtimeRoot = path.join(output, 'vendor', 'geogebra', runtimeConfig.version);
+const runtimeManifest = JSON.parse(await readFile(path.join(runtimeRoot, 'installed.json'), 'utf8'));
+assert.equal(runtimeManifest.sha256, runtimeConfig.sha256, 'Published GeoGebra runtime has the wrong version');
+assert.ok(runtimeManifest.files['deployggb.js'], 'GeoGebra applet loader is missing');
+assert.ok(runtimeManifest.files[`${runtimeConfig.codebase}web3d.nocache.js`], 'GeoGebra 3D runtime is missing');
+for (const asset of Object.keys(runtimeManifest.files)) await stat(path.join(runtimeRoot, asset));
 const routes = JSON.parse(await readFile(path.join(output, '_routes.json'), 'utf8'));
 assert.deepEqual(routes, { version: 1, include: ['/download/*'], exclude: [] }, 'Only download routes should invoke Pages Functions');
 await stat(path.join(output, '404.html'));
@@ -34,7 +44,7 @@ async function inspect(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const fullPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      assert.ok(!['api', 'dashboard', 'vendor', 'node_modules'].includes(entry.name), `Unexpected published directory: ${fullPath}`);
+      assert.ok(!['api', 'dashboard', 'node_modules'].includes(entry.name), `Unexpected published directory: ${fullPath}`);
       await inspect(fullPath);
     } else {
       assert.ok(!/\.(?:exe|blockmap|map)$/.test(entry.name), `Unexpected published file: ${fullPath}`);

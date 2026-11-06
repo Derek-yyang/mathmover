@@ -11,7 +11,7 @@
     "prestart": "npm run ggb:check",
     "dev": "next dev",
     "build": "next build",
-    "build:site": "next build site --webpack && node scripts/verify-site.mjs",
+    "build:site": "npm run ggb:install && next build site --webpack && node scripts/copy-site-assets.mjs && node scripts/verify-site.mjs",
     "verify:site": "node scripts/verify-site.mjs",
     "start": "next start",
     "lint": "eslint"
