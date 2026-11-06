@@ -33,7 +33,7 @@ export function ThinkingIndicator({
         key={label}
         data-slot="thinking-indicator-label"
         title={label}
-        className="fade-in slide-in-from-bottom-1 animate-in relative inline-block min-w-0 truncate leading-5 duration-200 motion-reduce:animate-none"
+        className="fade-in slide-in-from-bottom-1 animate-in relative inline-block min-w-0 whitespace-normal break-words leading-5 duration-200 motion-reduce:animate-none"
       >
         {label}
       </ShimmerLabel>

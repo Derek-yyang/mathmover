@@ -46,6 +46,20 @@ test('coalesces a settings burst, notices style-only changes and releases listen
   listener(['viewPropertiesChanged']); stop(); await Promise.resolve();
   assert.equal(seen.length, 3); assert.equal(listener, null);
 });
+test('cleanup tolerates an applet removed before its host and cancels queued reads', async () => {
+  let listener; let reads = 0; const seen = [];
+  const api = {
+    getGraphicsOptions: () => { reads++; return options; }, getPerspectiveXML: () => perspective,
+    registerClientListener: fn => { listener = fn; },
+    unregisterClientListener: () => { throw new Error('app was already removed'); },
+  };
+  const stop = watchGgbGraphics(api, state => seen.push(state));
+  listener(['viewPropertiesChanged']);
+  assert.doesNotThrow(stop);
+  await Promise.resolve();
+  assert.equal(reads, 1); assert.equal(seen.length, 1);
+});
+
 test('snapshot restore has an explicit lifetime for layout preservation', () => {
   const api = {}; const finish = beginGgbRestore(api);
   assert.equal(isRestoringGgb(api), true); finish(); assert.equal(isRestoringGgb(api), false);

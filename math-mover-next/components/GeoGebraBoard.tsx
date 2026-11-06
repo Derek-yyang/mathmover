@@ -22,6 +22,7 @@ interface GeoGebraBoardProps {
   showMenuBar?: boolean;
   showResetIcon?: boolean;
   enableShiftDragZoom?: boolean;
+  fixedView?: boolean;
   materialId?: string;
   // 允许接收其他未明确声明的任意属性 (应急方案)
   [key: string]: any;
@@ -35,7 +36,7 @@ declare global {
   }
 }
 
-export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetIcon = true, active = true }: GeoGebraBoardProps) {
+export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetIcon = true, active = true, fixedView = false }: GeoGebraBoardProps) {
   const instanceId = useId();
   const appletId = id || `ggb-${instanceId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,6 +66,11 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
     const container = containerRef.current;
     const stage = stageRef.current;
     if (!container || !stage) return;
+
+    // Keep wheel scrolling with the surrounding page without letting the
+    // applet zoom or cancel the browser's default scrolling behavior.
+    const passWheelToPage = (event: WheelEvent) => event.stopPropagation();
+    if (fixedView) stage.addEventListener('wheel', passWheelToPage, { capture: true, passive: true });
 
     let cancelled = false;
     setLoadError(false);
@@ -210,7 +216,9 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
         "showToolBar": false,
         "showAlgebraInput": false,
         "showMenuBar": false,
-        "enableShiftDragZoom": true,
+        "enableShiftDragZoom": !fixedView,
+        "enableRightClick": !fixedView,
+        "enableLabelDrags": !fixedView,
         "showResetIcon": showResetIcon,
         "showAxes": true,
         "showGrid": true,
@@ -248,6 +256,7 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
 
     return () => {
       cancelled = true;
+      stage.removeEventListener('wheel', passWheelToPage, true);
       resizeObserver.disconnect();
       window.removeEventListener(BOARD_RESIZE_PREVIEW_EVENT, onResizePreview);
       if (previewFrame) cancelAnimationFrame(previewFrame);
@@ -265,7 +274,7 @@ export default function GeoGebraBoard({ id, ggbBase64, onAppletReady, showResetI
       window.ggbApplet = selectedApplet === apiRef.current ? undefined : selectedApplet;
       apiRef.current = null;
     };
-  }, [appletId, showResetIcon, loadAttempt]); // 尺寸变化不会重新初始化 Applet。
+  }, [appletId, showResetIcon, fixedView, loadAttempt]); // 尺寸变化不会重新初始化 Applet。
 
   useEffect(() => {
     if (active && apiRef.current) window.ggbApplet = apiRef.current;

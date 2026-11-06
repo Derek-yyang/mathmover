@@ -62,8 +62,10 @@ export function SwapLabel({
   useIsomorphicLayoutEffect(() => {
     const target = layers[active]?.current;
     if (!target) return undefined;
+    // The workbench can sit inside a scaled camera. Its screen-space bounds
+    // are already scaled, while this CSS width stays in local layout pixels.
     const measure = () =>
-      setWidth(Math.ceil(target.getBoundingClientRect().width));
+      setWidth(Math.ceil(Number.parseFloat(getComputedStyle(target).width)));
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(target);

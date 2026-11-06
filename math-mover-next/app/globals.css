@@ -391,10 +391,10 @@ body {
 }
 @keyframes run-activity-expand {
   from { height: 0; opacity: 0; }
-  to { height: var(--radix-collapsible-content-height); opacity: 1; }
+  to { height: var(--mm-run-activity-height, var(--radix-collapsible-content-height)); opacity: 1; }
 }
 @keyframes run-activity-collapse {
-  from { height: var(--radix-collapsible-content-height); opacity: 1; }
+  from { height: var(--mm-run-activity-height, var(--radix-collapsible-content-height)); opacity: 1; }
   to { height: 0; opacity: 0; }
 }
 

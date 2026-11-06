@@ -58,7 +58,12 @@ export function watchGgbGraphics(api: GeoGebraApi, changed: (state: GgbGraphicsS
   };
   api.registerClientListener?.(client);
   read();
-  return () => { disposed = true; api.unregisterClientListener?.(client); };
+  return () => {
+    disposed = true;
+    // A keyed applet can finish its own removal before the host's passive
+    // subscription cleanup. Its listeners are already gone in that case.
+    try { api.unregisterClientListener?.(client); } catch { /* applet removed */ }
+  };
 }
 
 // Snapshot loading must retain its own center rather than the previous document's.

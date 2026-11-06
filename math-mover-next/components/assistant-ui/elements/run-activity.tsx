@@ -69,7 +69,7 @@ export function RunActivity({
     <ThinkingIndicator label={summaryLabel} elapsed={durationLabel} className="gap-1.5" />
   ) : (
     <span className="flex min-w-0 items-center gap-1 text-start tabular-nums">
-      <span data-slot="run-activity-label" className="truncate" title={summaryLabel}>{summaryLabel}</span>
+      <span data-slot="run-activity-label" className="min-w-0 whitespace-normal break-words" title={summaryLabel}>{summaryLabel}</span>
       {durationLabel != null && <span className="shrink-0 whitespace-nowrap">{durationLabel}</span>}
     </span>
   );

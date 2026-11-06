@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Check, Download, Github, MoveUpRight } from 'lucide-react';
-import { HeroDemo, ExampleGallery } from '@/components/landing/LandingExperience';
+import { Check, Download, Github } from 'lucide-react';
+import { HeroDemo } from '@/components/landing/LandingExperience';
+import WorkflowDemoClient from '@/components/landing/WorkflowDemoClient';
 import { LandingHeader } from '@/components/landing/LandingHeader';
 import { ThemeToggle } from '@/components/landing/ThemeToggle';
 import { FaqItem } from '@/components/landing/FaqItem';
@@ -9,8 +10,9 @@ import { BrandIcon } from '@/components/settings/BrandIcon';
 import styles from './landing.module.css';
 
 // Each desktop release publishes this fixed-name copy alongside versioned assets.
-const desktopDownloadUrl = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe';
-const macDownloadUrl = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-mac-arm64.dmg';
+const desktopDownloadUrl = '/download/windows';
+const macDownloadUrl = '/download/mac';
+const githubReleaseUrl = 'https://github.com/Derek-yyang/mathmover/releases/latest';
 const macInstallHelpUrl = 'https://github.com/Derek-yyang/mathmover/blob/master/docs/macos-install.md';
 
 export const metadata: Metadata = {
@@ -34,10 +36,10 @@ const supportedAgents = [
 
 export default function LandingPage() {
   return (
-    <div className={styles.landing}>
+    <div id="top" className={styles.landing}>
       <a href="#main" className={styles.skipLink}>跳转到主要内容</a>
       <LandingHeader>
-          <Link href="/" className={styles.brand} aria-label="MathMover 首页"><span className={styles.brandMark} aria-hidden="true">M</span><span>MathMover</span></Link>
+          <a href="#top" className={styles.brand} aria-label="MathMover，返回顶部"><span className={styles.brandMark} aria-hidden="true">M</span><span>MathMover</span></a>
           <nav className={styles.navLinks} aria-label="首页导航"><a href="#demo">交互演示</a><a href="#examples">探索案例</a><a href="#questions">常见问题</a></nav>
           <div className={styles.navActions}>
             <a href="https://github.com/Derek-yyang/mathmover" className={styles.githubLink} target="_blank" rel="noopener noreferrer" aria-label="查看 MathMover 的 GitHub 仓库（新窗口打开）" title="GitHub 源码仓库">
@@ -57,27 +59,14 @@ export default function LandingPage() {
                 <a href={desktopDownloadUrl} className={styles.primaryButton} aria-label="下载 Windows x64 版 MathMover">下载 Windows 版 <Download size={17} aria-hidden="true" /></a>
                 <a href={macDownloadUrl} className={styles.secondaryButton} aria-label="下载 Mac Apple 芯片版 MathMover">下载 Mac 版 <Download size={17} aria-hidden="true" /></a>
               </div>
-              <p className={styles.downloadHint}>Windows x64 · Mac Apple 芯片（M 系列）<br /><a href={macInstallHelpUrl} target="_blank" rel="noopener noreferrer">Mac 安装帮助 ↗</a></p>
+              <p className={styles.downloadHint}>Windows x64 · Mac Apple 芯片（M 系列）<br /><a href={githubReleaseUrl} target="_blank" rel="noopener noreferrer">GitHub 下载备用 ↗</a> · <a href={macInstallHelpUrl} target="_blank" rel="noopener noreferrer">Mac 安装帮助 ↗</a></p>
             </div>
           </div>
           <div id="demo" className={styles.demoAnchor}><HeroDemo /></div>
           <div className={styles.capabilities} aria-label="主要能力"><span><Check size={15} aria-hidden="true" />文字与题图输入</span><span><Check size={15} aria-hidden="true" />GeoGebra 2D / 3D</span><span><Check size={15} aria-hidden="true" />自选模型与 Agent</span></div>
         </section>
-        <section id="examples" className={`${styles.container} ${styles.examples}`} aria-labelledby="examples-title">
-          <ExampleGallery />
-        </section>
-        <section className={styles.workflowSection} aria-labelledby="workflow-title">
-          <div className={styles.container}>
-            <div className={styles.workflowIntro}><h2 id="workflow-title">从一个想法，<br />到一堂生动的课。</h2><p>把精力留给问题本身。<br />在同一个工作台里，完成构建、探索与整理。</p></div>
-            <ol className={styles.workflow}>
-              <li><span className={styles.stepNumber}>01</span><h3>提出问题</h3><p>输入条件，或上传题目截图。<br />从熟悉的表达方式开始。</p></li>
-              <li><span className={styles.stepNumber}>02</span><h3>一起构建</h3><p>让 Agent 操作画板。<br />通过对话补充条件、核对并调整。</p></li>
-              <li><span className={styles.stepNumber}>03</span><h3>继续探索</h3><p>拖动图形，观察变化。<br />保存课件，或从画板导出成果。</p></li>
-            </ol>
-            <a href="#download" className={styles.workflowLink}>下载桌面端 <MoveUpRight size={18} aria-hidden="true" /></a>
-          </div>
-        </section>
-        <section className={`${styles.container} ${styles.connectionSection}`} aria-labelledby="connection-title">
+        <section id="examples" className={styles.workflowDemo} aria-label="从题图到互动图形的案例演示"><WorkflowDemoClient embedded /></section>
+        <section id="connection" className={`${styles.container} ${styles.connectionSection}`} aria-labelledby="connection-title" tabIndex={-1}>
           <div><h2 id="connection-title">用你选择的模型，<br />探索你关心的问题。</h2><p>连接模型 API，或使用本机 Agent。<br />在设置中选择适合自己的方式，随时调整。</p></div>
           <div className={styles.connectionOptions}>
             <div><span className={styles.optionIndex}>API</span><div><h3>连接模型 API</h3><p>填写接口地址、密钥和模型。支持 OpenAI、Anthropic 与 Gemini 等接口格式。</p></div></div>
@@ -96,7 +85,7 @@ export default function LandingPage() {
             <a href={desktopDownloadUrl} className={styles.primaryButton}>下载 Windows 版 <Download size={17} aria-hidden="true" /></a>
             <a href={macDownloadUrl} className={styles.secondaryButton}>下载 Mac 版 <Download size={17} aria-hidden="true" /></a>
           </div>
-          <p>Windows x64 · Mac Apple 芯片（M 系列），连接自己的模型 API 或本机 Agent。</p>
+          <p>Windows x64 · Mac Apple 芯片（M 系列），连接自己的模型 API 或本机 Agent。<br /><a href={githubReleaseUrl} target="_blank" rel="noopener noreferrer">GitHub 下载备用 ↗</a></p>
           <a href={macInstallHelpUrl} className={styles.installHelp} target="_blank" rel="noopener noreferrer">Mac 安装帮助 ↗</a>
         </section>
       </main>

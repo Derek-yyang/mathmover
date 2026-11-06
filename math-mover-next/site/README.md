@@ -19,7 +19,7 @@ npm run build:site
 npx serve site/out
 ```
 
-打开该命令显示的本地地址。无需启动 Next.js 服务、daemon 或模型 API，也无需安装 GeoGebra 运行库。示例图形、自动演示、滚动交互、FAQ 和主题切换都在浏览器中运行。下载按钮仍指向 GitHub Releases 的固定安装包地址。
+打开该命令显示的本地地址。无需启动 Next.js 服务、daemon 或模型 API，也无需安装 GeoGebra 运行库。示例图形、自动演示、滚动交互、FAQ 和主题切换都在浏览器中运行。下载按钮使用 Pages Function `/download/windows` 与 `/download/mac`，将两个固定的公开安装包从 GitHub Releases 流式转发；GitHub Releases 页面保留为备用入口。
 
 普通工作台/桌面端继续使用原有 `npm run build`，其配置仍是 `output: 'standalone'`。静态入口使用 `output: 'export'`，只注册首页与图标，不复制主工程的 `public/`。
 
@@ -43,7 +43,7 @@ Cloudflare 会在根目录安装 npm 依赖，构建命令不需要再执行一�
 
 点击 **Save and Deploy**。成功后通过 Cloudflare 分配的 `*.pages.dev` 地址访问。首次上线检查下载链接、桌面/手机布局、主题切换、自动演示、案例切换和 FAQ。
 
-后续向 `master` 推送更新会自动触发生产部署。首页部署与桌面安装包发布相互独立；Windows 和 Mac 安装包分别使用固定的 `releases/latest/download/MathMover-Setup.exe` 与 `releases/latest/download/MathMover-mac-arm64.dmg` 地址，不需要随版本修改首页。Mac 下载仅适用于 Apple 芯片。
+后续向 `master` 推送更新会自动触发生产部署。首页部署与桌面安装包发布相互独立；Pages Function 只代理固定的 Windows 与 Mac 安装包路径，不接受任意目标 URL，并支持 Range 请求以便断点续传。`site/public/_routes.json` 将 Function 调用限制在 `/download/*`，其余页面继续由 Pages 静态分发。不要把安装包放入 `site/out`：Pages 单个静态资产有 25 MiB 限制。Mac 下载仅适用于 Apple 芯片。
 
 如已有自己的域名，在该 Pages 项目的 **Custom domains** 中添加，并按控制台提示设置 DNS。没有域名也可以先使用分配的 `pages.dev` 地址。
 

@@ -17,13 +17,13 @@
 /* Inherited colors switch together. Animate individual controls below, rather
    than starting a separate color transition on every text and SVG descendant. */
 .landing *, .landing *::before, .landing *::after { box-sizing: border-box; }
-.landing a { text-decoration: none; }
-.landing :where(button, input) { font: inherit; }
+.landing a:not(:where([data-product-workbench] *)) { text-decoration: none; }
+.landing :where(button, input):not(:where([data-product-workbench] *)) { font: inherit; }
 .landing button, .landing a, .landing summary { -webkit-tap-highlight-color: transparent; }
-.landing button { cursor: pointer; }
-.landing :is(a, button, summary, input, [tabindex]):focus-visible { outline: 2px solid var(--lp-green); outline-offset: 5px; }
-.landing h1, .landing h2, .landing h3 { text-wrap: balance; }
-.landing p { text-wrap: pretty; }
+.landing button:not(:where([data-product-workbench] *)) { cursor: pointer; }
+.landing :is(a, button, summary, input, [tabindex]):not(:where([data-product-workbench] *)):focus-visible { outline: 2px solid var(--lp-green); outline-offset: 5px; }
+.landing :is(h1, h2, h3):not(:where([data-product-workbench] *)) { text-wrap: balance; }
+.landing p:not(:where([data-product-workbench] *)) { text-wrap: pretty; }
 .container { width: min(1280px, calc(100% - 112px)); margin-inline: auto; }
 .skipLink { position: fixed; top: -100px; left: 16px; z-index: 30; padding: 12px 20px; color: var(--lp-ink); background: var(--lp-surface); border: 1px solid var(--lp-line); border-radius: 8px; }
 .skipLink:focus { top: 12px; }
@@ -70,6 +70,7 @@
 .primaryButton[aria-disabled="true"]:hover { background: #047857; transform: none; }
 .landing main, .demoAnchor, .examples, .faqSection, .closing { scroll-margin-top: 96px; }
 .demoAnchor { max-width: 1160px; margin-inline: auto; }
+.workflowDemo { width: 100%; scroll-margin-top: calc(80px + var(--desktop-titlebar-height, 0px)); }
 .graph { width: 100%; height: auto; display: block; min-height: 0; }
 .graphHandle, .graphHandleHit { cursor: grab; touch-action: none; }
 .graphHandle { user-select: none; }
@@ -93,7 +94,7 @@
 .capabilities > span { display: inline-flex; align-items: center; gap: 10px; color: var(--lp-muted); font-size: 12px; }
 .capabilities svg { color: var(--lp-green); }
 .examples { padding-top: 72px; padding-bottom: 40px; }
-.landing h2 { font-size: clamp(30px, 3.3vw, 44px); line-height: 1.4; font-weight: 500; letter-spacing: -.025em; margin: 0; }
+.landing h2:not(:where([data-product-workbench] *)) { font-size: clamp(30px, 3.3vw, 44px); line-height: 1.4; font-weight: 500; letter-spacing: -.025em; margin: 0; }
 .gallery, .faqList { min-width: 0; }
 .gallery { display: grid; grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); gap: 40px; align-items: start; }
 .caseSidebar { position: sticky; top: 112px; min-width: 0; }
@@ -132,19 +133,7 @@
 .exampleActions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .rotateButton { font-size: 11px; }
 .exampleControls { padding: 10px 24px; min-height: 64px; }
-.workflowSection { background: #eaf0ec; padding: 88px 0 80px; }
-:global([data-theme="dark"]) .workflowSection { background: #202923; }
-.workflowIntro { display: flex; align-items: end; justify-content: space-between; gap: 32px; }
-.workflowIntro > p { color: var(--lp-muted); font-size: 14px; line-height: 1.9; margin: 0 8% 4px 0; }
-.workflow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 56px 0 42px; padding: 0; gap: 48px; list-style: none; }
-.workflow > li { border-top: 1px solid #c6d3ca; padding-top: 18px; }
-:global([data-theme="dark"]) .workflow > li { border-color: #46554b; }
-.stepNumber { color: var(--lp-green); font-size: 11px; font-variant-numeric: tabular-nums; }
-.workflow h3 { font-size: 20px; font-weight: 500; margin: 22px 0 12px; }
-.workflow p { color: var(--lp-muted); font-size: 13px; line-height: 1.9; margin: 0; }
-.workflowLink { display: inline-flex; align-items: center; gap: 18px; color: var(--lp-ink); font-size: 13px; min-height: 44px; }
-.workflowLink:hover { color: var(--lp-green); }
-.connectionSection { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; padding-block: 112px; border-bottom: 1px solid var(--lp-line); }
+.connectionSection { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; padding-block: 112px; border-bottom: 1px solid var(--lp-line); scroll-margin-top: calc(96px + var(--desktop-titlebar-height, 0px)); }
 .connectionSection > div > p { margin: 24px 0 0; font-size: 14px; line-height: 1.9; color: var(--lp-muted); }
 .connectionOptions > div { display: flex; gap: 28px; padding: 26px 0; border-bottom: 1px solid var(--lp-line); }
 .connectionOptions > div:first-child { padding-top: 5px; }
@@ -375,9 +364,6 @@
   .capabilities { gap: 36px; }
   .examples { padding-block: 56px 32px; }
 
-  .workflowSection { padding-block: 72px; }
-  .workflowIntro > p { margin-right: 0; font-size: 13px; }
-  .workflow { gap: 28px; }
   .connectionSection, .faqSection { gap: 40px; padding-block: 80px; }
   .connectionOptions > div { gap: 16px; }
   .connectionSection h2, .faqSection h2 { font-size: 30px; }
@@ -468,7 +454,7 @@
   .capabilities > span { font-size: 10px; gap: 6px; }
   .capabilities svg { width: 12px; }
   .examples { padding-block: 48px 24px; }
-  .landing h2 { font-size: 30px; }
+  .landing h2:not(:where([data-product-workbench] *)) { font-size: 30px; }
   .exampleVisualHeader { padding-inline: 16px; height: 46px; font-size: 11px; }
   .exampleVisualHeader > span > span { display: none; }
   .exampleActions { gap: 2px; }
@@ -476,15 +462,7 @@
   .exampleVisual .graph { min-height: 245px; }
   .exampleControls { gap: 10px; padding: 6px 16px; font-size: 11px; min-height: 58px; }
   .exampleControls output { font-size: 11px; width: 34px; }
-  .workflowSection { padding-block: 58px; }
-  .workflowIntro { display: block; }
-  .workflowIntro > p { font-size: 12px; margin-top: 18px; }
-  .workflow { grid-template-columns: 1fr; gap: 26px; margin: 36px 0 20px; }
-  .workflow > li { display: grid; grid-template-columns: 32px 1fr; column-gap: 14px; padding-top: 18px; }
-  .stepNumber { grid-row: span 2; padding-top: 5px; }
-  .workflow h3 { font-size: 18px; margin: 0 0 8px; }
-  .workflow p { font-size: 12px; }
-  .workflow p > br { display: none; }
+  .workflowDemo { scroll-margin-top: calc(68px + var(--desktop-titlebar-height, 0px)); }
   .connectionSection, .faqSection { grid-template-columns: 1fr; gap: 32px; padding-block: 64px; }
   .connectionSection > div > p { font-size: 12px; margin-top: 18px; }
   .connectionOptions h3 { font-size: 15px; }

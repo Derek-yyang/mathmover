@@ -67,6 +67,7 @@ type ThreadListHost = {
   archived?: boolean;
   portalContainer?: HTMLElement | null;
   disabled?: boolean;
+  mockActions?: boolean;
   protectedIds?: ReadonlySet<string>;
   newDisabled?: boolean;
   onNew?: () => void;
@@ -550,7 +551,7 @@ const ThreadListItemRename: FC<{
 };
 
 const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
-  const { disabled: listDisabled, protectedIds, onDelete, portalContainer, organization } = useContext(HostContext);
+  const { disabled: listDisabled, protectedIds, onDelete, portalContainer, organization, mockActions } = useContext(HostContext);
   const id = useAuiState(s => s.threadListItem.id);
   const disabled = listDisabled || protectedIds?.has(id);
   const pinned = useAuiState(s => !!s.threadListItem.custom?.pinned_at);
@@ -568,6 +569,10 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const archiveItem = <ThreadListItemMorePrimitive.Item disabled={disabled}
+    className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none hover:bg-accent focus:bg-accent">
+    {archived ? <ArchiveRestoreIcon className="size-4" /> : <ArchiveIcon className="size-4" />}{archived ? '取消归档' : '归档'}
+  </ThreadListItemMorePrimitive.Item>;
   const confirmDelete = async () => {
     if (!onDelete || disabled || deletePending.current) return;
     deletePending.current = true;
@@ -660,30 +665,28 @@ const ThreadListItemMore: FC<{ onRename: () => void }> = ({ onRename }) => {
         className={dropdownMenuContentClassName}
       >
         {organization && !archived && <>
-          <ThreadListItemMorePrimitive.Item disabled={disabled} onSelect={() => { organizingRef.current = 'pin'; }}
+          <ThreadListItemMorePrimitive.Item disabled={disabled} onSelect={() => { if (!mockActions) organizingRef.current = 'pin'; }}
             className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none hover:bg-accent focus:bg-accent">
             {pinned ? <PinOffIcon aria-hidden className="size-4" /> : <PinIcon aria-hidden className="size-4" />}{pinned ? '取消置顶' : '置顶'}
           </ThreadListItemMorePrimitive.Item>
-          <ThreadListItemMorePrimitive.Item disabled={disabled} onSelect={() => { organizingRef.current = 'move'; }}
+          <ThreadListItemMorePrimitive.Item disabled={disabled} onSelect={() => { if (!mockActions) organizingRef.current = 'move'; }}
             className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none hover:bg-accent focus:bg-accent"><FolderInputIcon aria-hidden className="size-4" />移动到项目</ThreadListItemMorePrimitive.Item>
         </>}
         <ThreadListItemMorePrimitive.Item
           disabled={disabled}
           data-slot="aui_thread-list-item-more-item"
           className="hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none"
-          onSelect={() => { renamingRef.current = true; onRename(); }}
+          onSelect={() => { if (!mockActions) { renamingRef.current = true; onRename(); } }}
         >
           <PencilIcon className="size-4" />
           重命名
         </ThreadListItemMorePrimitive.Item>
-        {archived ? <ThreadListItemPrimitive.Unarchive asChild>
-          <ThreadListItemMorePrimitive.Item disabled={disabled} className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none hover:bg-accent focus:bg-accent"><ArchiveRestoreIcon className="size-4" />取消归档</ThreadListItemMorePrimitive.Item>
-        </ThreadListItemPrimitive.Unarchive> : <ThreadListItemPrimitive.Archive asChild>
-          <ThreadListItemMorePrimitive.Item disabled={disabled} className="flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none hover:bg-accent focus:bg-accent"><ArchiveIcon className="size-4" />归档</ThreadListItemMorePrimitive.Item>
-        </ThreadListItemPrimitive.Archive>}
+        {mockActions ? archiveItem : archived
+          ? <ThreadListItemPrimitive.Unarchive asChild>{archiveItem}</ThreadListItemPrimitive.Unarchive>
+          : <ThreadListItemPrimitive.Archive asChild>{archiveItem}</ThreadListItemPrimitive.Archive>}
           <ThreadListItemMorePrimitive.Item
-            disabled={disabled || !onDelete}
-            onSelect={() => { confirmingRef.current = true; setDeleteError(null); }}
+            disabled={disabled || (!mockActions && !onDelete)}
+            onSelect={() => { if (!mockActions) { confirmingRef.current = true; setDeleteError(null); } }}
             data-slot="aui_thread-list-item-more-item"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none"
           >

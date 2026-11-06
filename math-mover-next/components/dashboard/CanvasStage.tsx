@@ -18,9 +18,10 @@ interface CanvasStageProps {
   blocked?: boolean;
   opening?: boolean;
   active?: boolean;
+  fixedView?: boolean;
 }
 
-export default function CanvasStage({ onAppletReady, blocked = false, opening = false, active = true }: CanvasStageProps) {
+export default function CanvasStage({ onAppletReady, blocked = false, opening = false, active = true, fixedView = false }: CanvasStageProps) {
   /**
    * 画板**不是**产品的拖入区——拖入区是右边的对话面板。但 GeoGebra 自带一个「文件丢这里」
    * 的提示：文件经过 applet 时它把 `.GeoGebraFrame` 的**行内** border-color 从
@@ -51,7 +52,7 @@ export default function CanvasStage({ onAppletReady, blocked = false, opening = 
       className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-[var(--mm-surface)]"
     >
       <div inert={blocked} className="h-full w-full">
-        <GeoGebraBoard onAppletReady={onAppletReady} showResetIcon={false} active={active} />
+        <GeoGebraBoard onAppletReady={onAppletReady} showResetIcon={false} active={active} fixedView={fixedView} />
       </div>
       {blocked && <div data-slot="board-interaction-guard" className="absolute inset-0 z-20 touch-none bg-[var(--mm-surface)]/40">
         <p role="status" className="absolute top-3 left-3 max-w-[calc(100%-24px)] rounded-lg bg-[var(--mm-surface)] px-3 py-1.5 text-sm leading-5 text-[var(--mm-text-stone-700)]">

@@ -54,11 +54,11 @@ export function ToolCall({
       onOpenChange={onOpenChange}
       className={cn("w-full max-w-sm", className)}
     >
-      <CollapsibleTrigger className="group/trigger text-muted-foreground hover:text-foreground/90 flex w-full items-center gap-2 rounded-md py-1 text-[13.5px] transition-colors outline-none">
-        <ChevronRightIcon className="size-3.5 shrink-0 opacity-60 transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] group-data-open/trigger:rotate-90 group-data-panel-open/trigger:rotate-90 group-data-[state=open]/trigger:rotate-90 motion-reduce:transition-none" />
+      <CollapsibleTrigger className="group/trigger text-muted-foreground hover:text-foreground/90 grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2 gap-y-0.5 rounded-md py-1 text-[13.5px] transition-colors outline-none">
+        <ChevronRightIcon className="row-span-2 mt-[3px] size-3.5 shrink-0 opacity-60 transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] group-data-open/trigger:rotate-90 group-data-panel-open/trigger:rotate-90 group-data-[state=open]/trigger:rotate-90 motion-reduce:transition-none" />
         <SwapLabel
           active={running ? 0 : 1}
-          className="shrink-0 text-start whitespace-nowrap"
+          className="col-start-2 row-start-1 min-w-0 text-start"
         >
           <ShimmerLabel
             active={running}
@@ -71,12 +71,13 @@ export function ToolCall({
         <span
           className={cn(
             mono,
-            "bg-foreground/[0.06] text-foreground/70 min-w-0 truncate rounded-md px-1.5 py-0.5",
+            "col-start-2 row-start-2 min-w-0 max-w-full justify-self-start whitespace-normal break-all rounded-md bg-foreground/[0.06] px-1.5 py-0.5 text-foreground/70",
           )}
+          title={query}
         >
           {query}
         </span>
-        <span className="ms-auto flex w-4 shrink-0 items-center justify-end">
+        <span className="col-start-3 row-span-2 row-start-1 flex w-4 shrink-0 items-center justify-end">
           {!running && (
             <OutcomeIcon aria-label={outcome === "error" ? "返回错误" : outcome === "unconfirmed" ? "结果未确认" : "已返回"}
               className={cn("fade-in zoom-in-90 animate-in size-3.5 duration-200",

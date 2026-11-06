@@ -24,6 +24,8 @@ Local integration changes:
   courseware IDs. Search temporarily opens sections. Project and move dialogs
   open after Radix menu focus scopes close; disclosure motion respects reduced
   motion. Organization is saved by daemon, independently of content revisions.
+  Landing previews opt into `mockActions`: the same five menu items dismiss
+  normally without editing, organizing, archiving or deleting the demo thread.
 
 - Settings uses the existing official shadcn/Radix Dialog foundation in
   `ui/dialog.tsx`, retaining its 840x640 panel, 12px radius and MathMover tokens.
@@ -120,8 +122,11 @@ Local integration changes:
   Activity and call toggles use useScrollLock, with Radix data-state selectors for
   chevrons and panel animations. Outline borders use the host border token
   explicitly under Tailwind v4.
-- RunActivity keeps the current activity in its single-line disclosure trigger,
-  with truncation and a separate duration suffix. The host supplies an optional
+- RunActivity keeps the current activity in its disclosure trigger, wrapping
+  labels when space is limited and retaining a separate duration suffix.
+  ToolCall's SwapLabel measures local layout width rather than transformed
+  screen bounds, so labels remain complete inside scaled workbench previews.
+  The host supplies an optional
   `currentActivityLabel` from observed tool states: active calls show the running
   action; between calls the most recently returned result stays readable with
   an explicit returned/error/unconfirmed label. No artificial delay is added
@@ -133,6 +138,8 @@ Local integration changes:
   The Radix content uses its measured height for a 250ms expand/collapse and
   opacity animation, allowing the final answer to follow smoothly without
   delaying output. Reduced-motion preferences disable the panel animation.
+  Scaled landing previews normalize that screen-space measurement to local
+  layout height before animation; ordinary dashboard panels use Radix's height.
 - Running summaries compose the official `elements-thinking-indicator` source
   (retrieved 2026-10-15). Its pulse uses the host primary color; label changes
   retain the upstream shimmer and enter animation with reduced-motion support.
