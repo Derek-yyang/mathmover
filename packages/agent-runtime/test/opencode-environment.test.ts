@@ -1,8 +1,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { assertOpenCodeWorkspaceIsolated, createOpenCodeEnvironment, openCodePaths } from '../src/opencode-environment.ts';
+
+// Dependency staging has its own copy/junction tests. Environment assertions must
+// also run from this workspace, which does not install the frontend's plugin SDK.
+vi.mock('../src/opencode-plugin-dependencies.ts', () => ({ seedOpenCodePluginDependencies: vi.fn() }));
 
 describe('embedded OpenCode environment', () => {
   it('stops before launch if the internal plugin loader could discover project configuration', () => {
