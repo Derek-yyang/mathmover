@@ -9,8 +9,9 @@ import { BrandIcon } from '@/components/settings/BrandIcon';
 import styles from './landing.module.css';
 
 // Each desktop release publishes this fixed-name copy alongside versioned assets.
-const desktopDownloadUrl = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe';
-const macDownloadUrl = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-mac-arm64.dmg';
+const desktopDownloadUrl = '/download/windows';
+const macDownloadUrl = '/download/mac';
+const githubReleaseUrl = 'https://github.com/Derek-yyang/mathmover/releases/latest';
 const macInstallHelpUrl = 'https://github.com/Derek-yyang/mathmover/blob/master/docs/macos-install.md';
 
 export const metadata: Metadata = {
@@ -57,7 +58,7 @@ export default function LandingPage() {
                 <a href={desktopDownloadUrl} className={styles.primaryButton} aria-label="下载 Windows x64 版 MathMover">下载 Windows 版 <Download size={17} aria-hidden="true" /></a>
                 <a href={macDownloadUrl} className={styles.secondaryButton} aria-label="下载 Mac Apple 芯片版 MathMover">下载 Mac 版 <Download size={17} aria-hidden="true" /></a>
               </div>
-              <p className={styles.downloadHint}>Windows x64 · Mac Apple 芯片（M 系列）<br /><a href={macInstallHelpUrl} target="_blank" rel="noopener noreferrer">Mac 安装帮助 ↗</a></p>
+              <p className={styles.downloadHint}>Windows x64 · Mac Apple 芯片（M 系列）<br /><a href={githubReleaseUrl} target="_blank" rel="noopener noreferrer">GitHub 下载备用 ↗</a> · <a href={macInstallHelpUrl} target="_blank" rel="noopener noreferrer">Mac 安装帮助 ↗</a></p>
             </div>
           </div>
           <div id="demo" className={styles.demoAnchor}><HeroDemo /></div>
@@ -96,7 +97,7 @@ export default function LandingPage() {
             <a href={desktopDownloadUrl} className={styles.primaryButton}>下载 Windows 版 <Download size={17} aria-hidden="true" /></a>
             <a href={macDownloadUrl} className={styles.secondaryButton}>下载 Mac 版 <Download size={17} aria-hidden="true" /></a>
           </div>
-          <p>Windows x64 · Mac Apple 芯片（M 系列），连接自己的模型 API 或本机 Agent。</p>
+          <p>Windows x64 · Mac Apple 芯片（M 系列），连接自己的模型 API 或本机 Agent。<br /><a href={githubReleaseUrl} target="_blank" rel="noopener noreferrer">GitHub 下载备用 ↗</a></p>
           <a href={macInstallHelpUrl} className={styles.installHelp} target="_blank" rel="noopener noreferrer">Mac 安装帮助 ↗</a>
         </section>
       </main>

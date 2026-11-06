@@ -9,12 +9,16 @@ assert.ok(html.includes('让数学问题，'), 'Homepage content is missing');
 assert.ok(html.includes('id="examples"'), 'Examples section is missing');
 assert.ok(html.includes('id="questions"'), 'FAQ section is missing');
 assert.ok(!/(?:href|src)="\/(?:dashboard|api)(?:[\/"?#])/.test(html), 'Workbench or API entry leaked into the site');
-const download = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-Setup.exe';
+const download = '/download/windows';
 assert.equal(html.split(`href="${download}"`).length - 1, 2, 'Expected two Windows installer download links');
-const macDownload = 'https://github.com/Derek-yyang/mathmover/releases/latest/download/MathMover-mac-arm64.dmg';
+const macDownload = '/download/mac';
 assert.equal(html.split(`href="${macDownload}"`).length - 1, 2, 'Expected two Apple Silicon DMG download links');
+const githubRelease = 'https://github.com/Derek-yyang/mathmover/releases/latest';
+assert.equal(html.split(`href="${githubRelease}"`).length - 1, 2, 'Expected GitHub Releases fallback links in both download areas');
 const macInstallHelp = 'https://github.com/Derek-yyang/mathmover/blob/master/docs/macos-install.md';
 assert.equal(html.split(`href="${macInstallHelp}"`).length - 1, 2, 'Expected Mac installation help links in both download areas');
+const routes = JSON.parse(await readFile(path.join(output, '_routes.json'), 'utf8'));
+assert.deepEqual(routes, { version: 1, include: ['/download/*'], exclude: [] }, 'Only download routes should invoke Pages Functions');
 await stat(path.join(output, '404.html'));
 
 // Verify every generated page asset can be served directly from the export.
