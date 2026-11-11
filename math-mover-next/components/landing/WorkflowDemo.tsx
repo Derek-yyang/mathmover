@@ -23,7 +23,11 @@ import { fitWorkflowBoard, workflowCases, type DemoCaseId, type WorkflowApi } fr
 
 // Lay out the real components at desktop size before scaling the whole camera.
 const W=1920,H=1080;
-const prompt='帮我构建这个图形，我想直观看到变化。';
+const prompts:Record<DemoCaseId,string>={
+  conic:'帮我构建这个椭圆题，我想直观看到三角形面积的变化。',
+  function:'帮我构建这道函数题，我想直观看到线段长度和三角形的变化。',
+  solid:'帮我构建这个正方体，我想直观看到三角形面积的变化。',
+};
 const clamp=(v:number)=>Math.max(0,Math.min(1,v));
 const part=(p:number,a:number,b:number)=>clamp((p-a)/(b-a));
 const smooth=(v:number)=>v*v*(3-2*v);
@@ -110,6 +114,7 @@ function scrollGeometry(node:HTMLElement){
 export default function WorkflowDemo({embedded=false}:{embedded?:boolean}){
   const [selectedId,setSelectedId]=useState<DemoCaseId>('conic');
   const example=workflowCases.find(value=>value.id===selectedId)!;
+  const prompt=prompts[selectedId];
   const response=example.response,problemUrl=example.image;
   const photo=useMemo<CompleteAttachment>(()=>({id:`demo-${example.id}`,type:'image',name:example.fileName,contentType:'image/png',status:{type:'complete'},content:[{type:'image',image:example.image}]}),[example]);
   const [progress,setProgress]=useState(0);
@@ -127,7 +132,9 @@ export default function WorkflowDemo({embedded=false}:{embedded?:boolean}){
   const displayedProgress=useRef(0);
   const story=useRef<HTMLElement>(null),viewport=useRef<HTMLDivElement>(null),composer=useRef<HTMLDivElement>(null),messagesViewport=useRef<HTMLDivElement>(null);
   const choiceRefs=useRef<Record<DemoCaseId,HTMLButtonElement|null>>({conic:null,function:null,solid:null});
-  const setP=useCallback((p:number)=>{displayedProgress.current=p;setProgress(p);if(p>=timing.zoomEnd)setEngineMounted(true);},[]);
+  // Warm the real board while the prompt is still being typed. Mounting only at
+  // zoomEnd exposes the dynamic loading placeholder during the camera reveal.
+  const setP=useCallback((p:number)=>{displayedProgress.current=p;setProgress(p);if(p>=timing.typingStart)setEngineMounted(true);},[]);
   const jump=useCallback((p:number)=>{
     if(reduced){setP(p);return;}
     const node=story.current;if(!node)return;
@@ -278,7 +285,10 @@ export default function WorkflowDemo({embedded=false}:{embedded?:boolean}){
   const cameraMoving=p>timing.zoomStart&&p<timing.zoomEnd&&!native;
   const renderedCameraX=cameraMoving?cameraX:Math.round(cameraX),renderedCameraY=cameraMoving?cameraY:Math.round(cameraY);
   const cameraStyle:CSSProperties & {'--workflow-scale':number}={width:W,height:H,'--workflow-scale':native?1:scale,
-    transform:`translate(${renderedCameraX}px,${renderedCameraY}px) scale(${scale})`,
+    transform:cameraMoving
+      ? `translate3d(${renderedCameraX}px,${renderedCameraY}px,0) scale(${scale})`
+      : `translate(${renderedCameraX}px,${renderedCameraY}px) scale(${scale})`,
+    backfaceVisibility:cameraMoving?'hidden':undefined,
     willChange:cameraMoving?'transform':'auto'};
   const reveal=part(p,timing.zoomStart+.01,timing.zoomEnd);
   const imageTravel=smoother(part(p,timing.dragStart,timing.drop));
@@ -334,7 +344,7 @@ export default function WorkflowDemo({embedded=false}:{embedded?:boolean}){
       event.preventDefault();target.scrollIntoView({behavior:'instant',block:'start'});target.focus({preventScroll:true});
       if(location.hash!=='#connection')history.pushState(history.state,'','#connection');
     }}>跳过演示，查看模型接入 <ArrowDown aria-hidden="true"/></a>}
-    <div className="workflow-elevation" aria-hidden="true"><div className="workflow-workbench-shadow" style={{...cameraStyle,opacity:smooth(reveal)}}/></div>
+    <div className="workflow-elevation" aria-hidden="true"><div className="workflow-workbench-shadow" style={{...cameraStyle,opacity:cameraMoving?0:smooth(reveal)}}/></div>
     <div className="workflow-viewport" ref={viewport}>
       <div className="workflow-camera" data-product-workbench data-settled={settled} style={cameraStyle}>
         <div className="workflow-frame" style={{backgroundColor:`color-mix(in srgb, var(--background) ${reveal*100}%, transparent)`}}>
@@ -342,7 +352,10 @@ export default function WorkflowDemo({embedded=false}:{embedded?:boolean}){
           <div className="workflow-board-shell" style={surfaceStyle}>
             <ControlDeck title={title} saveStatusText={p>=timing.responseComplete?'已保存':undefined} connectionStatus="connected" boardDisabled={!boardReady} showAxes={graphics.axes==='all'} axesMixed={graphics.axes==='mixed'} showGrid={graphics.showGrid} isFullscreen={false} onToggleAxes={graphics.toggleAxes} onToggleGrid={graphics.toggleGrid} onToggleSettings={()=>{}} onResetView={()=>{if(boardApi)fitWorkflowBoard(boardApi as unknown as WorkflowApi,example.id);}} onToggleFullscreen={()=>{if(!embedded)setNative(v=>!v);}} onExport={()=>{}}/>
             <div data-slot="board-surface" className="relative mx-2 mb-2 flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border border-[var(--mm-border-stone-300)]">
-              {engineMounted?<WorkflowConstruction key={`${view.width}:${view.height}:${example.id}`} example={example} stage={constructionStage} movement={movement} projectionVersion={native} onProjection={setPointProjection} onReady={setBoardReady} onApi={setBoardApi}/>:<div className="h-full w-full bg-[var(--mm-surface)]"/>}
+              {engineMounted&&<div className="workflow-board-live absolute inset-0 flex" data-ready={boardReady} data-visible={boardReady&&p>=timing.zoomEnd}>
+                <WorkflowConstruction key={`${view.width}:${view.height}:${example.id}`} example={example} stage={constructionStage} movement={movement} projectionVersion={native} onProjection={setPointProjection} onReady={setBoardReady} onApi={setBoardApi}/>
+              </div>}
+              {(!boardReady||p<timing.zoomEnd)&&<div className="workflow-board-placeholder absolute inset-0" aria-hidden="true"/>}
             </div>
           </div>
           <PreviewClock value={clockNow}><AssistantRuntimeProvider runtime={runtime}><ImagePreviewProvider><ThreadPrimitive.Root className="workflow-chat aui-root" style={{'--composer-radius':'1rem','--composer-padding':'8px',backgroundColor:`color-mix(in srgb, var(--background) ${reveal*100}%, transparent)`} as CSSProperties}>

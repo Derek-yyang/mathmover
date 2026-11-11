@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore }
 import dynamic from 'next/dynamic';
 import { ArrowDown, ArrowRight, ArrowUp, Check, ChevronDown, ChevronRight, ImagePlus, MousePointer2, PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, RotateCcw, RotateCw, Search, Settings2, Square } from 'lucide-react';
 import ControlDeck from '@/components/dashboard/ControlDeck';
+import { CollapsibleRoot, CollapsibleTrigger, CollapsibleContent } from '@/components/assistant-ui/elements/collapsible-root';
 import styles from '@/app/landing.module.css';
 import { createCaseWheelGesture } from './case-wheel-gesture';
 import { GraphHandle } from './GraphHandle';
@@ -139,7 +140,7 @@ const demoTools = [
 
 export function HeroDemo() {
   const [step, setStep] = useState(0);
-  const [activityOpen, setActivityOpen] = useState(true);
+  const [activityExpansion, setActivityExpansion] = useState<{ complete: boolean; open: boolean } | null>(null);
   const [angle, setAngle] = useState(48);
   const [playing, setPlaying] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -250,6 +251,10 @@ export function HeroDemo() {
     followMessages.current = false;
   };
   const visibleStep = reducedMotion ? 7 : step;
+  const activityComplete = visibleStep === 7;
+  // A manual choice belongs to its phase: completion closes the running
+  // disclosure once, while a completed record can still be reopened.
+  const activityOpen = activityExpansion?.complete === activityComplete ? activityExpansion.open : !activityComplete;
   useEffect(() => {
     const messages = messagesRef.current;
     if (!messages || !followMessages.current) return;
@@ -309,7 +314,7 @@ export function HeroDemo() {
   };
   const updateAngle = (value: number) => { setPlaying(false); setAngle(value); };
   const sendDemoPrompt = () => { elapsed.current = demoStepStarts[1]; stepRef.current = 1; setStep(1); setPlaying(true); };
-  const replay = () => { elapsed.current = 0; stepRef.current = 0; followMessages.current = true; setActivityOpen(true); setAngle(48); setStep(0); setPlaying(true); };
+  const replay = () => { elapsed.current = 0; stepRef.current = 0; followMessages.current = true; setActivityExpansion(null); setAngle(48); setStep(0); setPlaying(true); };
   const area = focalDistance * Math.abs(3 * Math.sin(angle * Math.PI / 180));
   const currentStep = visibleStep === 0 ? '准备发送题目' : visibleStep === 1 ? '正在分析题目…' : visibleStep === 7 ? '构建完成 · 可拖动探索' : `${demoTools[visibleStep - 2].title}…`;
   return (
@@ -357,13 +362,15 @@ export function HeroDemo() {
               onKeyDown={event => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) interruptMessageFollow(); }}
               onScroll={event => { if (followingAnimation.current) return; const element = event.currentTarget; followMessages.current = element.scrollHeight - element.scrollTop - element.clientHeight < 40; }}>
               {visibleStep >= 1 && <p className={`${styles.previewUser} ${styles.previewReveal}`}>{demoPrompt}</p>}
-              {visibleStep >= 1 && <details className={styles.previewActivity} open={activityOpen} onToggle={event => setActivityOpen(event.currentTarget.open)}>
-                <summary><ChevronRight size={12} aria-hidden="true" /><span className={styles.previewStatusDot} data-running={visibleStep < 7} /><span aria-live="polite">{visibleStep === 1 ? '正在分析题目…' : visibleStep === 7 ? '本轮结束 · 5 次工具调用' : `${demoTools[visibleStep - 2].title}…`}</span></summary>
+              {visibleStep >= 1 && <CollapsibleRoot className={styles.previewActivity} open={activityOpen} onOpenChange={open => setActivityExpansion({ complete: activityComplete, open })}>
+                <CollapsibleTrigger className={styles.previewActivitySummary}><ChevronRight size={12} aria-hidden="true" /><span className={styles.previewStatusDot} data-running={visibleStep < 7} /><span aria-live="polite">{visibleStep === 1 ? '正在分析题目…' : visibleStep === 7 ? '本轮结束 · 5 次工具调用' : `${demoTools[visibleStep - 2].title}…`}</span></CollapsibleTrigger>
+                <CollapsibleContent className={`aui-run-activity-content ${styles.previewActivityContent}`}>
                 <ol className={styles.previewTools}>{demoTools.filter(tool => visibleStep >= tool.step).map(tool => <li key={tool.step} className={styles.previewReveal} data-running={visibleStep === tool.step}>
                   <div>{visibleStep > tool.step ? <Check size={12} aria-hidden="true" /> : <span className={styles.previewStatusDot} data-running="true" />}<span>{tool.title}</span><code>{tool.tool}</code></div>
                   <p>{tool.detail}</p>
                 </li>)}</ol>
-              </details>}
+                </CollapsibleContent>
+              </CollapsibleRoot>}
               {visibleStep === 7 && <div className={`${styles.previewAnswer} ${styles.previewReveal}`}><p>椭圆、焦点和三角形已构建完成。</p><p>现在拖动 θ，观察面积变化。P 到达最高点或最低点时，面积最大。</p></div>}
             </div>
             <div className={styles.previewComposer} data-drafting={visibleStep === 0}><span>{visibleStep === 0 ? demoPrompt : '输入题目，或上传题目截图…'}</span><span><ImagePlus size={15} aria-hidden="true" />{visibleStep > 0 && visibleStep < 7 ? <button type="button" className={styles.previewSend} data-state="stop" aria-label="停止演示" title="停止演示" onClick={() => setPlaying(false)} disabled={!playing}><Square size={14} fill="currentColor" aria-hidden="true" /></button> : <button type="button" className={styles.previewSend} aria-label="发送演示题目" title="发送演示题目" onClick={sendDemoPrompt} disabled={visibleStep !== 0}><ArrowUp size={18} strokeWidth={2.25} aria-hidden="true" /></button>}</span></div>

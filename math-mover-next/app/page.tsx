@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Check, Download, Github } from 'lucide-react';
+import { ArrowUpRight, Check, Download, Github } from 'lucide-react';
 import { HeroDemo } from '@/components/landing/LandingExperience';
 import WorkflowDemoClient from '@/components/landing/WorkflowDemoClient';
 import { LandingHeader } from '@/components/landing/LandingHeader';
@@ -12,6 +12,7 @@ import styles from './landing.module.css';
 // Each desktop release publishes this fixed-name copy alongside versioned assets.
 const desktopDownloadUrl = '/download/windows';
 const macDownloadUrl = '/download/mac';
+const onlineExperienceUrl = 'https://demo.mathmover.top/dashboard';
 const githubReleaseUrl = 'https://github.com/Derek-yyang/mathmover/releases/latest';
 const macInstallHelpUrl = 'https://github.com/Derek-yyang/mathmover/blob/master/docs/macos-install.md';
 
@@ -39,14 +40,14 @@ export default function LandingPage() {
     <div id="top" className={styles.landing}>
       <a href="#main" className={styles.skipLink}>跳转到主要内容</a>
       <LandingHeader>
-          <a href="#top" className={styles.brand} aria-label="MathMover，返回顶部"><span className={styles.brandMark} aria-hidden="true">M</span><span>MathMover</span></a>
+          <a href="#top" className={styles.brand} aria-label="MathMover，返回顶部" data-scroll-top><span className={styles.brandMark} aria-hidden="true">M</span><span>MathMover</span></a>
           <nav className={styles.navLinks} aria-label="首页导航"><a href="#demo">交互演示</a><a href="#examples">探索案例</a><a href="#questions">常见问题</a></nav>
           <div className={styles.navActions}>
             <a href="https://github.com/Derek-yyang/mathmover" className={styles.githubLink} target="_blank" rel="noopener noreferrer" aria-label="查看 MathMover 的 GitHub 仓库（新窗口打开）" title="GitHub 源码仓库">
               <Github size={20} aria-hidden="true" />
             </a>
             <ThemeToggle />
-            <a href="#download" className={styles.navAction}>下载桌面端 <Download size={15} aria-hidden="true" /></a>
+            <a href={onlineExperienceUrl} className={styles.navAction} aria-label="打开 MathMover 在线体验">在线体验 <ArrowUpRight size={15} aria-hidden="true" /></a>
           </div>
       </LandingHeader>
       <main id="main">
