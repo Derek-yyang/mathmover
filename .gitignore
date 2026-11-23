@@ -83,3 +83,16 @@ desktop/node_modules/
 desktop/build/
 desktop/release/
 math-mover-next/.next-desktop/
+
+.env*
+
+# 移动端（Capacitor）：依赖、构建产物与本机 SDK 配置
+mobile/node_modules/
+mobile/www/
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/local.properties
+mobile/android/app/src/main/assets/public/
+mobile/android/app/src/main/assets/capacitor.config.json
+mobile/android/app/src/main/assets/capacitor.plugins.json

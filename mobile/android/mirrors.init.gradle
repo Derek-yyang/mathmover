@@ -1,0 +1,22 @@
+// 给所有子项目（包括 node_modules 里的 Capacitor 插件）统一加国内 Maven 镜像。
+// 用法：gradlew.bat assembleDebug --init-script mirrors.init.gradle
+gradle.allprojects { project ->
+    project.buildscript.repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+    }
+    project.repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+    }
+    // 插件声明了 AGP 8.0.0，强制复用根项目已解析的 8.7.2，避免再下一份。
+    project.buildscript.configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'com.android.tools.build' && details.requested.name == 'gradle') {
+                details.useVersion '8.7.2'
+            }
+        }
+    }
+}
