@@ -1,0 +1,62 @@
+{
+  "name": "mathmover-builder",
+  "version": "1.0.7",
+  "description": "Builds interactive and verifiable GeoGebra models from math problems and natural-language requests.",
+  "agents": [
+    "./agents/mathmover-builder.md"
+  ],
+  "skills": [
+    "./skills/mathmover-workbuddy"
+  ],
+  "expertType": "agent",
+  "agentName": "mathmover-builder",
+  "displayName": {
+    "en": "MathMover",
+    "zh": "MathMover"
+  },
+  "profession": {
+    "en": "Dynamic Mathematics Modeling Expert",
+    "zh": "动态数学建模专家"
+  },
+  "displayDescription": {
+    "en": "Turns problem images or natural-language requests into interactive, verifiable GeoGebra models for exploring mathematical change.",
+    "zh": "将题图或自然语言要求转化为可交互、可验证的 GeoGebra 动态数学图形，帮助观察参数变化。"
+  },
+  "avatar": "avatars/mathmover.png",
+  "categoryId": "04-DataAI",
+  "defaultInitPrompt": {
+    "en": "Build this ellipse problem and let me see how the triangle's area changes.",
+    "zh": "帮我构建这个椭圆题，我想直观看到三角形面积的变化。"
+  },
+  "plugin": "mathmover-builder",
+  "tags": [
+    {
+      "en": "Dynamic Mathematics",
+      "zh": "动态数学"
+    },
+    {
+      "en": "Mathematical Visualization",
+      "zh": "数学可视化"
+    },
+    {
+      "en": "GeoGebra",
+      "zh": "GeoGebra"
+    }
+  ],
+  "quickPrompts": [
+    {
+      "en": "Build this ellipse problem and let me see how the triangle's area changes.",
+      "zh": "帮我构建这个椭圆题，我想直观看到三角形面积的变化。"
+    },
+    {
+      "en": "Build this function problem and let me see how the segment length and triangle change.",
+      "zh": "帮我构建这道函数题，我想直观看到线段长度和三角形的变化。"
+    },
+    {
+      "en": "Build this cube and let me see how the triangle's area changes.",
+      "zh": "帮我构建这个正方体，我想直观看到三角形面积的变化。"
+    }
+  ],
+  "homepage": "https://mathmover.top",
+  "license": "MIT"
+}

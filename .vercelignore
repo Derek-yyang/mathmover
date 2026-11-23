@@ -1,0 +1,17 @@
+node_modules/
+math-mover-next/node_modules/
+math-mover-next/.next/
+math-mover-next/.next-*/
+math-mover-next/.next-desktop/
+math-mover-next/site/.next/
+math-mover-next/site/out/
+math-mover-next/online/.next/
+math-mover-next/online/runtime/
+math-mover-next/online/public/
+math-mover-next/public/vendor/
+desktop/build/
+desktop/release/
+spike-out/
+.codex-temp/
+*.log
+*.tgz

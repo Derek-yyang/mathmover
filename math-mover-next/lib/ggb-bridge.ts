@@ -211,6 +211,8 @@ export function attachGgbBridge(
     onConnectionChange?: (status: GgbConnectionStatus) => void;
     active?: () => boolean;
     canvasRoot?: HTMLElement;
+    /** Alternative host transport; the same executor and state collector stay authoritative. */
+    transport?: (request: (op: string, args?: unknown) => Promise<unknown>) => { close: () => void; reconnect: () => void };
   },
 ) {
   let generation = 0;
@@ -314,7 +316,19 @@ export function attachGgbBridge(
   watchCanvasContext(api, canvasRoot);
 
   // —— WebSocket 通道：daemon 反向调用 ——
-  const connection = connectGgbDaemon({
+  const request = async (op: string, args?: unknown): Promise<unknown> => {
+    switch (op) {
+      case 'ping': return true;
+      case 'getState': return bridge.getState();
+      case 'apply': {
+        const a = (args ?? {}) as { commands?: string[]; incremental?: boolean; ledger?: string[] };
+        return bridge.apply({ commands: a.commands ?? [], incremental: a.incremental, ledger: a.ledger });
+      }
+      case 'reset': bridge.reset(); return true;
+      default: throw new Error(`未知操作: ${op}`);
+    }
+  };
+  const connection = opts.transport ? opts.transport(request) : connectGgbDaemon({
     windowId: opts.windowId,
     wsUrl: opts.wsUrl ?? 'ws://127.0.0.1:8787',
     onStatus: opts.onConnectionChange,

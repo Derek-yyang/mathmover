@@ -44,6 +44,7 @@ interface AgentChatPanelProps {
   activeRuntimeId?: string;
   selectedModel?: string; onSelectModel?: (id: string) => void;
   selectedEffort?: string; onSelectEffort?: (id: string) => void;
+  onConfigureModel?: () => void;
 }
 
 const reducedMotionQuery = '(prefers-reduced-motion: reduce)';
@@ -58,7 +59,7 @@ const getServerReducedMotion = () => true;
 function ChatThread({ messages, isLoading, sendDisabled = false, sendBlock, onReconnectBoard, onOpenSettings, loadingStatusText = '等待 Agent 回复…',
   onSendMessage, onEditMessage, onStopRun, canAttachImages,
   models, modelSource, selectedModel, onSelectModel,
-  reasoningOptions, selectedEffort, onSelectEffort, drafts, draftId, header }: AgentChatPanelProps & {
+  reasoningOptions, selectedEffort, onSelectEffort, onConfigureModel, drafts, draftId, header }: AgentChatPanelProps & {
     drafts: ComposerDrafts; draftId: string;
     canAttachImages: boolean;
     models?: Array<PickableModel>;
@@ -173,7 +174,8 @@ function ChatThread({ messages, isLoading, sendDisabled = false, sendBlock, onRe
           : sendBlock?.action === 'settings' ? onOpenSettings
           : sendBlock?.action === 'rescan' ? () => void refreshRuntimes() : undefined}
         models={models} modelSource={modelSource} selectedModel={selectedModel} onSelectModel={onSelectModel}
-        reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort} />
+        reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={onSelectEffort}
+        onConfigureModel={onConfigureModel} />
       {draftError && <p role="alert" className="px-3 pb-3 text-xs leading-5 text-[var(--mm-text-amber-900)]">{draftError}</p>}
       </ThreadPrimitive.Root>
     </ComposerPrimitive.AttachmentDropzone>

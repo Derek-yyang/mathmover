@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.next-*/
+.next-desktop/
+site/.next/
+site/out/
+online/.next/
+online/runtime/
+online/public/
+public/vendor/
+*.log
+*.tgz

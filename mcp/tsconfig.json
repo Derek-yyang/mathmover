@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@/*": ["../math-mover-next/*"],
+      "react": ["../math-mover-next/node_modules/@types/react/index.d.ts"],
+      "react/*": ["../math-mover-next/node_modules/@types/react/*"],
+      "react-dom/*": ["../math-mover-next/node_modules/@types/react-dom/*"],
+      "lucide-react": ["../math-mover-next/node_modules/lucide-react"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

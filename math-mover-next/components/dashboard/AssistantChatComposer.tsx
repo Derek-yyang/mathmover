@@ -14,7 +14,7 @@ import type { SendBlock } from '@/lib/agent-send-readiness';
 export default function AssistantChatComposer({ canAttachImages, isLoading, onStopRun,
   sendBlock, onResolveSendBlock,
   models = [], modelSource, selectedModel, onSelectModel,
-  reasoningOptions, selectedEffort, onSelectEffort }: {
+  reasoningOptions, selectedEffort, onSelectEffort, onConfigureModel }: {
   canAttachImages: boolean; isLoading: boolean; onStopRun?: () => void;
   sendBlock?: SendBlock; onResolveSendBlock?: () => void;
   /** 该 agent 可选的模型（= agent 配置里的全部）；只有一项时不渲染控件 */
@@ -26,6 +26,7 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
   reasoningOptions?: EffortOption[];
   selectedEffort?: string;
   onSelectEffort?: (id: string) => void;
+  onConfigureModel?: () => void;
 }) {
   const aui = useAui();
   const sendBlockId = useId();
@@ -100,10 +101,11 @@ export default function AssistantChatComposer({ canAttachImages, isLoading, onSt
           {/* 模型 + 推理档位的组合面板放在工具栏里（挨着附件/发送），不放聊天区
               头部——「随手换」的视线就在输入框。模型或档位有多个选项时才显示；
               档位是模型的属性，跟模型同面板。 */}
-          {models.length > 0 && (models.length > 1 || (reasoningOptions?.length ?? 0) > 1) && (
+          {models.length > 0 && (models.length > 1 || (reasoningOptions?.length ?? 0) > 1 || !!onConfigureModel) && (
             <ComposerModelPicker models={models} source={modelSource} loading={isLoading && models.length === 0}
               selectedId={selectedModel ?? 'default'} onSelect={id => onSelectModel?.(id)}
-              reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={id => onSelectEffort?.(id)} />
+              reasoningOptions={reasoningOptions} selectedEffort={selectedEffort} onSelectEffort={id => onSelectEffort?.(id)}
+              onConfigure={onConfigureModel} />
           )}
         </div>
         {/* 运行中换成停止按钮——原来只是转圈的发送键，看着能点、点了没反应。

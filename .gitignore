@@ -96,3 +96,7 @@ mobile/android/local.properties
 mobile/android/app/src/main/assets/public/
 mobile/android/app/src/main/assets/capacitor.config.json
 mobile/android/app/src/main/assets/capacitor.plugins.json
+
+# 本地工具运行态
+.codex-finalizer-mathmover/
+.trae-html-share-packages/

@@ -43,11 +43,12 @@ export interface ComposerModelPickerProps {
   reasoningOptions?: EffortOption[];
   selectedEffort?: string;
   onSelectEffort?: (id: string) => void;
+  onConfigure?: () => void;
 }
 
 export default function ComposerModelPicker({
   models, selectedId, onSelect, loading = false,
-  reasoningOptions, selectedEffort, onSelectEffort,
+  reasoningOptions, selectedEffort, onSelectEffort, onConfigure,
 }: ComposerModelPickerProps) {
   const [open, setOpen] = useState(false);
   const current = models.find((m) => m.id === selectedId) ?? models[0];
@@ -161,6 +162,10 @@ export default function ComposerModelPicker({
             ) : (
               <p className="text-xs leading-5 text-[var(--mm-text-stone-500)]">推理档位：由 Agent 配置决定</p>
             )}
+            {onConfigure && <button type="button" onClick={() => { setOpen(false); onConfigure(); }}
+              className="mt-2 w-full rounded-md px-2 py-1.5 text-left text-xs font-medium text-[var(--mm-text-emerald-800)] hover:bg-[var(--mm-bg-emerald-50)]">
+              {models.length > 1 ? '管理自己的模型…' : '使用自己的模型…'}
+            </button>}
           </div>
         </Popover.Content>
       </Popover.Portal>

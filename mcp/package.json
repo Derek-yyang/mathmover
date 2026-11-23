@@ -1,0 +1,44 @@
+{
+  "name": "@derekk/mathmover-mcp",
+  "version": "0.1.4",
+  "description": "MathMover MCP 版：由宿主 Agent 编辑本地工作稿，在宿主面板中构建和管理 GeoGebra 动态课件。",
+  "keywords": [
+    "mathmover",
+    "mcp",
+    "geogebra",
+    "mathematics",
+    "dynamic-geometry"
+  ],
+  "homepage": "https://mathmover.top",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Derek-yyang/mathmover.git",
+    "directory": "mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/Derek-yyang/mathmover/issues"
+  },
+  "author": "derekk",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "bin": { "mathmover-mcp": "dist/cli.cjs" },
+  "main": "dist/runtime.cjs",
+  "files": ["dist", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:expert": "node scripts/build-expert.mjs",
+    "install:expert": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-workbuddy-expert.ps1",
+    "start": "node dist/cli.cjs",
+    "pretest": "npm run build",
+    "test": "node --test test/runtime.test.mjs test/export.test.mjs test/workbuddy-setup.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "verify": "node test/verify-canvas.mjs",
+    "verify:package": "node test/verify-package.mjs",
+    "verify:expert": "node scripts/verify-workbuddy-expert.mjs",
+    "prepack": "npm run build"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "framework": "nextjs",
+  "installCommand": "cd ../.. && npm ci --ignore-scripts && cd math-mover-next && npm ci --ignore-scripts",
+  "buildCommand": "cd .. && npm run ggb:install && node online/scripts/prepare.mjs && cd online && npx next build --webpack && cd .. && node online/scripts/prune-trace.mjs"
+}
