@@ -24,6 +24,7 @@ const { createUpdateLog } = require('./update-log.cjs');
 const { TITLEBAR_COLORS, DEFAULT_OVERLAY, titleBarColor } = require('./titlebar-colors.cjs');
 const { createMacUpdater } = require('./mac-updates.cjs');
 const { createSparkleUpdater } = require('./sparkle-updates.cjs');
+const { createReleaseNotesState } = require('./release-notes-state.cjs');
 
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
@@ -43,6 +44,8 @@ const DATA_DIR = process.env.MATHMOVER_DATA_DIR || path.join(
   (IS_WIN && process.env.LOCALAPPDATA) || app.getPath('appData'), 'MathMover',
 );
 const LOG_DIR = path.join(DATA_DIR, 'logs');
+const releaseNotesState = createReleaseNotesState(DATA_DIR, app.getVersion());
+let onboardingLaunch = false;
 
 let mainWindow = null;
 let desktopTray = null;
@@ -310,6 +313,14 @@ function installDesktopIpc() {
     requireDesktopWindow(event);
     return app.getVersion();
   });
+  ipcMain.handle('release-notes:get', (event) => {
+    requireDesktopWindow(event);
+    return releaseNotesState.get(onboardingLaunch);
+  });
+  ipcMain.handle('release-notes:acknowledge', (event, version) => {
+    requireDesktopWindow(event);
+    releaseNotesState.acknowledge(version);
+  });
   ipcMain.handle('desktop-storage:open', async (event, target) => {
     requireDesktopWindow(event);
     if (target !== 'data' && target !== 'backups') throw new Error('无效的数据目录');
@@ -574,6 +585,7 @@ function createWindow(nextPort) {
 
   const marker = path.join(DATA_DIR, '.desktop-onboarded');
   const onboarding = !fs.existsSync(marker) && !fs.existsSync(path.join(DATA_DIR, 'byok.json'));
+  onboardingLaunch = onboarding;
   mainWindow.loadURL(`http://127.0.0.1:${nextPort}/dashboard${onboarding ? '?onboarding=1' : ''}`);
   try { fs.writeFileSync(marker, new Date().toISOString()); } catch { /* 只影响下次是否再弹 */ }
   if (process.env.MATHMOVER_DEVTOOLS === '1') mainWindow.webContents.openDevTools({ mode: 'detach' });

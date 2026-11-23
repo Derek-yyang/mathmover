@@ -109,7 +109,7 @@ export default function SettingsModal({ onClose }: { onClose: () => void }) {
           {section === 'appearance' && <AppearanceSettings />}
           <div hidden={section !== 'storage'}><DataStorageSettings active={section === 'storage'} /></div>
           {section === 'help' && <HelpSettings />}
-          {section === 'about' && <AboutSettings />}
+          {section === 'about' && <AboutSettings version={version} />}
       </SettingsSections>
     </div>
     </DialogContent>

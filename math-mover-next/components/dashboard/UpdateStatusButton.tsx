@@ -13,7 +13,7 @@ const ICON_BUTTON = 'flex h-7 w-7 shrink-0 items-center justify-center rounded-m
  * 标题栏里的更新状态环：不打断操作，状态自己说话。
  *
  *   idle        不渲染
- *   downloading 圆环按百分比走，hover 看进度
+ *   downloading 圆环与百分比同步显示，hover 看完整状态
  *   ready       重启按钮，点开就地确认（不弹系统模态）
  *   failed      警示图标，点击重试
  *
@@ -58,8 +58,8 @@ export function UpdateStatusButton() {
     const percent = Math.max(0, Math.min(100, Math.round(state.percent)));
     const label = `正在下载更新 ${percent}%`;
     return (
-      <span role="img" aria-label={label} title={label} className="flex h-7 w-7 shrink-0 items-center justify-center">
-        <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
+      <span role="img" aria-label={label} title={label} className="flex h-7 shrink-0 items-center gap-[5px] px-1">
+        <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true" className="shrink-0">
           <circle cx="10" cy="10" r={RADIUS} fill="none" stroke="var(--mm-border-divider)" strokeWidth="2" />
           <circle
             cx="10" cy="10" r={RADIUS} fill="none"
@@ -70,6 +70,9 @@ export function UpdateStatusButton() {
             style={{ transition: 'stroke-dashoffset 200ms ease' }}
           />
         </svg>
+        <span aria-hidden="true" className="w-[4ch] text-left text-[12px] font-medium tabular-nums text-[var(--mm-text-stone-600)]">
+          {percent}%
+        </span>
       </span>
     );
   }

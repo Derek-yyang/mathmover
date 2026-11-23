@@ -120,13 +120,16 @@ function DashboardWorkspace({ wsUrl, workspaceKey, initialId, active, drafts, on
 
   // 桌面版首次启动（main 在 URL 上带 onboarding=1）自动打开设置——普通用户不知道
   // 还要先配端点/密钥；浏览器开发环境没有这个参数，不会被打扰。
-  // 打开前把参数从地址栏摘掉：否则用户手动「重新加载」会再弹一次。
+  // 实际打开时再摘掉参数；开发模式的 effect 重放不能提前消耗引导标记。
   useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.get('onboarding') !== '1') return;
-    url.searchParams.delete('onboarding');
-    window.history.replaceState(null, '', url.toString());
-    const timer = setTimeout(openSettings, 800);
+    const timer = setTimeout(() => {
+      const current = new URL(window.location.href);
+      current.searchParams.delete('onboarding');
+      window.history.replaceState(null, '', current.toString());
+      openSettings();
+    }, 800);
     return () => clearTimeout(timer);
   }, []);
 

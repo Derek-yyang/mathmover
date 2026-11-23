@@ -133,6 +133,14 @@ WebSocket 地址由 Next 服务端在每请求时按 `MATHMOVER_WS_URL` 注入
 - 正常退出、自动更新重启以及 Windows 注销/关机时会清理托盘和后台服务。
 - 托盘图标随包放在 `build-resources/icon.ico`；`node scripts/make-icon.mjs` 可重新生成。
 
+## 应用内更新记录
+
+更新后首次进入工作台会展示更新说明，关闭、按 Esc 或点击“知道了”后，该版本不再自动展示。首次安装优先显示配置引导。可从“设置 → 关于 → 更新记录”或桌面“关于 MathMover → 更新记录”随时查看。
+
+用户已读版本保存在应用数据目录的 `release-notes.json`，由主进程读写，跟随应用升级保留，不依赖每次启动变化的本地端口。降级不会覆盖较新版本的已读记录。
+
+发布新版时，在 `desktop/release-notes.json` 顶部追加对应版本的用户可见变化（`新增`、`优化`、`修复`），与 `desktop/package.json` 和 `.github/release-notes.md` 一起更新。应用离线即可显示摘要，详情与完整更新内容链接到 GitHub Releases。运行 `node --test desktop/scripts/release-notes-state.test.cjs` 检查已读规则和版本记录。缺少当前版本摘要时，不自动展示旧版内容。
+
 ## 为什么 daemon 要预编译
 
 `mcp-stdio` 的启动配置由 `ensureMcpConfig` 生成，参数写死为

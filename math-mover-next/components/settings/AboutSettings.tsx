@@ -1,4 +1,9 @@
-import { ExternalLink, Github, Globe, MessageSquare } from 'lucide-react';
+'use client';
+
+import { useState } from 'react';
+import { ExternalLink, Github, Globe, History, MessageSquare } from 'lucide-react';
+import { ReleaseNotesDialog } from '@/components/dashboard/ReleaseNotesDialog';
+import { version as buildVersion } from '../../../desktop/package.json';
 
 const links = [
   { label: '官网', href: 'https://mathmover.top', icon: Globe },
@@ -7,7 +12,8 @@ const links = [
 ];
 
 /** 产品身份与项目入口；版本由设置侧栏显示。 */
-export default function AboutSettings() {
+export default function AboutSettings({ version = buildVersion }: { version?: string }) {
+  const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
   return <section aria-labelledby="about-mathmover-title" className="flex min-h-full flex-col py-3">
     <div className="flex items-center gap-4">
       <span aria-hidden="true" className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-[var(--mm-bg-emerald-700)] text-3xl font-bold leading-none text-white">M</span>
@@ -24,7 +30,9 @@ export default function AboutSettings() {
         className="inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[var(--mm-text-stone-700)] transition-colors hover:bg-[var(--mm-bg-stone-100)] hover:text-[var(--mm-text-stone-900)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)] motion-reduce:transition-none">
         <Icon size={15} aria-hidden="true" />{label}<ExternalLink size={12} aria-hidden="true" />
       </a>)}
+      <button type="button" onClick={() => setReleaseNotesOpen(true)} className="inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[var(--mm-text-emerald-700)] transition-colors hover:bg-[var(--mm-bg-stone-100)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)] motion-reduce:transition-none"><History size={15} aria-hidden="true" />更新记录</button>
     </div>
+    <ReleaseNotesDialog open={releaseNotesOpen} onOpenChange={setReleaseNotesOpen} version={version} />
     <footer className="mt-auto pt-10">
       <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 border-t border-[var(--mm-border-divider)] pt-4 text-xs leading-5 text-[var(--mm-text-stone-600)]">
         <p>由 Derek Yang 开发</p>

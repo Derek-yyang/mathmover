@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useId, useState, type RefObject } from 'react';
-import { Check, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, RotateCw } from 'lucide-react';
+import { Check, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, History, RotateCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/assistant-ui/ui/dialog';
 import { desktopBridge, type DesktopAboutInfo } from '@/lib/desktop-bridge';
+import { ReleaseNotesDialog } from './ReleaseNotesDialog';
 
 const CONTROL = 'inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--mm-bg-stone-100)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)] motion-reduce:transition-none';
 
@@ -13,6 +14,7 @@ export function DesktopAboutDialog({ returnFocusRef }: { returnFocusRef: RefObje
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
   const detailsId = useId();
 
   useEffect(() => desktopBridge()?.onShowAbout?.(next => {
@@ -52,6 +54,7 @@ export function DesktopAboutDialog({ returnFocusRef }: { returnFocusRef: RefObje
             desktopBridge()?.action('check-updates');
           }}><RotateCw size={15} aria-hidden="true" />检查更新</button>
         </div>
+        <button type="button" className={`${CONTROL} -ml-3 mt-2 text-[var(--mm-text-emerald-700)]`} onClick={() => setReleaseNotesOpen(true)}><History size={15} aria-hidden="true" />更新记录</button>
       </div>
 
       <div className="border-t border-[var(--mm-border-divider)] px-7 py-4">
@@ -74,6 +77,7 @@ export function DesktopAboutDialog({ returnFocusRef }: { returnFocusRef: RefObje
         </div>
       </div>
       <p className="px-7 pb-5 text-[11px] text-[var(--mm-text-stone-600)]">开源软件 · <a href="https://github.com/Derek-yyang/mathmover/blob/master/LICENSE" target="_blank" rel="noopener noreferrer" className="rounded-sm underline decoration-[var(--mm-border-stone-300)] underline-offset-4 hover:text-[var(--mm-text-stone-900)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--mm-border-emerald-700)]">MIT License</a></p>
+      <ReleaseNotesDialog open={releaseNotesOpen} onOpenChange={setReleaseNotesOpen} version={info?.version ?? ''} />
     </DialogContent>
   </Dialog>;
 }

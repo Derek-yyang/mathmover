@@ -8,6 +8,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('mathmoverDesktop', {
   isDesktop: true,
   getVersion: () => ipcRenderer.invoke('desktop-version:get'),
+  getReleaseNotesState: () => ipcRenderer.invoke('release-notes:get'),
+  acknowledgeReleaseNotes: (version) => ipcRenderer.invoke('release-notes:acknowledge', version),
   openStorageDirectory: (target) => ipcRenderer.invoke('desktop-storage:open', target),
   getPreferences: () => ipcRenderer.invoke('desktop-preferences:get'),
   setCloseToTray: (enabled) => ipcRenderer.invoke('desktop-preferences:set-close-to-tray', enabled),

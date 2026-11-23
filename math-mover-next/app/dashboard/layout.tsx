@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import DashboardSidebar from '../../components/DashboardSidebar';
 import { SidebarStateProvider } from '@/components/dashboard/SidebarState';
 import { AgentRuntimeProvider } from '@/components/dashboard/AgentRuntimeState';
+import { ReleaseNotesHost } from '@/components/dashboard/ReleaseNotesHost';
 
 export default function DashboardLayout({
   children,
@@ -11,6 +12,7 @@ export default function DashboardLayout({
   return (
     <SidebarStateProvider>
       <AgentRuntimeProvider>
+      <ReleaseNotesHost />
       <div className="flex h-[calc(100dvh-var(--desktop-titlebar-height,0px))] min-h-0 w-full bg-[var(--mm-canvas-shell)] overflow-hidden">
         {/* 左侧固定宽度侧栏，可收起，不拖动宽度。 */}
         <Suspense fallback={null}>

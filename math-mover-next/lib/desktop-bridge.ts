@@ -17,6 +17,13 @@ export interface DesktopAboutInfo {
   diagnostics: string;
 }
 
+export interface ReleaseNotesState {
+  version: string;
+  seenVersion: string | null;
+  onboarding: boolean;
+  shouldShow: boolean;
+}
+
 /** 主进程推送的更新状态；标题栏据此画状态环。 */
 export type UpdateState =
   | { status: 'idle' }
@@ -35,6 +42,8 @@ export interface DesktopOverlayColor {
 export interface DesktopBridge {
   isDesktop: true;
   getVersion(): Promise<string>;
+  getReleaseNotesState?(): Promise<ReleaseNotesState>;
+  acknowledgeReleaseNotes?(version: string): Promise<void>;
   /** Optional for compatibility with an already-running, older desktop shell. */
   openStorageDirectory?(target: 'data' | 'backups'): Promise<void>;
   getPreferences(): Promise<DesktopPreferences>;
