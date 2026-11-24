@@ -33,6 +33,18 @@ const SKIP_NEXT = process.env.MATHMOVER_SKIP_NEXT === '1';
 const log = (...a) => console.log('[prepare]', ...a);
 const die = (msg) => { console.error('[prepare] 失败：' + msg); process.exit(1); };
 
+/** 文件或目录（递归）占用的字节数。 */
+function duBytes(p) {
+  const st = fs.statSync(p);
+  if (!st.isDirectory()) return st.size;
+  let total = 0;
+  for (const ent of fs.readdirSync(p, { withFileTypes: true })) {
+    total += duBytes(path.join(p, ent.name));
+  }
+  return total;
+}
+const mb = (bytes) => (bytes / 1024 / 1024).toFixed(1) + ' MB';
+
 if (Number(process.versions.node.split('.')[0]) < 24) {
   die(`打包脚本必须用 Node 24+ 运行（当前 ${process.versions.node}）——daemon 依赖 node:sqlite`);
 }
@@ -84,6 +96,32 @@ log(`Next 就绪：${path.relative(desktop, nextDest)}`);
 }
 const nextDest = path.join(build, 'next');
 if (!fs.existsSync(path.join(nextDest, 'server.js'))) die('build/next 里没有 server.js（跳过 Next 构建时需先成功构建过一次）');
+
+// standalone 的 tracingRoot 在仓库根（见 next.config.ts 的 turbopack.root），产出会是
+// 整棵 app 目录树而不只是运行时：官网静态导出 site/out（里面还含一份 115 MB 的 GeoGebra
+// 运行时副本）、测试、本地状态、构建残留都会被原样带进安装包。桌面端只 spawn
+// <next>/server.js，这些都不参与运行，复制完就裁掉。
+// 用黑名单而不是白名单：未来 Next 若多出必需文件，最坏是漏裁，不会把应用裁坏。
+const PRUNE = [
+  'site',                  // 官网静态导出；桌面构建把 / 重定向到 /dashboard，用不到
+  'online', 'tests', 'supabase', 'spike-out', 'projects',
+  'tsconfig.tsbuildinfo', 'tsconfig.json', 'eslint.config.mjs',
+  'next.config.ts', 'postcss.config.mjs', 'package-lock.json', 'README.md',
+];
+let reclaimed = 0;
+for (const name of PRUNE) {
+  const target = path.join(nextDest, name);
+  if (!fs.existsSync(target)) continue;
+  const bytes = duBytes(target);
+  fs.rmSync(target, { recursive: true, force: true });
+  reclaimed += bytes;
+  log(`  裁掉 ${name}（${mb(bytes)}）`);
+}
+if (reclaimed) log(`非运行时内容共裁掉 ${mb(reclaimed)}`);
+
+const REQUIRED = ['server.js', 'package.json', DIST, 'node_modules', 'public'];
+const missing = REQUIRED.filter((name) => !fs.existsSync(path.join(nextDest, name)));
+if (missing.length) die(`裁剪后缺少运行时必需项：${missing.join('、')}`);
 
 // ── 2. daemon 预编译 ──────────────────────────────────────────────
 log('预编译 daemon…');
@@ -160,16 +198,5 @@ for (const executable of [nodeDest, opencodeDest]) {
 }
 
 // ── 5. 汇报 ─────────────────────────────────────────────────────
-const size = (p) => {
-  let total = 0;
-  const walk = (d) => {
-    for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
-      const f = path.join(d, ent.name);
-      if (ent.isDirectory()) walk(f);
-      else total += fs.statSync(f).size;
-    }
-  };
-  if (fs.statSync(p).isDirectory()) walk(p); else total = fs.statSync(p).size;
-  return (total / 1024 / 1024).toFixed(1) + ' MB';
-};
+const size = (p) => mb(duBytes(p));
 log(`完成：next=${size(nextDest)} app=${size(assetRoot)} node=${size(nodeDest)} opencode=${size(opencodeDest)}`);
