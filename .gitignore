@@ -75,6 +75,9 @@ math-mover-next/public/review_import.json
 # 诊断/评测输出（截图、抓样、日志，可随时再生）
 spike-out/
 
+# 一次性交付产物（竞赛海报等对外材料，不入库）
+output/
+
 # 会话历史实验落盘（claude 风格 jsonl，本地状态）
 math-mover-next/projects/
 
