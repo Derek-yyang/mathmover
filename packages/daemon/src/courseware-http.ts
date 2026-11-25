@@ -11,7 +11,7 @@ export function authorized(req: http.IncomingMessage, token: string): boolean {
   const actual = Buffer.from(supplied); const expected = Buffer.from(token);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
-export async function readJson(req: http.IncomingMessage): Promise<any> {
+async function readJson(req: http.IncomingMessage): Promise<any> {
   const chunks: Buffer[] = []; let length = 0;
   for await (const chunk of req) {
     length += chunk.length;

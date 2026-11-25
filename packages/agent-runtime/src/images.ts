@@ -26,7 +26,7 @@ export interface ImageInput {
 
 /** 防滥用上限（路由与 UI 共用）。 */
 export const MAX_IMAGES_PER_TURN = 4;
-export const MAX_IMAGE_BASE64_CHARS = 8 * 1024 * 1024; // ≈6MB 原图
+const MAX_IMAGE_BASE64_CHARS = 8 * 1024 * 1024; // ≈6MB 原图
 
 const ALLOWED_MEDIA = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 

@@ -50,7 +50,7 @@ async function readBody(req: http.IncomingMessage): Promise<unknown> {
   }
 }
 
-export function createHttpServer(tools: GgbTools, opts: HttpApiOptions): http.Server {
+function createHttpServer(tools: GgbTools, opts: HttpApiOptions): http.Server {
   return http.createServer(async (req, res) => {
     // Browsers must use the same-origin Next proxy. Loopback alone is not a CSRF boundary.
     if (req.headers.origin || (req.headers['sec-fetch-site'] && req.headers['sec-fetch-site'] !== 'none')) return json(res, 403, { error: '请通过工作台访问本地服务' });

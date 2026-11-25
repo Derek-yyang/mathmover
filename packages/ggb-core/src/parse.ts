@@ -23,7 +23,7 @@ const MODE_LINE = /^\s*MODE\s*:/i;
 const COMMENT_LINE = /^\s*\/\//;
 
 /** 归一化送入 evalCommand 的文本：反转义 GeoGebra 的 \" 序列 */
-export function normalizeCommandText(raw: string): string {
+function normalizeCommandText(raw: string): string {
   return raw.replace(/\\"/g, '"').trim();
 }
 
@@ -37,7 +37,7 @@ export function normalizeCommandText(raw: string): string {
 const PROP_HEAD_TARGET =
   /^\s*(Set\w+|Show\w+|SetTooltip|SetColor|SetFilling|SetLineThickness|SetPointStyle|SetCaption|SetVisible|SetTrace)\s*\(\s*([A-Za-z][A-Za-z0-9_]*)/;
 
-export function parsePropertyLine(raw: string): { head: string; target: string } | null {
+function parsePropertyLine(raw: string): { head: string; target: string } | null {
   const m = PROP_HEAD_TARGET.exec(raw.trim());
   if (!m) return null;
   return { head: m[1], target: m[2] };

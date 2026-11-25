@@ -4,7 +4,7 @@ import { Command } from 'commander';
 
 export const name = 'mathmover-startup';
 export const inject = ['cmdlineArgs'];
-export const MATHMOVER_STARTUP_SERVICE = 'mathmoverStartup';
+const MATHMOVER_STARTUP_SERVICE = 'mathmoverStartup';
 
 export interface MathmoverStartupValues {
   mode: 'models' | 'probe' | 'stdio';

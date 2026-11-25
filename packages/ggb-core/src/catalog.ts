@@ -262,7 +262,7 @@ export function inferType(expression: string, types: Map<string, string>, catalo
  * 传进来的应当是**已经筛过**的那批重载（按参数个数、按视图）——这样列出的是
  * 「你这种情况能用哪几个形式」，而不是把全部重载倒给它自己挑。
  */
-export function describeOverloads(name: string, signatures: CommandSignature[]): string {
+function describeOverloads(name: string, signatures: CommandSignature[]): string {
   if (!signatures.length) return '';
   const forms = signatures.map((s) => {
     const min = s.min_args ?? s.args.length;

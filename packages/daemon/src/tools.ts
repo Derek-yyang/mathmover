@@ -47,8 +47,8 @@ export interface ToolsConfig {
  *        给 60s；超时也不算失败，见 apply 的降级处理。
  * getState：只读，但要等画布绘制完成再取图，给 20s。
  */
-export const APPLY_TIMEOUT_MS = 60_000;
-export const GETSTATE_TIMEOUT_MS = 20_000;
+const APPLY_TIMEOUT_MS = 60_000;
+const GETSTATE_TIMEOUT_MS = 20_000;
 
 export const DEFAULT_TOOLS_CONFIG: ToolsConfig = {
   workdir: process.cwd(),

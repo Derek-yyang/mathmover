@@ -113,7 +113,7 @@ export interface SopCatalogEntry {
 }
 
 /** 卡头元数据：`# SOP: name — title` + `输入：...` 行。清单从这里自动生成，零维护。 */
-export function readCardMeta(rootDir: string, name: string): { title: string; inputs: string } {
+function readCardMeta(rootDir: string, name: string): { title: string; inputs: string } {
   const body = read(sopCardPath(rootDir, name));
   const head = /^#\s*SOP:\s*[a-z0-9-]+\s*—\s*(.+)$/m.exec(body);
   const inputs = /^输入：(.*)$/m.exec(body);
