@@ -8,11 +8,10 @@
  * 2026-10-15：`syntax` / `no_text` / `category_structure` 三条移除，判据与理由见
  * `semanticCheck` 的注释。本模块至此不再需要 category。
  *
- * 记录在案的实现差异：Python 侧对象 kind 由 ggb_parser 的表达式精化（圆锥/方程
- * 识别等多趟启发式）给出；这里按**定义命令头**分类 + 少量表达式启发（二次项
- * 记 conic-ish）。对 SOP 卡驱动的生成（卡里教的就是 Conic/Function 等构造器）
- * 覆盖一致；对隐式方程写法（e: x^2+y^2=1）的识别是启发式的。
- * 参数级命令校验（ggb_catalog.inspect_line）不在本层——未知命令名记 command_error。
+ * 对象 kind 按**定义命令头**分类 + 少量表达式启发（二次项记 conic-ish）。对 SOP 卡
+ * 驱动的生成（卡里教的就是 Conic/Function 等构造器）覆盖一致；对隐式方程写法
+ * （e: x^2+y^2=1）的识别是启发式的。
+ * 参数级命令校验（catalog.ts 的 `inspectLine`）不在本层——未知命令名记 command_error。
  */
 
 export interface SemanticFailure {

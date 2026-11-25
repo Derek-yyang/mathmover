@@ -1,8 +1,7 @@
 /**
- * 命令白名单（单一事实来源：仓库根 ggb_commands.json，与 Python 侧共享）。
+ * 命令白名单（单一事实来源：仓库根 ggb_commands.json）。
  *
- * 对拍目标是 ggb_parser.whitelist_command_names() 的输出语义：
- * { 2d, 3d, attributes, globals } —— 每项是按小写排序后的**规范显示名**列表。
+ * 输出语义：{ 2d, 3d, attributes, globals } —— 每项是按小写排序后的**规范显示名**列表。
  * （JSON 里已是视图→名字列表；aliases 把旧名映射到规范名。）
  */
 

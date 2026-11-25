@@ -1,18 +1,19 @@
 """Validate SOP imports/examples; --html-dir prepares an isolated GeoGebra QA page.
 
 Run from any directory: python -B scripts/verify_sops.py
-No model calls, user history writes, or credentials are required. Pure stdlib.
+No model calls, user history writes, or credentials are required.
+
+需要 Node：静态校验调用生产解析器（ggb-core 的 inspectLedger，经 scripts/ggb-ledger.mjs），
+不再维护 Python 侧的重复实现——校验口径与 ggb_apply 的自查完全一致。
 """
 import argparse
 import json
 import re
-import sys
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-import ggb_parser
-import ggb_catalog
+_LEDGER_SCRIPT = ROOT / "scripts" / "ggb-ledger.mjs"
 
 # --- SOP 库的路径与 skill 槽位解析（原 expert_prompts.py 的只读部分）---
 # 装配实现已随一次性生成管线下线；SOP 静态校验只读卡库与 skill 槽位，这些就够。
@@ -63,6 +64,27 @@ def _sop_names(body, category):
         raise ValueError(f"{CATEGORY_TO_SKILL[category]}: SOP 插入位置必须位于编号步骤")
     return names
 
+def _ledger_rejects(lines):
+    """用生产解析器（ggb-core 的 inspectLedger）校验一段指令，返回被拒项描述。
+
+    入参可混入多行字符串（示例代码块就是一个整块），这里摊平成逐行。
+    未知命令也算拒绝：SOP 卡与命令夹具只应使用命令目录里的名字。
+    """
+    flat = [piece for item in lines for piece in str(item).splitlines()]
+    proc = subprocess.run(
+        ["node", str(_LEDGER_SCRIPT)],
+        input=json.dumps({"lines": flat}, ensure_ascii=False),
+        capture_output=True, text=True, encoding="utf-8", cwd=ROOT,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"ggb-ledger 调用失败：{proc.stderr.strip()}")
+    rejected = []
+    for entry in json.loads(proc.stdout)["problems"]:
+        for problem in entry["problems"]:
+            rejected.append(f"{entry['line']} → {' '.join(problem['detail'].split())}")
+    return rejected
+
+
 EXAMPLE = re.compile(r"<!-- example: ([\w-]+) -->\s*```ggb\n(.*?)\n```", re.S)
 
 
@@ -88,9 +110,10 @@ def collect_cases():
             unknown = set(re.findall(r"\b([A-Z][A-Za-z]+)\s*\(", code)) - allowed
             if unknown:
                 raise ValueError(f"{name}: commands outside whitelist: {sorted(unknown)}")
-            validation = ggb_parser.validate_text("\n".join(fixtures[name]["prelude"] + [code]))
-            if validation["validity"] != 1:
-                raise ValueError(f"{name}: production parser rejected {validation['invalid_lines']}")
+            rejected = _ledger_rejects(
+                [f"MODE: {fixtures[name]['mode']}"] + fixtures[name]["prelude"] + [code])
+            if rejected:
+                raise ValueError(f"{name}: production parser rejected {rejected}")
             fixture = dict(fixtures[name])
             fixture.pop("variants", None)
             cases.append({"id": name, "card": card.stem, "code": code, **fixture})
@@ -117,10 +140,9 @@ def collect_command_cases():
     """Focused engine checks for new names, aliases, overloads and view state."""
     cases = json.loads((ROOT / "scripts/command_examples.json").read_text(encoding="utf-8"))
     for case in cases:
-        candidate = "MODE: " + case["mode"] + "\n" + "\n".join(case["prelude"] + [case["code"]])
-        result = ggb_parser.validate_text(candidate)
-        if not result["ok"] or result["unknown_commands"]:
-            raise ValueError(f"{case['id']}: catalog rejected engine fixture {result['command_errors']}")
+        rejected = _ledger_rejects([f"MODE: {case['mode']}"] + case["prelude"] + [case["code"]])
+        if rejected:
+            raise ValueError(f"{case['id']}: catalog rejected engine fixture {rejected}")
     return cases
 
 

@@ -170,7 +170,7 @@ export function createMcpServer(
       // 而且宿主委托那条路会把它换掉（dashboard 的 applyCommands 直接 `ledger ?? commands`）。
       // 报的是「你文件里有问题行」，就得读文件。
       //
-      // 判据走 `inspectLedger`（= ggb_catalog.py 的移植）：**只有两件事**——名字在不在
+      // 判据走 `inspectLedger`（原 ggb_catalog.py 的移植）：**只有两件事**——名字在不在
       // 白名单、用法对不对（**只有带签名的命令才查用法**）。绝不再用 `classifyLine` 的
       // 结构分类当有效性判据：那会把 `ShowGrid(1, true)` / `ZoomIn(2)` 这类合法命令
       // 误报成无效（实测让 agent 白改了三轮）。

@@ -175,6 +175,10 @@ Python 一次性生成管线（Router → Specialist → 校验）没有任何�
 **Python 侧保留**：`ggb_parser.py` / `ggb_catalog.py` 与
 `scripts/verify_sops.py`、`test_command_catalog.py`——SOP 静态校验 + 命令目录校验。纯标准库。
 
+> **2026-11-25 更新**：`ggb_parser.py`、`ggb_catalog.py`、`test_command_catalog.py` 已删除。
+> 解析与命令目录只留 TS 实现（`ggb-core`），`verify_sops.py` 改为经
+> `scripts/ggb-ledger.mjs` 调用生产解析器 `inspectLedger`，它的 42 个示例引擎验收保留。
+
 **2026-10-10 追加**：Python 侧的 prompt 装配参考实现也一并退役。`expert_prompts.py`、
 `scripts/gen_prompt_goldens.py`、`scripts/test_sop_loader.py`、
 `packages/ggb-core/src/data/prompt-goldens.json`、`scripts/diag-golden-diff.mjs` 删除。

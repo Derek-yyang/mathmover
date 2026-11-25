@@ -276,3 +276,19 @@ Python 装配已无调用方，参考实现一走，对拍就没有对象了。�
 所需几样已内联进该文件。它仍然检查无孤儿卡、无嵌套引用、每块 ggb 有示例 id、
 id 与 `sop_examples.json` 一一对应、命令在白名单内、生产解析器可解析。
 今日两次抓到孤儿夹具（`view-2d`/`view-3d`、以及 fixed-point/aux-line 迁移校验）靠的就是它。
+
+## Python 解析器退役（2026-11-25）
+
+`ggb_parser.py`、`ggb_catalog.py`、`scripts/test_command_catalog.py` 已删除。
+
+它们与 `ggb-core` 的 `parse.ts` / `catalog.ts` / `semantic.ts` 是同一套校验的两份实现。
+`ggb_parser.py` 声称服务的 `app.py` 早已随一次性生成管线下线，文件里最大的一块是
+数值几何求值（`resolve_point_coords` / `safe_arith` / `_root_of` / `_eval_geo_expr`），
+只服务当年那套已被判定不可信的自动判分。两份实现并存只会静默漂移：TS 侧有 CI 兜着，
+Python 侧无人执行（既不进 `npm test`，也不进 CI）。
+
+**`scripts/verify_sops.py` 保留**：它生成的 QA 页会在真实 GeoGebra 2D/3D 里执行全部示例
+并断言数学性质——这是 TS 单测覆盖不到的一层。它的静态校验改为经
+`scripts/ggb-ledger.mjs` 调用生产解析器的 `inspectLedger`，与 `ggb_apply` 的自查同口径。
+因此该脚本现在需要 Node，不再是"纯标准库"；上文「生产 ggb_parser 校验」一栏所指的
+解析器，现在就是 `ggb-core`。

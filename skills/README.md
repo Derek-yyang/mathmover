@@ -79,19 +79,20 @@ skill 的编号流程始终完整加载，模型仍直接读取原题文字/图�
 
 ## 验证
 
-Python 侧只剩 SOP 静态校验与命令目录校验（纯标准库，不调模型、不读凭据）。
-prompt 装配在 TS 侧（`ggb-core/src/sop.ts`），由其单测覆盖。
+SOP 静态校验与引擎验收都在 `scripts/verify_sops.py`（不调模型、不读取凭据）。
+解析与命令目录只维护 TS 一侧（`ggb-core`）——静态校验经 `scripts/ggb-ledger.mjs`
+调用生产解析器的 `inspectLedger`，口径与 `ggb_apply` 的自查一致，没有第二套实现。
 
-在仓库根目录运行：
+在仓库根目录运行（需要 Node）：
 
 ```powershell
 python -B scripts/verify_sops.py
-python -B scripts/test_command_catalog.py
 ```
 
-第一项检查引用覆盖、示例与白名单：无孤儿卡、无嵌套引用、每块 ggb 都有示例 id、
-id 与 `sop_examples.json` 一一对应、命令在白名单内、生产解析器可解析；
-第二项检查命令目录。上述命令不调用模型、不读取凭据。
+它检查引用覆盖、示例与白名单：无孤儿卡、无嵌套引用、每块 ggb 都有示例 id、
+id 与 `sop_examples.json` 一一对应、命令在白名单内、生产解析器可解析，
+并校验 `command_examples.json` 里的命令目录用例。
+加 `--html-dir <目录>` 会生成内嵌 GeoGebra 2D/3D 的 QA 页，逐个执行示例并断言数学性质。
 静态检查通过不等于 GeoGebra 执行成功。
 
 引擎验收检查定义对象存在、显示值有效、点坐标有限，以及数学关系与实际属性状态。

@@ -138,11 +138,12 @@ SOP 库只放「小范围、可能用而未必用」的条件写法。库里现�
 
 | 文件 | 控制什么 | 怎么调 | 谁守着 |
 |---|---|---|---|
-| `ggb_commands.json`（仓库根） | 命令白名单与签名；非法行**剔除不下发** | 加命令、修重载签名 | `test_command_catalog` + `verify_sops` |
+| `ggb_commands.json`（仓库根） | 命令白名单与签名；非法行**剔除不下发** | 加命令、修重载签名 | `verify_sops`（调生产解析器）+ `catalog.test.ts` |
 | `semantic.ts` 的判定规则 | free_param / orphan_slider / category_structure 怎么判 | 调判据松紧 | `semantic.test.ts` |
 
-`ggb_commands.json` 是**双端共享的单一事实来源**（TS `whitelist.ts` 与 Python
-`ggb_parser.py` 同吃）。改它两边都会变，且 `verify_sops` 会拿它校验全部 55 个示例。
+`ggb_commands.json` 是**单一事实来源**，只有 TS 一侧消费它（`ggb-core` 的 `whitelist.ts` /
+`catalog.ts`）；`verify_sops` 也拿它校验全部 55 个示例。Python 侧的实现已删除，
+不存在两份白名单需要对拍。
 
 ---
 
@@ -173,7 +174,7 @@ SOP 库只放「小范围、可能用而未必用」的条件写法。库里现�
 - **删卡要同步删槽位**：SKILL.md 里的 `{{SOP:card-name}}` 必须独占一行、无重复、
   位于编号步骤内；漏改会报「SOP 插入位置缺失或格式错误」
 - **示例是实例不是常量**：数字、名字、范围按题意替换。别为套示例而添条件、缩范围
-- 改完跑一遍：`python -B scripts/verify_sops.py` 与 `python -B scripts/test_command_catalog.py`
+- 改完跑一遍：`python -B scripts/verify_sops.py`
 
 ## 与 P3 的关系
 
